@@ -1,0 +1,97 @@
+name: CI
+
+# "A gate that can be skipped is not a gate. None of these have an override." (Repo §4)
+# There is deliberately no `workflow_dispatch` with a skip input, and no `[skip ci]` handling.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22.12.0'
+
+jobs:
+  quality:
+    name: Types · Lint · Tests · Boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      # Supply chain: the lockfile is the contract. An install that is allowed to *resolve*
+      # something new is an install that can pull in something nobody reviewed (Security §7).
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm format:check
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+      # Invariant I1: packages/core-* never import electron or react.
+      - name: Architectural boundaries
+        run: pnpm gate:boundaries
+
+      # WCAG 2.2 AA on every semantic colour pair, both themes (Design Review §6.3).
+      - name: Contrast gate
+        run: pnpm gate:contrast
+
+      # docs/adr/ must match docs/03-DECISION-REGISTER.md — one source of truth for decisions.
+      - name: ADR drift
+        run: pnpm gate:adr
+
+  security:
+    name: Electron config · Secrets · Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks scans history, not just the working tree. A secret in an old commit is
+          # still a leaked secret.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # "Configuration drifts; scanners don't get tired." (Security §2)
+      - name: Electronegativity
+        run: pnpm gate:electron
+
+      - name: Upload Electronegativity SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: electronegativity-report.sarif
+          category: electronegativity
+        continue-on-error: true
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Every `npm install` is a trust decision about a stranger (Standards §2).
+      - name: Dependency audit
+        run: pnpm audit --audit-level high

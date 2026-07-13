@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // dependency-cruiser needs a TypeScript view of the repo to follow `./x.js` specifiers back
+  // to `./x.ts` (verbatimModuleSyntax). Without it, it cannot see the import graph — and a
+  // boundary checker that cannot see an edge cannot forbid it.
+  "extends": "./tooling/tsconfig/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "tooling/**/*.ts"]
+}

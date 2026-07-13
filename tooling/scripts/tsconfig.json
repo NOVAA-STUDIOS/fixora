@@ -1,0 +1,7 @@
+{
+  "extends": "@fixora/tsconfig/node.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["**/*.ts"]
+}

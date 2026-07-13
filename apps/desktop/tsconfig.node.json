@@ -1,0 +1,8 @@
+{
+  "extends": "@fixora/tsconfig/node.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "electron-vite/node"]
+  },
+  "include": ["electron/**/*.ts", "electron.vite.config.ts", "vitest.config.ts", "tests/**/*.ts"]
+}

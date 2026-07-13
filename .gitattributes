@@ -1,0 +1,7 @@
+# Line endings are a correctness concern here, not a style one: core-patch must restore
+# byte-identical content including CRLF (Testing §2). Do not let git rewrite them.
+* -text
+*.md text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

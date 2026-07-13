@@ -1,0 +1,14 @@
+node_modules/
+dist/
+out/
+build/
+.turbo/
+coverage/
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+electronegativity-report.sarif
+*.tsbuildinfo

@@ -1,0 +1,42 @@
+@import 'tailwindcss';
+
+/*
+ * The tokens are the palette and the theme is the Tailwind mapping over it. Both come from
+ * @fixora/tokens, which is the only place a colour is allowed to be decided (ADR-019) — and
+ * the only place the contrast gate can see it.
+ */
+@import '@fixora/tokens/tokens.css';
+@import '@fixora/tokens/theme.css';
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    font-family: var(--fx-font-sans);
+    font-size: var(--fx-text-base);
+    line-height: var(--fx-leading-normal);
+    background-color: var(--fx-color-bg-canvas);
+    color: var(--fx-color-text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Our users are keyboard users (Standards §3). A focus ring is never removed; it is only
+   * scoped to keyboard focus. The 2px offset is a contract with the contrast gate, not a
+   * style choice — see packages/tokens/src/requirements.ts.
+   */
+  :focus-visible {
+    outline: var(--fx-focus-ring-width) solid var(--fx-color-focus-ring);
+    outline-offset: var(--fx-focus-ring-offset-width);
+  }
+
+  /* This is a desktop app, not a web page. It does not bounce, and it does not select chrome. */
+  body {
+    overscroll-behavior: none;
+    user-select: none;
+  }
+}

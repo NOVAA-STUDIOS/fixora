@@ -1,0 +1,30 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'tooling/*'
+
+# A postinstall script is arbitrary code execution on every developer machine and every CI
+# runner — i.e. it is part of the release pipeline, and the release pipeline is production
+# (Security §7). Nothing runs one unless it is named here, with a reason.
+allowBuilds:
+  # Bundler used by Vite/Vitest/tsx. Needs its native binary.
+  esbuild: true
+  # Native resolver behind eslint-import-resolver-typescript. Needs its platform binding.
+  unrs-resolver: true
+  # Prints a postinstall banner. It needs nothing; it gets nothing.
+  es5-ext: false
+
+minimumReleaseAgeExclude:
+  - dependency-cruiser@18.1.0
+  - tsx@4.23.1
+
+# ADR-020 says pnpm's strict, non-hoisted node_modules exists to prevent phantom dependencies.
+# On the first install it found one: @doyensec/electronegativity imports `commander` without
+# declaring it, and has survived on hoisting. Rather than turn the linker off to accommodate
+# it — which would also re-open the door for `packages/core-*` to resolve `electron` by
+# accident, the exact failure ADR-020 is guarding against — we declare the missing dependency
+# on its behalf. This is what packageExtensions is for.
+packageExtensions:
+  '@doyensec/electronegativity':
+    dependencies:
+      commander: '^2.20.3'

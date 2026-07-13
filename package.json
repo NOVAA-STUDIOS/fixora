@@ -1,0 +1,41 @@
+{
+  "name": "fixora-desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Fixora — the workspace you open when the code is already broken.",
+  "packageManager": "pnpm@11.12.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=@fixora/desktop",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "turbo run test",
+    "gate:contrast": "turbo run gate:contrast",
+    "gate:boundaries": "depcruise --config .dependency-cruiser.cjs apps packages tooling",
+    "gate:electron": "node tooling/scripts/run-electronegativity.mjs",
+    "gate:secrets": "node tooling/scripts/run-gitleaks.mjs",
+    "gate:audit": "pnpm audit --audit-level high",
+    "gate:adr": "tsx tooling/scripts/sync-adrs.ts --check",
+    "adr:sync": "tsx tooling/scripts/sync-adrs.ts",
+    "ci": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm gate:contrast && pnpm gate:boundaries && pnpm gate:adr && pnpm gate:electron && pnpm gate:secrets && pnpm gate:audit"
+  },
+  "devDependencies": {
+    "@doyensec/electronegativity": "1.10.3",
+    "@fixora/eslint-config": "workspace:*",
+    "@fixora/tsconfig": "workspace:*",
+    "@changesets/cli": "2.31.0",
+    "dependency-cruiser": "18.1.0",
+    "eslint": "10.7.0",
+    "prettier": "3.9.5",
+    "tsx": "4.23.1",
+    "turbo": "2.10.4",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

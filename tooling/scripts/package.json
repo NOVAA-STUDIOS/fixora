@@ -1,0 +1,17 @@
+{
+  "name": "@fixora/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Repo-level gates and generators. Not shipped; still type-checked and linted.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0"
+  },
+  "devDependencies": {
+    "@fixora/eslint-config": "workspace:*",
+    "@fixora/tsconfig": "workspace:*",
+    "@types/node": "26.1.1",
+    "typescript": "6.0.3"
+  }
+}
