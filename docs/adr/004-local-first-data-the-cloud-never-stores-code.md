@@ -22,11 +22,11 @@ our biggest liability into our strongest differentiator.
 
 **Alternatives considered.**
 
-- _Cloud-stored history (the default SaaS shape)._ Enables cross-device sync and server-side analytics
+- *Cloud-stored history (the default SaaS shape).* Enables cross-device sync and server-side analytics
   on real data. It also makes us a breach target holding other companies' source code, requires SOC 2
   before enterprises will touch us, and forces a "we don't train on your data, trust us" conversation we
   cannot win pre-brand. Rejected.
-- _Encrypted cloud history with client-side keys._ Real option, and the eventual answer for Teams. But
+- *Encrypted cloud history with client-side keys.* Real option, and the eventual answer for Teams. But
   it blocks server-side search and adds key-management complexity we do not need in v1. **Deferred**, not
   rejected.
 

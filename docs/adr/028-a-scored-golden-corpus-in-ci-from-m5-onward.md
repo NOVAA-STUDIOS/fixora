@@ -19,8 +19,8 @@ no compile error and no failing unit test**. Without a scored corpus, we are fly
 will drift downward invisibly while everyone feels productive. This is the single practice that separates
 AI products that improve from AI products that rot.
 
-**Alternatives considered.** _Manual spot-checking._ Does not scale past week three and is not a gate.
-_LLM-as-judge only._ Useful as a _secondary_ signal, but our primary signal is objective and free: **did
+**Alternatives considered.** *Manual spot-checking.* Does not scale past week three and is not a gate.
+*LLM-as-judge only.* Useful as a *secondary* signal, but our primary signal is objective and free: **did
 the verification pass?** We already built that in M6 — the corpus scorer is the verification pipeline run
 in a loop. That is a beautiful piece of leverage and we should exploit it deliberately.
 

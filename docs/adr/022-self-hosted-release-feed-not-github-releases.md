@@ -17,8 +17,8 @@ table with a `rollout_percent`. Binaries live in object storage behind a CDN.
 in the wild cannot be hot-fixed; the only defence against a bad release is to stop it reaching everyone.
 We promote 5% → 25% → 100%, watching crash-free-sessions between steps, and we can halt instantly.
 
-**Alternatives considered.** _GitHub Releases_ (free, zero infra, no rollout control — rejected).
-_Hazel/Nuts_ (a proxy over GitHub; still no rollout control). _A commercial update service_ (money for
+**Alternatives considered.** *GitHub Releases* (free, zero infra, no rollout control — rejected).
+*Hazel/Nuts* (a proxy over GitHub; still no rollout control). *A commercial update service* (money for
 something that is a database table and an endpoint).
 
 **Trade-offs accepted.** We own the availability of our own update feed. It must be boringly reliable: a

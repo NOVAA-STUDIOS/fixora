@@ -39,19 +39,19 @@ and reliably gets the least.
 
 We build context in four layers, in priority order. When the budget is exceeded, we drop from the bottom.
 
-| Layer              | Content                                                                      | Source              | Droppable? |
-| ------------------ | ---------------------------------------------------------------------------- | ------------------- | ---------- |
-| **1. Target**      | The exact symbol containing the finding, whole — never a truncated function  | tree-sitter         | **Never**  |
-| **2. Evidence**    | The Finding: rule id, message, raw tool output, related locations            | Analyzer adapters   | **Never**  |
-| **3. Conventions** | Lint config, tsconfig strictness, test framework, style of neighbouring code | Workspace detection | Last       |
-| **4. Neighbours**  | Type definitions, imported symbols, call sites — ranked by graph distance    | Symbol graph        | First      |
+| Layer | Content | Source | Droppable? |
+|---|---|---|---|
+| **1. Target** | The exact symbol containing the finding, whole — never a truncated function | tree-sitter | **Never** |
+| **2. Evidence** | The Finding: rule id, message, raw tool output, related locations | Analyzer adapters | **Never** |
+| **3. Conventions** | Lint config, tsconfig strictness, test framework, style of neighbouring code | Workspace detection | Last |
+| **4. Neighbours** | Type definitions, imported symbols, call sites — ranked by graph distance | Symbol graph | First |
 
 **We never send whole files.** A 2,000-line file costs ~25k tokens, buries the target in noise, and makes
-the model _worse_, not better. We send the enclosing symbol plus its ranked dependencies. This is cheaper
+the model *worse*, not better. We send the enclosing symbol plus its ranked dependencies. This is cheaper
 **and** higher quality — the rare case where the two align, and we should exploit it ruthlessly.
 
 **Ranking neighbours: symbol graph first, embeddings second.** Static analysis already knows what the target
-calls, what calls it, and what types it touches. That is a _precise_ answer. Embeddings give a _fuzzy_ one.
+calls, what calls it, and what types it touches. That is a *precise* answer. Embeddings give a *fuzzy* one.
 Most RAG-for-code products reach for embeddings first because it's the familiar hammer; it is the wrong
 first tool when you have a compiler-grade graph sitting right there. Embeddings are our fallback for
 "related but not statically connected" (similar past fixes, adjacent docs), not our primary retrieval.
@@ -70,7 +70,7 @@ Hard caps per task profile. When context exceeds budget it **drops the lowest-ra
 it never truncates mid-symbol. A half-function in the context window is worse than no function: the model
 will confidently reason about code it cannot see the end of.
 
-`CONTEXT_OVERFLOW` is a _prevented_ error, not a _handled_ one. If the budgeter ever lets a request reach a
+`CONTEXT_OVERFLOW` is a *prevented* error, not a *handled* one. If the budgeter ever lets a request reach a
 provider that rejects it on length, the budgeter has a bug.
 
 ---
@@ -90,7 +90,7 @@ Three layers:
 1. **Path denylist** — `.env*`, `.git/config`, `id_rsa`, `.pem`, `.npmrc`, `.aws/`, `.ssh/`,
    `*.key`, `credentials`, `secrets.*`. These files are never read into a prompt, at all, ever.
 2. **Content scan** — gitleaks rulesets (AWS keys, GitHub tokens, private keys, JWTs, connection strings)
-   over every byte of the payload, including the _evidence_ and the _neighbours_, not just the target.
+   over every byte of the payload, including the *evidence* and the *neighbours*, not just the target.
 3. **Entropy heuristic** — high-entropy string literals flagged and **redacted to a placeholder**, with the
    redaction visible to the user.
 
@@ -100,7 +100,7 @@ that a tired person clicks at 6pm on a Friday.
 
 > **This is the control that prevents the extinction-level risk in the PRD.** One incident of Fixora
 > emailing a customer's AWS key to a model provider and the company is over — not because of the damage,
-> but because the entire product thesis is _"trust us with your code."_ An integration test attempts to
+> but because the entire product thesis is *"trust us with your code."* An integration test attempts to
 > smuggle a live-looking key past the gate on **every CI run**, and a failure blocks the merge.
 
 ---
@@ -142,12 +142,12 @@ because everyone else's tool just breaks when a provider has a bad afternoon.
 **The business dies here if we're careless.** A power user on a flat plan can burn more in tokens than they
 pay us. Four controls, all designed in from M5, none retrofittable cheaply:
 
-| Control            | Mechanism                                                                             | Saving                 |
-| ------------------ | ------------------------------------------------------------------------------------- | ---------------------- |
-| **Routing**        | Triage/classification → cheap fast model. Repair/security reasoning → frontier model. | 40–60%                 |
-| **Prompt caching** | The stable prefix (system prompt + repo conventions) is cached across turns           | 30–50% on multi-turn   |
-| **Symbol-slicing** | Send the symbol, not the file (§1)                                                    | 60–80% vs naive        |
-| **Grounding**      | Evidence means a _smaller_ prompt does a _better_ job — the model isn't hunting       | large, and compounding |
+| Control | Mechanism | Saving |
+|---|---|---|
+| **Routing** | Triage/classification → cheap fast model. Repair/security reasoning → frontier model. | 40–60% |
+| **Prompt caching** | The stable prefix (system prompt + repo conventions) is cached across turns | 30–50% on multi-turn |
+| **Symbol-slicing** | Send the symbol, not the file (§1) | 60–80% vs naive |
+| **Grounding** | Evidence means a *smaller* prompt does a *better* job — the model isn't hunting | large, and compounding |
 
 Plus, at the business layer: server-side quota (never client-side — the client is a JS app on the user's
 machine and is not a security boundary), and **BYOK as the pressure valve**. Heavy users bring their own
@@ -171,24 +171,24 @@ core-ai/src/profiles/
 ```
 
 **`test-gen` deserves its own note.** A generated test that fails is not a feature, it is a chore we handed
-the user. It runs in the verification sandbox and only surfaces if it _passes against the current code_ —
-and, for a repair, _fails against the broken code and passes against the fix_. That second property is the
+the user. It runs in the verification sandbox and only surfaces if it *passes against the current code* —
+and, for a repair, *fails against the broken code and passes against the fix*. That second property is the
 difference between a test and a decoration, and almost nobody does it.
 
 ---
 
 ## 6. Failure modes (designed for, not discovered)
 
-| Failure                                               | Design                                                                                 |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Provider 429 / 5xx                                    | Retry with jitter → failover to secondary → surface which model answered               |
-| Context overflow                                      | **Prevented** by the budgeter. If it reaches the provider, that's a bug, not an error. |
-| Malformed structured output                           | Schema-validate → one automatic re-ask → typed, loud failure. Never best-effort.       |
-| Stream interrupted                                    | Treated as **cancelled**. Never a partially applied patch.                             |
-| Model proposes a fix that breaks tests                | **This is the system working.** Report as `regression`, do not offer apply.            |
-| Model proposes a fix for a finding that doesn't exist | Impossible by construction — findings come from the grounding layer, not the model.    |
-| Quota exceeded                                        | Typed error naming the next step: upgrade, or BYOK.                                    |
-| A profile starts misbehaving in production            | **Server-side kill switch** (ADR-027) — desktop clients can't be hot-fixed.            |
+| Failure | Design |
+|---|---|
+| Provider 429 / 5xx | Retry with jitter → failover to secondary → surface which model answered |
+| Context overflow | **Prevented** by the budgeter. If it reaches the provider, that's a bug, not an error. |
+| Malformed structured output | Schema-validate → one automatic re-ask → typed, loud failure. Never best-effort. |
+| Stream interrupted | Treated as **cancelled**. Never a partially applied patch. |
+| Model proposes a fix that breaks tests | **This is the system working.** Report as `regression`, do not offer apply. |
+| Model proposes a fix for a finding that doesn't exist | Impossible by construction — findings come from the grounding layer, not the model. |
+| Quota exceeded | Typed error naming the next step: upgrade, or BYOK. |
+| A profile starts misbehaving in production | **Server-side kill switch** (ADR-027) — desktop clients can't be hot-fixed. |
 
 ---
 
@@ -212,7 +212,7 @@ score = f(
 )
 ```
 
-**The verification engine, run in a loop, _is_ the eval harness.** That is a genuinely beautiful piece of
+**The verification engine, run in a loop, *is* the eval harness.** That is a genuinely beautiful piece of
 leverage: the same code that earns the user's trust also protects our quality over time. We should exploit
 it deliberately and be smug about it.
 

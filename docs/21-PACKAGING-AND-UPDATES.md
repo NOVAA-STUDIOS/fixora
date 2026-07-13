@@ -14,13 +14,13 @@ first install is a cliff: the user is now asking themselves whether they trust u
 administrator rights to software they have not yet used. Per-user install never poses the question. An MSI
 for machine-wide enterprise deployment comes later, when someone is asking for it.
 
-|                | Choice                                     | Alternative rejected                                         |
-| -------------- | ------------------------------------------ | ------------------------------------------------------------ |
-| Installer      | NSIS, per-user                             | MSI-first (admin prompt kills first-run conversion)          |
-| Compression    | maximum + blockmap                         | Speed over size; we optimise for download, not build time    |
-| Target size    | **< 120 MB**, CI-enforced                  | Electron apps rot to 400 MB one merged PR at a time          |
-| Native modules | `better-sqlite3`, `electron-rebuild` in CI | Prebuilds per Electron ABI, pinned                           |
-| Grammars       | tree-sitter **WASM**                       | Native grammars (signing + platform matrix per grammar — no) |
+|  | Choice | Alternative rejected |
+|---|---|---|
+| Installer | NSIS, per-user | MSI-first (admin prompt kills first-run conversion) |
+| Compression | maximum + blockmap | Speed over size; we optimise for download, not build time |
+| Target size | **< 120 MB**, CI-enforced | Electron apps rot to 400 MB one merged PR at a time |
+| Native modules | `better-sqlite3`, `electron-rebuild` in CI | Prebuilds per Electron ABI, pinned |
+| Grammars | tree-sitter **WASM** | Native grammars (signing + platform matrix per grammar — no) |
 
 **Size discipline.** Lazy-load Monaco language workers. Exclude every dev dependency from the ASAR. Ship
 grammars as WASM. **Audit the bundle every release** — nobody makes an app fat on purpose; it happens because
@@ -38,12 +38,12 @@ PC — Unknown publisher"_ to every early user. Reputation on a traditional cert
 and thousands of installs — which we do not have at launch, precisely when first impressions are being formed.
 Trusted Signing skips the cold-start problem entirely.
 
-| Option                    | Cost        | SmartScreen at launch   | Verdict                                              |
-| ------------------------- | ----------- | ----------------------- | ---------------------------------------------------- |
-| **Azure Trusted Signing** | ~$10/mo     | ✅ immediate            | **Chosen**                                           |
-| EV cert on hardware token | $300–500/yr | ✅ immediate            | Rejected — expensive, awkward in CI, token is a SPOF |
-| OV cert                   | ~$100/yr    | ❌ earned over weeks    | Rejected — the weeks are the launch                  |
-| Unsigned                  | $0          | ❌ scary dialog forever | Not a serious option                                 |
+| Option | Cost | SmartScreen at launch | Verdict |
+|---|---|---|---|
+| **Azure Trusted Signing** | ~$10/mo | ✅ immediate | **Chosen** |
+| EV cert on hardware token | $300–500/yr | ✅ immediate | Rejected — expensive, awkward in CI, token is a SPOF |
+| OV cert | ~$100/yr | ❌ earned over weeks | Rejected — the weeks are the launch |
+| Unsigned | $0 | ❌ scary dialog forever | Not a serious option |
 
 > **Start the Azure identity-validation process in M0.** It takes days-to-weeks of business verification.
 > Discovering that in M8, the week you meant to ship, is a self-inflicted delay — and it is exactly the kind
@@ -57,7 +57,7 @@ a screenshot of a virus warning on Hacker News.
 
 ## 3. Auto-update
 
-**`electron-updater` against our own release feed** (ADR-022), _not_ GitHub Releases.
+**`electron-updater` against our own release feed** (ADR-022), *not* GitHub Releases.
 
 ```mermaid
 sequenceDiagram
@@ -95,7 +95,7 @@ for a security release, with the reason stated.
 
 **Rollback.** Cache the previous installer. A documented downgrade path, and — critically — **local SQLite
 migrations must be backward-tolerant for one version** (DB §1), or a rollback leaves the user with a database
-their older app cannot open. This is the failure mode that turns a bad release into a _catastrophic_ one, and
+their older app cannot open. This is the failure mode that turns a bad release into a *catastrophic* one, and
 it is invisible until the day you need to roll back.
 
 **Rehearse the rollback before launch.** A recovery procedure that has never been executed is a hypothesis.
@@ -104,10 +104,10 @@ it is invisible until the day you need to roll back.
 
 ## 4. Channels
 
-| Channel  | Who                | Cadence                  |
-| -------- | ------------------ | ------------------------ |
-| `stable` | Everyone           | Fortnightly, staged      |
-| `beta`   | Opt-in in Settings | Weekly, 100% immediately |
+| Channel | Who | Cadence |
+|---|---|---|
+| `stable` | Everyone | Fortnightly, staged |
+| `beta` | Opt-in in Settings | Weekly, 100% immediately |
 
 Beta users are our early-warning system, and they cost nothing. Make opting in one click, and thank them
 in the release notes.
@@ -117,7 +117,7 @@ in the release notes.
 ## 5. macOS & Linux (architected now, shipped later)
 
 The `electron-builder` config carries all three targets from M0 — **adding them later must be configuration,
-not surgery.** What's genuinely deferred is the _process_, not the architecture:
+not surgery.** What's genuinely deferred is the *process*, not the architecture:
 
 - **macOS:** Apple Developer account, notarization, hardened runtime, universal binary. Entitlements for the
   subprocesses we spawn during verification (this is the non-obvious part and it will take a day to get right).

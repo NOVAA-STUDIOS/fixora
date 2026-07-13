@@ -22,13 +22,13 @@ databases and a sync job that silently drifts.
 
 **Alternatives considered.**
 
-- _Supabase Postgres for everything, drop Neon._ Coherent, and RLS becomes usable. Rejected because
+- *Supabase Postgres for everything, drop Neon.* Coherent, and RLS becomes usable. Rejected because
   Neon's **branch-per-PR ephemeral databases** are worth more to us than RLS we would bypass anyway
   (all access goes through FastAPI, not the browser).
-- _Auth0 / Clerk / WorkOS._ Better enterprise SSO story. More expensive. Revisit at the Teams milestone,
+- *Auth0 / Clerk / WorkOS.* Better enterprise SSO story. More expensive. Revisit at the Teams milestone,
   when SAML becomes a requirement — the JWKS-verification boundary makes swapping the IdP a contained
   change.
-- _Roll our own auth._ No.
+- *Roll our own auth.* No.
 
 **Trade-offs accepted.** A webhook-free, JIT-provisioned user table means a user exists in Supabase before
 they exist in Neon. Every service must tolerate that ordering. Deleting a user requires a two-system

@@ -12,17 +12,17 @@
 
 **Why.** A runaway tree-sitter parse on a 40 MB minified file, a catastrophically backtracking Semgrep
 rule, or the user's own `pytest` hanging must not freeze the UI or take down the app. `utilityProcess`
-gives us OS-level isolation, hard timeouts, cancellation, and a crash that we can _recover from_ by
+gives us OS-level isolation, hard timeouts, cancellation, and a crash that we can *recover from* by
 restarting one process.
 
-**Alternatives considered.** _In the main process_ (rejected: one bad parse freezes IPC and the app).
-_Web Workers in the renderer_ (rejected: no filesystem, no subprocess). _A long-lived child process pool_
+**Alternatives considered.** *In the main process* (rejected: one bad parse freezes IPC and the app).
+*Web Workers in the renderer* (rejected: no filesystem, no subprocess). *A long-lived child process pool*
 (this is effectively what we build; `utilityProcess` is the Electron-native form of it).
 
 **Trade-offs accepted.** IPC serialisation cost across the process boundary, and a more complex lifecycle
 (spawn, health-check, restart, backoff).
 
-**Long-term impact.** The verification worker is where we execute _user code_. Having it already isolated
+**Long-term impact.** The verification worker is where we execute *user code*. Having it already isolated
 is what lets us tighten that sandbox later (resource limits, filesystem jail) without re-architecting.
 
 

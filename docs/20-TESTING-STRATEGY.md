@@ -14,16 +14,16 @@ fourth layer bolted to its side, and that layer is the most important one we own
 
 ## 1. The pyramid
 
-| Layer             | Tool                                             | Scope                                                                                | Gate                                                  |
-| ----------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| **Unit**          | Vitest / pytest                                  | `core-patch`, `core-analysis` model, budgeter, secret gate, entitlement + quota math | Every PR                                              |
-| **Contract**      | zod + OpenAPI codegen diff + schemathesis        | IPC contracts; API↔client schema drift                                               | Every PR                                              |
-| **Integration**   | Vitest + real fixtures / pytest + testcontainers | Analyzer adapters against real repos; API↔Postgres↔mocked providers                  | Every PR                                              |
-| **E2E**           | Playwright (Electron)                            | open → analyze → propose → verify → apply → undo, on a real fixture repo             | Every PR                                              |
-| **Golden corpus** | Custom scorer                                    | **AI quality**                                                                       | Every PR touching a prompt/context/model, and nightly |
-| **Security**      | Electronegativity · gitleaks · Semgrep · audits  | Config drift, secret leaks, deps                                                     | Every PR                                              |
-| **Performance**   | Custom harness                                   | The NFR budgets                                                                      | Nightly + pre-release                                 |
-| **Accessibility** | axe-core in Playwright                           | Zero critical violations, full keyboard traversal                                    | Every PR                                              |
+| Layer | Tool | Scope | Gate |
+|---|---|---|---|
+| **Unit** | Vitest / pytest | `core-patch`, `core-analysis` model, budgeter, secret gate, entitlement + quota math | Every PR |
+| **Contract** | zod + OpenAPI codegen diff + schemathesis | IPC contracts; API↔client schema drift | Every PR |
+| **Integration** | Vitest + real fixtures / pytest + testcontainers | Analyzer adapters against real repos; API↔Postgres↔mocked providers | Every PR |
+| **E2E** | Playwright (Electron) | open → analyze → propose → verify → apply → undo, on a real fixture repo | Every PR |
+| **Golden corpus** | Custom scorer | **AI quality** | Every PR touching a prompt/context/model, and nightly |
+| **Security** | Electronegativity · gitleaks · Semgrep · audits | Config drift, secret leaks, deps | Every PR |
+| **Performance** | Custom harness | The NFR budgets | Nightly + pre-release |
+| **Accessibility** | axe-core in Playwright | Zero critical violations, full keyboard traversal | Every PR |
 
 ---
 
@@ -36,7 +36,7 @@ they are the ones I'd keep if I could only keep ten.
 source file, and no amount of AI quality recovers from that.
 
 - Undo restores **byte-identical** content — including CRLF files, files with no trailing newline, and files
-  with mixed line endings. _(These three quietly corrupt in every naive implementation.)_
+  with mixed line endings. *(These three quietly corrupt in every naive implementation.)*
 - A file modified on disk after the patch was generated produces `PATCH_CONFLICT`. **Never a force-apply.**
 - A crash mid-apply (simulated) leaves the file either fully original or fully patched. **Never half.**
 - Hunk-level staging applies exactly the selected hunks and nothing else.
@@ -87,7 +87,7 @@ score(case) = f(
 in the product also protects the product's quality over time. We built it once and it pays twice. That is
 not a coincidence — it fell out of ADR-003, and it is the strongest evidence that the architecture is right.
 
-**We never string-compare against `expected/`.** There are many correct fixes. We score _behaviour_: did the
+**We never string-compare against `expected/`.** There are many correct fixes. We score *behaviour*: did the
 finding go away, did nothing else break, do the tests pass. Grading on textual similarity to one blessed
 answer would punish the model for being creative and correct — which is exactly the behaviour we want.
 
@@ -95,8 +95,8 @@ answer would punish the model for being creative and correct — which is exactl
 vibes.** Nightly runs against the latest model versions, so a provider silently updating a model behind an
 alias shows up as a red build, not as a support ticket three weeks later.
 
-**LLM-as-judge?** Only as a _secondary_ signal for things we can't measure objectively (is the explanation
-clear?). Our primary signal is objective and free. A team that uses LLM-as-judge as its _primary_ eval has
+**LLM-as-judge?** Only as a *secondary* signal for things we can't measure objectively (is the explanation
+clear?). Our primary signal is objective and free. A team that uses LLM-as-judge as its *primary* eval has
 outsourced its quality bar to the same class of system it is trying to grade.
 
 ---
@@ -114,14 +114,14 @@ outsourced its quality bar to the same class of system it is trying to grade.
 
 ## 5. Performance budgets (from the PRD, with tests attached)
 
-| Budget                         | Test                                                        |
-| ------------------------------ | ----------------------------------------------------------- |
-| Cold start < 2.0 s             | Harness, on a clean VM, in CI, per release                  |
-| Open 10k-file repo < 2.0 s     | Perf harness against a large fixture repo                   |
-| Single-file analysis < 300 ms  | Bench in `core-analysis`                                    |
+| Budget | Test |
+|---|---|
+| Cold start < 2.0 s | Harness, on a clean VM, in CI, per release |
+| Open 10k-file repo < 2.0 s | Perf harness against a large fixture repo |
+| Single-file analysis < 300 ms | Bench in `core-analysis` |
 | Time to first AI token < 1.5 s | Measured against the real gateway, staging, p99 not average |
-| Idle memory < 400 MB           | Release checklist                                           |
-| Installer < 120 MB             | **CI fails the build** if it exceeds                        |
+| Idle memory < 400 MB | Release checklist |
+| Installer < 120 MB | **CI fails the build** if it exceeds |
 
 **A budget without a test is a wish.** Electron apps rot to 400 MB and 6-second starts one merged PR at a
 time, and nobody is ever responsible, because no single PR made it slow. The failing build is the only

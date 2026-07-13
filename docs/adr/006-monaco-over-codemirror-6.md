@@ -13,7 +13,7 @@
 **Why.** Monaco's **diff editor** is the product's primary surface and it is excellent, free, and the one
 developers already recognise from VS Code. Familiarity is a feature.
 
-**Alternatives considered.** _CodeMirror 6_ — smaller, faster, better mobile, cleaner extension model.
+**Alternatives considered.** *CodeMirror 6* — smaller, faster, better mobile, cleaner extension model.
 But its merge/diff view is weaker, and we would rebuild what Monaco gives us. Rejected.
 
 **Trade-offs accepted.** Monaco is heavy (~5 MB), the worker setup is fiddly, and it historically wants

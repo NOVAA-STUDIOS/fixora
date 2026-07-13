@@ -18,7 +18,7 @@
 content (the user's code). **Treat it as hostile.** A validated, enumerable IPC surface is the difference
 between "a renderer compromise is contained" and "a renderer compromise reads `~/.ssh`".
 
-**Alternatives considered.** _tRPC over IPC_ (elegant, adds a dependency and a layer; the registry pattern
+**Alternatives considered.** *tRPC over IPC* (elegant, adds a dependency and a layer; the registry pattern
 gives us the same type safety in ~200 lines). _Hand-rolled `ipcMain.handle` calls_ (rejected: unenumerable
 surface, no validation, this is how Electron apps get CVEs).
 

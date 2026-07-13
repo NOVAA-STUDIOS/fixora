@@ -10,15 +10,15 @@ convenient exception someone will propose.
 
 ## 1. The line
 
-| Lives on the user's machine, always     | Lives in our cloud                                      |
-| --------------------------------------- | ------------------------------------------------------- |
-| Source code                             | Account (email, id)                                     |
-| Findings                                | Subscription + entitlements                             |
-| Patches, diffs, rationales              | Usage **counts** (tokens, latency, model, task profile) |
-| Verification reports                    | Anonymous telemetry events                              |
-| Chat / session history                  | Release manifest                                        |
-| Workspace settings                      | Audit log of _account_ actions                          |
-| BYOK keys, refresh tokens (OS keychain) | —                                                       |
+| Lives on the user's machine, always | Lives in our cloud |
+|---|---|
+| Source code | Account (email, id) |
+| Findings | Subscription + entitlements |
+| Patches, diffs, rationales | Usage **counts** (tokens, latency, model, task profile) |
+| Verification reports | Anonymous telemetry events |
+| Chat / session history | Release manifest |
+| Workspace settings | Audit log of *account* actions |
+| BYOK keys, refresh tokens (OS keychain) | — |
 
 **Crossing the line, ever:** a **transient prompt payload** — a code slice plus its evidence — held in RAM
 on our gateway, forwarded to a provider under a zero-retention agreement, never written to disk or DB.
@@ -37,13 +37,13 @@ costs:
   feature we build for her is worthless if we lose her at this gate.
 - **The trust conversation.** "We don't train on your data, we promise" is a conversation you can only win
   with a brand. We don't have one. **The strongest possible position for a new company is a claim that
-  doesn't require trust: _we can't leak it, we never had it._**
+  doesn't require trust: *we can't leak it, we never had it.***
 - **The breach exposure.** A database holding a thousand companies' source code is an extraordinary target
   and an existential liability. We would be one misconfigured bucket from the end.
-- **SOC 2 as a _precondition_ for the first enterprise sale**, rather than a milestone we reach later.
+- **SOC 2 as a *precondition* for the first enterprise sale**, rather than a milestone we reach later.
 - **Money.** Storage and egress on code we don't need.
 
-And what we _lose_ — cross-device history — is a feature nobody churns over. Developers work on one machine.
+And what we *lose* — cross-device history — is a feature nobody churns over. Developers work on one machine.
 
 **This is the rare architectural decision where the ethical choice, the security choice, the cost choice
 and the go-to-market choice are the same choice.** When that happens you take it and you don't get clever.
@@ -52,13 +52,13 @@ and the go-to-market choice are the same choice.** When that happens you take it
 
 ## 3. Trade-offs, stated honestly
 
-| We give up                                        | Mitigation                                                                                                                                                                                           |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cross-device / cross-machine history              | Explicit **export/import** of history (their data, their disk). Opt-in E2EE sync is the Teams-milestone answer, and it stays E2EE.                                                                   |
-| Server-side analytics on real code                | We get event-level telemetry (apply-rate, verification pass-rate). **We don't need code to measure quality — the golden corpus does that**, and it's a better signal than production peeping anyway. |
-| Server-side history search                        | Local SQLite **FTS5**. Fast, and it works on a plane.                                                                                                                                                |
-| A local migration + backup system to build        | Real cost. ~3 days. Worth it.                                                                                                                                                                        |
-| We can't reproduce a user's bug from our own logs | **Redacted diagnostics bundle**, generated locally, sent only if the user chooses to attach it. This is more work than reading their code off our server, and it is the correct amount of work.      |
+| We give up | Mitigation |
+|---|---|
+| Cross-device / cross-machine history | Explicit **export/import** of history (their data, their disk). Opt-in E2EE sync is the Teams-milestone answer, and it stays E2EE. |
+| Server-side analytics on real code | We get event-level telemetry (apply-rate, verification pass-rate). **We don't need code to measure quality — the golden corpus does that**, and it's a better signal than production peeping anyway. |
+| Server-side history search | Local SQLite **FTS5**. Fast, and it works on a plane. |
+| A local migration + backup system to build | Real cost. ~3 days. Worth it. |
+| We can't reproduce a user's bug from our own logs | **Redacted diagnostics bundle**, generated locally, sent only if the user chooses to attach it. This is more work than reading their code off our server, and it is the correct amount of work. |
 
 ---
 
@@ -70,7 +70,7 @@ analyzers, browse findings, read history. Only cloud AI requires a session.
 This is a deliberate product decision, not a fallback. It means:
 
 - The free tier can offer **unlimited local analysis at zero marginal cost to us** — the most generous free
-  tier we can afford, and it _is_ the marketing.
+  tier we can afford, and it *is* the marketing.
 - A network blip degrades one panel, not the app.
 - The tool works on a plane, behind a corporate proxy, and on an air-gapped machine — three places where
   Cursor doesn't.

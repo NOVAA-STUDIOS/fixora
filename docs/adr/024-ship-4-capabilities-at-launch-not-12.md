@@ -14,30 +14,30 @@ remaining capabilities can be released after they reach the same quality bar."_
 
 **Decision.** v1.0 ships **Repair, Explain, Security, and Test Generation** at an excellent quality bar.
 Refactor, Optimise, Document, Best-Practices, Compare and Assistant are built on the same pipeline and
-released _incrementally, after launch, each gated on its own golden-corpus score._
+released *incrementally, after launch, each gated on its own golden-corpus score.*
 
 **Why.** Every capability needs its own golden corpus, its own quality bar, and its own verification
 strategy. Twelve buttons shipped simultaneously means twelve mediocre ones — and **a mediocre "Optimise"
 button destroys the user's trust in the excellent "Repair" button.** Trust is not per-feature; it is
-per-product. In a tool whose entire thesis is _trust_, shipping a feature below the bar is worse than not
+per-product. In a tool whose entire thesis is *trust*, shipping a feature below the bar is worse than not
 shipping it.
 
-The four chosen are the ones that (a) are grounded in deterministic evidence, so we can be _right_, and
-(b) map to the moments a developer actually opens a fixing tool: _it's broken_, _I don't understand it_,
-_is this safe to ship_, _I need coverage before I touch this_.
+The four chosen are the ones that (a) are grounded in deterministic evidence, so we can be *right*, and
+(b) map to the moments a developer actually opens a fixing tool: *it's broken*, *I don't understand it*,
+*is this safe to ship*, *I need coverage before I touch this*.
 
 "Optimise" is the weakest of the twelve, incidentally — real performance work needs a profiler and a
 benchmark, not a language model reading a function. When we ship it, it should be grounded in an actual
 benchmark harness, or not at all.
 
-**Alternatives considered.** _Ship all twelve._ Bigger feature list on the pricing page, worse product,
+**Alternatives considered.** *Ship all twelve.* Bigger feature list on the pricing page, worse product,
 slower launch by ~8 weeks, and it puts our trust thesis at the mercy of our weakest feature. Rejected.
 
 **Trade-offs accepted.** A shorter feature list at launch, and the marketing site can no longer say
 "twelve things". It can say "four things that work", which is a better ad anyway.
 
 **Long-term impact.** None, architecturally — ADR-001 means the remaining eight are config, not code.
-This is purely a _release sequencing_ decision, which is why it costs nothing to accept and everything to
+This is purely a *release sequencing* decision, which is why it costs nothing to accept and everything to
 get wrong.
 
 

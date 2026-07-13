@@ -14,8 +14,8 @@
 the request), no stateful connection layer, no sticky sessions, and it works through every corporate proxy
 that already allows HTTPS. WebSockets buy us nothing here and cost us load-balancer and scaling complexity.
 
-**Alternatives considered.** _WebSockets_ (rejected: bidirectionality we don't need). _Long-polling_
-(rejected: worse UX, more load). _gRPC streaming_ (rejected: proxy hostility, browser/Electron friction).
+**Alternatives considered.** *WebSockets* (rejected: bidirectionality we don't need). *Long-polling*
+(rejected: worse UX, more load). *gRPC streaming* (rejected: proxy hostility, browser/Electron friction).
 
 **Trade-offs accepted.** SSE has no built-in reconnect-with-resume for a partially consumed AI stream. Our
 answer is to treat an interrupted stream as a **cancelled** operation — never a partially applied one.

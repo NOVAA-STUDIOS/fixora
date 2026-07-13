@@ -17,15 +17,15 @@ M5. The client is untrusted; quota is enforced server-side. **We never ship an "
 metering after launch means either a painful migration or eating the loss. Building it first costs days;
 building it later costs the business.
 
-**Alternatives considered.** _Meter later._ Universally regretted. Rejected.
-_Client-side quota._ The client is a JavaScript app on the user's machine. It is not a security boundary.
+**Alternatives considered.** *Meter later.* Universally regretted. Rejected.
+*Client-side quota.* The client is a JavaScript app on the user's machine. It is not a security boundary.
 Rejected.
 
 **Trade-offs accepted.** M4 lands before any AI feature is demoable, which will feel like slow progress.
 
 **Long-term impact.** BYOK (ADR-004) is the pressure valve: heavy users bring their own key, which
 simultaneously solves our cost problem and their privacy problem. This is the rare alignment where the
-right business decision _is_ the right ethical one — build for it.
+right business decision *is* the right ethical one — build for it.
 
 
 <a id="adr-024"></a>

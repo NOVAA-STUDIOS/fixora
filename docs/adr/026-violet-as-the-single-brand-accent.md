@@ -16,7 +16,7 @@ colour of every developer tool on earth. One tuned violet scale, with all intera
 it, and semantic status colours (danger/warn/success/info) held separate and never used decoratively.
 
 **Trade-offs accepted.** Violet at low luminance on near-black is harder to keep above 4.5:1 for text — so
-violet is used for _surfaces and accents_, and text on violet is checked by the CI contrast gate, not by
+violet is used for *surfaces and accents*, and text on violet is checked by the CI contrast gate, not by
 eye.
 
 

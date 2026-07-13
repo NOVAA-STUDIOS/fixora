@@ -18,8 +18,8 @@ app and the website.
 site ships hourly). But two repos with hand-copied colours means brand drift within a month. One published
 token package is the minimum shared surface that prevents it.
 
-**Alternatives considered.** _One giant monorepo for everything_ (couples release cadences, makes CI slow
-and permissions coarse; rejected). _Full duplication with no shared package_ (rejected: brand drift is
+**Alternatives considered.** *One giant monorepo for everything* (couples release cadences, makes CI slow
+and permissions coarse; rejected). *Full duplication with no shared package* (rejected: brand drift is
 inevitable and expensive to unwind).
 
 **Trade-offs accepted.** A publish step, and version coordination when tokens change.

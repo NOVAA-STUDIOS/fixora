@@ -22,10 +22,10 @@ SSO session, and their MFA — all of which raise conversion, not just security.
 
 **Alternatives considered.**
 
-- _Embedded login form / webview._ Rejected: blocked by IdPs, hostile to password managers, phishing-shaped.
-- _Device code flow._ Excellent for headless; unnecessarily clunky when we have a browser. Keep it in the
+- *Embedded login form / webview.* Rejected: blocked by IdPs, hostile to password managers, phishing-shaped.
+- *Device code flow.* Excellent for headless; unnecessarily clunky when we have a browser. Keep it in the
   back pocket for the future CLI.
-- _Loopback only (no deep link)._ More reliable, slightly worse UX (a stray browser tab). We implement
+- *Loopback only (no deep link).* More reliable, slightly worse UX (a stray browser tab). We implement
   **both**, deep link first.
 
 **Trade-offs accepted.** Two redirect mechanisms to build and test. Deep-link registration is unreliable on

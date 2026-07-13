@@ -25,18 +25,18 @@ code to leave their machine. **When in doubt, it goes in the client.**
 
 ## 2. Surface
 
-| Method | Path                                       | Purpose                                                                   |
-| ------ | ------------------------------------------ | ------------------------------------------------------------------------- |
-| `GET`  | `/v1/me`                                   | User, plan, entitlements, feature flags (incl. per-profile kill switches) |
-| `POST` | `/v1/ai/stream`                            | **The only AI endpoint.** SSE. Task profile + context in, events out.     |
-| `POST` | `/v1/ai/cancel`                            | Explicit cancellation (belt-and-braces alongside request abort)           |
-| `GET`  | `/v1/usage`                                | Current-period usage for the quota meter in the UI                        |
-| `POST` | `/v1/billing/checkout`                     | Stripe Checkout session                                                   |
-| `POST` | `/v1/billing/portal`                       | Stripe customer portal                                                    |
-| `POST` | `/v1/billing/webhook`                      | Stripe webhooks — signature-verified, idempotent                          |
-| `GET`  | `/v1/releases/{channel}/{platform}/{arch}` | Update manifest with rollout eligibility                                  |
-| `POST` | `/v1/telemetry`                            | Batched, anonymous, opt-in events                                         |
-| `GET`  | `/healthz` `/readyz`                       | Liveness / readiness                                                      |
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/v1/me` | User, plan, entitlements, feature flags (incl. per-profile kill switches) |
+| `POST` | `/v1/ai/stream` | **The only AI endpoint.** SSE. Task profile + context in, events out. |
+| `POST` | `/v1/ai/cancel` | Explicit cancellation (belt-and-braces alongside request abort) |
+| `GET` | `/v1/usage` | Current-period usage for the quota meter in the UI |
+| `POST` | `/v1/billing/checkout` | Stripe Checkout session |
+| `POST` | `/v1/billing/portal` | Stripe customer portal |
+| `POST` | `/v1/billing/webhook` | Stripe webhooks — signature-verified, idempotent |
+| `GET` | `/v1/releases/{channel}/{platform}/{arch}` | Update manifest with rollout eligibility |
+| `POST` | `/v1/telemetry` | Batched, anonymous, opt-in events |
+| `GET` | `/healthz` `/readyz` | Liveness / readiness |
 
 **That's the whole API.** If it grows past ~15 endpoints before Teams, something has leaked out of the
 client that shouldn't have, and that's a design review, not a sprint.
@@ -104,7 +104,7 @@ One shape, everywhere. The client's typed error union (TDD §9) maps onto it 1:1
 `action` is not decoration. **Every error a human sees must name the next step** — that rule is enforced at
 the protocol level so it cannot be forgotten at the UI level.
 
-`requestId` is generated in the _renderer_ and propagated through IPC → main → API → provider, so a user
+`requestId` is generated in the *renderer* and propagated through IPC → main → API → provider, so a user
 saying "it broke" gives us one string that traces the whole path.
 
 ---
@@ -121,18 +121,18 @@ FastAPI + Pydantic v2  →  OpenAPI schema  →  CI codegen  →  TypeScript cli
 client differs** from what the current schema produces. Contract drift becomes a compile error rather than a
 production incident.
 
-Plus contract tests (schemathesis against the live schema) so the _implementation_ can't drift from the
-_schema_ either. Two gates, because a schema that lies is worse than no schema.
+Plus contract tests (schemathesis against the live schema) so the *implementation* can't drift from the
+*schema* either. Two gates, because a schema that lies is worse than no schema.
 
 ---
 
 ## 6. Rate limiting & abuse
 
-| Layer                  | Limit                                | Why                                                                                                                                           |
-| ---------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Edge (per IP)          | Coarse                               | Cheap DoS protection                                                                                                                          |
-| Per user (entitlement) | Concurrent requests + monthly tokens | The real business control                                                                                                                     |
-| Per user (burst)       | Requests/minute                      | Stops a runaway client loop from burning a month's quota in 90 seconds — a bug we will write at some point, and the user shouldn't pay for it |
+| Layer | Limit | Why |
+|---|---|---|
+| Edge (per IP) | Coarse | Cheap DoS protection |
+| Per user (entitlement) | Concurrent requests + monthly tokens | The real business control |
+| Per user (burst) | Requests/minute | Stops a runaway client loop from burning a month's quota in 90 seconds — a bug we will write at some point, and the user shouldn't pay for it |
 
 All server-side. **The client is not a security boundary**, and any limit that lives only in the client is
 decoration.

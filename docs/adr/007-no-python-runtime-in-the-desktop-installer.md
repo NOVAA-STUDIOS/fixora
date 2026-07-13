@@ -21,9 +21,9 @@ enormous and the benefit is zero: tree-sitter has first-class WASM bindings.
 
 **Alternatives considered.**
 
-- _Bundle a Python sidecar (PyInstaller / python-build-standalone)._ Rejected on installer size, signing
+- *Bundle a Python sidecar (PyInstaller / python-build-standalone).* Rejected on installer size, signing
   cost and support burden.
-- _Bundle every linter as a vendored binary._ Rejected — signing and licensing per binary per platform,
+- *Bundle every linter as a vendored binary.* Rejected — signing and licensing per binary per platform,
   and version skew against the user's own config, which produces findings their CI disagrees with.
 
 **Trade-offs accepted.** If the user's workspace has no ESLint, we fall back to tree-sitter-only analysis

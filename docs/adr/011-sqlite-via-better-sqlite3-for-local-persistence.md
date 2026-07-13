@@ -21,9 +21,9 @@ synchronous API is a feature (no callback interleaving bugs in migrations).
 - _`node:sqlite`_ (built into Node 22+). Zero native-module pain and no `electron-rebuild` step —
   genuinely attractive. Rejected for now: still young, and Electron's bundled Node version gates us.
   **Re-evaluate at M8.**
-- _sql.js / WASM SQLite._ No native build step, but everything goes through memory and persistence is
+- *sql.js / WASM SQLite.* No native build step, but everything goes through memory and persistence is
   manual. Rejected for a database that must survive a crash.
-- _LevelDB / lowdb / JSON files._ We need relational queries over findings and history. Rejected.
+- *LevelDB / lowdb / JSON files.* We need relational queries over findings and history. Rejected.
 
 **Trade-offs accepted.** A native module means `electron-rebuild` in CI and an ABI pin per Electron
 version. This is a known, contained cost.

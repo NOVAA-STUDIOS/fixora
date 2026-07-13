@@ -21,11 +21,11 @@ model change. Treating it as one means capability #13 is a config file and a Rea
 
 **Alternatives considered.**
 
-- _Twelve independent feature modules._ Faster to build the first one, catastrophic by the fourth.
+- *Twelve independent feature modules.* Faster to build the first one, catastrophic by the fourth.
   Rejected.
-- _A single generic "chat with tools" surface_ that lets the model decide what to do. This is what
+- *A single generic "chat with tools" surface* that lets the model decide what to do. This is what
   Cursor does, and it is exactly the product we must not be — it is unbounded, unverifiable, and
-  impossible to price. Rejected as the primary surface; retained as _one_ profile (`assistant`).
+  impossible to price. Rejected as the primary surface; retained as *one* profile (`assistant`).
 
 **Trade-offs accepted.** The abstraction costs ~1.5× the engineering of the first capability, and it
 constrains any capability that genuinely does not fit the pipeline shape (we will discover one; when we

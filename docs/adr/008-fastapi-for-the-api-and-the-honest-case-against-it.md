@@ -48,7 +48,7 @@ CI. Pydantic v2 gives us schema rigor equal to zod, and **CI generates the TypeS
 OpenAPI schema**, which makes the drift argument moot.
 
 **Trade-offs accepted.** Two toolchains, two dependency audits, two CI lanes, and a codegen step in the
-build. Contract drift is prevented by a _generated_ client, never a hand-written one.
+build. Contract drift is prevented by a *generated* client, never a hand-written one.
 
 **Long-term impact.** If we never build serious eval tooling, this decision was wrong and we will feel it
 as friction forever. **If you want to overrule me and go TypeScript-everywhere, now is the only free

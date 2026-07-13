@@ -5,36 +5,36 @@ and **long-term impact**. This is the document to argue with.
 
 Statuses: `Accepted` · `Proposed` (needs sign-off) · `Superseded` · `Rejected`
 
-| #               | Decision                                                                     | Status   |
-| --------------- | ---------------------------------------------------------------------------- | -------- |
-| [001](#adr-001) | One pipeline, twelve task profiles                                           | Accepted |
-| [002](#adr-002) | Deterministic grounding before LLM reasoning                                 | Accepted |
-| [003](#adr-003) | Verified repairs via an overlay filesystem                                   | Accepted |
-| [004](#adr-004) | Local-first data; the cloud never stores code                                | Accepted |
-| [005](#adr-005) | Electron over Tauri                                                          | Accepted |
-| [006](#adr-006) | Monaco over CodeMirror 6                                                     | Accepted |
-| [007](#adr-007) | No Python runtime in the desktop installer                                   | Accepted |
-| [008](#adr-008) | FastAPI for the API — _and the honest case against it_                       | Accepted |
-| [009](#adr-009) | Supabase as an identity provider only; Neon owns the data                    | Accepted |
-| [010](#adr-010) | No Supabase Storage in v1                                                    | Accepted |
-| [011](#adr-011) | SQLite via better-sqlite3 for local persistence                              | Accepted |
-| [012](#adr-012) | Provider abstraction with two live implementations from day one              | Accepted |
-| [013](#adr-013) | Patches as unified diffs; never full-file rewrites                           | Accepted |
-| [014](#adr-014) | SSE over WebSockets for streaming                                            | Accepted |
+| # | Decision | Status |
+|---|---|---|
+| [001](#adr-001) | One pipeline, twelve task profiles | Accepted |
+| [002](#adr-002) | Deterministic grounding before LLM reasoning | Accepted |
+| [003](#adr-003) | Verified repairs via an overlay filesystem | Accepted |
+| [004](#adr-004) | Local-first data; the cloud never stores code | Accepted |
+| [005](#adr-005) | Electron over Tauri | Accepted |
+| [006](#adr-006) | Monaco over CodeMirror 6 | Accepted |
+| [007](#adr-007) | No Python runtime in the desktop installer | Accepted |
+| [008](#adr-008) | FastAPI for the API — *and the honest case against it* | Accepted |
+| [009](#adr-009) | Supabase as an identity provider only; Neon owns the data | Accepted |
+| [010](#adr-010) | No Supabase Storage in v1 | Accepted |
+| [011](#adr-011) | SQLite via better-sqlite3 for local persistence | Accepted |
+| [012](#adr-012) | Provider abstraction with two live implementations from day one | Accepted |
+| [013](#adr-013) | Patches as unified diffs; never full-file rewrites | Accepted |
+| [014](#adr-014) | SSE over WebSockets for streaming | Accepted |
 | [015](#adr-015) | Zustand + TanStack Query + Monaco + SQLite — four state owners, zero overlap | Accepted |
-| [016](#adr-016) | Auth via PKCE in the system browser, not an embedded webview                 | Accepted |
-| [017](#adr-017) | Analysis and verification run in isolated utility processes                  | Accepted |
-| [018](#adr-018) | zod-validated IPC as the single renderer↔main boundary                       | Accepted |
-| [019](#adr-019) | Three repositories + one shared token package                                | Accepted |
-| [020](#adr-020) | pnpm + Turborepo monorepo for the desktop app                                | Accepted |
-| [021](#adr-021) | Azure Trusted Signing over an EV certificate                                 | Accepted |
-| [022](#adr-022) | Self-hosted release feed, not GitHub Releases                                | Accepted |
-| [023](#adr-023) | Metering and entitlements before the first token is spent                    | Accepted |
-| [024](#adr-024) | Ship 4 capabilities at launch, not 12                                        | Accepted |
-| [025](#adr-025) | Three languages deep, not ten shallow                                        | Accepted |
-| [026](#adr-026) | Violet as the single brand accent                                            | Accepted |
-| [027](#adr-027) | Server-side kill switches for every AI task profile                          | Accepted |
-| [028](#adr-028) | A scored golden corpus in CI from M5 onward                                  | Accepted |
+| [016](#adr-016) | Auth via PKCE in the system browser, not an embedded webview | Accepted |
+| [017](#adr-017) | Analysis and verification run in isolated utility processes | Accepted |
+| [018](#adr-018) | zod-validated IPC as the single renderer↔main boundary | Accepted |
+| [019](#adr-019) | Three repositories + one shared token package | Accepted |
+| [020](#adr-020) | pnpm + Turborepo monorepo for the desktop app | Accepted |
+| [021](#adr-021) | Azure Trusted Signing over an EV certificate | Accepted |
+| [022](#adr-022) | Self-hosted release feed, not GitHub Releases | Accepted |
+| [023](#adr-023) | Metering and entitlements before the first token is spent | Accepted |
+| [024](#adr-024) | Ship 4 capabilities at launch, not 12 | Accepted |
+| [025](#adr-025) | Three languages deep, not ten shallow | Accepted |
+| [026](#adr-026) | Violet as the single brand accent | Accepted |
+| [027](#adr-027) | Server-side kill switches for every AI task profile | Accepted |
+| [028](#adr-028) | A scored golden corpus in CI from M5 onward | Accepted |
 
 ---
 
@@ -55,11 +55,11 @@ model change. Treating it as one means capability #13 is a config file and a Rea
 
 **Alternatives considered.**
 
-- _Twelve independent feature modules._ Faster to build the first one, catastrophic by the fourth.
+- *Twelve independent feature modules.* Faster to build the first one, catastrophic by the fourth.
   Rejected.
-- _A single generic "chat with tools" surface_ that lets the model decide what to do. This is what
+- *A single generic "chat with tools" surface* that lets the model decide what to do. This is what
   Cursor does, and it is exactly the product we must not be — it is unbounded, unverifiable, and
-  impossible to price. Rejected as the primary surface; retained as _one_ profile (`assistant`).
+  impossible to price. Rejected as the primary surface; retained as *one* profile (`assistant`).
 
 **Trade-offs accepted.** The abstraction costs ~1.5× the engineering of the first capability, and it
 constrains any capability that genuinely does not fit the pipeline shape (we will discover one; when we
@@ -80,7 +80,7 @@ layer, or the API. If it doesn't, the abstraction has failed and we stop and fix
 
 **Status:** Accepted
 
-**Decision.** No LLM call is made without _evidence_: findings produced by tree-sitter, the language's
+**Decision.** No LLM call is made without *evidence*: findings produced by tree-sitter, the language's
 own linter/type-checker, and Semgrep. The model reasons over evidence; it does not go hunting.
 
 **Why.** An LLM asked "find the security vulnerabilities in this file" will find some, whether or not
@@ -90,9 +90,9 @@ instant), verifiable (findings have a rule id and a line number), and useful off
 
 **Alternatives considered.**
 
-- _Pure-LLM analysis._ Trivial to build, indefensible in production, and identical to fifty other
+- *Pure-LLM analysis.* Trivial to build, indefensible in production, and identical to fifty other
   products. Rejected.
-- _Pure static analysis (no LLM)._ This is ESLint. It cannot explain, repair in context, or reason
+- *Pure static analysis (no LLM).* This is ESLint. It cannot explain, repair in context, or reason
   across intent. Insufficient alone.
 
 **Trade-offs accepted.** M3 (the analysis engine) is four weeks of work that produces **no AI features**,
@@ -100,7 +100,7 @@ which will feel slow. Adapter maintenance across ecosystems is an ongoing tax.
 
 **Long-term impact.** This is the moat. It is also the thing a competitor cannot copy in a weekend.
 
-**Acceptance test.** _Fixora is genuinely useful with the LLM switched off._ If it isn't, the grounding
+**Acceptance test.** *Fixora is genuinely useful with the LLM switched off.* If it isn't, the grounding
 is decorative and we are a chat wrapper.
 
 ---
@@ -113,7 +113,7 @@ is decorative and we are a chat wrapper.
 
 **Decision.** Every proposed patch is applied to a copy-on-write overlay of the workspace, then the
 analyzers, the type-checker and (opt-in) the affected tests are re-run. The user sees the fix **and its
-verification report**. A patch that fixes finding A but introduces finding B is labelled a _regression_,
+verification report**. A patch that fixes finding A but introduces finding B is labelled a *regression*,
 not a fix.
 
 **Why.** "The AI suggested this" is worth very little. "This fix compiles, resolves the finding, breaks
@@ -122,11 +122,11 @@ justifies leaving the editor.
 
 **Alternatives considered.**
 
-- _Trust the model._ Free, and it is what everyone else does. It is also why developers do not trust
+- *Trust the model.* Free, and it is what everyone else does. It is also why developers do not trust
   AI fixes. Rejected.
-- _Ask the model to self-critique._ Cheap theatre; the model that made the error grades its own work.
+- *Ask the model to self-critique.* Cheap theatre; the model that made the error grades its own work.
   Retained only as a pre-filter, never as the verification.
-- _Apply and let CI catch it._ Pushes our failure onto the user's pipeline and their teammates. Rejected.
+- *Apply and let CI catch it.* Pushes our failure onto the user's pipeline and their teammates. Rejected.
 
 **Trade-offs accepted.** M6 is the hardest, longest milestone. Running a stranger's test suite reliably
 across ecosystems is genuinely hard, and it is arbitrary code execution (on their own machine, from
@@ -136,7 +136,7 @@ killable**). Overlay performance on very large repos requires hardlink-based CoW
 **Long-term impact.** Defines the product. Also defines the marketing. Also defines the north-star
 metric (**apply-rate of proposed fixes**).
 
-**Degradation policy.** Verification is _tiered_ and we report honestly what ran: static checks always
+**Degradation policy.** Verification is *tiered* and we report honestly what ran: static checks always
 (cheap, universal) → type-check when a config is detected → tests only when opted in. We say "verified
 against lint and types; tests not run" rather than overclaiming.
 
@@ -160,11 +160,11 @@ our biggest liability into our strongest differentiator.
 
 **Alternatives considered.**
 
-- _Cloud-stored history (the default SaaS shape)._ Enables cross-device sync and server-side analytics
+- *Cloud-stored history (the default SaaS shape).* Enables cross-device sync and server-side analytics
   on real data. It also makes us a breach target holding other companies' source code, requires SOC 2
   before enterprises will touch us, and forces a "we don't train on your data, trust us" conversation we
   cannot win pre-brand. Rejected.
-- _Encrypted cloud history with client-side keys._ Real option, and the eventual answer for Teams. But
+- *Encrypted cloud history with client-side keys.* Real option, and the eventual answer for Teams. But
   it blocks server-side search and adds key-management complexity we do not need in v1. **Deferred**, not
   rejected.
 
@@ -191,14 +191,14 @@ split means we would be debugging Safari-specific Monaco bugs on macOS.
 
 **Alternatives considered.**
 
-- _Tauri._ Installer would be ~10 MB instead of ~90 MB, and memory would be lower. But it introduces a
+- *Tauri.* Installer would be ~10 MB instead of ~90 MB, and memory would be lower. But it introduces a
   Rust surface we cannot currently staff, an inconsistent web engine, and a less mature plugin/updater
   ecosystem. Rejected — **but this is the decision most likely to be revisited**, and it is why
   `core-analysis`, `core-ai` and `core-patch` are pure TypeScript with no Electron dependency: a Tauri
   migration would be a shell rewrite, not a product rewrite.
-- _Native (WinUI / Qt)._ Best performance, no Monaco, no shared code with the website, no hiring pool.
+- *Native (WinUI / Qt).* Best performance, no Monaco, no shared code with the website, no hiring pool.
   Rejected.
-- _A VS Code extension instead of an app._ Genuinely tempting — zero distribution friction. But we
+- *A VS Code extension instead of an app.* Genuinely tempting — zero distribution friction. But we
   cannot own the verification surface, the diff UX, or the pricing relationship inside someone else's
   editor. **Deferred to M11 as a distribution channel, not a replacement.**
 
@@ -218,7 +218,7 @@ lint rule that forbids importing `electron` from `packages/core-*`.
 **Why.** Monaco's **diff editor** is the product's primary surface and it is excellent, free, and the one
 developers already recognise from VS Code. Familiarity is a feature.
 
-**Alternatives considered.** _CodeMirror 6_ — smaller, faster, better mobile, cleaner extension model.
+**Alternatives considered.** *CodeMirror 6* — smaller, faster, better mobile, cleaner extension model.
 But its merge/diff view is weaker, and we would rebuild what Monaco gives us. Rejected.
 
 **Trade-offs accepted.** Monaco is heavy (~5 MB), the worker setup is fiddly, and it historically wants
@@ -246,9 +246,9 @@ enormous and the benefit is zero: tree-sitter has first-class WASM bindings.
 
 **Alternatives considered.**
 
-- _Bundle a Python sidecar (PyInstaller / python-build-standalone)._ Rejected on installer size, signing
+- *Bundle a Python sidecar (PyInstaller / python-build-standalone).* Rejected on installer size, signing
   cost and support burden.
-- _Bundle every linter as a vendored binary._ Rejected — signing and licensing per binary per platform,
+- *Bundle every linter as a vendored binary.* Rejected — signing and licensing per binary per platform,
   and version skew against the user's own config, which produces findings their CI disagrees with.
 
 **Trade-offs accepted.** If the user's workspace has no ESLint, we fall back to tree-sitter-only analysis
@@ -304,7 +304,7 @@ CI. Pydantic v2 gives us schema rigor equal to zod, and **CI generates the TypeS
 OpenAPI schema**, which makes the drift argument moot.
 
 **Trade-offs accepted.** Two toolchains, two dependency audits, two CI lanes, and a codegen step in the
-build. Contract drift is prevented by a _generated_ client, never a hand-written one.
+build. Contract drift is prevented by a *generated* client, never a hand-written one.
 
 **Long-term impact.** If we never build serious eval tooling, this decision was wrong and we will feel it
 as friction forever. **If you want to overrule me and go TypeScript-everywhere, now is the only free
@@ -330,13 +330,13 @@ databases and a sync job that silently drifts.
 
 **Alternatives considered.**
 
-- _Supabase Postgres for everything, drop Neon._ Coherent, and RLS becomes usable. Rejected because
+- *Supabase Postgres for everything, drop Neon.* Coherent, and RLS becomes usable. Rejected because
   Neon's **branch-per-PR ephemeral databases** are worth more to us than RLS we would bypass anyway
   (all access goes through FastAPI, not the browser).
-- _Auth0 / Clerk / WorkOS._ Better enterprise SSO story. More expensive. Revisit at the Teams milestone,
+- *Auth0 / Clerk / WorkOS.* Better enterprise SSO story. More expensive. Revisit at the Teams milestone,
   when SAML becomes a requirement — the JWKS-verification boundary makes swapping the IdP a contained
   change.
-- _Roll our own auth._ No.
+- *Roll our own auth.* No.
 
 **Trade-offs accepted.** A webhook-free, JIT-provisioned user table means a user exists in Supabase before
 they exist in Neon. Every service must tolerate that ordering. Deleting a user requires a two-system
@@ -383,9 +383,9 @@ synchronous API is a feature (no callback interleaving bugs in migrations).
 - _`node:sqlite`_ (built into Node 22+). Zero native-module pain and no `electron-rebuild` step —
   genuinely attractive. Rejected for now: still young, and Electron's bundled Node version gates us.
   **Re-evaluate at M8.**
-- _sql.js / WASM SQLite._ No native build step, but everything goes through memory and persistence is
+- *sql.js / WASM SQLite.* No native build step, but everything goes through memory and persistence is
   manual. Rejected for a database that must survive a crash.
-- _LevelDB / lowdb / JSON files._ We need relational queries over findings and history. Rejected.
+- *LevelDB / lowdb / JSON files.* We need relational queries over findings and history. Rejected.
 
 **Trade-offs accepted.** A native module means `electron-rebuild` in CI and an ABI pin per Electron
 version. This is a known, contained cost.
@@ -406,14 +406,14 @@ Gemini and Ollama follow.
 
 **Why.** An abstraction with one implementation is a lie we tell ourselves — it will have leaked the first
 provider's assumptions into its shape, and we will discover this the day we need to fail over. Two
-implementations from the start is what makes the interface _real_. It also gives us live failover when a
+implementations from the start is what makes the interface *real*. It also gives us live failover when a
 provider 429s or degrades, which is an availability feature our users will notice and our competitors
 mostly lack.
 
 **Alternatives considered.**
 
-- _One provider, abstract later._ Cheaper now, and the abstraction will be wrong. Rejected.
-- _LiteLLM / OpenRouter as the abstraction._ Removes the work, adds a hop, a vendor, and a place for our
+- *One provider, abstract later.* Cheaper now, and the abstraction will be wrong. Rejected.
+- *LiteLLM / OpenRouter as the abstraction.* Removes the work, adds a hop, a vendor, and a place for our
   users' code to sit. Rejected on ADR-004 grounds — we will not add a third party to the code path.
 
 **Trade-offs accepted.** ~1 extra week in M5. Two sets of streaming quirks, two token accountings, two
@@ -437,9 +437,9 @@ diff is reviewable, hunk-stageable, conflict-detectable, and cheap.
 
 **Alternatives considered.**
 
-- _Full-file output._ Simpler to prompt for, much more reliable to parse. And unacceptable in a tool whose
+- *Full-file output.* Simpler to prompt for, much more reliable to parse. And unacceptable in a tool whose
   entire value is trust. Rejected.
-- _Structured edit operations (line ranges + replacements)._ Precise and token-efficient, but models are
+- *Structured edit operations (line ranges + replacements).* Precise and token-efficient, but models are
   measurably worse at producing them than at producing diffs, and they aren't human-reviewable. Rejected
   as the wire format; used internally after parsing.
 
@@ -462,8 +462,8 @@ generated) is only possible with diffs. This is what makes patch application tra
 the request), no stateful connection layer, no sticky sessions, and it works through every corporate proxy
 that already allows HTTPS. WebSockets buy us nothing here and cost us load-balancer and scaling complexity.
 
-**Alternatives considered.** _WebSockets_ (rejected: bidirectionality we don't need). _Long-polling_
-(rejected: worse UX, more load). _gRPC streaming_ (rejected: proxy hostility, browser/Electron friction).
+**Alternatives considered.** *WebSockets* (rejected: bidirectionality we don't need). *Long-polling*
+(rejected: worse UX, more load). *gRPC streaming* (rejected: proxy hostility, browser/Electron friction).
 
 **Trade-offs accepted.** SSE has no built-in reconnect-with-resume for a partially consumed AI stream. Our
 answer is to treat an interrupted stream as a **cancelled** operation — never a partially applied one.
@@ -484,12 +484,12 @@ answer is to treat an interrupted stream as a **cancelled** operation — never 
 - **SQLite** owns anything that must survive a restart.
 
 **Why.** Every catastrophic frontend codebase I have seen died of the same disease: two sources of truth
-for one fact. In particular, mirroring file contents into a store _and_ into Monaco is a classic Electron/
+for one fact. In particular, mirroring file contents into a store *and* into Monaco is a classic Electron/
 Monaco bug — it produces double-writes, lost undo history, and cursor jumps.
 
-**Alternatives considered.** _Redux Toolkit_ (ceremony we don't need, and RTK Query is not better than
-TanStack Query here). _Jotai/Recoil_ (fine, but Zustand's store-per-slice model maps directly onto our
-feature slices). _One big store_ (rejected on principle).
+**Alternatives considered.** *Redux Toolkit* (ceremony we don't need, and RTK Query is not better than
+TanStack Query here). *Jotai/Recoil* (fine, but Zustand's store-per-slice model maps directly onto our
+feature slices). *One big store* (rejected on principle).
 
 **Trade-offs accepted.** Four tools to learn instead of one. Worth it.
 
@@ -516,10 +516,10 @@ SSO session, and their MFA — all of which raise conversion, not just security.
 
 **Alternatives considered.**
 
-- _Embedded login form / webview._ Rejected: blocked by IdPs, hostile to password managers, phishing-shaped.
-- _Device code flow._ Excellent for headless; unnecessarily clunky when we have a browser. Keep it in the
+- *Embedded login form / webview.* Rejected: blocked by IdPs, hostile to password managers, phishing-shaped.
+- *Device code flow.* Excellent for headless; unnecessarily clunky when we have a browser. Keep it in the
   back pocket for the future CLI.
-- _Loopback only (no deep link)._ More reliable, slightly worse UX (a stray browser tab). We implement
+- *Loopback only (no deep link).* More reliable, slightly worse UX (a stray browser tab). We implement
   **both**, deep link first.
 
 **Trade-offs accepted.** Two redirect mechanisms to build and test. Deep-link registration is unreliable on
@@ -535,17 +535,17 @@ some managed Windows images — which is exactly why the fallback is a **deliver
 
 **Why.** A runaway tree-sitter parse on a 40 MB minified file, a catastrophically backtracking Semgrep
 rule, or the user's own `pytest` hanging must not freeze the UI or take down the app. `utilityProcess`
-gives us OS-level isolation, hard timeouts, cancellation, and a crash that we can _recover from_ by
+gives us OS-level isolation, hard timeouts, cancellation, and a crash that we can *recover from* by
 restarting one process.
 
-**Alternatives considered.** _In the main process_ (rejected: one bad parse freezes IPC and the app).
-_Web Workers in the renderer_ (rejected: no filesystem, no subprocess). _A long-lived child process pool_
+**Alternatives considered.** *In the main process* (rejected: one bad parse freezes IPC and the app).
+*Web Workers in the renderer* (rejected: no filesystem, no subprocess). *A long-lived child process pool*
 (this is effectively what we build; `utilityProcess` is the Electron-native form of it).
 
 **Trade-offs accepted.** IPC serialisation cost across the process boundary, and a more complex lifecycle
 (spawn, health-check, restart, backoff).
 
-**Long-term impact.** The verification worker is where we execute _user code_. Having it already isolated
+**Long-term impact.** The verification worker is where we execute *user code*. Having it already isolated
 is what lets us tighten that sandbox later (resource limits, filesystem jail) without re-architecting.
 
 ---
@@ -564,7 +564,7 @@ is what lets us tighten that sandbox later (resource limits, filesystem jail) wi
 content (the user's code). **Treat it as hostile.** A validated, enumerable IPC surface is the difference
 between "a renderer compromise is contained" and "a renderer compromise reads `~/.ssh`".
 
-**Alternatives considered.** _tRPC over IPC_ (elegant, adds a dependency and a layer; the registry pattern
+**Alternatives considered.** *tRPC over IPC* (elegant, adds a dependency and a layer; the registry pattern
 gives us the same type safety in ~200 lines). _Hand-rolled `ipcMain.handle` calls_ (rejected: unenumerable
 surface, no validation, this is how Electron apps get CVEs).
 
@@ -591,8 +591,8 @@ app and the website.
 site ships hourly). But two repos with hand-copied colours means brand drift within a month. One published
 token package is the minimum shared surface that prevents it.
 
-**Alternatives considered.** _One giant monorepo for everything_ (couples release cadences, makes CI slow
-and permissions coarse; rejected). _Full duplication with no shared package_ (rejected: brand drift is
+**Alternatives considered.** *One giant monorepo for everything* (couples release cadences, makes CI slow
+and permissions coarse; rejected). *Full duplication with no shared package* (rejected: brand drift is
 inevitable and expensive to unwind).
 
 **Trade-offs accepted.** A publish step, and version coordination when tokens change.
@@ -610,9 +610,9 @@ here, because a `packages/core-analysis` that accidentally resolves `electron` t
 silently violate ADR-005's escape hatch. Turborepo gives us cached, parallel task graphs so CI stays under
 five minutes.
 
-**Alternatives considered.** _npm workspaces_ (hoisting = phantom deps; rejected). _Nx_ (more powerful,
-more machinery than we need). _Yarn Berry PnP_ (breaks native modules and Electron tooling; rejected).
-_No monorepo_ (rejected: the core packages must be separately versioned and testable).
+**Alternatives considered.** *npm workspaces* (hoisting = phantom deps; rejected). *Nx* (more powerful,
+more machinery than we need). *Yarn Berry PnP* (breaks native modules and Electron tooling; rejected).
+*No monorepo* (rejected: the core packages must be separately versioned and testable).
 
 **Trade-offs accepted.** pnpm + native modules + Electron requires explicit configuration
 (`node-linker`/hoisting rules for `better-sqlite3`). Known, contained.
@@ -630,9 +630,9 @@ and it inherits Microsoft's SmartScreen reputation **immediately** — so our fi
 "Windows protected your PC". That dialog is a conversion cliff, and for an unknown brand it is the single
 biggest install-funnel leak.
 
-**Alternatives considered.** _EV cert on a hardware token_ (expensive, awkward in CI, and the token is a
-single point of failure). _OV cert_ (cheap, but SmartScreen reputation must be earned from zero over
-weeks/thousands of installs — unacceptable at launch). _Unsigned_ (not a serious option for a commercial
+**Alternatives considered.** *EV cert on a hardware token* (expensive, awkward in CI, and the token is a
+single point of failure). *OV cert* (cheap, but SmartScreen reputation must be earned from zero over
+weeks/thousands of installs — unacceptable at launch). *Unsigned* (not a serious option for a commercial
 desktop product).
 
 **Trade-offs accepted.** Ties signing to an Azure account and its identity-validation process (which takes
@@ -653,8 +653,8 @@ table with a `rollout_percent`. Binaries live in object storage behind a CDN.
 in the wild cannot be hot-fixed; the only defence against a bad release is to stop it reaching everyone.
 We promote 5% → 25% → 100%, watching crash-free-sessions between steps, and we can halt instantly.
 
-**Alternatives considered.** _GitHub Releases_ (free, zero infra, no rollout control — rejected).
-_Hazel/Nuts_ (a proxy over GitHub; still no rollout control). _A commercial update service_ (money for
+**Alternatives considered.** *GitHub Releases* (free, zero infra, no rollout control — rejected).
+*Hazel/Nuts* (a proxy over GitHub; still no rollout control). *A commercial update service* (money for
 something that is a database table and an endpoint).
 
 **Trade-offs accepted.** We own the availability of our own update feed. It must be boringly reliable: a
@@ -675,15 +675,15 @@ M5. The client is untrusted; quota is enforced server-side. **We never ship an "
 metering after launch means either a painful migration or eating the loss. Building it first costs days;
 building it later costs the business.
 
-**Alternatives considered.** _Meter later._ Universally regretted. Rejected.
-_Client-side quota._ The client is a JavaScript app on the user's machine. It is not a security boundary.
+**Alternatives considered.** *Meter later.* Universally regretted. Rejected.
+*Client-side quota.* The client is a JavaScript app on the user's machine. It is not a security boundary.
 Rejected.
 
 **Trade-offs accepted.** M4 lands before any AI feature is demoable, which will feel like slow progress.
 
 **Long-term impact.** BYOK (ADR-004) is the pressure valve: heavy users bring their own key, which
 simultaneously solves our cost problem and their privacy problem. This is the rare alignment where the
-right business decision _is_ the right ethical one — build for it.
+right business decision *is* the right ethical one — build for it.
 
 ---
 
@@ -697,30 +697,30 @@ remaining capabilities can be released after they reach the same quality bar."_
 
 **Decision.** v1.0 ships **Repair, Explain, Security, and Test Generation** at an excellent quality bar.
 Refactor, Optimise, Document, Best-Practices, Compare and Assistant are built on the same pipeline and
-released _incrementally, after launch, each gated on its own golden-corpus score._
+released *incrementally, after launch, each gated on its own golden-corpus score.*
 
 **Why.** Every capability needs its own golden corpus, its own quality bar, and its own verification
 strategy. Twelve buttons shipped simultaneously means twelve mediocre ones — and **a mediocre "Optimise"
 button destroys the user's trust in the excellent "Repair" button.** Trust is not per-feature; it is
-per-product. In a tool whose entire thesis is _trust_, shipping a feature below the bar is worse than not
+per-product. In a tool whose entire thesis is *trust*, shipping a feature below the bar is worse than not
 shipping it.
 
-The four chosen are the ones that (a) are grounded in deterministic evidence, so we can be _right_, and
-(b) map to the moments a developer actually opens a fixing tool: _it's broken_, _I don't understand it_,
-_is this safe to ship_, _I need coverage before I touch this_.
+The four chosen are the ones that (a) are grounded in deterministic evidence, so we can be *right*, and
+(b) map to the moments a developer actually opens a fixing tool: *it's broken*, *I don't understand it*,
+*is this safe to ship*, *I need coverage before I touch this*.
 
 "Optimise" is the weakest of the twelve, incidentally — real performance work needs a profiler and a
 benchmark, not a language model reading a function. When we ship it, it should be grounded in an actual
 benchmark harness, or not at all.
 
-**Alternatives considered.** _Ship all twelve._ Bigger feature list on the pricing page, worse product,
+**Alternatives considered.** *Ship all twelve.* Bigger feature list on the pricing page, worse product,
 slower launch by ~8 weeks, and it puts our trust thesis at the mercy of our weakest feature. Rejected.
 
 **Trade-offs accepted.** A shorter feature list at launch, and the marketing site can no longer say
 "twelve things". It can say "four things that work", which is a better ad anyway.
 
 **Long-term impact.** None, architecturally — ADR-001 means the remaining eight are config, not code.
-This is purely a _release sequencing_ decision, which is why it costs nothing to accept and everything to
+This is purely a *release sequencing* decision, which is why it costs nothing to accept and everything to
 get wrong.
 
 ---
@@ -735,11 +735,11 @@ get wrong.
 type-checker adapters, a Semgrep ruleset, a test-runner adapter, and a golden corpus.
 
 **Why.** Each language is not a checkbox — it is five integrations and an evidence corpus. Ten languages at
-50% quality is worse than three at 95%, because a developer evaluates us on _their_ language and leaves
+50% quality is worse than three at 95%, because a developer evaluates us on *their* language and leaves
 forever if we are bad at it. TS/JS is the largest market, Python is the AI-adjacent market, Go has the
 cleanest tooling story (a single official toolchain, fast tests) which makes it the cheapest third.
 
-**Alternatives considered.** _Ten languages via tree-sitter only, no linter adapters._ This gets us
+**Alternatives considered.** *Ten languages via tree-sitter only, no linter adapters.* This gets us
 "supports 10 languages" on the pricing page and violates ADR-002 in nine of them. Rejected — it is
 precisely the shortcut that turns us into a chat wrapper.
 
@@ -760,7 +760,7 @@ colour of every developer tool on earth. One tuned violet scale, with all intera
 it, and semantic status colours (danger/warn/success/info) held separate and never used decoratively.
 
 **Trade-offs accepted.** Violet at low luminance on near-black is harder to keep above 4.5:1 for text — so
-violet is used for _surfaces and accents_, and text on violet is checked by the CI contrast gate, not by
+violet is used for *surfaces and accents*, and text on violet is checked by the CI contrast gate, not by
 eye.
 
 ---
@@ -798,8 +798,8 @@ no compile error and no failing unit test**. Without a scored corpus, we are fly
 will drift downward invisibly while everyone feels productive. This is the single practice that separates
 AI products that improve from AI products that rot.
 
-**Alternatives considered.** _Manual spot-checking._ Does not scale past week three and is not a gate.
-_LLM-as-judge only._ Useful as a _secondary_ signal, but our primary signal is objective and free: **did
+**Alternatives considered.** *Manual spot-checking.* Does not scale past week three and is not a gate.
+*LLM-as-judge only.* Useful as a *secondary* signal, but our primary signal is objective and free: **did
 the verification pass?** We already built that in M6 — the corpus scorer is the verification pipeline run
 in a loop. That is a beautiful piece of leverage and we should exploit it deliberately.
 

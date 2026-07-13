@@ -15,14 +15,14 @@ Gemini and Ollama follow.
 
 **Why.** An abstraction with one implementation is a lie we tell ourselves — it will have leaked the first
 provider's assumptions into its shape, and we will discover this the day we need to fail over. Two
-implementations from the start is what makes the interface _real_. It also gives us live failover when a
+implementations from the start is what makes the interface *real*. It also gives us live failover when a
 provider 429s or degrades, which is an availability feature our users will notice and our competitors
 mostly lack.
 
 **Alternatives considered.**
 
-- _One provider, abstract later._ Cheaper now, and the abstraction will be wrong. Rejected.
-- _LiteLLM / OpenRouter as the abstraction._ Removes the work, adds a hop, a vendor, and a place for our
+- *One provider, abstract later.* Cheaper now, and the abstraction will be wrong. Rejected.
+- *LiteLLM / OpenRouter as the abstraction.* Removes the work, adds a hop, a vendor, and a place for our
   users' code to sit. Rejected on ADR-004 grounds — we will not add a third party to the code path.
 
 **Trade-offs accepted.** ~1 extra week in M5. Two sets of streaming quirks, two token accountings, two

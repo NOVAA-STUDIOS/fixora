@@ -16,9 +16,9 @@ diff is reviewable, hunk-stageable, conflict-detectable, and cheap.
 
 **Alternatives considered.**
 
-- _Full-file output._ Simpler to prompt for, much more reliable to parse. And unacceptable in a tool whose
+- *Full-file output.* Simpler to prompt for, much more reliable to parse. And unacceptable in a tool whose
   entire value is trust. Rejected.
-- _Structured edit operations (line ranges + replacements)._ Precise and token-efficient, but models are
+- *Structured edit operations (line ranges + replacements).* Precise and token-efficient, but models are
   measurably worse at producing them than at producing diffs, and they aren't human-reviewable. Rejected
   as the wire format; used internally after parsing.
 

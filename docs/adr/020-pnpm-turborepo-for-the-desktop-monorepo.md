@@ -15,9 +15,9 @@ here, because a `packages/core-analysis` that accidentally resolves `electron` t
 silently violate ADR-005's escape hatch. Turborepo gives us cached, parallel task graphs so CI stays under
 five minutes.
 
-**Alternatives considered.** _npm workspaces_ (hoisting = phantom deps; rejected). _Nx_ (more powerful,
-more machinery than we need). _Yarn Berry PnP_ (breaks native modules and Electron tooling; rejected).
-_No monorepo_ (rejected: the core packages must be separately versioned and testable).
+**Alternatives considered.** *npm workspaces* (hoisting = phantom deps; rejected). *Nx* (more powerful,
+more machinery than we need). *Yarn Berry PnP* (breaks native modules and Electron tooling; rejected).
+*No monorepo* (rejected: the core packages must be separately versioned and testable).
 
 **Trade-offs accepted.** pnpm + native modules + Electron requires explicit configuration
 (`node-linker`/hoisting rules for `better-sqlite3`). Known, contained.

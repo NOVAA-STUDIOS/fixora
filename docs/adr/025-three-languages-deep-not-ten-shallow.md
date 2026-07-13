@@ -14,11 +14,11 @@
 type-checker adapters, a Semgrep ruleset, a test-runner adapter, and a golden corpus.
 
 **Why.** Each language is not a checkbox — it is five integrations and an evidence corpus. Ten languages at
-50% quality is worse than three at 95%, because a developer evaluates us on _their_ language and leaves
+50% quality is worse than three at 95%, because a developer evaluates us on *their* language and leaves
 forever if we are bad at it. TS/JS is the largest market, Python is the AI-adjacent market, Go has the
 cleanest tooling story (a single official toolchain, fast tests) which makes it the cheapest third.
 
-**Alternatives considered.** _Ten languages via tree-sitter only, no linter adapters._ This gets us
+**Alternatives considered.** *Ten languages via tree-sitter only, no linter adapters.* This gets us
 "supports 10 languages" on the pricing page and violates ADR-002 in nine of them. Rejected — it is
 precisely the shortcut that turns us into a chat wrapper.
 

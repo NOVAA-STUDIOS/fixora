@@ -18,14 +18,14 @@ split means we would be debugging Safari-specific Monaco bugs on macOS.
 
 **Alternatives considered.**
 
-- _Tauri._ Installer would be ~10 MB instead of ~90 MB, and memory would be lower. But it introduces a
+- *Tauri.* Installer would be ~10 MB instead of ~90 MB, and memory would be lower. But it introduces a
   Rust surface we cannot currently staff, an inconsistent web engine, and a less mature plugin/updater
   ecosystem. Rejected — **but this is the decision most likely to be revisited**, and it is why
   `core-analysis`, `core-ai` and `core-patch` are pure TypeScript with no Electron dependency: a Tauri
   migration would be a shell rewrite, not a product rewrite.
-- _Native (WinUI / Qt)._ Best performance, no Monaco, no shared code with the website, no hiring pool.
+- *Native (WinUI / Qt).* Best performance, no Monaco, no shared code with the website, no hiring pool.
   Rejected.
-- _A VS Code extension instead of an app._ Genuinely tempting — zero distribution friction. But we
+- *A VS Code extension instead of an app.* Genuinely tempting — zero distribution friction. But we
   cannot own the verification surface, the diff UX, or the pricing relationship inside someone else's
   editor. **Deferred to M11 as a distribution channel, not a replacement.**
 

@@ -7,6 +7,8 @@ packages:
 # runner — i.e. it is part of the release pipeline, and the release pipeline is production
 # (Security §7). Nothing runs one unless it is named here, with a reason.
 allowBuilds:
+  # Downloads the Electron binary. Without this the app cannot start at all.
+  electron: true
   # Bundler used by Vite/Vitest/tsx. Needs its native binary.
   esbuild: true
   # Native resolver behind eslint-import-resolver-typescript. Needs its platform binding.
@@ -28,3 +30,12 @@ packageExtensions:
   '@doyensec/electronegativity':
     dependencies:
       commander: '^2.20.3'
+
+# Transitive pins. These are dev-only paths, but "dev-only" is not a defence: a compromised
+# dependency runs on every developer machine and every CI runner, and the release pipeline IS
+# production (Security §7). We pin rather than exclude devDependencies from the audit, because
+# excluding them is how you get a green audit that means nothing.
+overrides:
+  # 6 high-severity path-traversal / arbitrary-write advisories, reached via
+  # @doyensec/electronegativity > @mapbox/node-pre-gyp > tar. Ironic, in a security scanner.
+  tar: '>=7.5.11'

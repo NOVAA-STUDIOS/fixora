@@ -15,9 +15,9 @@ and it inherits Microsoft's SmartScreen reputation **immediately** — so our fi
 "Windows protected your PC". That dialog is a conversion cliff, and for an unknown brand it is the single
 biggest install-funnel leak.
 
-**Alternatives considered.** _EV cert on a hardware token_ (expensive, awkward in CI, and the token is a
-single point of failure). _OV cert_ (cheap, but SmartScreen reputation must be earned from zero over
-weeks/thousands of installs — unacceptable at launch). _Unsigned_ (not a serious option for a commercial
+**Alternatives considered.** *EV cert on a hardware token* (expensive, awkward in CI, and the token is a
+single point of failure). *OV cert* (cheap, but SmartScreen reputation must be earned from zero over
+weeks/thousands of installs — unacceptable at launch). *Unsigned* (not a serious option for a commercial
 desktop product).
 
 **Trade-offs accepted.** Ties signing to an Azure account and its identity-validation process (which takes

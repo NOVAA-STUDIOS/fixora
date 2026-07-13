@@ -24,7 +24,9 @@ export function createMainWindow(devServerUrl: string | undefined): BrowserWindo
     backgroundColor: '#0b0a0f',
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.mjs'),
+      // CommonJS, not .mjs: Electron does not support an ESM preload in a sandboxed renderer,
+      // and `sandbox: true` is not negotiable (Security §2).
+      preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -61,7 +63,7 @@ export function createMainWindow(devServerUrl: string | undefined): BrowserWindo
   if (devServerUrl !== undefined) {
     void window.loadURL(devServerUrl);
   } else {
-    void window.loadFile(join(import.meta.dirname, '../renderer/index.html'));
+    void window.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
   return window;

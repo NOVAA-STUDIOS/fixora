@@ -108,8 +108,8 @@ graph TB
 
 **Why `packages/core-*` is drawn separately:** it is the intellectual property. It has no dependency on
 Electron or React, which means (a) it is unit-testable without a display, (b) `fixora-cli` and a GitHub
-Action cost weeks not quarters, and (c) an eventual Tauri migration would be a _shell_ rewrite, not a
-_product_ rewrite. A lint rule forbids importing `electron` or `react` from these packages, and CI
+Action cost weeks not quarters, and (c) an eventual Tauri migration would be a *shell* rewrite, not a
+*product* rewrite. A lint rule forbids importing `electron` or `react` from these packages, and CI
 enforces it.
 
 ---
@@ -252,7 +252,7 @@ flowchart LR
 ```
 
 **The invariant, stated once so it can be tested:** the only user content that ever crosses the machine
-boundary is a _transient prompt payload_, and only after the secret gate passes. Findings, patches,
+boundary is a *transient prompt payload*, and only after the secret gate passes. Findings, patches,
 history and keys never cross it at all. `usage_events` carries **counts, not content**.
 
 An automated test asserts that a log line or a DB write containing source code is rejected. This is not a
@@ -303,12 +303,12 @@ the only kill switch we have, so it must be ours (ADR-022).
 
 These are load-bearing. A change that violates one is wrong, however convenient.
 
-| #      | Invariant                                                       | Enforced by                                                                                           |
-| ------ | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **I1** | `packages/core-*` never imports `electron` or `react`           | ESLint `no-restricted-imports`, checked in CI                                                         |
-| **I2** | The renderer never holds a token, a key, or a filesystem handle | Preload exposes only the typed IPC registry; no `ipcRenderer`                                         |
-| **I3** | No payload leaves the machine without passing the secret gate   | A single choke point in `core-ai`; an integration test tries to smuggle a key past it on every CI run |
-| **I4** | No byte is written to the user's disk without a checkpoint      | `patch.service` is the _only_ writer; a test asserts undo restores byte-identical content             |
+| # | Invariant | Enforced by |
+|---|---|---|
+| **I1** | `packages/core-*` never imports `electron` or `react` | ESLint `no-restricted-imports`, checked in CI |
+| **I2** | The renderer never holds a token, a key, or a filesystem handle | Preload exposes only the typed IPC registry; no `ipcRenderer` |
+| **I3** | No payload leaves the machine without passing the secret gate | A single choke point in `core-ai`; an integration test tries to smuggle a key past it on every CI run |
+| **I4** | No byte is written to the user's disk without a checkpoint | `patch.service` is the *only* writer; a test asserts undo restores byte-identical content |
 
 </content>
 </invoke>

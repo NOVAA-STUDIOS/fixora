@@ -10,7 +10,7 @@
 
 **Status:** Accepted
 
-**Decision.** No LLM call is made without _evidence_: findings produced by tree-sitter, the language's
+**Decision.** No LLM call is made without *evidence*: findings produced by tree-sitter, the language's
 own linter/type-checker, and Semgrep. The model reasons over evidence; it does not go hunting.
 
 **Why.** An LLM asked "find the security vulnerabilities in this file" will find some, whether or not
@@ -20,9 +20,9 @@ instant), verifiable (findings have a rule id and a line number), and useful off
 
 **Alternatives considered.**
 
-- _Pure-LLM analysis._ Trivial to build, indefensible in production, and identical to fifty other
+- *Pure-LLM analysis.* Trivial to build, indefensible in production, and identical to fifty other
   products. Rejected.
-- _Pure static analysis (no LLM)._ This is ESLint. It cannot explain, repair in context, or reason
+- *Pure static analysis (no LLM).* This is ESLint. It cannot explain, repair in context, or reason
   across intent. Insufficient alone.
 
 **Trade-offs accepted.** M3 (the analysis engine) is four weeks of work that produces **no AI features**,
@@ -30,7 +30,7 @@ which will feel slow. Adapter maintenance across ecosystems is an ongoing tax.
 
 **Long-term impact.** This is the moat. It is also the thing a competitor cannot copy in a weekend.
 
-**Acceptance test.** _Fixora is genuinely useful with the LLM switched off._ If it isn't, the grounding
+**Acceptance test.** *Fixora is genuinely useful with the LLM switched off.* If it isn't, the grounding
 is decorative and we are a chat wrapper.
 
 

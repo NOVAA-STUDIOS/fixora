@@ -12,7 +12,7 @@
 
 **Decision.** Every proposed patch is applied to a copy-on-write overlay of the workspace, then the
 analyzers, the type-checker and (opt-in) the affected tests are re-run. The user sees the fix **and its
-verification report**. A patch that fixes finding A but introduces finding B is labelled a _regression_,
+verification report**. A patch that fixes finding A but introduces finding B is labelled a *regression*,
 not a fix.
 
 **Why.** "The AI suggested this" is worth very little. "This fix compiles, resolves the finding, breaks
@@ -21,11 +21,11 @@ justifies leaving the editor.
 
 **Alternatives considered.**
 
-- _Trust the model._ Free, and it is what everyone else does. It is also why developers do not trust
+- *Trust the model.* Free, and it is what everyone else does. It is also why developers do not trust
   AI fixes. Rejected.
-- _Ask the model to self-critique._ Cheap theatre; the model that made the error grades its own work.
+- *Ask the model to self-critique.* Cheap theatre; the model that made the error grades its own work.
   Retained only as a pre-filter, never as the verification.
-- _Apply and let CI catch it._ Pushes our failure onto the user's pipeline and their teammates. Rejected.
+- *Apply and let CI catch it.* Pushes our failure onto the user's pipeline and their teammates. Rejected.
 
 **Trade-offs accepted.** M6 is the hardest, longest milestone. Running a stranger's test suite reliably
 across ecosystems is genuinely hard, and it is arbitrary code execution (on their own machine, from
@@ -35,7 +35,7 @@ killable**). Overlay performance on very large repos requires hardlink-based CoW
 **Long-term impact.** Defines the product. Also defines the marketing. Also defines the north-star
 metric (**apply-rate of proposed fixes**).
 
-**Degradation policy.** Verification is _tiered_ and we report honestly what ran: static checks always
+**Degradation policy.** Verification is *tiered* and we report honestly what ran: static checks always
 (cheap, universal) → type-check when a config is detected → tests only when opted in. We say "verified
 against lint and types; tests not run" rather than overclaiming.
 

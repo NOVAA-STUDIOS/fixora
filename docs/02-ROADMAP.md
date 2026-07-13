@@ -10,7 +10,7 @@ Complexity is expressed in ideal engineer-weeks for one senior engineer.
 ## M0 — Foundations
 
 **Objective.** A repo that a professional would recognise as professional, with the security and quality
-gates in place _before_ there is code to protect.
+gates in place *before* there is code to protect.
 
 **Deliverables**
 
@@ -32,7 +32,7 @@ violation in a token file fails the build.
 
 ## M1 — Design system & application shell
 
-**Objective.** The app _looks and feels_ like the finished product before it does anything.
+**Objective.** The app *looks and feels* like the finished product before it does anything.
 
 **Deliverables**
 
@@ -85,7 +85,7 @@ functions offline and signed-out; DB migration from an empty DB and from v1→v2
   imports, call graph within a file.
 - Analyzer adapters producing a unified `Finding` model: ESLint, `tsc`, ruff/mypy, `go vet`, Semgrep
   (security), plus cyclomatic/cognitive complexity.
-- Adapters use the _workspace's own_ tooling when present; nothing bundled that must be signed.
+- Adapters use the *workspace's own* tooling when present; nothing bundled that must be signed.
 - Utility-process host with cancellation, timeouts, and crash isolation.
 - Findings panel: virtualised, grouped, filterable by severity/source/file.
 
@@ -100,7 +100,7 @@ LLM at all** — that is the test that the grounding layer is real.
 
 ## M4 — Backend, auth, entitlements
 
-**Objective.** Identity, quota and metering exist _before_ the first token is ever spent.
+**Objective.** Identity, quota and metering exist *before* the first token is ever spent.
 
 **Deliverables**
 
@@ -122,7 +122,7 @@ cannot exceed its quota; a log line containing source code is rejected by an aut
 
 ## M5 — AI layer (`core-ai`) + provider abstraction
 
-**Objective.** Streaming, budgeted, provider-agnostic reasoning over _grounded_ context.
+**Objective.** Streaming, budgeted, provider-agnostic reasoning over *grounded* context.
 
 **Deliverables**
 
@@ -139,7 +139,7 @@ cannot exceed its quota; a log line containing source code is rejected by an aut
 
 **Dependencies.** M3, M4. **Complexity.** 4 weeks.
 **Risks.** Prompt/context quality is the whole product and it is not unit-testable in the normal sense —
-which is exactly why the scoring harness ships _in this milestone_, not later.
+which is exactly why the scoring harness ships *in this milestone*, not later.
 **Acceptance.** "Explain this function" streams a correct, grounded explanation in under 1.5s to first
 token; killing the provider forces failover to the secondary with no user-visible error; a file
 containing an API key is refused before transmission.
@@ -181,10 +181,10 @@ verification sandbox before it is shown — a generated test that fails is not a
 The pipeline supports them; they ship post-launch, each gated on its own golden-corpus score. Twelve
 mediocre buttons destroy trust in four excellent ones, and trust is per-product, not per-feature.
 
-**Dependencies.** M6. **Complexity.** 4 weeks _for all four together_ — if any single one takes more than
+**Dependencies.** M6. **Complexity.** 4 weeks *for all four together* — if any single one takes more than
 a few days, the pipeline abstraction has failed and we stop and fix it rather than special-casing.
 **Risks.** Feature dilution; pressure to ship the other eight "since they're nearly free". They are nearly
-free to _build_ and expensive to _ship badly_.
+free to *build* and expensive to *ship badly*.
 **Acceptance.** Adding a new profile requires no changes to `core-ai`'s engine, the IPC layer, or the
 API. **This is the acceptance test for the entire architecture.**
 
@@ -230,7 +230,7 @@ produce the correct entitlement state within seconds.
 
 **Objective.** The site from the design review — rebuilt with the recommended sections.
 
-**Deliverables** — Next.js (App Router), consuming `@fixora/tokens`; hero with a _real_ product loop;
+**Deliverables** — Next.js (App Router), consuming `@fixora/tokens`; hero with a *real* product loop;
 How it works; four feature pillars; **Security & Privacy page**; Pricing; MDX docs; changelog; FAQ;
 status page; light + dark; WCAG AA verified; Lighthouse ≥ 95; OG/social cards; download endpoints
 proxied from the API with OS auto-detection.

@@ -32,7 +32,7 @@ erDiagram
 
 **`workspaces`** — `id, root_path (unique), name, last_opened_at, settings_json, created_at`
 Per-workspace settings live here (not globally) because "run tests during verification" is a decision a
-user makes _about a repo_, not about the app. Trusting one repo must not trust all of them.
+user makes *about a repo*, not about the app. Trusting one repo must not trust all of them.
 
 **`files_index`** — `id, workspace_id, rel_path, language, size_bytes, mtime, content_hash, indexed_at`
 `UNIQUE(workspace_id, rel_path)` · `INDEX(workspace_id, language)`
@@ -44,9 +44,9 @@ One session per user intent. The unit of history the user actually browses.
 
 **`findings`** — `id (stable hash), session_id, file_id, source, rule_id, severity, category, start_line, start_col, end_line, end_col, message, evidence_json, fixable, confidence, resolved_at`
 `INDEX(session_id, severity)` · `INDEX(file_id)`
-**`findings.id` is a stable content hash** (rule + file + enclosing symbol + normalised snippet), _not_ an
+**`findings.id` is a stable content hash** (rule + file + enclosing symbol + normalised snippet), *not* an
 autoincrement. Line numbers shift the instant a patch is applied; if the id shifts with them, we cannot
-answer "did this fix resolve the finding, or did it introduce a new one?" — and that question _is_ the
+answer "did this fix resolve the finding, or did it introduce a new one?" — and that question *is* the
 product. This is the least obvious and most load-bearing detail in the local schema.
 
 **`patches`** — `id, finding_id, session_id, unified_diff, base_content_hash, rationale_md, confidence, model, provider, tokens_in, tokens_out, created_at`
@@ -73,7 +73,7 @@ Forward-only, numbered, in a transaction, **with a file backup taken first**. Ba
 version, so a user who rolls back an update (ADR-022) does not find a database their older app cannot read.
 
 **A corrupted local DB must degrade to "history unavailable" — never to "the app won't launch."** On a
-failed integrity check: back up the file, recreate empty, tell the user, and _keep going_. Their code is
+failed integrity check: back up the file, recreate empty, tell the user, and *keep going*. Their code is
 on disk; their history is a convenience. Losing the convenience must never cost them the tool.
 
 ---
@@ -114,7 +114,7 @@ Quota checks read the rollup, not a `SUM()` over events. The quota check is on t
 request; it must be O(1).
 
 **`byok_credentials`** — `id, user_id, provider, ciphertext, key_version, created_at`
-**Empty by default.** BYOK keys live in the OS keychain. This table exists _only_ for users who explicitly
+**Empty by default.** BYOK keys live in the OS keychain. This table exists *only* for users who explicitly
 opt into cross-device key sync, and then only envelope-encrypted with a KMS key. **The default path never
 uploads a key.**
 
@@ -133,7 +133,7 @@ Stores a **hash**, plus a display prefix. We can never show the key again, and w
 Append-only. Auth events, billing changes, key issuance, admin actions. The first thing anyone asks for in
 an incident, and the last thing anyone remembers to build.
 
-### What is _not_ here, and never will be
+### What is *not* here, and never will be
 
 No source code. No file paths. No findings. No diffs. No prompts. No completions. No chat history.
 **A schema-audit test in CI fails the build if a new column matches a denylist of names** (`content`,
@@ -144,13 +144,13 @@ exemption. Policies drift; tests don't.
 
 ## 3. Access patterns
 
-| Query                  | Path                                          | Requirement                                                    |
-| ---------------------- | --------------------------------------------- | -------------------------------------------------------------- |
-| Quota check            | `entitlements` + `usage_rollups` by `user_id` | Single indexed read. On the hot path of every AI request.      |
-| Meter a completion     | Insert `usage_events`, upsert `usage_rollups` | Async, batched, **must not block the stream to the user**      |
-| Update manifest        | `releases` by channel/platform/version        | Cached at the CDN; the API only computes rollout eligibility   |
-| Findings for a session | Local SQLite, `INDEX(session_id, severity)`   | < 10 ms for 5k findings                                        |
-| History search         | Local SQLite FTS5 over messages + rationales  | Entirely local — the cloud cannot search what it does not have |
+| Query | Path | Requirement |
+|---|---|---|
+| Quota check | `entitlements` + `usage_rollups` by `user_id` | Single indexed read. On the hot path of every AI request. |
+| Meter a completion | Insert `usage_events`, upsert `usage_rollups` | Async, batched, **must not block the stream to the user** |
+| Update manifest | `releases` by channel/platform/version | Cached at the CDN; the API only computes rollout eligibility |
+| Findings for a session | Local SQLite, `INDEX(session_id, severity)` | < 10 ms for 5k findings |
+| History search | Local SQLite FTS5 over messages + rationales | Entirely local — the cloud cannot search what it does not have |
 
 **Metering must never block the user's stream.** If the metering write fails, the user still gets their fix
 and we reconcile from the event log. Getting this backwards — failing a paid request because a stats write

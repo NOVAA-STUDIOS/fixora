@@ -1,6 +1,6 @@
 # Fixora — Technical Design Document
 
-The PRD says _what_. This says _how_. Type signatures below are **design artifacts**, not implementation —
+The PRD says *what*. This says *how*. Type signatures below are **design artifacts**, not implementation —
 they define contracts and boundaries, and they are the things I want argued with before M0.
 
 ---
@@ -35,15 +35,15 @@ around it (ADR-001).
 
 ## 2. Module boundaries
 
-| Package             | Depends on                           | Must **never** import          | Why                                                                                 |
-| ------------------- | ------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------- |
-| `core-analysis`     | tree-sitter WASM, node:fs            | `electron`, `react`            | Must run in a CLI, a CI action, and a test harness                                  |
-| `core-ai`           | provider SDKs, `core-analysis` types | `electron`, `react`, `node:fs` | Pure transformation: context in, prompt out, stream in, proposal out                |
-| `core-patch`        | `diff` libs                          | `electron`, `react`            | Pure diff algebra; the most safety-critical code we own                             |
-| `shared-types`      | zod                                  | everything                     | The contract layer; must be depended on, never depend                               |
-| `ui`                | react, radix, `@fixora/tokens`       | `electron`, `core-*`           | Presentational only; a component that knows about a Finding is in the wrong package |
-| `electron/main`     | all of the above                     | `react`                        | Privileged; the only process with FS, network, keychain                             |
-| `electron/renderer` | `ui`, `shared-types`                 | `electron`, `node:*`, `core-*` | **Treat as hostile** (it renders untrusted code)                                    |
+| Package | Depends on | Must **never** import | Why |
+|---|---|---|---|
+| `core-analysis` | tree-sitter WASM, node:fs | `electron`, `react` | Must run in a CLI, a CI action, and a test harness |
+| `core-ai` | provider SDKs, `core-analysis` types | `electron`, `react`, `node:fs` | Pure transformation: context in, prompt out, stream in, proposal out |
+| `core-patch` | `diff` libs | `electron`, `react` | Pure diff algebra; the most safety-critical code we own |
+| `shared-types` | zod | everything | The contract layer; must be depended on, never depend |
+| `ui` | react, radix, `@fixora/tokens` | `electron`, `core-*` | Presentational only; a component that knows about a Finding is in the wrong package |
+| `electron/main` | all of the above | `react` | Privileged; the only process with FS, network, keychain |
+| `electron/renderer` | `ui`, `shared-types` | `electron`, `node:*`, `core-*` | **Treat as hostile** (it renders untrusted code) |
 
 Enforced by ESLint `no-restricted-imports` + `depcruise`, blocking in CI. This table is not advice.
 
@@ -74,7 +74,7 @@ and it is a common, quiet capitulation. We don't make it.
 ### 3.3 Utility processes
 
 `analysis` and `verify`. Isolated because they run hostile-shaped work: a 40 MB minified file, a
-catastrophically backtracking Semgrep rule, or _the user's own test suite_. Each has:
+catastrophically backtracking Semgrep rule, or *the user's own test suite*. Each has:
 a hard timeout, a cancellation token, a memory ceiling, backoff-restart on crash, and a health check.
 
 **A crashed worker degrades one panel. It must never take down the editor with unsaved work in it.**
@@ -143,8 +143,8 @@ interface Evidence {
 ```
 
 **`Finding.id` must be stable across runs** — otherwise the verification comparison (did the fix resolve
-_this_ finding? did it introduce a _new_ one?) is impossible, and so is the golden corpus. This is a
-deceptively load-bearing detail: hash the rule, the file, the enclosing symbol, and a _normalised_ snippet
+*this* finding? did it introduce a *new* one?) is impossible, and so is the golden corpus. This is a
+deceptively load-bearing detail: hash the rule, the file, the enclosing symbol, and a *normalised* snippet
 — never the raw line number, which shifts the moment a patch is applied.
 
 ### 5.2 Analyzer adapters
@@ -163,7 +163,7 @@ Adapters use **the workspace's own tooling and the workspace's own config**. We 
 our own version with our own rules, we would produce findings their CI disagrees with — and a tool that
 argues with your CI is a tool you uninstall.
 
-**When a tool is absent**, we degrade to tree-sitter-only analysis for that language and _say so_
+**When a tool is absent**, we degrade to tree-sitter-only analysis for that language and *say so*
 ("Install ESLint for deeper analysis") rather than silently being worse.
 
 Analysis is **incremental**: on a file change, re-analyze that file and its dependents, not the workspace.
@@ -232,7 +232,7 @@ interface VerificationReport {
 during verification. Hardlinks mean we must break the link before writing to a file — which is exactly what
 the "write temp + atomic rename" pattern already does. The two designs compose.
 
-**Test selection.** Run _affected_ tests only, using the framework's own filtering (`vitest related`,
+**Test selection.** Run *affected* tests only, using the framework's own filtering (`vitest related`,
 `pytest --lf` plus import-graph selection, `go test ./pkg/...`). Running the full suite is a 10-minute
 verification nobody waits for, which means nobody verifies, which kills the thesis.
 
@@ -257,12 +257,12 @@ it is checked by `depcruise` in CI, because conventions that aren't enforced are
 
 ### 8.2 State — four owners, zero overlap (ADR-015)
 
-| Owner              | Owns                                                                       |
-| ------------------ | -------------------------------------------------------------------------- |
+| Owner | Owns |
+|---|---|
 | **TanStack Query** | Anything that came over a wire — AI results, entitlements, history queries |
-| **Zustand**        | Anything the user clicked — panel sizes, active tab, selection, palette    |
-| **Monaco models**  | Text. Including the undo stack.                                            |
-| **SQLite**         | Anything that must survive a restart                                       |
+| **Zustand** | Anything the user clicked — panel sizes, active tab, selection, palette |
+| **Monaco models** | Text. Including the undo stack. |
+| **SQLite** | Anything that must survive a restart |
 
 **We do not mirror file contents into Zustand.** That is the classic Monaco integration bug: two sources of
 truth, double writes, lost undo, cursor jumps. Any PR that does it is rejected.
@@ -303,7 +303,7 @@ type FixoraError =
 ```
 
 **Every error surfaced to a human names the next step.** "Quota exceeded" is a dead end.
-_"You've used your 2M monthly tokens. Upgrade, or add your own API key in Settings → AI."_ is a product.
+*"You've used your 2M monthly tokens. Upgrade, or add your own API key in Settings → AI."* is a product.
 This is a code review criterion, not a copywriting nicety.
 
 React error boundaries are **per feature slice** — a crash in the findings panel must not white-screen an
@@ -313,15 +313,15 @@ editor with unsaved work in it.
 
 ## 10. Performance design
 
-| Concern                    | Design                                                                                      |
-| -------------------------- | ------------------------------------------------------------------------------------------- |
-| 10k-file workspace         | Virtualised tree (`@tanstack/virtual`); index in the worker; never hold all files in memory |
-| Analysis latency           | Incremental, content-hash cached, cancellable; parallel across files in the worker          |
-| Editor responsiveness      | Monaco owns its own text; no React re-render on keystroke                                   |
-| Verification on a big repo | Hardlink CoW overlay, affected-tests only                                                   |
-| Token cost                 | Symbol-aware slicing (never whole files), ranked context, hard budget, prompt caching       |
-| Cold start                 | Lazy-load Monaco language workers; defer the analysis worker spawn until a workspace opens  |
-| Memory                     | Findings paged out of the renderer; SQLite is the store, not the Zustand tree               |
+| Concern | Design |
+|---|---|
+| 10k-file workspace | Virtualised tree (`@tanstack/virtual`); index in the worker; never hold all files in memory |
+| Analysis latency | Incremental, content-hash cached, cancellable; parallel across files in the worker |
+| Editor responsiveness | Monaco owns its own text; no React re-render on keystroke |
+| Verification on a big repo | Hardlink CoW overlay, affected-tests only |
+| Token cost | Symbol-aware slicing (never whole files), ranked context, hard budget, prompt caching |
+| Cold start | Lazy-load Monaco language workers; defer the analysis worker spawn until a workspace opens |
+| Memory | Findings paged out of the renderer; SQLite is the store, not the Zustand tree |
 
 Every one of these has a number in the PRD's NFR table, and a test in the perf harness. **A budget without
 a test is a wish.**

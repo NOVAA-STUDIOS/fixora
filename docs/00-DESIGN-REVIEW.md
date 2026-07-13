@@ -2,21 +2,21 @@
 
 Reviewed as a Senior Product Designer would review a pre-launch marketing site and product shell.
 Verdict: **the visual language is worth keeping; the page is not.** The aesthetic (dark, calm, violet
-ambient light, generous type) is on-brand for a premium developer tool. The _page_ is a one-screen
+ambient light, generous type) is on-brand for a premium developer tool. The *page* is a one-screen
 brochure that fails to sell, fails WCAG in several places, and makes promises the product cannot keep.
 
 ---
 
 ## 1. What is working (keep these)
 
-| Element                                                    | Why it works                                                                           |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Element | Why it works |
+|---|---|
 | Dark, near-black canvas with a single ambient light source | Matches the audience's default environment (dark IDEs). Reads premium, not cheap-dark. |
-| Ambient violet radial glow behind the hero                 | This is the single strongest brand asset on the page. It should become the brand.      |
-| Large, confident two-line headline                         | Correct hierarchy. The tagline is short, verb-first, and memorable.                    |
-| Restrained nav (5 links)                                   | Good instinct. Do not let this grow to 9 links.                                        |
-| Footer trust cluster (Privacy / Terms / Security / Status) | Right instinct for a tool that reads source code. Must be backed by real pages.        |
-| Product screenshot above the fold                          | Correct — developers buy what they can see. Execution is the problem, not the idea.    |
+| Ambient violet radial glow behind the hero | This is the single strongest brand asset on the page. It should become the brand. |
+| Large, confident two-line headline | Correct hierarchy. The tagline is short, verb-first, and memorable. |
+| Restrained nav (5 links) | Good instinct. Do not let this grow to 9 links. |
+| Footer trust cluster (Privacy / Terms / Security / Status) | Right instinct for a tool that reads source code. Must be backed by real pages. |
+| Product screenshot above the fold | Correct — developers buy what they can see. Execution is the problem, not the idea. |
 
 ---
 
@@ -31,7 +31,7 @@ binary from a company they have never heard of. This is the highest-cost defect 
 **Missing sections, in priority order:**
 
 1. **How it works** — 3 steps: point Fixora at code → it finds and explains → it proposes a verified fix.
-2. **Product demo loop** — a 10–15s muted, looping capture of a _real_ repair, from failing code to
+2. **Product demo loop** — a 10–15s muted, looping capture of a *real* repair, from failing code to
    applied diff. For a dev tool this outperforms every other asset on the page.
 3. **Feature grid** — the 12 capabilities, grouped into 4 pillars (Understand / Repair / Harden / Ship).
    Twelve equal bullets is a list; four pillars is a product.
@@ -94,7 +94,7 @@ hover/active/focus/disabled from a single tuned scale.
 > "Fixora is an AI-powered desktop application that detects bugs, repairs broken code, explains every
 > fix, improves performance, and helps developers build production-ready software faster."
 
-Five clauses, no claim. It tells me what the software _does_, not what changes for _me_. Compare:
+Five clauses, no claim. It tells me what the software *does*, not what changes for *me*. Compare:
 
 > **"Fixora finds the bug, writes the fix, and proves it works — before you open a PR."**
 > Every fix ships with an explanation and a passing test run. Your code never leaves your machine
@@ -108,7 +108,7 @@ engineering differentiators. Marketing copy and architecture should be the same 
 ## 3. Responsiveness problems
 
 - **The mockup will die on mobile.** A 16:9 desktop UI scaled to a 360px viewport is a grey smudge.
-  You need a _separate_ mobile asset: a cropped, portrait detail of the diff panel, not the whole app.
+  You need a *separate* mobile asset: a cropped, portrait detail of the diff panel, not the whole app.
 - **No mobile nav.** 5 links + 2 buttons will not fit; needs a real drawer with focus trapping.
 - **The OS pill row will wrap into an orphan** at ~380px.
 - **The hero is centered and fixed-feeling.** Define the type scale in `clamp()` so the headline
@@ -137,12 +137,12 @@ engineering differentiators. Marketing copy and architecture should be the same 
 Insofar as it is legible:
 
 - The **three-pane layout** (rail + tree | editor | AI panel) is the correct, familiar shape. Keep it.
-- The right panel stacks _AI Suggestion_, _Performance Metrics_, and _another AI Suggestion_. That is
+- The right panel stacks *AI Suggestion*, *Performance Metrics*, and *another AI Suggestion*. That is
   not information architecture, it is a scroll of cards. The panel must follow the actual user loop:
   **Problem → Why → Proposed diff → Verification result → Apply**.
 - **"Fix with AI" as a large one-click button is dangerous.** It implies blind mutation of the user's
   source. Nothing should touch disk without a diff review and a one-keystroke undo. Rename the primary
-  action **"Preview fix"**; `Apply` lives _inside_ the diff view, after the user has seen what changes.
+  action **"Preview fix"**; `Apply` lives *inside* the diff view, after the user has seen what changes.
 - **There is no diff view in the mockup.** The diff is the product. It is missing from the design.
 - No visible **command palette** affordance (`⌘K`/`Ctrl K`). For this audience it is table stakes and it
   is the cheapest way to feel like Linear/Raycast.
@@ -159,7 +159,7 @@ Insofar as it is legible:
    `bg.raised`, `text.primary`, `text.muted`, `border.subtle`, `accent.solid`, `accent.fg`,
    `status.danger|warn|success|info`). Components never reference raw hex.
 3. **Contrast-test the palette in CI.** A script that fails the build if any semantic pair drops below
-   its required ratio. This is how you _keep_ accessibility instead of announcing it once.
+   its required ratio. This is how you *keep* accessibility instead of announcing it once.
 4. **Motion:** 120–200ms, one easing curve for entrances (`cubic-bezier(.2,.8,.2,1)`), one for exits.
    No animation over 300ms in the app shell. All of it disabled under `prefers-reduced-motion`.
 5. **Type:** Inter (or Geist) for UI; a single monospace (JetBrains Mono / Berkeley Mono) shared between

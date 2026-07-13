@@ -16,7 +16,7 @@ test, diff, multi-language, history, chat). Read carefully, these are **not twel
 Source + context  →  Ground (deterministic analysis)  →  Reason (LLM)  →  Propose (patch)  →  Verify  →  Present
 ```
 
-Every one of the twelve is that pipeline with a different _task profile_ (prompt strategy, tool set,
+Every one of the twelve is that pipeline with a different *task profile* (prompt strategy, tool set,
 verification strategy, output renderer). If we build twelve features we ship twelve half-products and a
 maintenance disaster. If we build **one pipeline and twelve task profiles**, feature #13 costs a
 config file and a renderer.
@@ -33,12 +33,12 @@ this is strictly worse than a plugin, because it forces a context switch.
 things justify that, and they must be built into the architecture from day one:
 
 1. **Grounded findings, not hallucinated ones.** Real static analysis (tree-sitter, language servers,
-   Semgrep, ESLint, ruff, mypy, Bandit) produces the _evidence_; the LLM _reasons over evidence_ rather
+   Semgrep, ESLint, ruff, mypy, Bandit) produces the *evidence*; the LLM *reasons over evidence* rather
    than free-associating. An LLM asked "find security vulnerabilities" with no grounding will invent
    them, and a security tool that cries wolf is uninstalled within a week.
 2. **Verified repairs.** A proposed fix is applied to a virtual overlay of the workspace, then the
    linter, the type-checker, and the affected tests are re-run. We present the fix **with its proof**.
-   _"Fixora is the only tool that proves the fix compiles and the tests pass before you see it"_ is a
+   *"Fixora is the only tool that proves the fix compiles and the tests pass before you see it"* is a
    defensible product claim, a marketing headline, and a moat all at once.
 
 Everything below serves those two claims.
@@ -50,11 +50,11 @@ credible to that person on day one, or we are limited to hobbyists.
 
 **Data policy (architectural, not just legal):**
 
-- **Code is never persisted server-side.** The AI gateway is _stateless_: source snippets pass through
+- **Code is never persisted server-side.** The AI gateway is *stateless*: source snippets pass through
   RAM, are forwarded to the model provider under a zero-retention agreement, and are never written to
   disk or DB.
 - **History is local-first.** Sessions, findings, patches and diffs live in a local **SQLite** DB on
-  the user's machine. The cloud DB holds accounts, entitlements, quotas and _anonymous_ usage
+  the user's machine. The cloud DB holds accounts, entitlements, quotas and *anonymous* usage
   aggregates — never code.
 - **BYOK mode (bring your own key).** Paid/enterprise users can supply their own OpenAI/Anthropic key,
   stored in the OS keychain via Electron `safeStorage`. In BYOK mode the desktop app talks directly to
@@ -71,7 +71,7 @@ credible to that person on day one, or we are limited to hobbyists.
 
 Not an autocomplete. Not a chat window. The place a developer goes when there is a bug, a failing test,
 a slow endpoint, a security finding, or a file they inherited and do not understand — and Fixora
-returns a _verified_ answer with its work shown.
+returns a *verified* answer with its work shown.
 
 Positioning: **Cursor is where you write code. Fixora is where you fix it.**
 
@@ -127,7 +127,7 @@ provider_. That is a legitimate choice, but it must be explicit:
 - Neon owns a `users` table keyed by `supabase_user_id (uuid, unique)`, populated on first authenticated
   request (JIT provisioning) — **not** by a fragile webhook/sync job.
 - **All** authorization happens in FastAPI. We never expose PostgREST. RLS is not our security boundary.
-- _Alternative considered:_ use Supabase's Postgres for everything and drop Neon. **Rejected** — Neon's
+- *Alternative considered:* use Supabase's Postgres for everything and drop Neon. **Rejected** — Neon's
   branching gives us per-PR ephemeral databases, which is worth more to us than RLS we would not use.
 
 **(b) Supabase Storage: not in v1.** What would we store? The only candidates are user code (which we
@@ -136,11 +136,11 @@ a storage dependency with nothing to store is unnecessary surface area. Defer to
 where shared reports and org-level artifacts create a real need.
 
 **(c) Do NOT bundle Python into the Electron installer.**
-The backend is Python; the _desktop app_ must not be. Shipping a CPython runtime inside Electron means a
+The backend is Python; the *desktop app* must not be. Shipping a CPython runtime inside Electron means a
 ~150 MB installer, a code-signing nightmare, PATH/DLL hell on Windows, and an antivirus false-positive
 magnet. **All local analysis runs in Node/TS inside a utility process, using tree-sitter WASM grammars.**
 Language-specific linters that the user already has installed (`eslint`, `ruff`, `tsc`, `pytest`) are
-invoked as _optional_ subprocesses when detected in the workspace — never bundled.
+invoked as *optional* subprocesses when detected in the workspace — never bundled.
 
 **(d) SSE, not WebSockets.** Token streaming is unidirectional. SSE over HTTP/2 gives us streaming,
 trivial cancellation (abort the request), and no stateful connection layer to scale. WebSockets buy us
@@ -273,22 +273,22 @@ preset + CSS variables. Both repos consume it. **This is how two repos keep one 
 
 ## 5. Technology justification (and where I disagree)
 
-| Layer          | Choice                      | Justification                                                                                                                                      | My position                        |
-| -------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| Shell          | Electron                    | Monaco needs Chromium. Tauri would halve the installer but forces us to give up Monaco's full feature set and adds a Rust surface we cannot staff. | **Agree**                          |
-| UI             | React 18 + TS               | Monaco's ecosystem, hiring pool, and our component reuse with Next.js.                                                                             | **Agree**                          |
-| Styling        | Tailwind + CVA              | Tokens → utilities → variants. Zero runtime CSS-in-JS cost in an app that must feel native.                                                        | **Agree**                          |
-| Editor         | Monaco                      | Same engine as VS Code; the diff editor is free and it is _the_ product surface.                                                                   | **Agree**                          |
-| Renderer state | Zustand + TanStack Query    | Server cache ≠ UI state. Redux is ceremony we do not need.                                                                                         | **Agree, with the split enforced** |
-| Local DB       | **SQLite (better-sqlite3)** | _Not in the brief._ Required by the local-first privacy stance and by offline history.                                                             | **Adding — high conviction**       |
-| API            | FastAPI                     | Async, Pydantic contracts, and Python is where the AI/analysis ecosystem lives.                                                                    | **Agree**                          |
-| Cloud DB       | Neon Postgres               | Branching → ephemeral DB per PR. Serverless scale-to-zero fits our early load curve.                                                               | **Agree — but no code stored**     |
-| Auth           | Supabase Auth               | Good IdP: email, OAuth, MFA, JWKS. We use it _only_ as an IdP.                                                                                     | **Agree, with caveats above**      |
-| Storage        | Supabase Storage            | Nothing to store in v1.                                                                                                                            | **Defer**                          |
-| AI             | Provider abstraction        | Non-negotiable; also enables BYOK and local models.                                                                                                | **Agree, strongly**                |
-| Packaging      | electron-builder + NSIS     | Mature, delta updates, `electron-updater` integration.                                                                                             | **Agree**                          |
-| Signing        | **Azure Trusted Signing**   | ~$10/mo vs $300+/yr for an EV cert, and it grants SmartScreen reputation immediately.                                                              | **Adding**                         |
-| Payments       | **Stripe**                  | _Not in the brief but the product is commercial._ Must be designed in now, not bolted on.                                                          | **Adding**                         |
+| Layer | Choice | Justification | My position |
+|---|---|---|---|
+| Shell | Electron | Monaco needs Chromium. Tauri would halve the installer but forces us to give up Monaco's full feature set and adds a Rust surface we cannot staff. | **Agree** |
+| UI | React 18 + TS | Monaco's ecosystem, hiring pool, and our component reuse with Next.js. | **Agree** |
+| Styling | Tailwind + CVA | Tokens → utilities → variants. Zero runtime CSS-in-JS cost in an app that must feel native. | **Agree** |
+| Editor | Monaco | Same engine as VS Code; the diff editor is free and it is *the* product surface. | **Agree** |
+| Renderer state | Zustand + TanStack Query | Server cache ≠ UI state. Redux is ceremony we do not need. | **Agree, with the split enforced** |
+| Local DB | **SQLite (better-sqlite3)** | *Not in the brief.* Required by the local-first privacy stance and by offline history. | **Adding — high conviction** |
+| API | FastAPI | Async, Pydantic contracts, and Python is where the AI/analysis ecosystem lives. | **Agree** |
+| Cloud DB | Neon Postgres | Branching → ephemeral DB per PR. Serverless scale-to-zero fits our early load curve. | **Agree — but no code stored** |
+| Auth | Supabase Auth | Good IdP: email, OAuth, MFA, JWKS. We use it *only* as an IdP. | **Agree, with caveats above** |
+| Storage | Supabase Storage | Nothing to store in v1. | **Defer** |
+| AI | Provider abstraction | Non-negotiable; also enables BYOK and local models. | **Agree, strongly** |
+| Packaging | electron-builder + NSIS | Mature, delta updates, `electron-updater` integration. | **Agree** |
+| Signing | **Azure Trusted Signing** | ~$10/mo vs $300+/yr for an EV cert, and it grants SmartScreen reputation immediately. | **Adding** |
+| Payments | **Stripe** | *Not in the brief but the product is commercial.* Must be designed in now, not bolted on. | **Adding** |
 
 ---
 
@@ -324,8 +324,8 @@ When a patch is proposed:
    is presented as a regression, not a fix.**
 5. Emit a `VerificationReport` that the UI renders as the trust surface.
 
-**Risk:** running the user's test suite is arbitrary code execution on their machine. It is _their_ code
-on _their_ machine, so this is not a privilege escalation — but it must be **explicitly opt-in per
+**Risk:** running the user's test suite is arbitrary code execution on their machine. It is *their* code
+on *their* machine, so this is not a privilege escalation — but it must be **explicitly opt-in per
 workspace**, sandboxed to the workspace directory, time-limited, and killable. Never on by default.
 
 ---
@@ -336,10 +336,10 @@ workspace**, sandboxed to the workspace directory, time-limited, and killable. N
   calls. Cross-feature imports go through `components/`, `lib/`, or explicit public `index.ts` exports.
   This is what stops a 200-file app from becoming a hairball.
 - **Three kinds of state, three tools, no overlap:**
-  1. _Server/async state_ → **TanStack Query** (AI results, entitlements, history queries). Retries,
+  1. *Server/async state* → **TanStack Query** (AI results, entitlements, history queries). Retries,
      cancellation, cache invalidation for free.
-  2. _Client UI state_ → **Zustand** slices (panel sizes, active tab, selection, palette open).
-  3. _Editor state_ → **Monaco models**, which own their own undo stack. We do not mirror file contents
+  2. *Client UI state* → **Zustand** slices (panel sizes, active tab, selection, palette open).
+  3. *Editor state* → **Monaco models**, which own their own undo stack. We do not mirror file contents
      into Zustand — that is a classic Monaco integration bug (double source of truth, lost undo).
 - **Streaming:** AI responses arrive as SSE and are reduced into a structured object incrementally
   (findings appear as they stream). The UI must render partial results — a spinner for 20 seconds is
@@ -374,7 +374,7 @@ workspace**, sandboxed to the workspace directory, time-limited, and killable. N
 
 ## 9. Database schema
 
-### 9.1 Cloud (Neon Postgres) — _contains no source code, ever_
+### 9.1 Cloud (Neon Postgres) — *contains no source code, ever*
 
 ```
 users                 id, supabase_user_id (uniq), email, display_name, created_at,
@@ -399,7 +399,7 @@ audit_log             id, actor_user_id, action, target, metadata (jsonb), ts
 Every user-scoped table carries `user_id` and every query filters on the JWT subject in the service
 layer. Soft deletes (`deleted_at`) plus a hard-delete job for GDPR erasure requests.
 
-### 9.2 Local (SQLite, on the user's machine) — _where the real work lives_
+### 9.2 Local (SQLite, on the user's machine) — *where the real work lives*
 
 ```
 workspaces        id, root_path, name, last_opened_at, settings_json
@@ -481,13 +481,13 @@ User invokes intent ("Repair this")
 
 **Model routing (cost control, designed in from day one):**
 
-- _Triage/classification_ → small, fast, cheap model.
-- _Repair/refactor/security reasoning_ → frontier model.
-- _Embeddings/indexing_ → embedding model, computed locally where possible.
+- *Triage/classification* → small, fast, cheap model.
+- *Repair/refactor/security reasoning* → frontier model.
+- *Embeddings/indexing* → embedding model, computed locally where possible.
   Prompt caching on the stable prefix (system + repo conventions) cuts cost materially on multi-turn work.
 
 **Failure modes we design for explicitly:** provider 429/5xx (retry with jitter, then failover to the
-secondary provider — this is the _real_ payoff of the abstraction), context overflow (budgeter must
+secondary provider — this is the *real* payoff of the abstraction), context overflow (budgeter must
 prevent it, not react to it), malformed structured output (schema-validate and re-ask once, then fail
 loudly), stream interruption (resumable or cleanly cancelled — never a half-applied patch).
 
@@ -525,7 +525,7 @@ zero overlap. Any PR that mirrors state across two of them is rejected.
 - **Structured JSON logs** (pino in Node, structlog in Python), correlated by a `request_id` generated
   in the renderer and propagated through IPC → main → API → provider.
 - **Local:** rotating file logs (`app.log`, 10 MB × 5) in `app.getPath('logs')`, exposed via
-  _Help → Open Logs_. A "Copy diagnostics" button that produces a redacted bundle turns unreproducible
+  *Help → Open Logs*. A "Copy diagnostics" button that produces a redacted bundle turns unreproducible
   bug reports into fixable ones.
 - **Redaction is enforced at the logger, not the call site.** A serializer strips absolute paths (→
   workspace-relative), tokens, keys, and any field named `content`/`code`/`prompt`/`completion`. A unit
@@ -562,7 +562,7 @@ does not need permissive CORS at all); secrets from a secret manager, never env 
 dependency scanning (`pip-audit`, `npm audit`, Dependabot) and SBOM generation in CI.
 
 **Supply chain:** pinned lockfiles, `pnpm` with `--frozen-lockfile`, provenance attestations on
-releases, and signed installers. An Electron app is a _code execution vector_ — a compromised
+releases, and signed installers. An Electron app is a *code execution vector* — a compromised
 dependency in our build ships malware to every customer. Treat the release pipeline as production.
 
 ---
@@ -573,7 +573,7 @@ dependency in our build ships malware to every customer. Treat the release pipel
   control **staged rollout** (`rollout_percent`) and can halt a bad release instantly.
 - **Channels:** `stable` and `beta`. Users opt into beta in Settings.
 - **Signed + hashed:** every artifact has a SHA-512 in the manifest; `electron-updater` verifies the
-  signature _and_ the hash. An unsigned or mismatched artifact is refused.
+  signature *and* the hash. An unsigned or mismatched artifact is refused.
 - **Delta updates** via blockmaps so a patch release is a few MB, not 90.
 - **Never restart under the user.** Download in the background, then a non-blocking toast:
   "Update ready — restart when you like." Force-restart only for a security release, with a clear reason.
@@ -595,23 +595,23 @@ dependency in our build ships malware to every customer. Treat the release pipel
   language workers, and exclude every dev dependency from the ASAR. Audit the bundle each release —
   Electron apps rot into 400 MB by accident.
 - **macOS later:** notarization + hardened runtime + universal binary. **Linux later:** AppImage + deb.
-  Structure the builder config for three targets _now_ so adding them is configuration, not surgery.
+  Structure the builder config for three targets *now* so adding them is configuration, not surgery.
 
 ---
 
 ## 18. Testing strategy
 
-| Layer               | Tool                                            | What it must prove                                                                                                                                                                 |
-| ------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit                | Vitest (TS) / pytest (Py)                       | `core-analysis`, `core-patch`, `core-ai` budgeter/parsers, entitlement rules                                                                                                       |
-| Contract            | zod + schemathesis                              | The IPC contracts and the OpenAPI schema cannot drift from the client                                                                                                              |
-| Golden / regression | Vitest snapshots                                | **A corpus of real broken files with known-correct fixes.** This is our most valuable test asset — it is how we detect a prompt or model change silently making the product worse. |
-| Integration         | pytest + testcontainers                         | API ↔ Postgres ↔ mocked providers; quota and metering correctness                                                                                                                  |
-| E2E                 | Playwright (Electron)                           | Open workspace → analyse → propose → verify → apply → undo, on a real fixture repo                                                                                                 |
-| Security            | Electronegativity, Semgrep, gitleaks, pip-audit | Runs on every PR; a failed check blocks merge                                                                                                                                      |
-| Performance         | Custom harness                                  | Cold start < 2s, analysis of a 10k-file repo without UI jank, first AI token < 1.5s                                                                                                |
-| Accessibility       | axe-core in E2E                                 | Zero critical violations; full keyboard traversal of every screen                                                                                                                  |
-| Manual              | Release checklist                               | Fresh-install, upgrade-over-previous, and offline paths on a clean Windows VM                                                                                                      |
+| Layer | Tool | What it must prove |
+|---|---|---|
+| Unit | Vitest (TS) / pytest (Py) | `core-analysis`, `core-patch`, `core-ai` budgeter/parsers, entitlement rules |
+| Contract | zod + schemathesis | The IPC contracts and the OpenAPI schema cannot drift from the client |
+| Golden / regression | Vitest snapshots | **A corpus of real broken files with known-correct fixes.** This is our most valuable test asset — it is how we detect a prompt or model change silently making the product worse. |
+| Integration | pytest + testcontainers | API ↔ Postgres ↔ mocked providers; quota and metering correctness |
+| E2E | Playwright (Electron) | Open workspace → analyse → propose → verify → apply → undo, on a real fixture repo |
+| Security | Electronegativity, Semgrep, gitleaks, pip-audit | Runs on every PR; a failed check blocks merge |
+| Performance | Custom harness | Cold start < 2s, analysis of a 10k-file repo without UI jank, first AI token < 1.5s |
+| Accessibility | axe-core in E2E | Zero critical violations; full keyboard traversal of every screen |
+| Manual | Release checklist | Fresh-install, upgrade-over-previous, and offline paths on a clean Windows VM |
 
 **The golden corpus deserves emphasis.** In an AI product, the model, the prompt, and the context
 builder are all "code" that can regress with no compile error and no failing unit test. A scored
@@ -625,7 +625,7 @@ CI on every prompt change is the difference between a product that improves and 
 - **API:** container → **Fly.io or Railway** to start (fast, cheap, multi-region when we need it);
   the app is stateless so this is a reversible decision. Blue/green with health checks.
 - **DB:** Neon. **Branch-per-PR** ephemeral databases; Alembic migrations gated in CI; automated backups
-  and a _tested_ restore (an untested backup is not a backup).
+  and a *tested* restore (an untested backup is not a backup).
 - **Website:** Vercel, its own repo, its own pipeline.
 - **Releases:** tag → CI builds + signs Windows artifacts → uploads → writes a `releases` row at
   `rollout_percent = 0` → we promote 5% → 25% → 100%, watching Sentry crash-free-sessions between steps.
@@ -641,7 +641,7 @@ CI on every prompt change is the difference between a product that improves and 
 
 1. **Teams** — orgs, seats, shared rules, shared history (opt-in), SSO/SAML. This is where the ARPU is.
 2. **`fixora-cli` + GitHub Action** — the same `core-analysis`/`core-ai` packages, run in CI, commenting
-   on PRs. Near-zero marginal engineering cost _because_ the core is framework-free. This is the fastest
+   on PRs. Near-zero marginal engineering cost *because* the core is framework-free. This is the fastest
    path from a desktop tool to a team purchase.
 3. **Local models** (Ollama) — the enterprise unlock: "your code never leaves the building."
 4. **Repo-wide intelligence** — persistent symbol graph + incremental index, enabling cross-file
@@ -658,13 +658,13 @@ CI on every prompt change is the difference between a product that improves and 
 ## 21. Potential weaknesses (honest list)
 
 1. **We are not the editor.** Every context switch out of VS Code is a tax on our usage. Mitigation:
-   be dramatically better at the _fix_ loop than an inline plugin can be (verification, whole-repo
+   be dramatically better at the *fix* loop than an inline plugin can be (verification, whole-repo
    grounding, side-by-side diff), and ship an extension that hands off to the app.
 2. **AI cost can invert the business model.** A power user on an unlimited plan can burn more in tokens
    than they pay. Mitigation: metering + entitlements from milestone one, model routing, prompt caching,
    BYOK as the pressure valve. **Never ship "unlimited".**
 3. **Trust.** One incident of Fixora sending a `.env` to a model provider is an extinction event.
-   Mitigation: secret-scan gate in the prompt path, local-first default, a _real_ security page, and an
+   Mitigation: secret-scan gate in the prompt path, local-first default, a *real* security page, and an
    independent audit before the paid launch.
 4. **Verification is expensive and fragile** across ecosystems. Running a stranger's test suite reliably
    is genuinely hard. Mitigation: tier it — static checks always (cheap, universal), type-check when a
@@ -679,7 +679,7 @@ CI on every prompt change is the difference between a product that improves and 
 7. **Electron distribution friction** on Windows (SmartScreen, antivirus false positives). Mitigation:
    Trusted Signing early, submit to Microsoft/AV vendors for whitelisting before launch.
 8. **Team size.** This document describes 9–15 engineer-months of work for one person. The roadmap must
-be sequenced so a _usable, sellable_ product exists at Milestone 7, not Milestone 12.
+be sequenced so a *usable, sellable* product exists at Milestone 7, not Milestone 12.
 </content>
 
 </invoke>

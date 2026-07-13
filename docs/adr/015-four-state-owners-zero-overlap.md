@@ -18,12 +18,12 @@
 - **SQLite** owns anything that must survive a restart.
 
 **Why.** Every catastrophic frontend codebase I have seen died of the same disease: two sources of truth
-for one fact. In particular, mirroring file contents into a store _and_ into Monaco is a classic Electron/
+for one fact. In particular, mirroring file contents into a store *and* into Monaco is a classic Electron/
 Monaco bug — it produces double-writes, lost undo history, and cursor jumps.
 
-**Alternatives considered.** _Redux Toolkit_ (ceremony we don't need, and RTK Query is not better than
-TanStack Query here). _Jotai/Recoil_ (fine, but Zustand's store-per-slice model maps directly onto our
-feature slices). _One big store_ (rejected on principle).
+**Alternatives considered.** *Redux Toolkit* (ceremony we don't need, and RTK Query is not better than
+TanStack Query here). *Jotai/Recoil* (fine, but Zustand's store-per-slice model maps directly onto our
+feature slices). *One big store* (rejected on principle).
 
 **Trade-offs accepted.** Four tools to learn instead of one. Worth it.
 
