@@ -72,37 +72,57 @@ fixora-desktop/                        (this repo)
 These appear in the CI table of Repo §4 but belong to the milestone that creates the thing they test.
 Building them now would mean building a gate around code that does not exist.
 
-| Deferred                         | Arrives in      | Why not now                                                                                                                                |
-| -------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| E2E (Playwright) + axe-core      | **M1**          | There is no shell to traverse and no component to audit.                                                                                   |
-| Secret-gate integration test     | **M5**          | The secret gate is part of `core-ai`. The _test_ is mandatory the day the gate exists.                                                     |
-| Golden corpus score              | **M5**          | Requires the AI layer and the verification engine.                                                                                         |
-| OpenAPI → TS client codegen diff | **M4**          | Requires the FastAPI service.                                                                                                              |
-| `pip-audit`                      | **M4**          | No Python in this repo yet.                                                                                                                |
-| Azure Trusted Signing            | **procure now** | ⚠️ Identity validation takes days-to-weeks. Packaging §2 says start in M0. **This is a business action, not a code one — see Open Items.** |
+| Deferred                         | Arrives in     | Why not now                                                                                       |
+| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------- |
+| E2E (Playwright) + axe-core      | **M1**         | There is no shell to traverse and no component to audit.                                          |
+| Secret-gate integration test     | **M5**         | The secret gate is part of `core-ai`. The _test_ is mandatory the day the gate exists.            |
+| Golden corpus score              | **M5**         | Requires the AI layer and the verification engine.                                                |
+| OpenAPI → TS client codegen diff | **M4**         | Requires the FastAPI service.                                                                     |
+| `pip-audit`                      | **M4**         | No Python in this repo yet.                                                                       |
+| Azure Trusted Signing            | 🔄 **started** | Identity validation begun 2026-07-13 (Packaging §2 — it takes weeks, so it starts in M0, not M8). |
 
 ---
 
-## Open items requiring your decision
+## Open items — decided 2026-07-13, in progress
 
-1. **⚠️ `docs/` were reformatted by Prettier during M0, and partially restored.**
-   A `prettier --write .` ran before `docs/` was added to `.prettierignore`. It normalised markdown
-   **table padding** and **emphasis markers** (`*x*` → `_x_`) across all 19 documents. Both have been
-   restored to the original style and verified byte-exact against the originals. The residual difference
-   is **blank lines Prettier inserted around code fences and lists** (~250 lines total). No content was
-   changed, added or lost, and the documents render identically.
-   **Your call:** accept as-is, restore `docs/` from your own copy, or have me reconstruct them verbatim.
-   `docs/` is now permanently in `.prettierignore`; this cannot recur.
+**These are ordered. Item 1 must complete before item 2**, or the restored register would overwrite the
+appended ADRs.
 
-2. **Three decisions were made during M0 that are not in the register.** Per Standards §5 ("an ADR written
-   if a decision was made") they need ADR-029/030/031. I have **not** appended them to
-   `03-DECISION-REGISTER.md`, because that is your source of truth and item 1 above makes me unwilling to
-   touch it without asking. They are written up in [PROJECT_MEMORY.md](./PROJECT_MEMORY.md) and are ready
-   to append on your word.
+### 1. ⏳ Restore `docs/` from your original copy — **action on you**
 
-3. **Azure Trusted Signing** — Packaging §2 is explicit that the identity-validation process should start
-   in M0, not M8, because it takes weeks and it is the difference between a SmartScreen warning and a
-   clean first install. This is a procurement action only you can take.
+A `prettier --write .` ran during M0 before `docs/` was in `.prettierignore`. It reformatted all 19
+blueprint documents. Table padding and emphasis markers have been restored and verified byte-exact; the
+residual delta is **blank lines Prettier inserted around code fences and lists**. No content was changed,
+added or lost. **Decision: restore from your own copy.**
+
+```bash
+# 1. Overwrite docs/*.md with your originals (leave docs/adr/ alone — it is generated).
+# 2. Confirm the only changes are the ones you expect:
+git diff --stat -- docs
+# 3. Regenerate the ADR records from the restored register and re-check the gate:
+pnpm adr:sync && pnpm gate:adr
+```
+
+`docs/` is now permanently in `.prettierignore`, and `pnpm format:check` no longer touches it, so this
+cannot recur. `docs/adr/` is generated — do not restore it by hand.
+
+### 2. ⏳ Append ADR-029 / 030 / 031 to the register — **queued, blocked on item 1**
+
+**Decision: append.** The three decisions are drafted in full in
+[PROJECT_MEMORY.md](./PROJECT_MEMORY.md#m0--foundations-2026-07-13):
+
+- **ADR-029** — electron-vite as the desktop build tool
+- **ADR-030** — tokens authored in TypeScript; the "Tailwind preset" is a Tailwind v4 `@theme` layer
+- **ADR-031** — `docs/adr/` is generated from the register, and CI fails on drift
+
+I will append them to `docs/03-DECISION-REGISTER.md` and run `pnpm adr:sync` **once you have restored
+`docs/`** — doing it before would just be undone.
+
+### 3. 🔄 Azure Trusted Signing — **identity validation started 2026-07-13**
+
+Packaging §2: start in M0, not M8. Validation takes days-to-weeks and it is the difference between
+"Windows protected your PC" and a clean first install — the single biggest leak in the install funnel.
+**Status: in progress.** Blocks M8; nothing before it.
 
 ---
 
