@@ -40,3 +40,4 @@ To add or change a decision: edit the register, then run `pnpm adr:sync`.
 | [030](./030-design-tokens-authored-in-typescript-the-tailwind-preset-is-.md) | Design tokens authored in TypeScript; the Tailwind "preset" is a v4 `@theme` layer | Accepted |
 | [031](./031-docs-adr-is-generated-from-this-register-and-ci-fails-on-dri.md) | `docs/adr/` is generated from this register, and CI fails on drift | Accepted |
 | [032](./032-ladle-over-storybook-for-the-component-workbench.md) | Ladle over Storybook for the component workbench | Accepted |
+| [033](./033-node-sqlite-instead-of-better-sqlite3-for-local-persistence-.md) | `node:sqlite` instead of better-sqlite3 for local persistence (amends ADR-011) | Accepted |

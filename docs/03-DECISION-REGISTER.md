@@ -39,6 +39,7 @@ Statuses: `Accepted` · `Proposed` (needs sign-off) · `Superseded` · `Rejected
 | [030](#adr-030) | Design tokens authored in TypeScript; the Tailwind "preset" is a v4 `@theme` layer | Accepted |
 | [031](#adr-031) | `docs/adr/` is generated from this register, and CI fails on drift | Accepted |
 | [032](#adr-032) | Ladle over Storybook for the component workbench | Accepted |
+| [033](#adr-033) | `node:sqlite` instead of better-sqlite3 for local persistence — amends ADR-011 | Accepted |
 
 ---
 
@@ -941,5 +942,55 @@ stories are dev tooling, the build output is git-ignored, and switching to Story
 config change local to `packages/ui`, touching no product code.
 
 **Long-term impact.** Low and local. The workbench sits beside the ui package; nothing depends on it.
+
+---
+
+<a id="adr-033"></a>
+
+## ADR-033 — `node:sqlite` instead of better-sqlite3 for local persistence (amends ADR-011)
+
+**Status:** Accepted — 2026-07-14 (M2). **Amends ADR-011**, which chose better-sqlite3 and explicitly
+flagged `node:sqlite` as "genuinely attractive… re-evaluate at M8". The re-evaluation happened at M2, forced
+by a real constraint, and the answer changed.
+
+**Decision.** Use **`node:sqlite`** (the SQLite module built into the Node runtime Electron bundles) as the
+local database driver, behind a thin `SqliteDriver` interface, rather than the native `better-sqlite3`
+module. Everything else ADR-011 committed to stands: WAL mode, forward-only numbered migrations in a
+transaction with a file backup taken first, and a corrupted DB degrading to "history unavailable" rather
+than blocking launch (DB §1).
+
+**Why the change, now.** better-sqlite3 is a native module. Electron 43 uses Node ABI **v148**, and
+better-sqlite3 12.11.1 publishes **no prebuilt binary** for it (a 404 on the release asset), so it must be
+compiled with node-gyp — which needs a C++ toolchain (Python + MSVC) that is not present, and cannot be
+assumed present on every contributor or CI machine without adding it as a hard prerequisite. This is
+precisely the "native-module pain… PATH/DLL hell… antivirus false-positive magnet" ADR-007 warned about for
+*bundled* runtimes, arriving through the database driver.
+
+`node:sqlite` sidesteps all of it: it is part of Electron's own runtime, so there is **nothing to compile,
+no ABI to pin, no electron-rebuild step, and no prebuild to wait for** when Electron updates. It was verified
+working in Electron 43 (Node 24.18.0) with no flag: create/insert/select round-trips. ADR-011's two reasons
+for deferring it — "still young" and "Electron's bundled Node version gates us" — are both now resolved:
+Node 24 ships it stable and unflagged, and that is exactly the Node that Electron 43 gates us to.
+
+**Alternatives considered.**
+
+- _Keep better-sqlite3, add a build toolchain as a prerequisite._ Rejected: it makes a C++ compiler a
+  hard dependency of building the app, on every machine, forever, to gain nothing over a driver already in
+  the runtime. It also reintroduces the "rebuild on every Electron bump" tax ADR-011 acknowledged.
+- _WASM SQLite (sql.js)._ Still rejected on ADR-011's own grounds — in-memory with manual persistence, unfit
+  for a store that must survive a crash.
+- _Wait for a better-sqlite3 Electron-v148 prebuild._ Rejected: it blocks M2 on an upstream release, and the
+  same wait recurs at every Electron upgrade.
+
+**Trade-offs accepted.** `node:sqlite`'s API differs from better-sqlite3's (e.g. `DatabaseSync`,
+`.prepare().run/get/all`), so the driver is wrapped behind a `SqliteDriver` interface — which we would want
+regardless, because it keeps the persistence layer testable and keeps the door open to swapping back to
+better-sqlite3 (or to a WASM build for a future web target) without touching a repository. `node:sqlite` is
+newer than better-sqlite3 and has a smaller battle-tested history; the interface and our own migration/
+integrity tests are the mitigation. In Node's test suite it is no longer marked experimental as of Node 24.
+
+**Long-term impact.** Removes a native build step from the desktop app entirely — no `electron-rebuild`, no
+per-ABI prebuild coordination, no compiler prerequisite. The `SqliteDriver` seam is the insurance that makes
+this reversible if `node:sqlite` ever disappoints.
 </content>
 </invoke>

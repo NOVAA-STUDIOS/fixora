@@ -17,6 +17,9 @@
     "@fixora/shared-types": "workspace:*",
     "@fixora/tokens": "workspace:*",
     "@fixora/ui": "workspace:*",
+    "chokidar": "5.0.0",
+    "ignore": "7.0.6",
+    "monaco-editor": "0.55.1",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "zustand": "5.0.14"

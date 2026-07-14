@@ -35,5 +35,6 @@ stories are dev tooling, the build output is git-ignored, and switching to Story
 config change local to `packages/ui`, touching no product code.
 
 **Long-term impact.** Low and local. The workbench sits beside the ui package; nothing depends on it.
-</content>
-</invoke>
+
+
+<a id="adr-033"></a>
