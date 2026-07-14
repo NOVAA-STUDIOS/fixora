@@ -8,6 +8,53 @@ this file is a **product surface on the website** (Repo §3), not an afterthough
 
 ## [Unreleased]
 
+### M1 — Design system & application shell (2026-07-14)
+
+The app looks and feels like the finished product before it does anything (roadmap M1). No
+product functionality yet — the surfaces inside the shell fill in from M2 — but the frame, the
+primitives, the theming and the command system are real and tested.
+
+#### Added
+
+- **`@fixora/ui`** — presentational primitives on Radix + CVA (TDD §8), consuming `@fixora/tokens`:
+  Button, Input, Kbd, Badge, Skeleton, Tooltip, Dialog, Tabs, Select, DropdownMenu, Toast, plus
+  composites ResizablePanels (react-resizable-panels v4, keyboard-operable) and VirtualList
+  (`@tanstack/react-virtual`), and a Command surface (cmdk) the palette renders through. Icons are
+  inline SVG, not an icon library (Standards §2). Boundary rules forbid the package importing
+  `core-*` or `electron`.
+- **Density** (Design Review §6.6) — a `data-density` token layer in `@fixora/tokens`. Comfortable
+  default + compact override flip every control metric at once via one root attribute: instant, no
+  React re-render, no layout shift by construction. Theme switches the same way.
+- **Custom title bar** — the window is frameless; the renderer draws the wordmark, drag region and
+  Windows-style minimise/maximise/close controls, wired to main over new `window:*` IPC channels.
+  Main is the source of truth for the maximised state and pushes it, so the button reflects
+  OS-driven changes (Win+Up, double-click) rather than guessing.
+- **App shell** (Design Review §5) — activity rail (four views, tooltip-labelled, `aria-current`),
+  three-pane resizable workbench with layout persisted through the store, status bar with
+  density/theme toggles. A Zustand store owns "what the user clicked" (ADR-015); theme and density
+  reflect to root data attributes.
+- **Command system** (TDD §8.4) — **one registry drives the ⌘K palette, the global keybindings, and
+  the shortcut hints**, verified end-to-end in the real app. `mod` resolves per-platform (⌘/Ctrl).
+  The palette is a view over the registry (cmdk for filter + listbox a11y).
+- **IPC events layer** — a typed main→renderer event registry (mirroring the request registry), the
+  emitter validating every payload before it leaves the privileged process; the preload gains
+  `subscribe()` alongside `invoke()`, still zod-free, still never exposing `ipcRenderer`. Foundational
+  for M4 deep-links and M5 streaming.
+- **Ladle** component workbench (ADR-032) — Vite-native, sharing the app's exact toolchain; stories
+  for the primitives with light/dark and compact/comfortable toggles.
+- **Accessibility as a gate** — axe-core (called directly) asserts zero critical/serious violations
+  across the primitives including open Dialog, Select and DropdownMenu; keyboard operability
+  (Enter/Space/arrow/Escape) is tested on the interactive ones. Test count 27 → 77 across packages.
+
+#### Fixed (M1 internal audit + red-team, before requesting approval)
+
+- **The keybinding listener now reads the command registry**, not a parallel props ref — so the
+  palette and the shortcuts genuinely share one source, which is the whole point of the registry.
+- **Persisted store state is validated on rehydration.** localStorage is untrusted input on every
+  launch (it survives upgrades and a compromised renderer can write it); a stale or tampered value
+  now degrades to a default instead of crashing a downstream lookup (DB §1: "degrade, never crash").
+- Removed an unused `@radix-ui/react-popover` dependency (Standards §2).
+
 ### M0 red-team review — adversarial pass before M1 (2026-07-14)
 
 Reviewed as a hostile engineer looking for a way in. One **critical foundational** hole and three

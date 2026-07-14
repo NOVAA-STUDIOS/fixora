@@ -1,26 +1,61 @@
 # Fixora — Project Status
 
-**Updated:** 2026-07-14 · **Current milestone:** M0 Foundations — **approved, audited + red-teamed**
-**Next milestone:** M1 Design system & application shell — **ready to begin**
+**Updated:** 2026-07-14 · **Current milestone:** M1 Design system & app shell — **complete, audited + red-teamed, awaiting approval**
+**Next milestone:** M2 Workspace, editor, local persistence — **blocked on explicit approval of M1**
 
 ---
 
 ## Milestones
 
-| #      | Milestone                            | Status                                 | Notes                                     |
-| ------ | ------------------------------------ | -------------------------------------- | ----------------------------------------- |
-| —      | Blueprint                            | ✅ Signed off 2026-07-13               | 28 ADRs accepted                          |
-| **M0** | **Foundations**                      | ✅ **Approved — audited + red-teamed** | Every acceptance criterion verified below |
-| M1     | Design system & app shell            | ▶ Ready to begin                       | M0 approved 2026-07-14                    |
-| M2     | Workspace, editor, local persistence | ⏸ Not started                          |                                           |
-| M3     | Deterministic analysis engine        | ⏸ Not started                          | The moat. Zero AI.                        |
-| M4     | Backend, auth, entitlements          | ⏸ Not started                          | Parallelisable with M1–M3                 |
-| M5     | AI layer + provider abstraction      | ⏸ Not started                          |                                           |
-| M6     | The repair loop                      | ⏸ Not started                          | Hardest milestone                         |
-| M7     | Launch capability suite (4 profiles) | ⏸ Not started                          |                                           |
-| M8     | Packaging, signing, updates          | ⏸ Not started                          |                                           |
-| M9     | Commercial layer                     | ⏸ Not started                          |                                           |
-| M10    | Website & launch                     | ⏸ Not started                          | Separate repo                             |
+| #      | Milestone                            | Status                                 | Notes                                  |
+| ------ | ------------------------------------ | -------------------------------------- | -------------------------------------- |
+| —      | Blueprint                            | ✅ Signed off 2026-07-13               | 28 ADRs accepted                       |
+| **M0** | **Foundations**                      | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14                  |
+| **M1** | **Design system & app shell**        | ✅ **Complete — awaiting approval**    | Audited + red-teamed; acceptance below |
+| M2     | Workspace, editor, local persistence | ▶ Ready on M1 approval                 | The moat begins to matter here         |
+| M3     | Deterministic analysis engine        | ⏸ Not started                          | The moat. Zero AI.                     |
+| M4     | Backend, auth, entitlements          | ⏸ Not started                          | Parallelisable with M1–M3              |
+| M5     | AI layer + provider abstraction      | ⏸ Not started                          |                                        |
+| M6     | The repair loop                      | ⏸ Not started                          | Hardest milestone                      |
+| M7     | Launch capability suite (4 profiles) | ⏸ Not started                          |                                        |
+| M8     | Packaging, signing, updates          | ⏸ Not started                          |                                        |
+| M9     | Commercial layer                     | ⏸ Not started                          |                                        |
+| M10    | Website & launch                     | ⏸ Not started                          | Separate repo                          |
+
+---
+
+## M1 acceptance criteria — verified, not asserted
+
+The roadmap defines three. Each was checked against the running app, not just the source.
+
+| Criterion (Roadmap M1)                                | Status | How it was verified                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every shell surface operable with the keyboard alone  | ✅     | ⌘K palette, theme toggle (Ctrl+Shift+L) and density toggle (Ctrl+Shift+D) all driven by keyboard in the running app (screenshots). Activity rail, tabs, select, dropdown, resize handles are Radix / library primitives with keyboard operation; arrow-key selection tested on Select and DropdownMenu. |
+| axe-core reports zero critical violations             | ✅     | axe (critical **and** serious) asserts clean across the primitives including open Dialog, Select and DropdownMenu — the overlays where a11y actually breaks. Runs in the unit suite on every PR.                                                                                                        |
+| Theme + density switch instantly with no layout shift | ✅     | Both are single root `data-*` attributes the token layer reads in CSS — no React re-render. Verified in the app: toggling to light + compact switched the whole UI at once (screenshot). No-layout-shift is structural: theme changes only colours; density is CSS-variable-driven.                     |
+
+**M1 build stats:** 15 primitives + composites, the app shell, one command registry driving palette +
+keybindings + hints, the IPC events layer, and Ladle. Tests **27 → 77**. Every CI gate green.
+
+---
+
+## M1 audit + red-team (2026-07-14) — passed
+
+Per the standing instruction, an internal audit ran before marking M1 done and a red-team review before
+requesting approval. Both found real issues; all fixed within M1, each with a test.
+
+| Pass         | Finding                                                                                                                                                                                                                                                                             | Resolution                                                                                                                                                                                |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Audit**    | The global keybinding listener read a parallel props ref, not the command registry — so "one registry drives palette **and** keybindings" was only true by coincidence (both derived from the same prop).                                                                           | The listener now reads `registry.all()`. There is literally one source for both, which is the M1 thesis.                                                                                  |
+| **Audit**    | `@radix-ui/react-popover` was declared but no component imported it.                                                                                                                                                                                                                | Removed (Standards §2). Returns with its component when M2+ needs it.                                                                                                                     |
+| **Audit**    | Select / DropdownMenu / VirtualList had no direct tests.                                                                                                                                                                                                                            | Added axe + keyboard-operability tests (open state, arrow-key select) and a VirtualList windowing test.                                                                                   |
+| **Red-team** | The Zustand store trusted whatever it rehydrated from localStorage. localStorage survives upgrades and a compromised renderer can write it, so a stale/tampered `activeView` flowing into `copy[activeView]` **crashes the app on launch** (violates DB §1 "degrade, never crash"). | A validating `merge` coerces every rehydrated value to the known-good set before it enters state. Proven with 5 tests (renamed view, tampered theme, corrupt layout, non-object payload). |
+
+**Assessed and clean:** the preload `subscribe()` clamps to the event allowlist and never exposes
+`ipcRenderer`; the emitter validates every event before send and skips destroyed windows; window controls
+act only on the caller's own window (the M0 top-frame check still applies); drag regions and localStorage
+carry no code or secrets. **Noted for later** (real, not yet due): `ipcRenderer` max-listeners under many
+M5 subscriptions; command-vs-Monaco keybinding precedence in M2.
 
 ---
 

@@ -9,6 +9,69 @@ Updated after every milestone. Newest milestone first.
 
 ---
 
+## M1 — Design system & application shell (2026-07-14)
+
+### The lesson: jsdom cannot test what needs real layout, so don't pretend it can
+
+Two of M1's most important components — the cmdk command palette and the VirtualList — do their
+core job (filtering, windowing) only when there is **real layout**, which jsdom does not compute.
+The honest response is to test each component at the level jsdom can actually observe, and verify
+the layout-dependent behaviour in the real app:
+
+- **cmdk palette:** jsdom renders the dialog and the input but registers zero items (it decides
+  nothing matches, without measurements). So the unit tests pin what is reliable — the dialog
+  opens from the store, it is a labelled modal — and the _grouping_ logic is extracted into a pure
+  function (`groupCommands`) and tested directly, while the filter/select behaviour is verified by
+  driving the running app (screenshot: ⌘K → grouped commands with shortcut hints).
+- **VirtualList:** jsdom renders 0 rows (0 scroll height), so the test asserts the layout-
+  independent fact — the scroll spacer is sized for all 10,000 items — and the windowing itself is
+  an M2 perf-acceptance concern in the real app.
+
+Do not "fix" these by faking `getBoundingClientRect`. A test that mocks the layout engine is
+testing the mock. State the boundary and move the check to where the behaviour is real.
+
+### Rehydrated persisted state is untrusted input (found by the M1 red-team)
+
+The Zustand UI store persists to localStorage. localStorage **survives across app versions** and
+**a compromised renderer can write it**, so what the store reads on launch is untrusted input every
+time — the same category as an IPC payload, and it must be validated the same way. A stale
+`activeView` (a view renamed in an upgrade) or a tampered value flowing into a total lookup like
+`copy[activeView]` crashes the app on launch, which violates DB §1's "a corrupted local store
+degrades, it does not crash." The store's `merge` is the trust boundary: every rehydrated value is
+coerced against the current known-good set before it enters state. **Apply this to every persisted
+store from now on** — the pattern generalises to M2's SQLite-backed settings.
+
+### Toolchain facts worth keeping
+
+- **`ElementRef` is deprecated in React 19** — use `ComponentRef<typeof X>` in the Radix wrappers.
+  The strict lint caught every occurrence.
+- **`react-resizable-panels` v4 is a different API** from v2/v3: `Group`/`Panel`/`Separator`,
+  `orientation` (not `direction`), and `defaultLayout` + `onLayoutChanged` for persistence (no
+  `autoSaveId`). The drag handle exposes state via the `data-separator` attribute.
+- **Tailwind v4 arbitrary CSS-variable values use parentheses**, not brackets: `duration-(--var)`,
+  not `duration-[--var]` (which was the M0-audit invalid-CSS bug's cousin). Brackets are for
+  arbitrary literal values; parens are for variables.
+- **Tailwind v4 scans only what it is told.** A consuming app must `@source` the `@fixora/ui`
+  package source, or the primitives render unstyled in the app while looking fine in Ladle (which
+  has its own `@source`). This is invisible until you actually mount a primitive in the app.
+- **jsdom needs polyfills for Radix/cmdk:** `ResizeObserver`, `matchMedia`, and
+  `Element.prototype.{has,set,release}PointerCapture` + `scrollIntoView`. They live in each test
+  package's setup file. A test setup that uses DOM globals must be type-checked under a DOM-lib
+  tsconfig (i.e. live under `src/`, not a node-scoped `tests/`).
+- **A build-in-`beforeAll` test needs a generous hook timeout.** The preload-bundle and
+  css-consistency tests shell out to a ~10s build; the default 10s vitest hook timeout flaked under
+  parallel CI load until raised.
+
+### Noted for later (real, not yet due)
+
+- `ipcRenderer` has a default max-listeners of 10. M5's streaming may add many `subscribe()`s to one
+  channel; batch or raise the ceiling then.
+- Command keybindings run at document capture and `preventDefault` on a match. When Monaco arrives
+  (M2), define precedence between our chords and the editor's, or they will fight over ⌘K-shaped
+  bindings.
+
+---
+
 ## M0 red-team review — the adversarial pass (2026-07-14)
 
 Reviewed as a competitor trying to break the architecture. The reusable lesson:
