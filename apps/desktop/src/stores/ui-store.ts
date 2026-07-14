@@ -18,6 +18,32 @@ export type ActivityView = 'workspace' | 'findings' | 'history' | 'settings';
 
 export type PanelLayout = Record<string, number>;
 
+const THEMES: readonly ThemeName[] = ['dark', 'light'];
+const DENSITIES: readonly DensityName[] = ['comfortable', 'compact'];
+const VIEWS: readonly ActivityView[] = ['workspace', 'findings', 'history', 'settings'];
+
+/**
+ * Coerce a rehydrated persisted value back to a valid one. localStorage survives across app
+ * versions and is writable by a compromised renderer, so its contents are **untrusted input** on
+ * every launch — a stale `activeView` from a renamed view, or a tampered value, must not reach a
+ * lookup that assumes it is valid. "A corrupted local store degrades; it does not crash the app"
+ * (DB §1) applies to this store just as it does to SQLite.
+ */
+function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback;
+}
+
+function sanitizeLayout(value: unknown): PanelLayout {
+  if (typeof value !== 'object' || value === null) return {};
+  const out: PanelLayout = {};
+  for (const [key, size] of Object.entries(value)) {
+    if (typeof size === 'number' && Number.isFinite(size)) out[key] = size;
+  }
+  return out;
+}
+
 type UiState = {
   theme: ThemeName;
   density: DensityName;
@@ -80,6 +106,20 @@ export const useUiStore = create<UiState>()(
         activeView: s.activeView,
         panelLayout: s.panelLayout,
       }),
+      // Rehydration is the trust boundary for persisted state (see `oneOf` above). Every value
+      // read back from localStorage is validated against the current known-good set before it
+      // enters the store, so a stale-after-upgrade or tampered value degrades to a default rather
+      // than crashing a lookup downstream.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<UiState>;
+        return {
+          ...current,
+          theme: oneOf(p.theme, THEMES, current.theme),
+          density: oneOf(p.density, DENSITIES, current.density),
+          activeView: oneOf(p.activeView, VIEWS, current.activeView),
+          panelLayout: sanitizeLayout(p.panelLayout),
+        };
+      },
     },
   ),
 );
