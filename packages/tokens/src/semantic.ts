@@ -30,10 +30,15 @@ export type SemanticColors = {
     onAccent: string;
   };
   border: {
-    /** Decorative separation only. Deliberately below 3:1 — see `requirements.ts`. */
+    /** Decorative separation (dividers, card edges). Deliberately below 3:1; not a control boundary. */
     subtle: string;
-    /** The boundary of an interactive control. Contrast-checked at 3:1. */
+    /**
+     * The resting border of an input or card. Below 3:1 by design — a resting border that
+     * clears 3:1 reads as heavy. WCAG 1.4.11 governs the boundary *required to identify* a
+     * control, which a filled/labelled input does not depend on; that boundary is `strong`.
+     */
     default: string;
+    /** The identifying control boundary — focus/active/error, and outline-only controls. Gated at 3:1. */
     strong: string;
   };
   accent: {
@@ -47,11 +52,13 @@ export type SemanticColors = {
   };
   focus: {
     /**
-     * The ring is rendered with a 2px offset, so the colour adjacent to it is the surface,
-     * never the control. The offset is part of the contract, not a style preference.
+     * The ring is rendered with a *transparent* 2px offset (`outline-offset`), so the colour
+     * adjacent to the ring is whatever surface the focused control sits on — never the control
+     * itself. That is what lets a single ring colour clear 3:1 against both, which a ring drawn
+     * flush against the control cannot do (see `requirements.ts`). There is deliberately no
+     * offset *colour* token: the offset shows through to the surface, it is not painted.
      */
     ring: string;
-    offset: string;
   };
   status: Record<
     StatusName,
@@ -89,7 +96,6 @@ export const dark: SemanticColors = {
   },
   focus: {
     ring: violetDark[10],
-    offset: neutralDark[1],
   },
   status: statusDark,
 };
@@ -125,7 +131,6 @@ export const light: SemanticColors = {
   },
   focus: {
     ring: violetLight[9],
-    offset: neutralLight[1],
   },
   status: statusLight,
 };

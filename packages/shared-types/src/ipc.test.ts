@@ -1,8 +1,29 @@
 import { describe, expect, it } from 'vitest';
 
-import { channels, contracts, isChannel } from './ipc.js';
+import { channels, isChannel } from './channels.js';
+import { contracts } from './ipc.js';
+
+describe('the channel list (the zod-free surface the preload imports)', () => {
+  it('recognises only declared channels', () => {
+    expect(isChannel('system:getAppInfo')).toBe(true);
+    expect(isChannel('fs:readFile')).toBe(false);
+    expect(isChannel('__proto__')).toBe(false);
+  });
+
+  it('enumerates its whole surface', () => {
+    // If this number goes up, someone widened the renderer's reach into the privileged
+    // process. That should be a visible line in a diff, which is what this assertion makes it.
+    expect(channels).toEqual(['system:getAppInfo']);
+  });
+});
 
 describe('the IPC contract registry', () => {
+  it('has exactly one contract per channel, and no more', () => {
+    // The `satisfies Record<Channel, Contract>` constraint enforces this at compile time; this
+    // asserts it at runtime too, so a build that somehow skipped the check still fails here.
+    expect(Object.keys(contracts).sort()).toEqual([...channels].sort());
+  });
+
   it('validates a well-formed response', () => {
     const parsed = contracts['system:getAppInfo'].response.safeParse({
       name: 'Fixora',
@@ -27,17 +48,5 @@ describe('the IPC contract registry', () => {
       isPackaged: false,
     });
     expect(parsed.success).toBe(false);
-  });
-
-  it('recognises only declared channels', () => {
-    expect(isChannel('system:getAppInfo')).toBe(true);
-    expect(isChannel('fs:readFile')).toBe(false);
-    expect(isChannel('__proto__')).toBe(false);
-  });
-
-  it('enumerates its whole surface', () => {
-    // If this number goes up, someone widened the renderer's reach into the privileged
-    // process. That should be a visible line in a diff, which is what this assertion makes it.
-    expect(channels).toEqual(['system:getAppInfo']);
   });
 });

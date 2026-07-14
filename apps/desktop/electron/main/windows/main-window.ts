@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { dark } from '@fixora/tokens';
 import { BrowserWindow } from 'electron';
 
 import { applyNavigationGuards, attachCspHeader } from '../security/navigation-guard.js';
@@ -21,7 +22,10 @@ export function createMainWindow(devServerUrl: string | undefined): BrowserWindo
     // white flash before the theme has been applied. Cold start is a 2.0s budget (PRD §7);
     // a flash inside it still reads as "cheap".
     show: false,
-    backgroundColor: '#0b0a0f',
+    // The paint-before-first-frame colour. It must equal the dark canvas token, or the window
+    // flashes a different shade before React mounts — so it *is* the token, not a copy of it.
+    // The window is shown on `ready-to-show`, but a mismatch is still visible on some drivers.
+    backgroundColor: dark.bg.canvas,
     autoHideMenuBar: true,
     webPreferences: {
       // CommonJS, not .mjs: Electron does not support an ESM preload in a sandboxed renderer,

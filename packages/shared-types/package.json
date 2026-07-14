@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./channels": {
+      "types": "./dist/channels.d.ts",
+      "import": "./dist/channels.js"
     }
   },
   "files": [

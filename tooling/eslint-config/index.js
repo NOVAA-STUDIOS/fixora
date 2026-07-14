@@ -51,6 +51,36 @@ const NO_CORE = {
     'boundary, which is the only surface it is allowed to have.',
 };
 
+/**
+ * The preload is the one privileged script in a sandboxed renderer, it runs before first paint
+ * on every window, and it is the single most security-sensitive file we ship. It must not pull
+ * a runtime dependency: it needs channel *names*, which live in the zod-free
+ * `@fixora/shared-types/channels` entry point. Importing the barrel drags zod in and cost 120 kB
+ * of a 121 kB preload before this rule existed.
+ *
+ * `allowTypeImports` is the crux: the preload may reference the barrel's *types* (erased at
+ * compile time, zero runtime cost), but a value import — the thing that ships zod — is refused.
+ * A bundle-content test (`tests/preload-bundle.test.ts`) is the backstop that checks the actual
+ * shipped artifact, because ESLint cannot see a value that arrives transitively.
+ */
+const PRELOAD_BARREL_MESSAGE =
+  'The preload imports channel names from @fixora/shared-types/channels (zod-free), not the ' +
+  'barrel. Type-only imports from the barrel are fine; a value import ships zod into the bridge.';
+
+// `paths` is an EXACT match on the specifier, so it restricts the bare barrel without touching
+// the `/channels` subpath — which a glob pattern (gitignore semantics) would also catch.
+const PRELOAD_NO_RUNTIME_PATHS = [
+  { name: '@fixora/shared-types', allowTypeImports: true, message: PRELOAD_BARREL_MESSAGE },
+];
+
+const PRELOAD_NO_RUNTIME_PATTERNS = [
+  {
+    group: ['zod', 'zod/*'],
+    message:
+      'The preload must not bundle zod. Validation belongs to the router on the privileged side.',
+  },
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -170,6 +200,15 @@ export default tseslint.config(
   {
     files: ['apps/desktop/electron/main/**', 'apps/desktop/electron/preload/**'],
     rules: forbid([NO_REACT]),
+  },
+  {
+    files: ['apps/desktop/electron/preload/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { paths: PRELOAD_NO_RUNTIME_PATHS, patterns: [NO_REACT, ...PRELOAD_NO_RUNTIME_PATTERNS] },
+      ],
+    },
   },
 
   // Plain JS/MJS (flat configs, gate runners) has no tsconfig and needs no type-aware rules.

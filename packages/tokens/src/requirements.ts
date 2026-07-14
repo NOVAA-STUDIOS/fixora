@@ -64,7 +64,13 @@ function requirementsFor(c: SemanticColors): ContrastRequirement[] {
       foreground: c.border.strong,
       background: bg,
       minRatio: AA_NON_TEXT,
-      why: 'The visible boundary of an interactive control (WCAG 2.2 1.4.11).',
+      why:
+        'The boundary that *identifies* a control (WCAG 2.2 1.4.11), used for focus/active/error ' +
+        'states and for controls that rely on their outline to be found. 1.4.11 governs the ' +
+        'information "required to identify" a component, which is this one. `border.default` and ' +
+        '`border.subtle` are resting/decorative separators — a control identifiable by its fill, ' +
+        'label or placeholder does not depend on them, so they are intentionally below 3:1 (a ' +
+        'resting border that clears 3:1 is a heavy border, and would fight the calm aesthetic).',
     });
 
     reqs.push({

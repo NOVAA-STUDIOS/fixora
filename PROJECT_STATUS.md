@@ -1,6 +1,6 @@
 # Fixora — Project Status
 
-**Updated:** 2026-07-13 · **Current milestone:** M0 Foundations — **complete, awaiting sign-off**
+**Updated:** 2026-07-13 · **Current milestone:** M0 Foundations — **complete + audited, awaiting sign-off**
 **Next milestone:** M1 Design system & application shell — **blocked on explicit approval of M0**
 
 ---
@@ -31,11 +31,39 @@ The roadmap defines three. Each was tested by making it fail first.
 | Criterion (Roadmap M0)                               | Status | How it was verified                                                                                                                                                                                                                                                                  |
 | ---------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `pnpm dev` opens a hardened window                   | ✅     | Built app launched; window titled "Fixora"; 4 Electron processes; the IPC round-trip returned real data (`version 0.1.0`, `electron 43.1.0`, `win32/x64`) rendered through the token layer. All 12 hardening flags confirmed present in the **shipped** bundle, not just the source. |
-| `pnpm run ci` runs every gate green                  | ✅     | Full suite green: format · typecheck · lint (`--max-warnings 0`) · 27 unit tests · contrast · boundaries · ADR drift · Electronegativity · gitleaks · dependency audit (0 vulnerabilities).                                                                                          |
+| `pnpm run ci` runs every gate green                  | ✅     | Full suite green: format · typecheck · lint (`--max-warnings 0`) · 38 unit tests · contrast · boundaries · ADR drift · Electronegativity · gitleaks · dependency audit (0 vulnerabilities).                                                                                          |
 | A contrast violation in a token file fails the build | ✅     | Planted `#8b5cf6` (violet-500 — the shade a designer would reach for). Gate failed with `4.23:1, needs 4.5:1`; the unit test failed too. Reverted; green.                                                                                                                            |
 
-**Also proven by planted failure:** the boundary gate. An `electron` import added to `packages/shared-types`
-produced `error core-no-electron` and failed the build. Invariant I1 is enforced, not merely documented.
+**Also proven by planted failure:** the boundary gate (an `electron` import in `packages/shared-types` →
+`error core-no-electron`) and the preload rule (a barrel value-import → refused; a type-only import →
+allowed). Every gate in this repo has been watched failing. **A gate never seen fail is a hypothesis.**
+
+---
+
+## M0 audit (2026-07-13) — passed
+
+Re-reviewed as an external Staff Engineer before starting M1. **Twelve issues found in code that had already
+passed every gate**, all fixed within M0, each with a regression gate so the class cannot recur. Detail in
+[CHANGELOG.md](./CHANGELOG.md); the reusable lessons are in [PROJECT_MEMORY.md](./PROJECT_MEMORY.md).
+
+| Severity           | Finding                                                                                                                                                                                        | Resolution                                                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Security**       | The preload — the one privileged script in a sandboxed renderer — shipped **the whole zod library (120 kB of a 121 kB bundle)** to obtain a list of channel names.                             | Zod-free `@fixora/shared-types/channels` entry point. **Preload: 121 kB → 0.5 kB.** Enforced by an ESLint rule + a test that greps the shipped bundle.      |
+| **Security**       | A declared-but-unhandled IPC channel returned a polite "try again" at runtime instead of failing the build.                                                                                    | `assertEveryChannelIsHandled()` at startup. A channel with no handler is a placeholder (Standards §2).                                                      |
+| **Correctness**    | `theme.css` referenced a token that no longer existed, and status `onSolid` vars were camelCase → unreachable. The badge colour the contrast gate _proved_ was accessible rendered colourless. | Fixed; `css-consistency.test.ts` now asserts every referenced variable is defined and kebab-cased.                                                          |
+| **Correctness**    | `duration-[--var]` (Tailwind v3 syntax) emitted invalid CSS — the button had no transition.                                                                                                    | Corrected to v4 `duration-(--var)`.                                                                                                                         |
+| **Accessibility**  | `border.default` was commented "contrast-checked at 3:1" but was never gated, and would have failed.                                                                                           | Comments made honest. Per WCAG 1.4.11 the _identifying_ boundary is `border.strong` (gated, 3.29:1); a resting border below 3:1 is correct and intentional. |
+| Maintainability    | `App.tsx` fetched inside a `useEffect` — violating Standards §3 verbatim.                                                                                                                      | Extracted to `useAppInfo`; the M1 TanStack Query swap now touches one hook.                                                                                 |
+| Maintainability    | Errors advised "try again" for deterministic failures.                                                                                                                                         | Next steps are honest now (Standards §5: a wrong next step is worse than none).                                                                             |
+| Maintainability    | Raw hex `#0b0a0f` in `main-window.ts`.                                                                                                                                                         | Now `dark.bg.canvas` — brand drift closed.                                                                                                                  |
+| Dead code          | `ResultSchema`, `IPC_UNKNOWN_CHANNEL`, `focus.offset`, and the public re-export of the **raw colour ramps** (a footgun letting a component bypass the contrast gate).                          | Removed. Reaching past the semantic layer is now a resolution error.                                                                                        |
+| Dependency bloat   | `zod` (unused) in `apps/desktop`; `vitest` (unused) at root.                                                                                                                                   | Removed.                                                                                                                                                    |
+| Process            | `@changesets/cli` was installed but never configured, though Repo §3 mandates it.                                                                                                              | `.changeset/` configured.                                                                                                                                   |
+| **Gate integrity** | The dependency-cruiser rule I first wrote to guard the preload **reported green while being blind** — it cannot resolve workspace subpaths.                                                    | Deleted and replaced with enforcement that actually sees the edge. A blind gate is worse than none.                                                         |
+
+**Not changed, deliberately:** `.npmrc`'s `node-linker=isolated` / `hoist=false` (load-bearing — this is what
+exposed the phantom dependency in the Electron scanner) and the renderer bundle at 546 kB (React + react-dom,
+uncompressed; it is not a defect, and the size budget belongs to M8 where the installer is measured).
 
 ---
 

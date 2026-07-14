@@ -9,6 +9,61 @@ Updated after every milestone. Newest milestone first.
 
 ---
 
+## M0 audit — what a second pass found (2026-07-13)
+
+Twelve real issues in code that had already passed every gate. Recording _why they got through_, because
+that is the reusable part.
+
+### The pattern: gates that were blind, and comments that lied
+
+**Three of the four worst findings were invisible to the gates precisely because the gates were looking
+elsewhere.** This is the single most important lesson from M0:
+
+- The contrast gate **proved** the badge label passes 4.5:1 — while the Tailwind variable that applies that
+  colour pointed at a token that no longer existed. The gate checked the _palette_; nothing checked that the
+  palette was _reachable_. A gate on the input is not a gate on the output.
+- `border.default` carried the comment "Contrast-checked at 3:1". It was never checked, and it would have
+  failed. **A comment asserting a gate exists is the most dangerous comment there is**, because the next
+  engineer trusts it and stops looking.
+- The `duration-[--var]` class compiled to invalid CSS and silently did nothing. Tailwind does not error on
+  a bad arbitrary value; it emits it and moves on.
+
+**The rule this yields, and it is now a review criterion:** when you claim a gate protects something, go
+break the thing and watch the gate fail. Every fix in this audit was verified that way. A gate you have
+never seen fail is a hypothesis.
+
+### The security finding worth remembering
+
+The preload — the one privileged script in a sandboxed renderer, executed before first paint on every
+window — was shipping **the entire zod library (120 kB of a 121 kB bundle)** because it imported the barrel
+to get a list of channel _names_. Nothing was wrong with the code; the import looked completely innocuous.
+
+Two things fell out of fixing it:
+
+1. **The preload never needed to validate anything.** The router revalidates on the privileged side, which
+   is the only side whose validation an attacker cannot own. Validation in the preload was security theatre
+   that cost 120 kB.
+2. **The obvious enforcement did not work.** A dependency-cruiser rule forbidding `preload → zod` reported
+   green — because depcruise cannot resolve workspace subpath exports and never saw the edge at all. It was
+   a _blind_ gate, the exact failure mode already documented in `.dependency-cruiser.cjs`, and I nearly
+   shipped it as protection. It is replaced by an ESLint rule (which resolves the specifier, and permits
+   type-only barrel imports since those are erased) **plus a test that greps the shipped bundle** — because
+   the built artifact is the one thing no resolver quirk can hide.
+
+### Toolchain traps found during the audit
+
+- **`no-restricted-imports` `patterns` use gitignore semantics**, so a group of `@fixora/shared-types` also
+  matches `@fixora/shared-types/channels`, and a `!negation` does _not_ reliably exempt it. Use **`paths`**
+  (exact specifier match) when you mean the barrel and not its subpaths. Both forms support
+  `allowTypeImports`, which is what lets the preload keep its zero-cost type imports.
+- **WCAG 1.4.11 does not require every border to hit 3:1.** It governs the visual information _required to
+  identify_ a control. A filled, labelled input is identifiable without its resting border, which is why
+  every mature system keeps resting borders below 3:1 — the first step in our ramp that clears 3:1 is
+  already "heavy". So `border.strong` is the gated identifying boundary; `border.default` is deliberately
+  not. Do not "fix" this by darkening the resting border.
+
+---
+
 ## Standing interpretations of the blueprint
 
 Decisions about _how to read_ the docs, made once so they are not re-litigated.

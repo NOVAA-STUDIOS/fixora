@@ -21,7 +21,7 @@ import { defineConfig } from 'electron-vite';
  * how this was found. Bundling also keeps the shipped ASAR self-contained, which matters for
  * the < 120 MB installer budget (PRD §7).
  */
-const BUNDLED = ['@fixora/shared-types', '@fixora/tokens', 'zod'];
+const BUNDLED = ['@fixora/shared-types', '@fixora/shared-types/channels', '@fixora/tokens', 'zod'];
 export default defineConfig({
   main: {
     build: {

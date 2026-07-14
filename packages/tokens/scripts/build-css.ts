@@ -29,10 +29,11 @@ function colorVars(c: SemanticColors): string[] {
   for (const [key, value] of Object.entries(c.border)) push(`border-${key}`, value);
   for (const [key, value] of Object.entries(c.accent)) push(`accent-${kebab(key)}`, value);
   push('focus-ring', c.focus.ring);
-  push('focus-offset', c.focus.offset);
   for (const status of statusNames) {
     for (const [key, value] of Object.entries(c.status[status])) {
-      push(`status-${status}-${key}`, value);
+      // kebab() so `onSolid` becomes `on-solid` — otherwise the emitted var is camelCase,
+      // out of step with every other token, and unreachable by the Tailwind mapping.
+      push(`status-${status}-${kebab(key)}`, value);
     }
   }
   return lines;
@@ -122,7 +123,6 @@ const themeCss = `${header}
   --color-fg-secondary: var(${PREFIX}-color-text-secondary);
   --color-fg-muted: var(${PREFIX}-color-text-muted);
   --color-on-accent: var(${PREFIX}-color-text-on-accent);
-  --color-on-solid: var(${PREFIX}-color-text-on-solid);
 
   --color-border-subtle: var(${PREFIX}-color-border-subtle);
   --color-border: var(${PREFIX}-color-border-default);
@@ -140,6 +140,7 @@ const themeCss = `${header}
 ${statusNames
   .flatMap((status) => [
     `  --color-${status}: var(${PREFIX}-color-status-${status}-solid);`,
+    `  --color-on-${status}: var(${PREFIX}-color-status-${status}-on-solid);`,
     `  --color-${status}-text: var(${PREFIX}-color-status-${status}-text);`,
     `  --color-${status}-subtle: var(${PREFIX}-color-status-${status}-subtle);`,
     `  --color-${status}-border: var(${PREFIX}-color-status-${status}-border);`,

@@ -8,6 +8,63 @@ this file is a **product surface on the website** (Repo §3), not an afterthough
 
 ## [Unreleased]
 
+### M0 audit — self-review before M1 (2026-07-13)
+
+A Staff-Engineer pass over the M0 tree. Twelve issues found by re-reading and *measuring* rather than
+trusting the first pass; every fix verified by making its gate fail first, and each recurring class now has
+a regression gate so it cannot come back.
+
+#### Security
+
+- **The preload bridge shipped the entire zod library — 120 kB of a 121 kB bundle.** The most privileged
+  script in the app, which runs before first paint on every window, was importing the schema-bearing
+  barrel to get a list of channel *names*. Split out a zod-free `@fixora/shared-types/channels` entry
+  point; the preload is now **0.5 kB**. Validation stays on the router (the privileged side, the only side
+  whose validation an attacker cannot route around). Guarded by an ESLint rule (barrel value-imports
+  refused, type-imports allowed) **and** a bundle-content test that greps the shipped artifact for zod —
+  because dependency-cruiser cannot resolve the workspace subpath and a blind gate is worse than none.
+- **A declared-but-unhandled IPC channel now fails fast at startup** (`assertEveryChannelIsHandled`) instead
+  of reaching a user's machine and returning a polite "try again". A channel with no handler is a
+  placeholder, and Standards §2 says placeholders do not ship.
+
+#### Fixed
+
+- **Two token bugs that silently broke colour.** `theme.css` referenced `--fx-color-text-on-solid`, which no
+  longer existed (dangling → invalid CSS), and the status `onSolid` variables were emitted camelCase and so
+  were unreachable. The badge-label colour the contrast gate *proves* passes 4.5:1 was rendering colourless.
+  A new `css-consistency` test asserts every variable the theme references is defined and kebab-cased.
+- **Invalid Tailwind transition.** `duration-[--var]` (v3 syntax) emitted `transition-duration: --fx-…`,
+  ignored by every browser, so the button had no transition. Corrected to v4 `duration-(--var)`.
+- **A comment that lied about accessibility.** `border.default` was documented as "contrast-checked at 3:1"
+  but was never gated — and would have failed (1.6:1). Resolved correctly per WCAG 1.4.11: the *identifying*
+  control boundary is `border.strong` (gated, 3.29:1); `border.default` is a resting border legitimately
+  below 3:1, as in every mature design system. Comments now match the gate.
+
+#### Changed
+
+- **`App.tsx` no longer fetches in a `useEffect`.** Extracted to `useAppInfo`, per Standards §3 verbatim
+  ("a component with a useEffect doing data fetching is a hook that hasn't been extracted yet"). The M1 swap
+  to TanStack Query now touches one hook, not the component.
+- **Error "next steps" made honest.** A contract violation is deterministic, so it no longer says "try
+  again" (Standards §5: a wrong next step is worse than none) — it points at the bug tracker. "Try again"
+  remains only where a retry can actually succeed.
+- **The window background is the token, not a copied hex** (`dark.bg.canvas`), closing a brand-drift path.
+
+#### Removed
+
+- Dead code and footguns: `ResultSchema` (unused), the `IPC_UNKNOWN_CHANNEL` error code (unreachable after
+  fail-fast), the `focus.offset` colour token (never read — the offset shows the surface through), and the
+  **public re-export of the raw colour ramps** from `@fixora/tokens` (a component reaching past the semantic
+  layer into a raw ramp bypasses the contrast gate; that is now a resolution error, not a review catch).
+- Unused dependencies: `zod` from `apps/desktop`, `vitest` from the workspace root.
+
+#### Added
+
+- **Changesets is now configured** (`.changeset/`), not merely installed — Repo §3 mandates it for
+  versioning the published packages; `@fixora/desktop` is ignored (its version is the release tag).
+- Regression gates for every recurring class above: `css-consistency.test.ts`, `preload-bundle.test.ts`,
+  `router.test.ts`, and the preload ESLint rule. Test count 27 → 38.
+
 ### M0 — Foundations (2026-07-13)
 
 The repo, the gates, and the security posture — in place **before** there is code to protect. No product

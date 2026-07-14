@@ -25,8 +25,6 @@ export type ErrorAction = z.infer<typeof ErrorActionSchema>;
 export const FixoraErrorCodeSchema = z.enum([
   /** An IPC payload failed schema validation. Always a bug (in us) or an attack (from a compromised renderer). */
   'IPC_CONTRACT_VIOLATION',
-  /** No handler is registered for the channel. */
-  'IPC_UNKNOWN_CHANNEL',
   /** A handler threw. The message is redacted before it crosses the boundary. */
   'IPC_HANDLER_FAILED',
   /** A path resolved outside the open workspace root. Logged as a SECURITY EVENT (Security §3). */
@@ -58,9 +56,3 @@ export function ok<T>(value: T): Result<T> {
 export function err<T = never>(error: FixoraError): Result<T> {
   return { ok: false, error };
 }
-
-export const ResultSchema = <T extends z.ZodType>(value: T) =>
-  z.discriminatedUnion('ok', [
-    z.object({ ok: z.literal(true), value }),
-    z.object({ ok: z.literal(false), error: FixoraErrorSchema }),
-  ]);
