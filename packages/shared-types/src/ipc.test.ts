@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { channels, isChannel } from './channels.js';
+import { channels, eventChannels, isChannel, isEventChannel } from './channels.js';
+import { eventContracts } from './events.js';
 import { contracts } from './ipc.js';
 
 describe('the channel list (the zod-free surface the preload imports)', () => {
@@ -11,9 +12,35 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
   });
 
   it('enumerates its whole surface', () => {
-    // If this number goes up, someone widened the renderer's reach into the privileged
-    // process. That should be a visible line in a diff, which is what this assertion makes it.
-    expect(channels).toEqual(['system:getAppInfo']);
+    // If this list grows, someone widened the renderer's reach into the privileged process.
+    // That should be a visible line in a diff, which is what this assertion makes it.
+    expect(channels).toEqual([
+      'system:getAppInfo',
+      'window:minimize',
+      'window:toggleMaximize',
+      'window:close',
+      'window:isMaximized',
+    ]);
+  });
+});
+
+describe('the event registry (main → renderer push)', () => {
+  it('recognises only declared event channels', () => {
+    expect(isEventChannel('window:maximizedChanged')).toBe(true);
+    expect(isEventChannel('window:minimize')).toBe(false); // that is a request channel, not an event
+  });
+
+  it('has one schema per event channel, and no more', () => {
+    expect(Object.keys(eventContracts).sort()).toEqual([...eventChannels].sort());
+  });
+
+  it('validates a maximized-changed payload', () => {
+    expect(eventContracts['window:maximizedChanged'].safeParse({ isMaximized: true }).success).toBe(
+      true,
+    );
+    expect(
+      eventContracts['window:maximizedChanged'].safeParse({ isMaximized: 'yes' }).success,
+    ).toBe(false);
   });
 });
 

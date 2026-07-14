@@ -40,11 +40,22 @@ type Contract = { request: z.ZodType; response: z.ZodType };
  * handler is a placeholder, and Standards §2 does not allow those. (The router asserts this at
  * startup rather than trusting us to remember.)
  */
+const empty = z.object({});
+const WindowStateSchema = z.object({ isMaximized: z.boolean() });
+
 export const contracts = {
   'system:getAppInfo': {
-    request: z.object({}),
+    request: empty,
     response: AppInfoSchema,
   },
+  // Custom title bar (frameless window). These are the privileged operations the renderer's
+  // window-control buttons need — the renderer cannot minimise or close a window itself, by
+  // design, so it asks main to. Each returns the resulting window state so the button's
+  // maximise/restore icon can update without a second round-trip.
+  'window:minimize': { request: empty, response: WindowStateSchema },
+  'window:toggleMaximize': { request: empty, response: WindowStateSchema },
+  'window:close': { request: empty, response: z.void() },
+  'window:isMaximized': { request: empty, response: WindowStateSchema },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

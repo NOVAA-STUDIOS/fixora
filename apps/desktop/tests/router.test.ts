@@ -1,9 +1,12 @@
 import type { AppInfo } from '@fixora/shared-types';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-// The startup assertion under test does not touch ipcMain; a light stub keeps the import happy.
+// The router touches ipcMain and BrowserWindow.fromWebContents; a light stub keeps the import
+// happy. fromWebContents returns null here — the window-control handlers are exercised in their
+// own test with a real fake window; this suite is about routing, sender checks and validation.
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
+  BrowserWindow: { fromWebContents: vi.fn(() => null) },
 }));
 
 // The registry is module-level singleton state, so each test imports a fresh module instance
@@ -40,9 +43,23 @@ describe('assertEveryChannelIsHandled', () => {
     }).toThrow(/system:getAppInfo/);
   });
 
+  it('names every unhandled channel, not just the first', async () => {
+    const { assertEveryChannelIsHandled, registerHandler } = await freshRouter();
+    registerHandler('system:getAppInfo', () => appInfo);
+    // system is handled; the four window channels are not — all four must be named.
+    expect(() => {
+      assertEveryChannelIsHandled();
+    }).toThrow(/window:minimize.*window:toggleMaximize.*window:close.*window:isMaximized/s);
+  });
+
   it('passes once every channel has a handler', async () => {
     const { assertEveryChannelIsHandled, registerHandler } = await freshRouter();
     registerHandler('system:getAppInfo', () => appInfo);
+    const state = { isMaximized: false };
+    registerHandler('window:minimize', () => state);
+    registerHandler('window:toggleMaximize', () => state);
+    registerHandler('window:close', () => undefined);
+    registerHandler('window:isMaximized', () => state);
     expect(() => {
       assertEveryChannelIsHandled();
     }).not.toThrow();
@@ -69,9 +86,10 @@ async function mountedListener(): Promise<IpcListener> {
   const { registerHandler, mountRouter } = await import('../electron/main/ipc/router.js');
   registerHandler('system:getAppInfo', () => appInfo);
   mountRouter();
-  const call = vi
-    .mocked(electron.ipcMain.handle)
-    .mock.calls.find((c) => c[0] === 'system:getAppInfo');
+  // Read the mock's recorded calls. `handle` is a vi.fn() on a plain mock object, not a bound
+  // class method, so the unbound-method concern does not apply — accessing `.mock` off it is safe.
+  const handleMock = vi.mocked(electron.ipcMain).handle;
+  const call = handleMock.mock.calls.find((c) => c[0] === 'system:getAppInfo');
   if (call === undefined) throw new Error('router did not register the channel');
   return call[1] as unknown as IpcListener;
 }

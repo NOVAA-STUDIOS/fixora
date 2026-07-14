@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
+import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
 import { createMainWindow } from './windows/main-window.js';
 
@@ -31,6 +32,7 @@ if (!gotTheLock) {
   app.whenReady().then(
     () => {
       registerSystemHandlers();
+      registerWindowHandlers();
       // Fail fast, at startup, if any declared channel has no handler — before a window
       // exists to send it a request (Standards §2).
       assertEveryChannelIsHandled();

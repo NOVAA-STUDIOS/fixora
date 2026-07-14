@@ -8,6 +8,29 @@
 @import '@fixora/tokens/tokens.css';
 @import '@fixora/tokens/theme.css';
 
+/*
+ * @fixora/ui primitives carry utility classes Tailwind must scan, but they live in a separate
+ * package. Point the scanner at the ui source so those classes are generated. Without this, the
+ * primitives render unstyled in the app — a bug that is invisible in the ui package's own Ladle.
+ */
+@source '../../../../packages/ui/src';
+
+@layer utilities {
+  /*
+   * Frameless-window drag regions. Electron reads `-webkit-app-region`; we set the standard
+   * `app-region` too for forward-compatibility. These are utilities rather than inline styles so
+   * the title bar stays declarative and the vendor prefix lives in exactly one place.
+   */
+  .drag-region {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .no-drag-region {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+}
+
 @layer base {
   html,
   body,

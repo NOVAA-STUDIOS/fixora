@@ -240,11 +240,33 @@ export default tseslint.config(
     },
   },
 
-  // Tests may import dev-only helpers and assert on `any`-shaped fixtures.
+  // Tests may import dev-only helpers, assert on `any`-shaped fixtures, and use empty noop
+  // functions as stubs and spies. These are legitimate in test code and noise everywhere else.
   {
     files: ['**/*.test.ts', '**/*.test.tsx', '**/tests/**'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
+      // `unbound-method` is a false-positive generator against mocks and spies — referencing
+      // `mock.handle` to read its `.mock.calls` is exactly what a test does, and the object is a
+      // vi.fn(), not a class instance with a meaningful `this`.
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
+
+  // Test *setup* files polyfill browser globals jsdom lacks (ResizeObserver, matchMedia, pointer
+  // capture). That is inherently unsafe global assignment — it is what a polyfill is. Scope the
+  // unsafe-* relaxations to these files rather than to all tests, so real test code stays strict.
+  {
+    files: ['**/*setup*.ts', '**/test/setup.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      // A polyfill guards globals that TypeScript's DOM lib says always exist but jsdom omits.
+      // `globalThis.ResizeObserver ??= …` is "unnecessary" by the types and necessary at runtime.
+      '@typescript-eslint/no-unnecessary-condition': 'off',
     },
   },
 

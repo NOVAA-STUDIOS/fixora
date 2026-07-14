@@ -11,7 +11,7 @@ import {
   type ResponseOf,
   type Result,
 } from '@fixora/shared-types';
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 
 /**
  * The typed IPC router (ADR-018).
@@ -35,6 +35,8 @@ export type Handler<C extends Channel> = (
 export type HandlerContext = {
   /** Propagated renderer → main → API → provider, so "it broke" becomes one traceable string. */
   requestId: string;
+  /** The window the call came from — window controls act on the caller, not a global. */
+  window: BrowserWindow | null;
 };
 
 type Registry = { [C in Channel]?: Handler<C> };
@@ -45,7 +47,17 @@ export function registerHandler<C extends Channel>(channel: C, handler: Handler<
   if (registry[channel] !== undefined) {
     throw new Error(`IPC channel registered twice: ${channel}`);
   }
-  registry[channel] = handler;
+  // The registry is heterogeneous: each channel's handler has its own request/response types,
+  // which TypeScript cannot represent in one object without existential generics. The cast is
+  // sound — `channel` and `handler` carry the same `C` at every call site — and the value is
+  // re-narrowed against `contracts[channel]` on read in mountRouter, which is where safety
+  // actually matters (the payload is validated there before the handler ever sees it).
+  (registry as Record<Channel, Handler<C>>)[channel] = handler;
+}
+
+/** The registered handler for a channel, or undefined. Used by mountRouter and by tests. */
+export function getHandler<C extends Channel>(channel: C): Handler<C> | undefined {
+  return registry[channel];
 }
 
 /**
@@ -108,9 +120,11 @@ export function mountRouter(): void {
       // Guaranteed present by assertEveryChannelIsHandled() at startup.
       const handler = registry[channel] as Handler<typeof channel>;
 
+      const window = BrowserWindow.fromWebContents(event.sender);
+
       let response: unknown;
       try {
-        response = await handler(parsedRequest.data, { requestId });
+        response = await handler(parsedRequest.data, { requestId, window });
       } catch (error) {
         // The renderer gets a code and a next step. It does not get our stack trace: a stack
         // carries absolute paths, and absolute paths are user data (Security §9).

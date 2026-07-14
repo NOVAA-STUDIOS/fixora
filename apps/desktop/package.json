@@ -16,19 +16,25 @@
   "dependencies": {
     "@fixora/shared-types": "workspace:*",
     "@fixora/tokens": "workspace:*",
+    "@fixora/ui": "workspace:*",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "zustand": "5.0.14"
   },
   "devDependencies": {
     "@fixora/eslint-config": "workspace:*",
     "@fixora/tsconfig": "workspace:*",
     "@tailwindcss/vite": "4.3.2",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
     "@types/node": "26.1.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.2.0",
     "electron": "43.1.0",
     "electron-vite": "5.0.0",
+    "jsdom": "29.1.1",
     "tailwindcss": "4.3.2",
     "typescript": "6.0.3",
     "vite": "7.3.6",

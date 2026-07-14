@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { dark } from '@fixora/tokens';
 import { BrowserWindow } from 'electron';
 
+import { emitToWindow } from '../ipc/emit.js';
 import {
   applyNavigationGuards,
   attachCspHeader,
@@ -29,6 +30,10 @@ export function createMainWindow(devServerUrl: string | undefined): BrowserWindo
     // The window is shown on `ready-to-show`, but a mismatch is still visible on some drivers.
     backgroundColor: dark.bg.canvas,
     autoHideMenuBar: true,
+    // Frameless: we draw our own title bar (Design Review §5, M1). The OS chrome is removed and
+    // the renderer supplies the drag region and the minimise/maximise/close controls, wired to
+    // main over the `window:*` IPC channels — the renderer cannot act on the window itself.
+    frame: false,
     webPreferences: {
       // CommonJS, not .mjs: Electron does not support an ESM preload in a sandboxed renderer,
       // and `sandbox: true` is not negotiable (Security §2).
@@ -64,6 +69,15 @@ export function createMainWindow(devServerUrl: string | undefined): BrowserWindo
   window.once('ready-to-show', () => {
     window.show();
   });
+
+  // The window can be maximised/restored by ways the renderer never sees — the OS snap shortcut
+  // (Win+Up), a double-click on the drag region, or a display change. So main is the source of
+  // truth for the maximised state and pushes it; the title-bar button reflects, never guesses.
+  const pushMaximizedState = (): void => {
+    emitToWindow(window, 'window:maximizedChanged', { isMaximized: window.isMaximized() });
+  };
+  window.on('maximize', pushMaximizedState);
+  window.on('unmaximize', pushMaximizedState);
 
   if (devServerUrl !== undefined) {
     void window.loadURL(devServerUrl);

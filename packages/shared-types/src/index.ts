@@ -1,4 +1,18 @@
-export { channels, isChannel, type Channel } from './channels.js';
+export {
+  channels,
+  eventChannels,
+  isChannel,
+  isEventChannel,
+  type Channel,
+  type EventChannel,
+} from './channels.js';
+export {
+  eventContracts,
+  WindowMaximizedChangedSchema,
+  type EventContracts,
+  type EventPayloadOf,
+  type WindowMaximizedChanged,
+} from './events.js';
 export {
   err,
   ok,
