@@ -79,9 +79,19 @@ function isEnvelope(value: unknown): value is Envelope {
 
 export function mountRouter(): void {
   for (const channel of channels) {
-    ipcMain.handle(channel, async (_event, raw: unknown): Promise<Result<unknown>> => {
+    ipcMain.handle(channel, async (event, raw: unknown): Promise<Result<unknown>> => {
       const requestId =
         isEnvelope(raw) && typeof raw.requestId === 'string' ? raw.requestId : 'unknown';
+
+      // Only the top frame of our own window may call IPC. Today the CSP forbids frames and
+      // webviews outright, so a subframe cannot exist — this is defense-in-depth against a
+      // future CSP regression, and it costs one comparison. A legitimate call always comes
+      // from the top frame (senderFrame.parent === null); anything else is rejected as a
+      // contract violation rather than reaching a handler.
+      if (event.senderFrame !== null && event.senderFrame.parent !== null) {
+        console.error('[ipc] rejected call from a non-top frame', { channel, requestId });
+        return err(contractViolation(requestId));
+      }
 
       if (!isEnvelope(raw)) {
         return err(contractViolation(requestId));

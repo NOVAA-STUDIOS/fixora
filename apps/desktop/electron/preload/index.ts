@@ -15,8 +15,11 @@ import { contextBridge, ipcRenderer } from 'electron';
  * the most privileged script we ship and it runs before first paint on every window; pulling a
  * schema library into it costs ~120 kB of cold start and puts a large third-party parser into
  * the one place we least want one. It does not need to validate: the router revalidates on the
- * privileged side, and that is the only side whose validation means anything. A
- * dependency-cruiser rule (`preload-stays-minimal`) fails the build if zod finds its way back.
+ * privileged side, and that is the only side whose validation means anything.
+ *
+ * Two gates keep zod out: an ESLint rule refusing a *value* import of the barrel (type-only
+ * imports are erased, so they are allowed), and `tests/preload-bundle.test.ts`, which greps the
+ * built artifact — the one check no module-resolution quirk can hide from.
  *
  * The type-only imports below are erased at compile time and cost nothing at runtime.
  */

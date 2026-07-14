@@ -56,3 +56,48 @@ describe('assertEveryChannelIsHandled', () => {
     }).toThrow(/twice/);
   });
 });
+
+type IpcListener = (
+  event: unknown,
+  raw: unknown,
+) => Promise<{ ok: boolean; error?: { code: string } }>;
+
+/** Mount a fresh router with a working handler and return the listener ipcMain.handle got. */
+async function mountedListener(): Promise<IpcListener> {
+  vi.resetModules();
+  const electron = await import('electron');
+  const { registerHandler, mountRouter } = await import('../electron/main/ipc/router.js');
+  registerHandler('system:getAppInfo', () => appInfo);
+  mountRouter();
+  const call = vi
+    .mocked(electron.ipcMain.handle)
+    .mock.calls.find((c) => c[0] === 'system:getAppInfo');
+  if (call === undefined) throw new Error('router did not register the channel');
+  return call[1] as unknown as IpcListener;
+}
+
+const envelope = { requestId: 'r1', payload: {} };
+
+/**
+ * Only the top frame of our own window may call IPC. The CSP already forbids frames, so this is
+ * defense-in-depth against a future CSP regression — but the router is the foundation every
+ * channel inherits, so the check is proven here rather than assumed.
+ */
+describe('the router rejects IPC from anything but the top frame', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('serves a call from the top frame (parent === null)', async () => {
+    const listen = await mountedListener();
+    const result = await listen({ senderFrame: { parent: null } }, envelope);
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects a call from a subframe (parent !== null)', async () => {
+    const listen = await mountedListener();
+    const result = await listen({ senderFrame: { parent: { url: 'about:blank' } } }, envelope);
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe('IPC_CONTRACT_VIOLATION');
+  });
+});

@@ -3,7 +3,11 @@ import { join } from 'node:path';
 import { dark } from '@fixora/tokens';
 import { BrowserWindow } from 'electron';
 
-import { applyNavigationGuards, attachCspHeader } from '../security/navigation-guard.js';
+import {
+  applyNavigationGuards,
+  attachCspHeader,
+  type GuardOptions,
+} from '../security/navigation-guard.js';
 
 /**
  * Every flag below is mandatory and CI-enforced (Security §2, TDD §3.2). They are written
@@ -11,8 +15,6 @@ import { applyNavigationGuards, attachCspHeader } from '../security/navigation-g
  * else gets to change in a minor release, and this is a decision we want to own.
  */
 export function createMainWindow(devServerUrl: string | undefined): BrowserWindow {
-  const isDev = devServerUrl !== undefined;
-
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -49,16 +51,15 @@ export function createMainWindow(devServerUrl: string | undefined): BrowserWindo
     },
   });
 
-  const appOrigin = isDev ? new URL(devServerUrl).origin : 'file://';
+  // The directory the renderer is loaded from — navigation is confined to it in production.
+  const rendererRoot = join(__dirname, '../renderer');
+  const guardOptions: GuardOptions =
+    devServerUrl !== undefined
+      ? { environment: 'development', appOrigin: new URL(devServerUrl).origin }
+      : { environment: 'production', rendererRoot };
 
-  attachCspHeader(window.webContents.session, {
-    environment: isDev ? 'development' : 'production',
-    appOrigin,
-  });
-  applyNavigationGuards(window, {
-    environment: isDev ? 'development' : 'production',
-    appOrigin,
-  });
+  attachCspHeader(window.webContents.session, guardOptions);
+  applyNavigationGuards(window, guardOptions);
 
   window.once('ready-to-show', () => {
     window.show();

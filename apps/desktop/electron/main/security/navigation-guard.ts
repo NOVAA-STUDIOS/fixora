@@ -1,6 +1,9 @@
+import { isAbsolute, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { shell, type BrowserWindow, type Session } from 'electron';
 
-import { assertCspIsSafe, buildCsp, type CspEnvironment } from './csp.js';
+import { assertCspIsSafe, buildCsp } from './csp.js';
 
 /**
  * Everything in Security §2 that has to be *code* rather than a `webPreferences` flag.
@@ -12,10 +15,18 @@ import { assertCspIsSafe, buildCsp, type CspEnvironment } from './csp.js';
 
 /**
  * `shell.openExternal` on user-influenced input is a remote-code-execution primitive on
- * Windows — `file://`, `ms-msdt:` and friends are not hypothetical. So it is never called
- * directly; it is called through here, and here has an allowlist.
+ * Windows — `file://`, `ms-msdt:` and friends are not hypothetical. Security §2 requires it be
+ * gated on **schemes and hosts**. So it is never called directly; it is called through here,
+ * and here allows only https to a small set of hosts we actually own or link to. A compromised
+ * renderer (M2+ renders untrusted repo content) therefore cannot use it to launch an arbitrary
+ * page — a phishing site, or a `https://…` that a browser extension turns into something worse
+ * — in the user's real browser.
  */
-const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['https:']);
+const ALLOWED_EXTERNAL_HOSTS = new Set(['fixora.dev', 'github.com']);
+
+function isAllowedExternalHost(host: string): boolean {
+  return ALLOWED_EXTERNAL_HOSTS.has(host) || host.endsWith('.fixora.dev');
+}
 
 export function openExternal(rawUrl: string): void {
   let url: URL;
@@ -25,21 +36,39 @@ export function openExternal(rawUrl: string): void {
     throw new Error(`Refusing to open a URL that does not parse: ${rawUrl}`);
   }
 
-  if (!ALLOWED_EXTERNAL_PROTOCOLS.has(url.protocol)) {
+  if (url.protocol !== 'https:') {
     throw new Error(
       `Refusing to open ${url.protocol} externally. Only https: is permitted (Security §2). ` +
         'An unchecked openExternal is a code-execution primitive on Windows.',
     );
   }
 
+  if (!isAllowedExternalHost(url.hostname)) {
+    throw new Error(
+      `Refusing to open https://${url.hostname} externally. Only our own hosts are allowed ` +
+        '(Security §2 requires a host allowlist, not just a scheme one).',
+    );
+  }
+
   void shell.openExternal(url.toString());
 }
 
-export type GuardOptions = {
-  environment: CspEnvironment;
-  /** The origin the renderer is legitimately served from. Everything else is hostile. */
-  appOrigin: string;
-};
+export type GuardOptions =
+  | {
+      environment: 'development';
+      /** The http(s) origin the dev server is served from. Everything else is hostile. */
+      appOrigin: string;
+    }
+  | {
+      environment: 'production';
+      /**
+       * Absolute path to the directory the renderer is loaded from. In production the app is
+       * served over `file:`, whose origin is the useless string `"null"` — so we cannot gate
+       * navigation on origin. We gate it on the **resolved path being inside this directory**,
+       * the same path-boundary discipline Security §3 mandates for the filesystem.
+       */
+      rendererRoot: string;
+    };
 
 export function applyNavigationGuards(window: BrowserWindow, options: GuardOptions): void {
   const { webContents } = window;
@@ -97,7 +126,10 @@ export function attachPermissionHandlers(session: Session): void {
  * layer before any of the document is parsed.
  */
 export function attachCspHeader(session: Session, options: GuardOptions): void {
-  const csp = buildCsp(options.environment, options.appOrigin);
+  const csp =
+    options.environment === 'development'
+      ? buildCsp('development', options.appOrigin)
+      : buildCsp('production');
   assertCspIsSafe(csp);
 
   session.webRequest.onHeadersReceived((details, callback) => {
@@ -111,14 +143,50 @@ export function attachCspHeader(session: Session, options: GuardOptions): void {
   });
 }
 
-function isAppUrl(rawUrl: string, options: GuardOptions): boolean {
+/**
+ * Is this URL a legitimate navigation *within the app itself*?
+ *
+ * The previous version returned `true` for **any** `file:` URL. That trusted
+ * `file:///C:/Users/victim/.ssh/id_rsa`, arbitrary system files, and — worst — UNC paths like
+ * `file://attacker-host/x`, which initiate an outbound SMB/NTLM connection to a host the
+ * attacker chose. It was not yet reachable in M0 (nothing untrusted is rendered), but it is the
+ * exact containment boundary M2 depends on the moment Monaco renders a hostile repo.
+ */
+export function isAppUrl(rawUrl: string, options: GuardOptions): boolean {
+  let url: URL;
   try {
-    const url = new URL(rawUrl);
-    if (url.protocol === 'file:') return true;
-    return url.origin === options.appOrigin;
+    url = new URL(rawUrl);
   } catch {
     return false;
   }
+
+  if (options.environment === 'development') {
+    // In dev the app is http(s). A `file:` navigation is never legitimate here.
+    return url.protocol !== 'file:' && url.origin === options.appOrigin;
+  }
+
+  // Production: only `file:` URLs whose resolved path sits inside the renderer directory.
+  if (url.protocol !== 'file:') return false;
+  // A non-empty host means a UNC path (`file://host/…`). Never ours; never followed.
+  if (url.host !== '') return false;
+
+  let target: string;
+  try {
+    target = fileURLToPath(url);
+  } catch {
+    return false;
+  }
+  return isInside(options.rendererRoot, target);
+}
+
+/**
+ * Path-boundary check: is `candidate` the root itself or strictly beneath it, after resolving
+ * `..` and normalising separators? Mirrors the FS guard the blueprint mandates (Security §3);
+ * a string `startsWith` is not a defence, because `/app-evil` "starts with" `/app`.
+ */
+function isInside(root: string, candidate: string): boolean {
+  const rel = relative(resolve(root), resolve(candidate));
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
 /** Logs carry the origin, never the full URL — a URL can carry a token or a path (Security §9). */

@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { join } from 'node:path';
+
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const openExternalSpy = vi.fn();
 
@@ -8,20 +10,31 @@ vi.mock('electron', () => ({
   shell: { openExternal: openExternalSpy },
 }));
 
-const { openExternal } = await import('../electron/main/security/navigation-guard.js');
+const { openExternal, isAppUrl } = await import('../electron/main/security/navigation-guard.js');
 
 /**
  * "An unchecked `openExternal` on user-influenced input is a remote code execution primitive
- * on Windows." (Security §2)
+ * on Windows." (Security §2) — and the same section requires the wrapper allow specific
+ * **hosts**, not just the https scheme.
  *
- * The inputs below are not hypothetical. `file:` opens a local executable. Windows URI
- * handlers (`ms-msdt:`, `search-ms:`) have each been a live RCE chain. A repo we open can put
- * any of them into a link.
+ * The hostile inputs below are not hypothetical. `file:` opens a local executable. Windows URI
+ * handlers (`ms-msdt:`, `search-ms:`) have each been a live RCE chain. A repo we open (M2+) can
+ * put any of them, or a phishing `https://` link, into content the renderer displays.
  */
 describe('openExternal', () => {
-  it('opens https', () => {
+  beforeEach(() => {
+    openExternalSpy.mockClear();
+  });
+
+  it('opens https to a host we own', () => {
     openExternal('https://fixora.dev/docs');
     expect(openExternalSpy).toHaveBeenCalledWith('https://fixora.dev/docs');
+  });
+
+  it('opens https to an allowed subdomain and to github', () => {
+    openExternal('https://docs.fixora.dev/');
+    openExternal('https://github.com/fixora/fixora-desktop/issues/new');
+    expect(openExternalSpy).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -31,15 +44,71 @@ describe('openExternal', () => {
     'javascript:fetch("https://attacker.example")',
     'vbscript:msgbox',
     'http://plaintext.example',
-  ])('refuses %s', (hostile) => {
+  ])('refuses the non-https / RCE scheme %s', (hostile) => {
     expect(() => {
       openExternal(hostile);
     }).toThrow();
+  });
+
+  it.each([
+    'https://attacker.example/phish',
+    'https://fixora.dev.attacker.com/', // suffix-of-a-suffix trick
+    'https://notfixora.dev/',
+    'https://github.com.attacker.com/',
+  ])('refuses https to a host not on the allowlist: %s', (hostile) => {
+    expect(() => {
+      openExternal(hostile);
+    }).toThrow(/host allowlist|only our own hosts/i);
   });
 
   it('refuses a URL that does not parse rather than guessing at it', () => {
     expect(() => {
       openExternal('not a url');
     }).toThrow(/does not parse/);
+  });
+});
+
+/**
+ * The navigation containment boundary. Before this was fixed, `isAppUrl` returned `true` for
+ * ANY `file:` URL — including local secrets and UNC paths that reach out to an attacker's SMB
+ * host. This is the boundary M2 leans on the moment Monaco renders an untrusted repo, so it is
+ * tested hard now, at the foundation.
+ */
+describe('isAppUrl — production (file:)', () => {
+  const rendererRoot = join('C:', 'app', 'out', 'renderer');
+  const prod = { environment: 'production', rendererRoot } as const;
+
+  it('allows the app’s own renderer entry and its assets', () => {
+    expect(isAppUrl(`file:///C:/app/out/renderer/index.html`, prod)).toBe(true);
+    expect(isAppUrl(`file:///C:/app/out/renderer/assets/index-abc.js`, prod)).toBe(true);
+  });
+
+  it.each([
+    'file:///C:/Users/victim/.ssh/id_rsa',
+    'file:///C:/Windows/System32/drivers/etc/hosts',
+    'file:///C:/app/out/renderer/../../../secret.txt', // .. escape
+    'file://attacker-host/payload.html', // UNC → outbound SMB to attacker
+    'https://attacker.example/',
+    'http://localhost:5173/', // the dev origin is not the prod app
+  ])('blocks navigation to %s', (hostile) => {
+    expect(isAppUrl(hostile, prod)).toBe(false);
+  });
+});
+
+describe('isAppUrl — development (http origin)', () => {
+  const dev = { environment: 'development', appOrigin: 'http://localhost:5173' } as const;
+
+  it('allows the dev server origin', () => {
+    expect(isAppUrl('http://localhost:5173/index.html', dev)).toBe(true);
+  });
+
+  it('never allows a file: URL, even in dev', () => {
+    // The old blanket `file:` trust applied in dev too. It does not anymore.
+    expect(isAppUrl('file:///C:/Users/victim/.ssh/id_rsa', dev)).toBe(false);
+  });
+
+  it('blocks a different origin', () => {
+    expect(isAppUrl('http://localhost:6006/', dev)).toBe(false);
+    expect(isAppUrl('https://attacker.example/', dev)).toBe(false);
   });
 });
