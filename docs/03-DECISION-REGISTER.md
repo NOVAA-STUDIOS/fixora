@@ -38,6 +38,7 @@ Statuses: `Accepted` · `Proposed` (needs sign-off) · `Superseded` · `Rejected
 | [029](#adr-029) | electron-vite as the desktop build tool | Accepted |
 | [030](#adr-030) | Design tokens authored in TypeScript; the Tailwind "preset" is a v4 `@theme` layer | Accepted |
 | [031](#adr-031) | `docs/adr/` is generated from this register, and CI fails on drift | Accepted |
+| [032](#adr-032) | Ladle over Storybook for the component workbench | Accepted |
 
 ---
 
@@ -906,5 +907,39 @@ to someone trying to change a decision by editing a copy of it.
 
 **Long-term impact.** The decision record cannot rot into inconsistency. As the register grows, the records
 stay in lockstep for free.
+
+---
+
+<a id="adr-032"></a>
+
+## ADR-032 — Ladle over Storybook for the component workbench
+
+**Status:** Accepted — 2026-07-14 (M1)
+
+**Decision.** Use **Ladle** for the primitive component workbench (the roadmap's M1 deliverable says
+"Storybook or Ladle"), not Storybook.
+
+**Why.** Ladle is Vite-native and shares our exact toolchain — Vite 7, the `@tailwindcss/vite` plugin,
+React 19 — so a primitive renders in the workbench through the same pipeline it renders through in the app,
+and the token CSS + contrast-gated colours are the ones on screen. It is a fraction of Storybook's
+dependency weight and config surface, starts in a second, and has no separate build system to keep aligned
+with the app's. Storybook 8 would bring its own Webpack/Vite-builder abstraction, an addon ecosystem we do
+not need, and hundreds of transitive dependencies — each one a supply-chain trust decision (Standards §2)
+for a **dev-only** tool that never ships in the binary.
+
+**Alternatives considered.**
+
+- _Storybook._ The default choice, with a larger addon ecosystem (interaction tests, a11y panel). Rejected
+  for v1: the weight and the second toolchain are not worth it when our a11y bar is already enforced by
+  axe-core in the unit tests and our theming already lives in the shared token layer. Revisit only if we
+  need Storybook-specific addons we cannot reproduce.
+- _No workbench (rely on the running app)._ Rejected — a primitive needs to be reviewable in isolation,
+  across variants, themes and densities, without booting the whole Electron app.
+
+**Trade-offs accepted.** A smaller addon ecosystem, and Ladle is a younger project than Storybook. Contained:
+stories are dev tooling, the build output is git-ignored, and switching to Storybook later would be a
+config change local to `packages/ui`, touching no product code.
+
+**Long-term impact.** Low and local. The workbench sits beside the ui package; nothing depends on it.
 </content>
 </invoke>

@@ -33,5 +33,6 @@ to someone trying to change a decision by editing a copy of it.
 
 **Long-term impact.** The decision record cannot rot into inconsistency. As the register grows, the records
 stay in lockstep for free.
-</content>
-</invoke>
+
+
+<a id="adr-032"></a>

@@ -220,6 +220,15 @@ export default tseslint.config(
     },
   },
 
+  // Ladle stories and the .ladle/ setup require default exports (story metadata, config, the
+  // global Provider), and story bodies are illustrative rather than production code.
+  {
+    files: ['**/*.stories.tsx', '**/.ladle/**'],
+    rules: {
+      'import-x/no-default-export': 'off',
+    },
+  },
+
   // Config files and build scripts are tooling, not product code.
   {
     files: [
@@ -228,6 +237,7 @@ export default tseslint.config(
       'tooling/**',
       '**/vitest.config.ts',
       '**/electron.vite.config.ts',
+      '**/.ladle/**',
     ],
     rules: {
       'import-x/no-default-export': 'off',

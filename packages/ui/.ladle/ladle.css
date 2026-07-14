@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+
+/* The same token layer the app loads — so a primitive looks in Ladle exactly as it will in the
+   product, and a contrast-gated colour is the one on screen. */
+@import '@fixora/tokens/tokens.css';
+@import '@fixora/tokens/theme.css';
+
+/* Ladle renders the primitives from source, so scan the ui src for utility classes. */
+@source '../src';
+
+body {
+  font-family: var(--fx-font-sans);
+  background-color: var(--fx-color-bg-canvas);
+  color: var(--fx-color-text-primary);
+}
+
+:focus-visible {
+  outline: var(--fx-focus-ring-width) solid var(--fx-color-focus-ring);
+  outline-offset: var(--fx-focus-ring-offset-width);
+}

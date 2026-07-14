@@ -4,11 +4,6 @@
     "outDir": "dist",
     "rootDir": "."
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "vitest.config.ts",
-    ".ladle/**/*.ts",
-    ".ladle/**/*.tsx"
-  ]
+  "//": ".ladle/ is Ladle's own toolchain (its Vite config + a CSS-importing provider); Ladle type-checks and runs it, not the package tsc — like any build-tool config.",
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vitest.config.ts"]
 }

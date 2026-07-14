@@ -101,7 +101,7 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
-    exclude: { path: '(^|/)(dist|out|coverage|\\.turbo)/' },
+    exclude: { path: '(^|/)(dist|out|build|coverage|\\.turbo)/' },
     // Type-only imports still create a boundary violation in review terms — a core package
     // that imports `type { BrowserWindow }` has still learned about Electron.
     tsPreCompilationDeps: true,
