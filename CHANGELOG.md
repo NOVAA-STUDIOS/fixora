@@ -8,6 +8,40 @@ this file is a **product surface on the website** (Repo §3), not an afterthough
 
 ## [Unreleased]
 
+### M0 red-team review — adversarial pass before M1 (2026-07-14)
+
+Reviewed as a hostile engineer looking for a way in. One **critical foundational** hole and three
+smaller hardenings, each fixed with a fail-first test.
+
+#### Security
+
+- **The renderer's navigation guard trusted _any_ `file:` URL.** `isAppUrl` returned `true` for
+  `file:///C:/Users/victim/.ssh/id_rsa`, arbitrary system files, and — worst — UNC paths like
+  `file://attacker-host/x`, which initiate an **outbound SMB/NTLM connection to a host the attacker
+  chooses**. Not reachable in M0 (nothing untrusted is rendered yet), but it is the exact containment
+  boundary M2 leans on the moment Monaco renders a hostile repo. Replaced with a **path-boundary check**
+  confining production navigation to the renderer directory — resolving `..`, rejecting UNC — the same
+  discipline Security §3 mandates for the filesystem. Development now permits no `file:` navigation at all.
+- **`shell.openExternal` was gated on scheme only; Security §2 requires a host allowlist too.** A
+  compromised renderer could launch an arbitrary `https://` page (phishing) in the user's real browser.
+  Now limited to `fixora.dev` (+ subdomains) and `github.com`, with suffix-trick bypasses
+  (`fixora.dev.attacker.com`) explicitly tested and blocked.
+- **The IPC router now rejects any call from a non-top frame** (defense-in-depth). The CSP already forbids
+  frames and webviews, so this is insurance against a future CSP regression — and the router is the
+  foundation every channel inherits, so it is proven here rather than assumed.
+
+#### Assessed clean (stated, because "we looked" is part of the review)
+
+- **Supply chain:** only **four runtime dependencies ship** in the app (`react`, `react-dom`, `zod`, plus
+  our own packages); the ~800 lockfile entries are dev tooling that never reaches the binary. This is the
+  local-first architecture's dividend — the attack surface of what we distribute is tiny.
+- **CSP:** `default-src 'none'`, no `unsafe-eval`, no inline script, frames/objects/base-uri denied.
+- **Preload:** 0.5 kB, zod-free, `ipcRenderer` never exposed, the bridge frozen.
+- **Fixed:** a preload comment naming the depcruise rule deleted in the audit — corrected to the ESLint
+  rule + bundle test that actually enforce it.
+
+Desktop test count 23 → 40.
+
 ### M0 audit — self-review before M1 (2026-07-13)
 
 A Staff-Engineer pass over the M0 tree. Twelve issues found by re-reading and *measuring* rather than

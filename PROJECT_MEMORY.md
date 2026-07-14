@@ -9,6 +9,36 @@ Updated after every milestone. Newest milestone first.
 
 ---
 
+## M0 red-team review — the adversarial pass (2026-07-14)
+
+Reviewed as a competitor trying to break the architecture. The reusable lesson:
+
+**The most dangerous bug was in a security control that already had tests and a comment claiming it
+worked.** `isAppUrl` — the renderer's navigation containment boundary — returned `true` for _any_ `file:`
+URL. It had a passing test suite. The test suite only checked `openExternal`, never `isAppUrl` itself, so
+the guard's actual decision was unverified. This is the same shape as the audit's "gate on the input, not
+the output": **a control is not tested until the test drives the control's own decision with hostile
+input.** The fix came with a table of real attack URLs (`.ssh/id_rsa`, UNC-to-attacker-SMB, `..` escape),
+and each was watched failing against the old code first.
+
+Two things worth carrying forward:
+
+- **`new URL('file:///…').origin === 'null'`** (the string). Any navigation guard that compares a file
+  URL's origin is comparing against a useless constant. File-scheme navigation must be gated on the
+  **resolved path** (inside a known directory, `..` and UNC handled), never on origin. This is why the
+  production guard takes a `rendererRoot`, not an `appOrigin`.
+- **A UNC file URL is an outbound network primitive.** `file://host/path` on Windows reaches out to
+  `host` over SMB and will volunteer NTLM credentials. "It's only a local file scheme" is false; treat a
+  non-empty host on a `file:` URL as hostile and reject it before anything else.
+
+**Supply-chain check, recorded because the answer is a feature not an absence:** only four runtime
+dependencies ship (react, react-dom, zod, our own). The heavy tooling (electron-vite, eslint, the
+scanners) is all dev-only and never reaches the binary. The distributed attack surface is small _by
+construction_ — a direct consequence of local-first (ADR-004): we ship an editor and a bridge, not a
+cloud client.
+
+---
+
 ## M0 audit — what a second pass found (2026-07-13)
 
 Twelve real issues in code that had already passed every gate. Recording _why they got through_, because

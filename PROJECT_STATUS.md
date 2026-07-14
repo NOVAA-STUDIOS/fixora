@@ -1,26 +1,26 @@
 # Fixora — Project Status
 
-**Updated:** 2026-07-13 · **Current milestone:** M0 Foundations — **complete + audited, awaiting sign-off**
-**Next milestone:** M1 Design system & application shell — **blocked on explicit approval of M0**
+**Updated:** 2026-07-14 · **Current milestone:** M0 Foundations — **approved, audited + red-teamed**
+**Next milestone:** M1 Design system & application shell — **ready to begin**
 
 ---
 
 ## Milestones
 
-| #      | Milestone                            | Status                              | Notes                                     |
-| ------ | ------------------------------------ | ----------------------------------- | ----------------------------------------- |
-| —      | Blueprint                            | ✅ Signed off 2026-07-13            | 28 ADRs accepted                          |
-| **M0** | **Foundations**                      | ✅ **Complete — awaiting approval** | Every acceptance criterion verified below |
-| M1     | Design system & app shell            | ⏸ Not started                       | Gated on M0 approval                      |
-| M2     | Workspace, editor, local persistence | ⏸ Not started                       |                                           |
-| M3     | Deterministic analysis engine        | ⏸ Not started                       | The moat. Zero AI.                        |
-| M4     | Backend, auth, entitlements          | ⏸ Not started                       | Parallelisable with M1–M3                 |
-| M5     | AI layer + provider abstraction      | ⏸ Not started                       |                                           |
-| M6     | The repair loop                      | ⏸ Not started                       | Hardest milestone                         |
-| M7     | Launch capability suite (4 profiles) | ⏸ Not started                       |                                           |
-| M8     | Packaging, signing, updates          | ⏸ Not started                       |                                           |
-| M9     | Commercial layer                     | ⏸ Not started                       |                                           |
-| M10    | Website & launch                     | ⏸ Not started                       | Separate repo                             |
+| #      | Milestone                            | Status                                 | Notes                                     |
+| ------ | ------------------------------------ | -------------------------------------- | ----------------------------------------- |
+| —      | Blueprint                            | ✅ Signed off 2026-07-13               | 28 ADRs accepted                          |
+| **M0** | **Foundations**                      | ✅ **Approved — audited + red-teamed** | Every acceptance criterion verified below |
+| M1     | Design system & app shell            | ▶ Ready to begin                       | M0 approved 2026-07-14                    |
+| M2     | Workspace, editor, local persistence | ⏸ Not started                          |                                           |
+| M3     | Deterministic analysis engine        | ⏸ Not started                          | The moat. Zero AI.                        |
+| M4     | Backend, auth, entitlements          | ⏸ Not started                          | Parallelisable with M1–M3                 |
+| M5     | AI layer + provider abstraction      | ⏸ Not started                          |                                           |
+| M6     | The repair loop                      | ⏸ Not started                          | Hardest milestone                         |
+| M7     | Launch capability suite (4 profiles) | ⏸ Not started                          |                                           |
+| M8     | Packaging, signing, updates          | ⏸ Not started                          |                                           |
+| M9     | Commercial layer                     | ⏸ Not started                          |                                           |
+| M10    | Website & launch                     | ⏸ Not started                          | Separate repo                             |
 
 ---
 
@@ -31,12 +31,32 @@ The roadmap defines three. Each was tested by making it fail first.
 | Criterion (Roadmap M0)                               | Status | How it was verified                                                                                                                                                                                                                                                                  |
 | ---------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `pnpm dev` opens a hardened window                   | ✅     | Built app launched; window titled "Fixora"; 4 Electron processes; the IPC round-trip returned real data (`version 0.1.0`, `electron 43.1.0`, `win32/x64`) rendered through the token layer. All 12 hardening flags confirmed present in the **shipped** bundle, not just the source. |
-| `pnpm run ci` runs every gate green                  | ✅     | Full suite green: format · typecheck · lint (`--max-warnings 0`) · 38 unit tests · contrast · boundaries · ADR drift · Electronegativity · gitleaks · dependency audit (0 vulnerabilities).                                                                                          |
+| `pnpm run ci` runs every gate green                  | ✅     | Full suite green: format · typecheck · lint (`--max-warnings 0`) · 55 unit tests · contrast · boundaries · ADR drift · Electronegativity · gitleaks · dependency audit (0 vulnerabilities).                                                                                          |
 | A contrast violation in a token file fails the build | ✅     | Planted `#8b5cf6` (violet-500 — the shade a designer would reach for). Gate failed with `4.23:1, needs 4.5:1`; the unit test failed too. Reverted; green.                                                                                                                            |
 
 **Also proven by planted failure:** the boundary gate (an `electron` import in `packages/shared-types` →
 `error core-no-electron`) and the preload rule (a barrel value-import → refused; a type-only import →
 allowed). Every gate in this repo has been watched failing. **A gate never seen fail is a hypothesis.**
+
+---
+
+## M0 red-team review (2026-07-14) — passed
+
+Reviewed as a hostile competitor. One **critical foundational** hole, three smaller hardenings — all fixed
+within M0, each with a fail-first test. Detail in [CHANGELOG.md](./CHANGELOG.md).
+
+| Severity         | Vector                                                                                                                                                                                                                                                       | Resolution                                                                                                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Critical**     | The renderer navigation guard trusted **any `file:` URL** — local secrets, system files, and UNC paths (`file://attacker-host/x`) that make an outbound SMB/NTLM connection to an attacker's host. Not reachable in M0, but the exact boundary M2 relies on. | Path-boundary check confining production navigation to the renderer directory (`..` resolved, UNC rejected); dev allows no `file:`. Tested with real attack URLs, proven fail-first. |
+| **Medium**       | `shell.openExternal` was scheme-gated only; Security §2 requires a **host** allowlist. A compromised renderer could launch a phishing page in the user's browser.                                                                                            | Allowlist: `fixora.dev` (+ subdomains) and `github.com`; suffix-tricks (`fixora.dev.attacker.com`) tested + blocked.                                                                 |
+| Defense-in-depth | The IPC router ignored the sender frame.                                                                                                                                                                                                                     | Rejects any call from a non-top frame — insurance against a future CSP regression, on the boundary every channel inherits.                                                           |
+| Maintainability  | A preload comment named the depcruise rule deleted in the audit.                                                                                                                                                                                             | Corrected to the gates that actually enforce it.                                                                                                                                     |
+
+**Assessed and clean:** supply chain (only 4 runtime deps ship — react, react-dom, zod, our own; the ~800
+lockfile entries are dev tooling that never reaches the binary), CSP, the preload (0.5 kB, zod-free), and
+IPC payload validation. Architectural coupling is enforced by the boundary gates; the one real coupling
+risk — a future feature-slice hairball — is an M1 concern already assigned to ESLint (dependency-cruiser
+is blind to relative paths, documented).
 
 ---
 
