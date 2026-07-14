@@ -32,11 +32,10 @@ class FakeWindow {
 
 async function freshHandlers() {
   vi.resetModules();
-  const { registerHandler, getHandler } = await import('../electron/main/ipc/router.js');
+  const { getHandler } = await import('../electron/main/ipc/router.js');
   const { registerWindowHandlers } =
     await import('../electron/main/ipc/handlers/window.handlers.js');
   registerWindowHandlers();
-  void registerHandler;
   return getHandler;
 }
 

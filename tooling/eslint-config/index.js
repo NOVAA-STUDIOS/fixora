@@ -274,6 +274,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
       // A polyfill guards globals that TypeScript's DOM lib says always exist but jsdom omits.
       // `globalThis.ResizeObserver ??= …` is "unnecessary" by the types and necessary at runtime.
       '@typescript-eslint/no-unnecessary-condition': 'off',

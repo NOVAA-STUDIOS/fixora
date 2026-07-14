@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 
 import { matchesBinding } from './keybinding.js';
 import {
@@ -11,9 +11,10 @@ import {
 const CommandContext = createContext<CommandRegistry | null>(null);
 
 /**
- * Holds the one command registry and runs the single global keybinding listener. Every command's
- * shortcut is matched here, from the same list the palette renders — so a shortcut and its palette
- * entry cannot disagree.
+ * Holds the one command registry and runs the single global keybinding listener. **Both the
+ * palette and the keybindings read from this same registry** — that is the M1 thesis (TDD §8.4)
+ * made literal: there is one list, so a shortcut and its palette entry cannot disagree, because
+ * there is nowhere for a second copy to live.
  *
  * The listener ignores keystrokes that originate in a text field (unless the binding uses `mod`),
  * so typing "k" in an input does not fire a bare-key command. It runs at capture on `document`,
@@ -27,10 +28,6 @@ export function CommandProvider({
   children: ReactNode;
 }): React.JSX.Element {
   const registry = useMemo(() => createCommandRegistry(), []);
-
-  // Keep the current command list in a ref so the listener never goes stale without re-binding.
-  const commandsRef = useRef(commands);
-  commandsRef.current = commands;
 
   useEffect(() => {
     const unregisters = commands.map((c) => registry.register(c));
@@ -49,7 +46,10 @@ export function CommandProvider({
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT');
 
-      for (const command of commandsRef.current) {
+      // Read the registry — the same source the palette renders from. The registry is a stable
+      // ref, so this effect never re-subscribes; `all()` returns the current registrations at
+      // event time.
+      for (const command of registry.all()) {
         if (command.keybinding === undefined) continue;
         if (!matchesBinding(event, command.keybinding)) continue;
 
@@ -68,7 +68,7 @@ export function CommandProvider({
     return () => {
       document.removeEventListener('keydown', onKeyDown, { capture: true });
     };
-  }, []);
+  }, [registry]);
 
   return <CommandContext.Provider value={registry}>{children}</CommandContext.Provider>;
 }
