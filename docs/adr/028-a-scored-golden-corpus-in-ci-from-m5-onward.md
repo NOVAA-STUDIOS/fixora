@@ -26,5 +26,6 @@ in a loop. That is a beautiful piece of leverage and we should exploit it delibe
 
 **Trade-offs accepted.** Corpus curation is ongoing, unglamorous work. It is also the most valuable asset we
 will own after the product itself.
-</content>
-</invoke>
+
+
+<a id="adr-029"></a>

@@ -21,6 +21,9 @@ describe('the shipped preload bundle', () => {
   let bundle = '';
   let bytes = 0;
 
+  // A full electron-vite build takes ~10s and is slower under parallel CI load. The default 10s
+  // hook timeout tips over the edge intermittently — the honest fix is a timeout that matches
+  // the work, not a faster build that would defeat the point (asserting on the real artifact).
   beforeAll(() => {
     // Build so the assertion reflects current source, never a stale artifact.
     execFileSync('npx', ['electron-vite', 'build'], {
@@ -30,7 +33,7 @@ describe('the shipped preload bundle', () => {
     });
     bundle = readFileSync(OUT, 'utf8');
     bytes = statSync(OUT).size;
-  });
+  }, 120_000);
 
   it('contains no zod runtime', () => {
     // zod's internal symbols. Any of them present means the schema library shipped.

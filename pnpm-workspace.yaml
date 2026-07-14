@@ -15,6 +15,11 @@ allowBuilds:
   unrs-resolver: true
   # Prints a postinstall banner. It needs nothing; it gets nothing.
   es5-ext: false
+  # Ladle's compiler (dev-only, Storybook alternative — ADR-032). Needs its native binding.
+  '@swc/core': true
+  # Pulled in transitively; its postinstall writes a service-worker file we never register.
+  # We do not mock the network this way. It gets nothing.
+  msw: false
 
 minimumReleaseAgeExclude:
   - dependency-cruiser@18.1.0

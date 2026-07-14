@@ -5,6 +5,13 @@ export {
   relativeLuminance,
   type Rgb,
 } from './contrast.js';
+export {
+  comfortable,
+  compact,
+  densities,
+  type DensityMetrics,
+  type DensityName,
+} from './density.js';
 export { statusNames, type StatusName } from './primitives.js';
 export {
   auditAllThemes,

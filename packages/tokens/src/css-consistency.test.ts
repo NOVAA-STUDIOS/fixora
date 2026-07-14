@@ -31,6 +31,7 @@ describe('generated token CSS', () => {
   let tokensCss = '';
   let themeCss = '';
 
+  // The generator build is fast, but give it headroom for cold CI so it never times out here.
   beforeAll(() => {
     // Build from source so the test reflects the current generator, never a stale dist/.
     execFileSync('npx', ['tsx', 'scripts/build-css.ts'], {
@@ -40,7 +41,7 @@ describe('generated token CSS', () => {
     });
     tokensCss = readFileSync(join(DIST, 'tokens.css'), 'utf8');
     themeCss = readFileSync(join(DIST, 'theme.css'), 'utf8');
-  });
+  }, 60_000);
 
   it('every variable theme.css references is defined in tokens.css', () => {
     const defined = definedVars(tokensCss);

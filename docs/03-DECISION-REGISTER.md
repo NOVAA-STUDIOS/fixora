@@ -35,6 +35,9 @@ Statuses: `Accepted` · `Proposed` (needs sign-off) · `Superseded` · `Rejected
 | [026](#adr-026) | Violet as the single brand accent | Accepted |
 | [027](#adr-027) | Server-side kill switches for every AI task profile | Accepted |
 | [028](#adr-028) | A scored golden corpus in CI from M5 onward | Accepted |
+| [029](#adr-029) | electron-vite as the desktop build tool | Accepted |
+| [030](#adr-030) | Design tokens authored in TypeScript; the Tailwind "preset" is a v4 `@theme` layer | Accepted |
+| [031](#adr-031) | `docs/adr/` is generated from this register, and CI fails on drift | Accepted |
 
 ---
 
@@ -805,5 +808,103 @@ in a loop. That is a beautiful piece of leverage and we should exploit it delibe
 
 **Trade-offs accepted.** Corpus curation is ongoing, unglamorous work. It is also the most valuable asset we
 will own after the product itself.
+
+---
+
+<a id="adr-029"></a>
+
+## ADR-029 — electron-vite as the desktop build tool
+
+**Status:** Accepted — 2026-07-13 (M0)
+
+**Decision.** Build the desktop app with **electron-vite**, not a hand-rolled Vite + tsc + electron-builder
+script chain, and not Electron Forge + webpack.
+
+**Why.** Electron has three build targets with three different contracts — `main` (Node, CJS), `preload`
+(Node, CJS, sandbox-constrained), `renderer` (browser, ESM). electron-vite models all three as first-class,
+with the correct externalisation and HMR defaults for each. Rolling our own means owning three configs and
+the interop between them — work that buys nothing and breaks quietly. It is also what let the M0 audit find
+the preload's 120 kB zod bloat, because per-target bundle output is a thing you can actually inspect.
+
+**Alternatives considered.**
+
+- _Electron Forge + webpack._ Heavier, slower, and webpack is a step backwards from Vite for the renderer.
+  Rejected.
+- _Hand-rolled Vite + tsc + electron-builder._ We would rebuild electron-vite, worse and unmaintained.
+  Rejected.
+
+**Trade-offs accepted.** It pins us to Vite 7 (electron-vite 5 does not yet peer Vite 8). Contained: Vitest 4
+supports Vite 7, so there is no split in the test toolchain. Re-evaluate when electron-vite peers Vite 8.
+
+**Long-term impact.** Low. The build tool sits at the edge; the core packages are framework-free and do not
+depend on it. Swapping it later is a config change, not a product change.
+
+---
+
+<a id="adr-030"></a>
+
+## ADR-030 — Design tokens authored in TypeScript; the Tailwind "preset" is a v4 `@theme` layer
+
+**Status:** Accepted — 2026-07-13 (M0)
+
+**Decision.** Author the design tokens as **TypeScript** in `packages/tokens/src`, and build them to (a)
+`tokens.css` — semantic CSS custom properties for light and dark, (b) `theme.css` — a Tailwind **v4
+`@theme`** layer, (c) typed JS exports. Both CSS files are consumed by the desktop app and, later, the
+website.
+
+**Why.** The roadmap's M0 deliverable says "Tailwind preset". **Tailwind v4 removed JS presets** — the theme
+_is_ CSS now (`@theme`). `theme.css` is the v4-shaped equivalent of a preset, and it is importable by both
+repos, which is all ADR-019 actually requires of the shared token surface. Authoring the tokens in
+TypeScript rather than JSON (or a Style Dictionary pipeline) is what lets the **contrast gate import the
+palette directly and typecheck it** — a token that is not a typed value is a token the gate cannot see, and
+the gate is the entire point (Design Review §6.3). The gate earned this on its first run, rejecting eight
+colour pairs including violet-500.
+
+**Alternatives considered.**
+
+- _JSON tokens + Style Dictionary._ The industry-standard pipeline. Rejected for v1: it puts the tokens
+  behind a build step the contrast gate would have to parse rather than import, and it is more machinery
+  than a single-brand, two-consumer system needs. Revisit if a third consumer or multi-brand theming
+  arrives.
+- _Hand-written CSS variables._ No type safety, no gate, brand drift by month two. Rejected.
+
+**Trade-offs accepted.** A small hand-written build script (~120 lines) instead of an off-the-shelf token
+pipeline. It does exactly what we need and nothing more, and its output is asserted consistent by a test
+(`css-consistency.test.ts`, added in the M0 audit after a dangling-reference bug).
+
+**Long-term impact.** The tokens are the one brand surface shared across repos (ADR-019). Keeping them typed
+and gated is what makes "our palette is WCAG-clean" a fact the build enforces rather than a claim we make.
+
+---
+
+<a id="adr-031"></a>
+
+## ADR-031 — `docs/adr/` is generated from this register, and CI fails on drift
+
+**Status:** Accepted — 2026-07-13 (M0)
+
+**Decision.** The individual ADR records under `docs/adr/` are **generated** from this register by
+`tooling/scripts/sync-adrs.ts`. `pnpm gate:adr` fails the build if they diverge. This register remains the
+single source of truth; `docs/adr/` is a projection of it, addressable per decision.
+
+**Why.** The roadmap's M0 deliverable asks for "every decision in the architecture doc gets a numbered
+record". The obvious implementation — hand-copying each decision into its own file — creates **two sources
+of truth for one fact**, which is the exact disease ADR-015 rejects for application state. The register and
+the copies drift within a month, and nobody knows which one the team actually decided. Generation makes
+drift impossible rather than merely discouraged.
+
+**Alternatives considered.**
+
+- _Hand-authored ADR files, register as an index._ The conventional layout. Rejected: the index and the
+  files drift, and the drift is invisible until someone cites the stale one in a design argument.
+- _Only the register, no per-file records._ Loses the ability to link, cite and diff a single decision, and
+  does not satisfy the M0 deliverable. Rejected.
+
+**Trade-offs accepted.** A generator and a CI gate to maintain (~130 lines, one blocking check). Editing a
+file in `docs/adr/` directly does not change a decision — it breaks the build, which is the correct response
+to someone trying to change a decision by editing a copy of it.
+
+**Long-term impact.** The decision record cannot rot into inconsistency. As the register grows, the records
+stay in lockstep for free.
 </content>
 </invoke>

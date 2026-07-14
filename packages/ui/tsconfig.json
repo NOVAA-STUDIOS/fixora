@@ -1,0 +1,14 @@
+{
+  "extends": "@fixora/tsconfig/react.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vitest.config.ts",
+    ".ladle/**/*.ts",
+    ".ladle/**/*.tsx"
+  ]
+}

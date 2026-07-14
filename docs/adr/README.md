@@ -36,3 +36,6 @@ To add or change a decision: edit the register, then run `pnpm adr:sync`.
 | [026](./026-violet-as-the-single-brand-accent.md) | Violet as the single brand accent | Accepted |
 | [027](./027-server-side-kill-switches-for-every-ai-task-profile.md) | Server-side kill switches for every AI task profile | Accepted |
 | [028](./028-a-scored-golden-corpus-in-ci-from-m5-onward.md) | A scored golden corpus in CI from M5 onward | Accepted |
+| [029](./029-electron-vite-as-the-desktop-build-tool.md) | electron-vite as the desktop build tool | Accepted |
+| [030](./030-design-tokens-authored-in-typescript-the-tailwind-preset-is-.md) | Design tokens authored in TypeScript; the Tailwind "preset" is a v4 `@theme` layer | Accepted |
+| [031](./031-docs-adr-is-generated-from-this-register-and-ci-fails-on-dri.md) | `docs/adr/` is generated from this register, and CI fails on drift | Accepted |
