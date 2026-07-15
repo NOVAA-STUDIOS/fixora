@@ -1,4 +1,6 @@
 export { findingId, normalizeSnippet, type FindingIdInput } from './finding-id.js';
+export type { Analyzer, AnalysisTarget, WorkspaceCapabilities } from './analyzer.js';
+export { complexityAnalyzer } from './analyzers/complexity.js';
 export { languageForPath } from './language.js';
 export { parseStructure, type FileStructure } from './structure.js';
 export { parse, type ParsedTree } from './parser/tree-sitter.js';
