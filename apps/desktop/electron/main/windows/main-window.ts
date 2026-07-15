@@ -66,6 +66,10 @@ export function createMainWindow(devServerUrl: string | undefined): BrowserWindo
   attachCspHeader(window.webContents.session, guardOptions);
   applyNavigationGuards(window, guardOptions);
 
+  if (process.env['FIXORA_DEBUG'] === '1') {
+    attachDebugInstrumentation(window);
+  }
+
   window.once('ready-to-show', () => {
     window.show();
   });
@@ -86,4 +90,66 @@ export function createMainWindow(devServerUrl: string | undefined): BrowserWindo
   }
 
   return window;
+}
+
+/**
+ * Temporary black-screen diagnostics, gated behind `FIXORA_DEBUG=1`. Opens DevTools and logs every
+ * signal that distinguishes the black-screen causes from each other: a load failure, a preload
+ * throw, a renderer crash before first paint, or a mounted-but-not-painted DOM (a compositor issue).
+ */
+function attachDebugInstrumentation(window: BrowserWindow): void {
+  const wc = window.webContents;
+  const log = (...a: unknown[]): void => {
+    console.error('[debug]', ...a);
+  };
+
+  wc.on('did-fail-load', (_e, code, desc, url) => {
+    log('did-fail-load', { code, desc, url });
+  });
+  wc.on('preload-error', (_e, path, error) => {
+    log('preload-error', { path, error: String(error) });
+  });
+  wc.on('render-process-gone', (_e, details) => {
+    log('render-process-gone', details);
+  });
+  wc.on('console-message', (_e, level, message, line, sourceId) => {
+    log('console', { level, message, line, sourceId });
+  });
+  wc.on('unresponsive', () => {
+    log('unresponsive');
+  });
+
+  wc.on('dom-ready', () => {
+    log('dom-ready');
+  });
+  wc.on('did-finish-load', () => {
+    log('did-finish-load — probing the DOM');
+    void wc
+      .executeJavaScript(
+        `(() => {
+          const root = document.getElementById('root');
+          return {
+            hasRoot: !!root,
+            rootChildCount: root ? root.childElementCount : -1,
+            rootHtmlLength: root ? root.innerHTML.length : -1,
+            bodyBg: getComputedStyle(document.body).backgroundColor,
+            scriptCount: document.scripts.length,
+            title: document.title,
+          };
+        })()`,
+      )
+      .then(
+        (r) => {
+          log('DOM probe', r);
+        },
+        (err: unknown) => {
+          log('DOM probe failed', String(err));
+        },
+      );
+  });
+
+  window.once('ready-to-show', () => {
+    log('ready-to-show fired — opening DevTools');
+    wc.openDevTools({ mode: 'detach' });
+  });
 }

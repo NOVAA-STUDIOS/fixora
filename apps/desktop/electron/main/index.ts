@@ -19,6 +19,16 @@ import { createMainWindow } from './windows/main-window.js';
  * so the lock is here from the first commit.
  */
 
+// Some Windows GPU drivers never composite the first frame of a frameless, deferred-show window to
+// the screen: Chromium paints the DOM (verified — `#root` is fully populated) but the window keeps
+// showing its background colour until a resize forces a recomposite. To the user that is a black
+// screen on launch. Moving *compositing* to the CPU sidesteps the broken driver path while keeping
+// GPU *rasterisation*, so Monaco stays fast. Scoped to Windows, where this class of bug lives; this
+// switch must be set before the GPU process starts, hence at module load, before anything else.
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('disable-gpu-compositing');
+}
+
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();

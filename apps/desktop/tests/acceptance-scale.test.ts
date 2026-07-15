@@ -57,7 +57,9 @@ beforeAll(() => {
   for (let i = 0; i < 200; i++)
     writeFileSync(join(root, 'dist', `bundle-${String(i)}.js`), 'ignored');
   writeFileSync(join(root, 'build.log'), 'ignored');
-});
+  // Writing ~10k files can exceed the default 10s hook timeout on a loaded Windows box; give the
+  // fixture room so a slow disk is not mistaken for a failure.
+}, 60_000);
 
 /**
  * Windows holds the SQLite file handle briefly after close, and removing a 10k-file tree is not
