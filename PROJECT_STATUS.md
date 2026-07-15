@@ -1,26 +1,68 @@
 # Fixora — Project Status
 
-**Updated:** 2026-07-14 · **Current milestone:** M1 Design system & app shell — **complete, audited + red-teamed, awaiting approval**
-**Next milestone:** M2 Workspace, editor, local persistence — **blocked on explicit approval of M1**
+**Updated:** 2026-07-15 · **Current milestone:** M2 Workspace, editor, local persistence — **complete, audited + red-teamed, awaiting approval**
+**Next milestone:** M3 Deterministic analysis engine — **blocked on explicit approval of M2**
 
 ---
 
 ## Milestones
 
-| #      | Milestone                            | Status                                 | Notes                                  |
-| ------ | ------------------------------------ | -------------------------------------- | -------------------------------------- |
-| —      | Blueprint                            | ✅ Signed off 2026-07-13               | 28 ADRs accepted                       |
-| **M0** | **Foundations**                      | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14                  |
-| **M1** | **Design system & app shell**        | ✅ **Complete — awaiting approval**    | Audited + red-teamed; acceptance below |
-| M2     | Workspace, editor, local persistence | ▶ Ready on M1 approval                 | The moat begins to matter here         |
-| M3     | Deterministic analysis engine        | ⏸ Not started                          | The moat. Zero AI.                     |
-| M4     | Backend, auth, entitlements          | ⏸ Not started                          | Parallelisable with M1–M3              |
-| M5     | AI layer + provider abstraction      | ⏸ Not started                          |                                        |
-| M6     | The repair loop                      | ⏸ Not started                          | Hardest milestone                      |
-| M7     | Launch capability suite (4 profiles) | ⏸ Not started                          |                                        |
-| M8     | Packaging, signing, updates          | ⏸ Not started                          |                                        |
-| M9     | Commercial layer                     | ⏸ Not started                          |                                        |
-| M10    | Website & launch                     | ⏸ Not started                          | Separate repo                          |
+| #      | Milestone                                | Status                                 | Notes                                  |
+| ------ | ---------------------------------------- | -------------------------------------- | -------------------------------------- |
+| —      | Blueprint                                | ✅ Signed off 2026-07-13               | 28 ADRs accepted                       |
+| **M0** | **Foundations**                          | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14                  |
+| **M1** | **Design system & app shell**            | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14                  |
+| **M2** | **Workspace, editor, local persistence** | ✅ **Complete — awaiting approval**    | Audited + red-teamed; acceptance below |
+| M3     | Deterministic analysis engine            | ▶ Ready on M2 approval                 | The moat. Zero AI.                     |
+| M4     | Backend, auth, entitlements              | ⏸ Not started                          | Parallelisable with M1–M3              |
+| M5     | AI layer + provider abstraction          | ⏸ Not started                          |                                        |
+| M6     | The repair loop                          | ⏸ Not started                          | Hardest milestone                      |
+| M7     | Launch capability suite (4 profiles)     | ⏸ Not started                          |                                        |
+| M8     | Packaging, signing, updates              | ⏸ Not started                          |                                        |
+| M9     | Commercial layer                         | ⏸ Not started                          |                                        |
+| M10    | Website & launch                         | ⏸ Not started                          | Separate repo                          |
+
+---
+
+## M2 acceptance criteria — verified, not asserted
+
+The roadmap defines three. Each was checked against the running app or a real fixture, not asserted.
+
+| Criterion (Roadmap M2)                                 | Status | How it was verified                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Opens a 10,000-file repo in <2s with no dropped frames | ✅     | A real 10,001-file fixture (`acceptance-scale.test.ts`): `open()` + root `listDirectory` measured at **~70ms** with a 500ms ceiling that fails if a regression walks the whole tree on open. Cost is O(root), not O(repo) — the tree loads lazily. "No dropped frames" is the VirtualList windowing the flat node array, exercised in the running app. |
+| App fully functions offline and signed-out             | ✅     | There is **no auth in M2 and zero network primitives** in shipping code (grep: the only `fetch` is a navigation-guard _test payload_ the guard blocks). Strict CSP (9 tests) + navigation guard (23 tests) enforce it structurally. The app opened, listed, and rendered files with no network in the running app.                                     |
+| DB migration from empty DB and v1→v2 both succeed      | ✅     | `database.test.ts`: empty→current builds both tables; a v1-only DB with a row migrates to v2 with the row intact and the new table present; idempotent re-open; backup-before-migrate; and a garbage file quarantines to a fresh DB instead of crashing (DB §1).                                                                                       |
+
+**M2 build stats:** node:sqlite persistence (WAL, forward-only migrations, repositories), a path-guarded
+FS service + secrets denylist, workspace service + typed workspace/fs IPC, a virtualised lazy file tree,
+Monaco under strict CSP (tabs + models + diff editor), a debounced ignore-aware file watcher, and the
+settings surface (theme, density, telemetry opt-in, keybindings). Tests **77 → 154** (desktop) plus the ui
+package. Every runnable CI gate green.
+
+---
+
+## M2 audit + red-team (2026-07-15) — passed
+
+Per the standing instruction, an internal audit ran before marking M2 done and a red-team review before
+requesting approval.
+
+| Pass         | Finding                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Resolution                                                                                                                                                                                                                                                                                         |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Red-team** | `workspace:open` took the folder path **straight from the renderer** and made it the trusted FS root. Since the renderer is treated as hostile (I1), a compromised renderer could set the root to any absolute path (e.g. `C:\`) and read non-secret files under it via `fs:listDir/readFile`. Impact was already bounded (no network egress, secrets denylist, path guard), but turning an arbitrary renderer string into the FS root is a defense-in-depth gap. | The trust boundary now sits at the IPC handler: `workspace:open` refuses any path the user did not pick this session (native dialog) and that is not already a known recent. `open()` stays the trusted primitive for internal callers (restoreLast, indexing, tests). Two tests; app re-verified. |
+
+**Assessed and clean:** the path guard resolves symlinks/junctions/UNC then checks path-segment boundary
+(never string prefix), fuzz-tested with 500 generated traversals; the secrets denylist blocks `.ssh`,
+`.env`, `*.pem`, `id_rsa`, `.git/config` etc. on every `readTextFile`; the watcher emits **workspace-
+relative** paths only (no absolute-path leak), does not follow symlinks, and is debounced + ignore-aware
+from the first commit; Monaco models are disposed on tab close (no accumulation); the UI store validates
+telemetry on rehydration (any non-`true` value → opt-out). **Noted for later** (real, not yet due): the
+watcher's lifecycle is tied to workspace change, not window recreation (fine for the single-window app);
+a tab whose file is deleted on disk keeps a stale model until closed (cosmetic).
+
+**Environment note:** the `gitleaks` gate could not run — the binary is not installed on this machine.
+A manual secret scan of the full M2 diff (tracked + untracked) found nothing but a package name and the
+path-guard fuzz payloads (`etc/passwd`, `id_rsa` as _test strings_). The gate remains mandatory in CI.
 
 ---
 
@@ -126,11 +168,13 @@ uncompressed; it is not a defect, and the size budget belongs to M8 where the in
 
 ```
 fixora-desktop/                        (this repo)
-├─ apps/desktop/          Electron shell — hardened, typed IPC, demo channel, minimal renderer
+├─ apps/desktop/          Electron shell + workspace/editor/persistence — path-guarded FS, node:sqlite,
+│                         Monaco under strict CSP, file watcher, settings surface, typed IPC
+├─ packages/ui/           @fixora/ui — Radix + CVA primitives (incl. Switch), tokens-driven
 ├─ packages/tokens/       @fixora/tokens — violet + neutral scales, light+dark, contrast gate
 ├─ packages/shared-types/ zod IPC contract registry, typed error union, Result
 ├─ tooling/               tsconfig · eslint-config · scripts (ADR sync, gate runners)
-├─ docs/                  the blueprint (source of truth) + docs/adr/ (28 generated records)
+├─ docs/                  the blueprint (source of truth) + docs/adr/ (33 generated records)
 └─ .github/workflows/     CI — every gate blocking
 ```
 
@@ -140,7 +184,7 @@ fixora-desktop/                        (this repo)
 | --------------------- | ----------------------------------------------------- | ------------------------------------ |
 | typecheck             | `strict` + `noUncheckedIndexedAccess`, no `any`       | tsc 6.0.3                            |
 | lint                  | Standards §1–§3, `--max-warnings 0`                   | ESLint 10 + typescript-eslint strict |
-| unit tests            | 27 tests                                              | Vitest 4                             |
+| unit tests            | 154 desktop + ui/tokens/shared-types suites           | Vitest 4                             |
 | **contrast**          | WCAG 2.2 AA on 104 colour pairs, both themes          | `@fixora/tokens` gate                |
 | **boundaries**        | **Invariant I1** — `core-*` never sees electron/react | dependency-cruiser + ESLint          |
 | **ADR drift**         | One source of truth for decisions                     | `tooling/scripts/sync-adrs.ts`       |
@@ -166,40 +210,17 @@ Building them now would mean building a gate around code that does not exist.
 
 ---
 
-## Open items — decided 2026-07-13, in progress
+## Open items
 
-**These are ordered. Item 1 must complete before item 2**, or the restored register would overwrite the
-appended ADRs.
+### 1. ✅ Restore `docs/` from your original copy — **done**
 
-### 1. ⏳ Restore `docs/` from your original copy — **action on you**
+The 19 blueprint documents were restored and verified; `git diff --stat -- docs` is now empty. `docs/` is
+permanently in `.prettierignore` so the M0 reformat cannot recur. `docs/adr/` remains generated.
 
-A `prettier --write .` ran during M0 before `docs/` was in `.prettierignore`. It reformatted all 19
-blueprint documents. Table padding and emphasis markers have been restored and verified byte-exact; the
-residual delta is **blank lines Prettier inserted around code fences and lists**. No content was changed,
-added or lost. **Decision: restore from your own copy.**
+### 2. ✅ Append ADR-029 / 030 / 031 to the register — **done**
 
-```bash
-# 1. Overwrite docs/*.md with your originals (leave docs/adr/ alone — it is generated).
-# 2. Confirm the only changes are the ones you expect:
-git diff --stat -- docs
-# 3. Regenerate the ADR records from the restored register and re-check the gate:
-pnpm adr:sync && pnpm gate:adr
-```
-
-`docs/` is now permanently in `.prettierignore`, and `pnpm format:check` no longer touches it, so this
-cannot recur. `docs/adr/` is generated — do not restore it by hand.
-
-### 2. ⏳ Append ADR-029 / 030 / 031 to the register — **queued, blocked on item 1**
-
-**Decision: append.** The three decisions are drafted in full in
-[PROJECT_MEMORY.md](./PROJECT_MEMORY.md#m0--foundations-2026-07-13):
-
-- **ADR-029** — electron-vite as the desktop build tool
-- **ADR-030** — tokens authored in TypeScript; the "Tailwind preset" is a Tailwind v4 `@theme` layer
-- **ADR-031** — `docs/adr/` is generated from the register, and CI fails on drift
-
-I will append them to `docs/03-DECISION-REGISTER.md` and run `pnpm adr:sync` **once you have restored
-`docs/`** — doing it before would just be undone.
+Appended and regenerated. The register now holds **33 ADRs** through ADR-033 (`node:sqlite`), and
+`pnpm gate:adr` is green (no drift).
 
 ### 3. 🔄 Azure Trusted Signing — **identity validation started 2026-07-13**
 

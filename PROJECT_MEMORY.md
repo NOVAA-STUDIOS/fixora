@@ -9,6 +9,47 @@ Updated after every milestone. Newest milestone first.
 
 ---
 
+## M2 — Workspace, editor, local persistence (2026-07-15)
+
+### `node:sqlite` was the escape hatch when the native module had no prebuild (ADR-033)
+
+better-sqlite3 is the obvious choice, and it was unbuildable here: Electron 43 is ABI v148, there is no
+better-sqlite3 prebuild for it, and there is no C++ toolchain (or Python) on this machine to compile one.
+Rather than make "install a compiler" a prerequisite for the repo, we used **`node:sqlite`** — the SQLite
+that ships _inside_ Electron 43's Node 24. It is behind a `SqliteDriver` interface, so if a future Electron
+drops it or a prebuild appears, swapping back is a one-file change. The lesson: when a native dependency
+blocks the build, check what the runtime already bundles before you make the whole team install toolchains.
+
+### Monaco under a strict CSP means bundling its workers, not its CDN
+
+Monaco's default loader pulls from a CDN and uses `eval` — both forbidden by our CSP (Security §2). The
+working recipe: import the **ESM** build, import each language/editor worker with Vite's `?worker` suffix
+so they are bundled locally, and set `self.MonacoEnvironment.getWorker` to return those worker instances.
+`worker-src 'self' blob:` in the CSP covers the blob URLs Vite generates. No CDN, no `unsafe-eval`, and it
+renders a real file in the shipped app. If Monaco ever shows a blank editor, suspect the worker wiring
+before anything else.
+
+### The renderer must not choose the FS root — even a path it "got from a dialog" (M2 red-team)
+
+`workspace:open` accepted the folder path from the renderer and made it the trusted filesystem root. The
+path _originates_ in a native dialog, but it **round-trips through the renderer**, which is hostile by
+assumption (I1) and can send any string instead. The bounded-but-real consequence: set root to `C:\`, then
+read non-secret files under it. The fix is the general pattern for "user-authorized action the renderer
+relays": main keeps the set of paths the user actually picked (plus known recents, which only got there
+through a prior pick) and refuses anything else. Keep the trusted primitive (`open()`) for internal callers
+and put the authorization check at the IPC boundary — do not weaken the primitive to satisfy a test.
+
+### Lazy loading is why the 10k-file acceptance is not even close
+
+"Opens a 10,000-file repo in <2s" sounds like it needs a fast tree walk. It needs the opposite: **don't
+walk.** Opening lists only the root directory (~70ms on a real 10k fixture); a directory's children load
+when it is expanded, and the flat visible-node list is windowed by the VirtualList. The full index walk
+(content-hashing every file) is real work, but it runs _off first paint_ in the background because it feeds
+M3, not the tree. Design the data flow so the expensive thing is never on the paint path, and the
+perf budget is met by construction rather than by optimisation.
+
+---
+
 ## M1 — Design system & application shell (2026-07-14)
 
 ### The lesson: jsdom cannot test what needs real layout, so don't pretend it can

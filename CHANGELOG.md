@@ -8,6 +8,50 @@ this file is a **product surface on the website** (Repo §3), not an afterthough
 
 ## [Unreleased]
 
+### M2 — Workspace, editor, local persistence (2026-07-15)
+
+The shell opens a real folder now: a file tree, a working editor, and persistence that survives a
+restart — all offline, signed-out, and confined to the workspace. This is where the local-first moat
+starts to matter.
+
+#### Added
+
+- **Local persistence on `node:sqlite`** (ADR-033, amends ADR-011) — Electron 43's built-in SQLite,
+  chosen because better-sqlite3 has no prebuild for ABI v148 and no compiler is available; wrapped
+  behind a `SqliteDriver` interface so the engine is swappable. WAL mode, foreign keys, forward-only
+  numbered migrations (each transactional, backup-first), and repositories as the only code that writes
+  SQL. A corrupt database **quarantines and starts fresh** rather than blocking launch (DB §1).
+- **Path-guarded filesystem service** (Security §3) — every path is resolved through `realpath`
+  (following symlinks/junctions/UNC) and checked on a **path-segment boundary**, never a string prefix;
+  fuzz-tested with 500 generated traversals. A **secrets denylist** blocks `.ssh`, `.env*`, `*.pem`,
+  `id_rsa`, `.git/config` and friends from ever being read into the app. Files over 8 MB are refused.
+- **Workspace service + typed IPC** — main owns the trusted workspace root; the renderer sends only
+  workspace-relative paths and never the root. `workspace:pickFolder/open/recent/current` and
+  `fs:listDir/readFile`, all zod-validated both directions. Restore-last-workspace reopens the most
+  recent folder that still exists, like an IDE reopening your project.
+- **Virtualised file tree** — a flat list of visible nodes with **lazy** directory loading, so opening
+  a 10,000-file repo lists only the root (measured ~70ms). `.gitignore`-aware ignore rules plus an
+  always-ignore set (`node_modules`, `.git`, `dist`, …).
+- **Monaco under strict CSP** — the ESM build with `?worker` imports bundled locally (no CDN, no
+  `unsafe-eval`); tabs over one editor that swaps models keyed by path (Monaco owns the text and undo
+  stack, ADR-015); themes derived from `@fixora/tokens`; a read-only diff editor wired for M6.
+- **File watcher** — chokidar bundled into the CJS main, debounced and ignore-aware from the first
+  commit, coalescing a burst of saves into one batch of changed directories; the renderer reconciles
+  only those, preserving the expansion of directories that still exist.
+- **Settings surface** — theme, density, a **telemetry opt-in that is off by default** with plain-English
+  copy (FR-5), and the keybinding list read from the command registry. Adds a Radix `Switch` to
+  `@fixora/ui`. Test count **77 → 154** on the desktop package (renderer store tests, FS/DB/service
+  tests, a 10k-file scale benchmark).
+
+#### Fixed (M2 internal audit + red-team, before requesting approval)
+
+- **`workspace:open` no longer trusts an arbitrary renderer path.** It took the folder path straight
+  from the renderer and made it the trusted FS root — so a compromised renderer (treated as hostile, I1)
+  could set the root to `C:\` and read non-secret files under it. Impact was already bounded (no network
+  egress, secrets denylist, path guard), but the boundary now sits at the IPC handler: main only opens a
+  folder the user actually picked this session or one that is already a known recent. `open()` stays the
+  trusted primitive for internal callers (restoreLast, indexing, tests).
+
 ### M1 — Design system & application shell (2026-07-14)
 
 The app looks and feels like the finished product before it does anything (roadmap M1). No
