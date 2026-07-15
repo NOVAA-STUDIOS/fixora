@@ -1,26 +1,26 @@
 # Fixora — Project Status
 
-**Updated:** 2026-07-15 · **Current milestone:** M2 Workspace, editor, local persistence — **complete, audited + red-teamed, awaiting approval**
-**Next milestone:** M3 Deterministic analysis engine — **blocked on explicit approval of M2**
+**Updated:** 2026-07-15 · **Current milestone:** M3 Deterministic analysis engine — **in progress**
+**Previous milestone:** M2 Workspace, editor, local persistence — **✅ approved 2026-07-15** (manual verification completed)
 
 ---
 
 ## Milestones
 
-| #      | Milestone                                | Status                                 | Notes                                  |
-| ------ | ---------------------------------------- | -------------------------------------- | -------------------------------------- |
-| —      | Blueprint                                | ✅ Signed off 2026-07-13               | 28 ADRs accepted                       |
-| **M0** | **Foundations**                          | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14                  |
-| **M1** | **Design system & app shell**            | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14                  |
-| **M2** | **Workspace, editor, local persistence** | ✅ **Complete — awaiting approval**    | Audited + red-teamed; acceptance below |
-| M3     | Deterministic analysis engine            | ▶ Ready on M2 approval                 | The moat. Zero AI.                     |
-| M4     | Backend, auth, entitlements              | ⏸ Not started                          | Parallelisable with M1–M3              |
-| M5     | AI layer + provider abstraction          | ⏸ Not started                          |                                        |
-| M6     | The repair loop                          | ⏸ Not started                          | Hardest milestone                      |
-| M7     | Launch capability suite (4 profiles)     | ⏸ Not started                          |                                        |
-| M8     | Packaging, signing, updates              | ⏸ Not started                          |                                        |
-| M9     | Commercial layer                         | ⏸ Not started                          |                                        |
-| M10    | Website & launch                         | ⏸ Not started                          | Separate repo                          |
+| #      | Milestone                                | Status                                 | Notes                     |
+| ------ | ---------------------------------------- | -------------------------------------- | ------------------------- |
+| —      | Blueprint                                | ✅ Signed off 2026-07-13               | 28 ADRs accepted          |
+| **M0** | **Foundations**                          | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14     |
+| **M1** | **Design system & app shell**            | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14     |
+| **M2** | **Workspace, editor, local persistence** | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-15     |
+| **M3** | **Deterministic analysis engine**        | ▶ **In progress**                      | The moat. Zero AI.        |
+| M4     | Backend, auth, entitlements              | ⏸ Not started                          | Parallelisable with M1–M3 |
+| M5     | AI layer + provider abstraction          | ⏸ Not started                          |                           |
+| M6     | The repair loop                          | ⏸ Not started                          | Hardest milestone         |
+| M7     | Launch capability suite (4 profiles)     | ⏸ Not started                          |                           |
+| M8     | Packaging, signing, updates              | ⏸ Not started                          |                           |
+| M9     | Commercial layer                         | ⏸ Not started                          |                           |
+| M10    | Website & launch                         | ⏸ Not started                          | Separate repo             |
 
 ---
 

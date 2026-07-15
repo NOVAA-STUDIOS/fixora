@@ -42,3 +42,23 @@ export {
   type FilesChanged,
   type WorkspaceInfo,
 } from './workspace.js';
+export {
+  CategorySchema,
+  EvidenceSchema,
+  FindingSchema,
+  FindingSourceSchema,
+  LanguageSchema,
+  LocationSchema,
+  SeveritySchema,
+  SymbolKindSchema,
+  SymbolRefSchema,
+  type Category,
+  type Evidence,
+  type Finding,
+  type FindingSource,
+  type Language,
+  type Location,
+  type Severity,
+  type SymbolKind,
+  type SymbolRef,
+} from './analysis.js';
