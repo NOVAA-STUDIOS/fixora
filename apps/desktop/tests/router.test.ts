@@ -53,13 +53,12 @@ describe('assertEveryChannelIsHandled', () => {
   });
 
   it('passes once every channel has a handler', async () => {
+    const { channels } = await import('@fixora/shared-types');
     const { assertEveryChannelIsHandled, registerHandler } = await freshRouter();
-    registerHandler('system:getAppInfo', () => appInfo);
-    const state = { isMaximized: false };
-    registerHandler('window:minimize', () => state);
-    registerHandler('window:toggleMaximize', () => state);
-    registerHandler('window:close', () => undefined);
-    registerHandler('window:isMaximized', () => state);
+    // Register a stub for every declared channel — the assertion is about coverage, not shape.
+    for (const channel of channels) {
+      registerHandler(channel, () => undefined as never);
+    }
     expect(() => {
       assertEveryChannelIsHandled();
     }).not.toThrow();

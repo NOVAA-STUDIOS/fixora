@@ -25,6 +25,12 @@ export const channels = [
   'window:toggleMaximize',
   'window:close',
   'window:isMaximized',
+  'workspace:pickFolder',
+  'workspace:open',
+  'workspace:recent',
+  'workspace:current',
+  'fs:listDir',
+  'fs:readFile',
 ] as const;
 
 export type Channel = (typeof channels)[number];
@@ -39,7 +45,7 @@ export function isChannel(value: string): value is Channel {
  * Main → renderer event channels (push). Unidirectional, fire-and-forget, one payload schema
  * each (declared in events.ts). The renderer subscribes; it cannot emit these.
  */
-export const eventChannels = ['window:maximizedChanged'] as const;
+export const eventChannels = ['window:maximizedChanged', 'workspace:filesChanged'] as const;
 
 export type EventChannel = (typeof eventChannels)[number];
 

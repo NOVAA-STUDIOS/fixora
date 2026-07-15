@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { EventChannel } from './channels.js';
+import { FilesChangedSchema } from './workspace.js';
 
 /**
  * The main → renderer event contracts (push). The counterpart to `contracts` in ipc.ts, for the
@@ -19,6 +20,7 @@ export type WindowMaximizedChanged = z.infer<typeof WindowMaximizedChangedSchema
 
 export const eventContracts = {
   'window:maximizedChanged': WindowMaximizedChangedSchema,
+  'workspace:filesChanged': FilesChangedSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

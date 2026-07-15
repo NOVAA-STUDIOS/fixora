@@ -32,3 +32,13 @@ export {
   type RequestOf,
   type ResponseOf,
 } from './ipc.js';
+export {
+  DirEntrySchema,
+  FileContentSchema,
+  FilesChangedSchema,
+  WorkspaceSchema,
+  type DirEntryInfo,
+  type FileContentInfo,
+  type FilesChanged,
+  type WorkspaceInfo,
+} from './workspace.js';

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { Channel } from './channels.js';
+import { DirEntrySchema, FileContentSchema, WorkspaceSchema } from './workspace.js';
 
 /**
  * **The entire renderer → main attack surface, enumerable in one file** (ADR-018, TDD §4).
@@ -56,6 +57,34 @@ export const contracts = {
   'window:toggleMaximize': { request: empty, response: WindowStateSchema },
   'window:close': { request: empty, response: z.void() },
   'window:isMaximized': { request: empty, response: WindowStateSchema },
+
+  // Workspace + filesystem. `relPath` is workspace-relative; main pairs it with the root it owns
+  // and runs it through the path guard, so the renderer cannot reach outside the workspace.
+  'workspace:pickFolder': {
+    request: empty,
+    // null when the user cancels the native dialog.
+    response: z.object({ path: z.string().nullable() }),
+  },
+  'workspace:open': {
+    request: z.object({ path: z.string().min(1) }),
+    response: z.object({ workspace: WorkspaceSchema }),
+  },
+  'workspace:recent': {
+    request: empty,
+    response: z.object({ workspaces: z.array(WorkspaceSchema) }),
+  },
+  'workspace:current': {
+    request: empty,
+    response: z.object({ workspace: WorkspaceSchema.nullable() }),
+  },
+  'fs:listDir': {
+    request: z.object({ relPath: z.string() }),
+    response: z.object({ entries: z.array(DirEntrySchema) }),
+  },
+  'fs:readFile': {
+    request: z.object({ relPath: z.string().min(1) }),
+    response: z.object({ file: FileContentSchema }),
+  },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

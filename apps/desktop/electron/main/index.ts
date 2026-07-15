@@ -1,8 +1,12 @@
 import { app, BrowserWindow } from 'electron';
 
+import { openDatabase } from './db/database.js';
+import { createFileIndexRepository, createWorkspaceRepository } from './db/repositories.js';
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
+import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
 import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
+import { createWorkspaceService } from './services/workspace-service.js';
 import { createMainWindow } from './windows/main-window.js';
 
 /**
@@ -31,12 +35,25 @@ if (!gotTheLock) {
 
   app.whenReady().then(
     () => {
+      // Local persistence. A corrupt DB degrades to "history unavailable" and never blocks
+      // launch (DB §1) — `openDatabase` returns `recovered` rather than throwing.
+      const { driver } = openDatabase({ dir: app.getPath('userData') });
+      const workspaceService = createWorkspaceService({
+        workspaces: createWorkspaceRepository(driver),
+        files: createFileIndexRepository(driver),
+      });
+
       registerSystemHandlers();
       registerWindowHandlers();
+      registerWorkspaceHandlers(workspaceService);
       // Fail fast, at startup, if any declared channel has no handler — before a window
       // exists to send it a request (Standards §2).
       assertEveryChannelIsHandled();
       mountRouter();
+
+      app.on('will-quit', () => {
+        driver.close();
+      });
 
       createMainWindow(devServerUrl);
 

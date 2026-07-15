@@ -7,7 +7,8 @@ import { contracts } from './ipc.js';
 describe('the channel list (the zod-free surface the preload imports)', () => {
   it('recognises only declared channels', () => {
     expect(isChannel('system:getAppInfo')).toBe(true);
-    expect(isChannel('fs:readFile')).toBe(false);
+    expect(isChannel('fs:readFile')).toBe(true);
+    expect(isChannel('fs:deleteEverything')).toBe(false);
     expect(isChannel('__proto__')).toBe(false);
   });
 
@@ -20,6 +21,12 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'window:toggleMaximize',
       'window:close',
       'window:isMaximized',
+      'workspace:pickFolder',
+      'workspace:open',
+      'workspace:recent',
+      'workspace:current',
+      'fs:listDir',
+      'fs:readFile',
     ]);
   });
 });
@@ -27,6 +34,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
 describe('the event registry (main → renderer push)', () => {
   it('recognises only declared event channels', () => {
     expect(isEventChannel('window:maximizedChanged')).toBe(true);
+    expect(isEventChannel('workspace:filesChanged')).toBe(true);
     expect(isEventChannel('window:minimize')).toBe(false); // that is a request channel, not an event
   });
 
