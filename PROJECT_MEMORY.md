@@ -39,6 +39,29 @@ relays": main keeps the set of paths the user actually picked (plus known recent
 through a prior pick) and refuses anything else. Keep the trusted primitive (`open()`) for internal callers
 and put the authorization check at the IPC boundary — do not weaken the primitive to satisfy a test.
 
+### A black screen with a fully-rendered DOM is a compositing bug, not a render bug
+
+The window launched black. The instinct is "React crashed" or "the bundle failed to load" — both wrong.
+`FIXORA_DEBUG=1` instrumentation (DevTools auto-open + a `did-finish-load` DOM probe) showed `#root`
+with a child and ~12 KB of `innerHTML`, the right `document.title`, and **no console errors**. The DOM
+was fully there; it just was not on the screen. That signature — DOM present, window shows only its
+background colour until a resize "fixes" it — is a **GPU compositing** failure on the driver, not a
+renderer failure. The fix is `disable-gpu-compositing` on Windows (CPU composites, GPU still rasterises,
+so Monaco stays fast), applied at module load before the GPU process starts. Two debugging lessons that
+cost real time here: (1) always probe the DOM before assuming a render crash — the fix is completely
+different; and (2) **do not "verify" a window by maximising it for the screenshot** — a resize is itself
+a recomposite, so it hides the exact bug you are trying to see. Capture at natural size (PrintWindow
+works without focus or resize) or you will report a black-screen bug as fixed when it is not.
+
+### `ELECTRON_RUN_AS_NODE` in the shell turns Electron into headless Node
+
+If the environment exports `ELECTRON_RUN_AS_NODE=1` (tooling does this to run Node scripts through an
+Electron binary), any Electron you launch — including via `pnpm dev` — boots as **plain Node.js**: `app`,
+`BrowserWindow`, the whole GUI API is `undefined`, and main throws on the first `app.*` call before a
+window exists. It looks like a black or instantly-gone window. We own the launch, so `pnpm dev`/`preview`
+run through a tiny wrapper that deletes the variable before spawning electron-vite. When an Electron main
+crashes on `app` being undefined, suspect this variable before the code.
+
 ### Lazy loading is why the 10k-file acceptance is not even close
 
 "Opens a 10,000-file repo in <2s" sounds like it needs a fast tree walk. It needs the opposite: **don't

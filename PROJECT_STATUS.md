@@ -64,6 +64,16 @@ a tab whose file is deleted on disk keeps a stale model until closed (cosmetic).
 A manual secret scan of the full M2 diff (tracked + untracked) found nothing but a package name and the
 path-guard fuzz payloads (`etc/passwd`, `id_rsa` as _test strings_). The gate remains mandatory in CI.
 
+### Launch fixes (reported black screen on startup)
+
+Two launch-time defects were reported and fixed after the review, each reproduced and verified in the
+running app:
+
+| Symptom                          | Root cause                                                                                                                                                                                                                                                                  | Fix (verified)                                                                                                                                                                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Black screen on launch**       | GPU compositing: on this Windows driver Chromium paints the DOM but never composites the first frame of a frameless, deferred-show window. `FIXORA_DEBUG` DOM probe showed `#root` fully populated (~12 KB HTML), no console errors — a compositing, not a render, failure. | `disable-gpu-compositing` on win32 (CPU composites, GPU still rasterises so Monaco stays fast). Verified via PrintWindow with **zero interaction** — the UI paints on a normal show, no resize needed. `FIXORA_DEBUG=1` diagnostics added. |
+| **`pnpm dev` crash / no window** | An inherited `ELECTRON_RUN_AS_NODE=1` booted Electron as plain Node — `app` undefined — so main threw before any window painted.                                                                                                                                            | `pnpm dev`/`preview` run through a launcher that strips the variable. Verified the GUI starts with the variable set.                                                                                                                       |
+
 ---
 
 ## M1 acceptance criteria — verified, not asserted

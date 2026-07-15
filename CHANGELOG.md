@@ -52,6 +52,20 @@ starts to matter.
   folder the user actually picked this session or one that is already a known recent. `open()` stays the
   trusted primitive for internal callers (restoreLast, indexing, tests).
 
+#### Fixed (launch — reported black screen on startup)
+
+- **Black screen on launch (GPU compositing).** On some Windows GPU drivers, Chromium paints the DOM but
+  never composites the first frame of a frameless, deferred-show window to the screen — so the window
+  stays on its background colour until a resize forces a recomposite. Diagnosed with `FIXORA_DEBUG=1`
+  instrumentation (DevTools + a post-load DOM probe showed `#root` fully populated, no console errors):
+  the renderer was fine; compositing was the fault. Fixed by moving compositing to the CPU
+  (`disable-gpu-compositing`) on Windows while keeping GPU rasterisation, so Monaco stays fast. Verified
+  the UI paints on a normal show with zero interaction.
+- **`ELECTRON_RUN_AS_NODE` no longer breaks `pnpm dev`.** If that variable is exported in the shell
+  (some tooling does, to run Node through an Electron binary), the launched Electron booted as plain
+  Node — `app` undefined — and main threw before any window painted. `pnpm dev`/`preview` now go through
+  a launcher that strips the variable first.
+
 ### M1 — Design system & application shell (2026-07-14)
 
 The app looks and feels like the finished product before it does anything (roadmap M1). No
