@@ -29,8 +29,31 @@ export type WorkspaceServiceDeps = {
 
 export function createWorkspaceService(deps: WorkspaceServiceDeps) {
   let current: OpenWorkspace | null = null;
+  // Paths the user chose through the native folder picker this session. The renderer is treated as
+  // hostile (invariant I1): it may send any string to `workspace:open`, so main must not turn an
+  // arbitrary renderer-supplied path into the trusted FS root. A path is openable-from-the-renderer
+  // only if the user actually picked it (this set) or it is already a known recent (which itself
+  // only ever got there through a prior pick). Internal callers (restoreLast, indexing, tests) use
+  // `open()` directly and are already trusted; the check lives at the IPC boundary, via `authorize`
+  // + `isUserAuthorized`.
+  const pickedThisSession = new Set<string>();
 
   return {
+    /** Record a path the user selected in the native folder dialog as authorized to open. */
+    authorize(rootPath: string): void {
+      pickedThisSession.add(rootPath);
+    },
+
+    /**
+     * Whether a renderer-supplied path may be opened: it was picked this session, or it is a known
+     * recent. Anything else is a fabricated path from a hostile renderer and must be refused.
+     */
+    isUserAuthorized(rootPath: string): boolean {
+      return (
+        pickedThisSession.has(rootPath) || deps.workspaces.findByRootPath(rootPath) !== undefined
+      );
+    },
+
     /**
      * Open a folder as the workspace. Validates it is a real directory, records/bumps it in the
      * recents (DB), loads its ignore rules, and becomes the current workspace. Returns the record

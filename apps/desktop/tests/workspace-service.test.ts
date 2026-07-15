@@ -84,6 +84,31 @@ describe('workspace service', () => {
     driver.close();
   });
 
+  it('authorizes a picked path and treats a known recent as authorized, but nothing else', () => {
+    const { service, driver } = makeService();
+    // A path the renderer fabricated: never picked, not a recent → not authorized.
+    expect(service.isUserAuthorized(repo)).toBe(false);
+    // The user picks it in the native dialog → authorized for this session.
+    service.authorize(repo);
+    expect(service.isUserAuthorized(repo)).toBe(true);
+    driver.close();
+  });
+
+  it('treats a folder already in recents as authorized in a later session', () => {
+    // Session one: open the repo so it lands in the recents table.
+    const first = makeService();
+    first.service.authorize(repo);
+    first.service.open(repo);
+    first.driver.close();
+
+    // Session two (fresh service, nothing picked yet): the recent is still authorized to re-open —
+    // this is what makes "reopen recent" work without re-picking, while an unknown path stays refused.
+    const second = makeService();
+    expect(second.service.isUserAuthorized(repo)).toBe(true);
+    expect(second.service.isUserAuthorized(join(repo, 'src'))).toBe(false);
+    second.driver.close();
+  });
+
   it('gives every indexed source file a content hash and language', () => {
     const { service, driver } = makeService();
     service.open(repo);

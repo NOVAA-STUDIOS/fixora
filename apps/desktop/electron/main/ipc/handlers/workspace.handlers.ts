@@ -42,12 +42,20 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
       title: 'Open folder',
       properties: ['openDirectory'],
     });
-    return {
-      path: result.canceled || result.filePaths[0] === undefined ? null : result.filePaths[0],
-    };
+    const path = result.canceled || result.filePaths[0] === undefined ? null : result.filePaths[0];
+    // The user just chose this folder in the native dialog, so authorize it: the path round-trips
+    // through the renderer (which then calls workspace:open), and main only opens paths the user
+    // actually picked or already-known recents — never an arbitrary string a hostile renderer sends.
+    if (path !== null) service.authorize(path);
+    return { path };
   });
 
   registerHandler('workspace:open', ({ path }, { window }) => {
+    if (!service.isUserAuthorized(path)) {
+      // A path the user never picked and that is not a known recent — refuse rather than turn a
+      // renderer-fabricated path into the trusted FS root (invariant I1: the renderer is hostile).
+      throw new Error('Refused to open a folder that was not chosen through the folder picker.');
+    }
     const { workspace } = service.open(path);
     const open = service.requireRoot();
     ensureWatching(service, window);
