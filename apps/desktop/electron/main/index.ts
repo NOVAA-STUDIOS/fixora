@@ -46,6 +46,14 @@ if (!gotTheLock) {
       registerSystemHandlers();
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
+
+      // Reopen the last workspace (if its folder still exists), like an IDE restoring your project.
+      // Off the critical path — a failure here never blocks launch.
+      try {
+        workspaceService.restoreLast();
+      } catch {
+        // nothing to restore, or the folder is gone — start on the "open folder" screen.
+      }
       // Fail fast, at startup, if any declared channel has no handler — before a window
       // exists to send it a request (Standards §2).
       assertEveryChannelIsHandled();

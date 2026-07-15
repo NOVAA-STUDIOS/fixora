@@ -9,7 +9,10 @@ import { migrations as defaultMigrations, type Migration } from './migrations.js
  * migration that was silently edited after shipping (which forward-only forbids) is detectable
  * rather than a mystery.
  */
-export function migrate(driver: SqliteDriver, migrations: readonly Migration[] = defaultMigrations): void {
+export function migrate(
+  driver: SqliteDriver,
+  migrations: readonly Migration[] = defaultMigrations,
+): void {
   driver.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version    INTEGER PRIMARY KEY,
@@ -30,7 +33,9 @@ export function migrate(driver: SqliteDriver, migrations: readonly Migration[] =
     driver.transaction(() => {
       migration.up(driver);
       driver
-        .prepare('INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)')
+        .prepare(
+          'INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)',
+        )
         .run(migration.version, migration.name, checksumOf(migration), Date.now());
     });
   }

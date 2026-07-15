@@ -221,9 +221,11 @@ export default tseslint.config(
   },
 
   // Ladle stories and the .ladle/ setup require default exports (story metadata, config, the
-  // global Provider), and story bodies are illustrative rather than production code.
+  // global Provider), and story bodies are illustrative rather than production code. Ambient
+  // module declarations (*.d.ts) also legitimately use `export default` to type a module's
+  // default export (e.g. Vite's `?worker` virtual modules).
   {
-    files: ['**/*.stories.tsx', '**/.ladle/**'],
+    files: ['**/*.stories.tsx', '**/.ladle/**', '**/*.d.ts'],
     rules: {
       'import-x/no-default-export': 'off',
     },

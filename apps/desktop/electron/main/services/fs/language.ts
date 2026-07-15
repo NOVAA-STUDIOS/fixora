@@ -50,5 +50,10 @@ export function detectLanguage(filename: string): string | null {
 
 /** The three launch languages get the full deterministic-analysis pipeline (ADR-025). */
 export function isDeepLanguage(language: string | null): boolean {
-  return language === 'typescript' || language === 'javascript' || language === 'python' || language === 'go';
+  return (
+    language === 'typescript' ||
+    language === 'javascript' ||
+    language === 'python' ||
+    language === 'go'
+  );
 }

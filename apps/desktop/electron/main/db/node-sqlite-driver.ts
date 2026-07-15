@@ -43,7 +43,7 @@ export function createNodeSqliteDriver(filename: string): SqliteDriver {
       db.exec(sql);
     },
     prepare: wrapStatement,
-    transaction: <T,>(fn: () => T): T => {
+    transaction: <T>(fn: () => T): T => {
       db.exec('BEGIN');
       try {
         const result = fn();

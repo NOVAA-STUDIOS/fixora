@@ -21,7 +21,9 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
       title: 'Open folder',
       properties: ['openDirectory'],
     });
-    return { path: result.canceled || result.filePaths[0] === undefined ? null : result.filePaths[0] };
+    return {
+      path: result.canceled || result.filePaths[0] === undefined ? null : result.filePaths[0],
+    };
   });
 
   registerHandler('workspace:open', ({ path }) => {
@@ -70,6 +72,11 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
   });
 }
 
-function toInfo(w: { id: string; rootPath: string; name: string; lastOpenedAt: number }): WorkspaceInfo {
+function toInfo(w: {
+  id: string;
+  rootPath: string;
+  name: string;
+  lastOpenedAt: number;
+}): WorkspaceInfo {
   return { id: w.id, rootPath: w.rootPath, name: w.name, lastOpenedAt: w.lastOpenedAt };
 }

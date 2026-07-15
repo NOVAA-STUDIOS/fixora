@@ -43,9 +43,7 @@ export function createWorkspaceRepository(driver: SqliteDriver, now: () => numbe
   return {
     /** Insert on first open, or bump `last_opened_at` on re-open. Keyed by the unique root path. */
     upsertByRootPath(rootPath: string, name: string): Workspace {
-      const existing = driver
-        .prepare('SELECT * FROM workspaces WHERE root_path = ?')
-        .get(rootPath);
+      const existing = driver.prepare('SELECT * FROM workspaces WHERE root_path = ?').get(rootPath);
       const ts = now();
       if (existing !== undefined) {
         driver
@@ -94,7 +92,10 @@ export type WorkspaceRepository = ReturnType<typeof createWorkspaceRepository>;
 export function createFileIndexRepository(driver: SqliteDriver, now: () => number = Date.now) {
   return {
     /** Replace a workspace's file index in one transaction — the indexer produces the whole set. */
-    replaceAll(workspaceId: string, files: Omit<FileRecord, 'id' | 'workspaceId' | 'indexedAt'>[]): void {
+    replaceAll(
+      workspaceId: string,
+      files: Omit<FileRecord, 'id' | 'workspaceId' | 'indexedAt'>[],
+    ): void {
       const ts = now();
       driver.transaction(() => {
         driver.prepare('DELETE FROM files_index WHERE workspace_id = ?').run(workspaceId);

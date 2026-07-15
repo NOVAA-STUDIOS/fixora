@@ -68,6 +68,24 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
     },
 
     /**
+     * Re-open the most recent workspace whose folder still exists (like an IDE reopening your last
+     * project). A recent whose folder was deleted or moved is skipped, not an error. Returns the
+     * reopened workspace, or null if there is nothing to restore.
+     */
+    restoreLast(): Workspace | null {
+      for (const candidate of deps.workspaces.recent(5)) {
+        try {
+          if (statSync(candidate.rootPath).isDirectory()) {
+            return this.open(candidate.rootPath).workspace;
+          }
+        } catch {
+          // folder gone — try the next recent
+        }
+      }
+      return null;
+    },
+
+    /**
      * Walk the whole tree once and write the file index (content hashes, languages, sizes). Runs
      * ignore-aware and off the first-paint path — the tree renders from lazy `listDirectory`
      * calls; this index feeds M3's analysis, so it can take its time in the background. Returns the
@@ -81,9 +99,12 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
         if (records.length >= maxFiles) return;
         let entries;
         try {
-          entries = readdirSync(assertInsideWorkspace(join(workspace.rootPath, relDir), workspace.rootPath), {
-            withFileTypes: true,
-          });
+          entries = readdirSync(
+            assertInsideWorkspace(join(workspace.rootPath, relDir), workspace.rootPath),
+            {
+              withFileTypes: true,
+            },
+          );
         } catch {
           return; // unreadable dir — skip, do not abort the whole index
         }

@@ -2,19 +2,21 @@ import { PanelGroupRoot, ResizablePanel, ResizeHandle } from '@fixora/ui';
 import { useCallback } from 'react';
 
 import { useUiStore } from '../../stores/ui-store.js';
+import { EditorArea } from '../editor/editor-area.js';
+import { WorkspacePanel } from '../workspace/workspace-panel.js';
 
-import { ActivityView } from './placeholder-views.js';
+import { PrimaryPlaceholder } from './placeholder-views.js';
 
 /**
  * The three-pane workbench (Design Review §5): the resizable panels between the activity rail and
  * the AI panel. The layout is persisted through the store, so pane sizes survive a restart — the
  * library owns the live layout, the store owns the saved copy, and there is exactly one of each
- * (ADR-015). In M2 the left pane becomes the file tree and the centre the editor; for M1 they are
- * labelled placeholders that prove the shell.
+ * (ADR-015). The centre is the editor; the AI panel arrives in M5.
  */
 export function Workbench(): React.JSX.Element {
   const savedLayout = useUiStore((s) => s.panelLayout);
   const setPanelLayout = useUiStore((s) => s.setPanelLayout);
+  const activeView = useUiStore((s) => s.activeView);
 
   const onLayoutChanged = useCallback(
     (layout: Record<string, number>) => {
@@ -31,28 +33,17 @@ export function Workbench(): React.JSX.Element {
       className="min-h-0 flex-1"
     >
       <ResizablePanel id="primary" minSize={16} defaultSize={22} className="min-w-0">
-        <ActivityView />
+        {activeView === 'workspace' ? <WorkspacePanel /> : <PrimaryPlaceholder />}
       </ResizablePanel>
       <ResizeHandle aria-label="Resize primary panel" />
       <ResizablePanel id="editor" minSize={30} defaultSize={52} className="min-w-0">
-        <EditorPlaceholder />
+        <EditorArea />
       </ResizablePanel>
       <ResizeHandle aria-label="Resize AI panel" />
       <ResizablePanel id="ai" minSize={16} defaultSize={26} className="min-w-0">
         <AiPlaceholder />
       </ResizablePanel>
     </PanelGroupRoot>
-  );
-}
-
-function EditorPlaceholder(): React.JSX.Element {
-  return (
-    <section
-      aria-label="Editor"
-      className="flex h-full items-center justify-center bg-inset text-sm text-fg-muted"
-    >
-      Editor — Monaco arrives in M2
-    </section>
   );
 }
 

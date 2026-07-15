@@ -7,7 +7,9 @@ export { Badge, badgeVariants, type BadgeProps } from './components/badge.js';
 export { Skeleton } from './components/skeleton.js';
 export {
   ChevronDownIcon,
+  ChevronRightIcon,
   CheckIcon,
+  FileIcon,
   SearchIcon,
   FolderIcon,
   AlertIcon,
