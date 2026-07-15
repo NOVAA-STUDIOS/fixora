@@ -59,9 +59,17 @@ beforeAll(() => {
   writeFileSync(join(root, 'build.log'), 'ignored');
 });
 
-/** Windows holds the SQLite file handle briefly after close; retry the temp cleanup rather than flake. */
+/**
+ * Windows holds the SQLite file handle briefly after close, and removing a 10k-file tree is not
+ * instant; retry the temp cleanup generously rather than flake the suite on a still-locked handle.
+ * A failure to delete a temp dir is never a product bug, so swallow it if even the retries lose.
+ */
 function rmWithRetry(target: string): void {
-  rmSync(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  try {
+    rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch {
+    // best-effort temp cleanup — the OS reaps the temp dir eventually
+  }
 }
 
 afterAll(() => {
