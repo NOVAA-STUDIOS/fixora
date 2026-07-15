@@ -52,6 +52,12 @@ type UiState = {
   paletteOpen: boolean;
   /** react-resizable-panels layout, keyed by panel id. Persisted so pane sizes survive restart. */
   panelLayout: PanelLayout;
+  /**
+   * Telemetry opt-in (FR-5). **Off by default** — telemetry is opt-in, anonymous and event-level,
+   * never code or paths. No telemetry is sent in M2; this is the durable preference later
+   * milestones read before sending anything.
+   */
+  telemetryEnabled: boolean;
 
   setTheme: (theme: ThemeName) => void;
   toggleTheme: () => void;
@@ -61,6 +67,7 @@ type UiState = {
   setPaletteOpen: (open: boolean) => void;
   togglePalette: () => void;
   setPanelLayout: (layout: PanelLayout) => void;
+  setTelemetryEnabled: (enabled: boolean) => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -71,6 +78,7 @@ export const useUiStore = create<UiState>()(
       activeView: 'workspace',
       paletteOpen: false,
       panelLayout: {},
+      telemetryEnabled: false,
 
       setTheme: (theme) => {
         set({ theme });
@@ -96,6 +104,9 @@ export const useUiStore = create<UiState>()(
       setPanelLayout: (panelLayout) => {
         set({ panelLayout });
       },
+      setTelemetryEnabled: (telemetryEnabled) => {
+        set({ telemetryEnabled });
+      },
     }),
     {
       name: 'fixora.ui',
@@ -105,6 +116,7 @@ export const useUiStore = create<UiState>()(
         density: s.density,
         activeView: s.activeView,
         panelLayout: s.panelLayout,
+        telemetryEnabled: s.telemetryEnabled,
       }),
       // Rehydration is the trust boundary for persisted state (see `oneOf` above). Every value
       // read back from localStorage is validated against the current known-good set before it
@@ -118,6 +130,9 @@ export const useUiStore = create<UiState>()(
           density: oneOf(p.density, DENSITIES, current.density),
           activeView: oneOf(p.activeView, VIEWS, current.activeView),
           panelLayout: sanitizeLayout(p.panelLayout),
+          // Any non-`true` persisted value falls back to opt-OUT — telemetry is off unless the
+          // stored value is explicitly the boolean true (FR-5).
+          telemetryEnabled: p.telemetryEnabled === true,
         };
       },
     },

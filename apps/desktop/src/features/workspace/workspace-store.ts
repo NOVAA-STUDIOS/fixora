@@ -134,14 +134,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   refreshDir: async (relPath) => {
     const { nodes } = get();
-    const node = nodes.find((n) => n.relPath === relPath && n.kind === 'dir');
-    // Only re-fetch a directory that is currently expanded; a collapsed one reloads on next open.
-    if (relPath !== '' && !node?.expanded) return;
     if (relPath === '') {
       const root = await invoke('fs:listDir', { relPath: '' });
-      if (root.ok) set({ nodes: root.value.entries.map((e) => entryToNode(e, 0)) });
+      if (root.ok) set({ nodes: reconcileChildren(nodes, '', 0, root.value.entries) });
+      return;
     }
-    // Nested-directory live refresh (collapse + re-expand) is handled by the watcher wiring.
+    const node = nodes.find((n) => n.relPath === relPath && n.kind === 'dir');
+    // Only re-fetch a directory that is currently expanded; a collapsed one reloads on next open.
+    if (!node?.expanded) return;
+    const listed = await invoke('fs:listDir', { relPath });
+    if (listed.ok) {
+      set({ nodes: reconcileChildren(get().nodes, relPath, node.depth + 1, listed.value.entries) });
+    }
   },
 }));
 
@@ -151,4 +155,37 @@ function withNode(nodes: TreeNode[], index: number, patch: Partial<TreeNode>): T
   const next = [...nodes];
   next[index] = { ...node, ...patch };
   return next;
+}
+
+/**
+ * Replace the immediate children of `parentRel` in the flat node list with a fresh listing, keeping
+ * the expansion of directories that still exist — so a watcher-driven refresh does not collapse
+ * everything the user had open. Children that vanished (and their descendants) are dropped.
+ */
+function reconcileChildren(
+  nodes: TreeNode[],
+  parentRel: string,
+  childDepth: number,
+  entries: DirEntryInfo[],
+): TreeNode[] {
+  const parentIndex = parentRel === '' ? -1 : nodes.findIndex((n) => n.relPath === parentRel);
+  const start = parentIndex + 1;
+  let end = start;
+  while (end < nodes.length && (nodes[end]?.depth ?? -1) >= childDepth) end += 1;
+
+  const previous = new Map(nodes.slice(start, end).map((n) => [n.relPath, n] as const));
+  const rebuilt: TreeNode[] = [];
+  for (const entry of entries) {
+    const prior = previous.get(entry.relPath);
+    if (prior?.expanded === true) {
+      // Keep this expanded dir and its already-loaded descendants exactly as they were.
+      const from = nodes.findIndex((n) => n.relPath === entry.relPath);
+      let to = from + 1;
+      while (to < nodes.length && (nodes[to]?.depth ?? -1) > prior.depth) to += 1;
+      rebuilt.push(...nodes.slice(from, to));
+    } else {
+      rebuilt.push(entryToNode(entry, childDepth));
+    }
+  }
+  return [...nodes.slice(0, start), ...rebuilt, ...nodes.slice(end)];
 }

@@ -41,7 +41,8 @@ describe('isInsideBoundary (pure segment check)', () => {
     // Fuzz: random ../ counts, random tails, mixed separators. None may be judged "inside".
     for (let i = 0; i < 500; i++) {
       const ups = '../'.repeat(1 + Math.floor(Math.random() * 6));
-      const tail = ['etc/passwd', 'root/.ssh/id_rsa', 'x', 'a/b/c'][Math.floor(Math.random() * 4)];
+      const tails = ['etc/passwd', 'root/.ssh/id_rsa', 'x', 'a/b/c'];
+      const tail = tails[Math.floor(Math.random() * tails.length)] ?? 'x';
       const candidate = join(root, ups + tail);
       // join() collapses the ..; anything that lands outside root must be rejected.
       const rel = candidate.startsWith(root + sep) || candidate === root;

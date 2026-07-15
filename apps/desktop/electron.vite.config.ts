@@ -21,7 +21,15 @@ import { defineConfig } from 'electron-vite';
  * how this was found. Bundling also keeps the shipped ASAR self-contained, which matters for
  * the < 120 MB installer budget (PRD §7).
  */
-const BUNDLED = ['@fixora/shared-types', '@fixora/shared-types/channels', '@fixora/tokens', 'zod'];
+const BUNDLED = [
+  '@fixora/shared-types',
+  '@fixora/shared-types/channels',
+  '@fixora/tokens',
+  'zod',
+  // chokidar@5 is ESM-only; the main bundle is CJS, so a `require('chokidar')` would fail. Bundle
+  // it in (it is pure JS in v4+). `ignore` is CJS and can stay external.
+  'chokidar',
+];
 export default defineConfig({
   main: {
     build: {

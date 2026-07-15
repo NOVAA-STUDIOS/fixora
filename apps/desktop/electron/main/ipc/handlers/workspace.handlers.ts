@@ -2,8 +2,29 @@ import type { DirEntryInfo, FileContentInfo, WorkspaceInfo } from '@fixora/share
 import { BrowserWindow, dialog } from 'electron';
 
 import { listDirectory, readTextFile } from '../../services/fs/fs-service.js';
+import { createWorkspaceWatcher, type WorkspaceWatcher } from '../../services/fs/watcher.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
+import { emitToWindow } from '../emit.js';
 import { registerHandler } from '../router.js';
+
+/**
+ * One watcher at a time, restarted when the open workspace changes. The renderer re-lists only the
+ * directories the batch names, so a burst of saves does not re-read the whole tree.
+ */
+let watcher: WorkspaceWatcher | null = null;
+let watchedRoot: string | null = null;
+
+function ensureWatching(service: WorkspaceService, window: BrowserWindow | null): void {
+  const open = service.getCurrent();
+  if (open === null || window === null) return;
+  if (watchedRoot === open.rootPath && watcher !== null) return;
+
+  void watcher?.close();
+  watchedRoot = open.rootPath;
+  watcher = createWorkspaceWatcher(open.rootPath, open.ignore, (changedDirs) => {
+    if (!window.isDestroyed()) emitToWindow(window, 'workspace:filesChanged', { changedDirs });
+  });
+}
 
 /**
  * Workspace + filesystem handlers. The renderer drives the file tree and the editor through these,
@@ -26,9 +47,10 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     };
   });
 
-  registerHandler('workspace:open', ({ path }) => {
+  registerHandler('workspace:open', ({ path }, { window }) => {
     const { workspace } = service.open(path);
     const open = service.requireRoot();
+    ensureWatching(service, window);
     // Kick off indexing in the background; do not await it (first paint must not wait).
     setImmediate(() => {
       try {
@@ -44,8 +66,11 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     workspaces: service.recent().map(toInfo),
   }));
 
-  registerHandler('workspace:current', () => {
+  registerHandler('workspace:current', (_req, { window }) => {
     const current = service.getCurrent();
+    // The restore-on-launch path opens the workspace before any window exists; start the watcher
+    // now that the renderer (and its window) is here asking for the current workspace.
+    ensureWatching(service, window);
     return {
       workspace:
         current === null

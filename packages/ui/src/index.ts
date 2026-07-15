@@ -30,6 +30,7 @@ export {
   DialogTitle,
   DialogTrigger,
 } from './components/dialog.js';
+export { Switch } from './components/switch.js';
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/tabs.js';
 export {
   Select,

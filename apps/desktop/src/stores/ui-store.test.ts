@@ -51,4 +51,25 @@ describe('ui-store rehydration is a trust boundary', () => {
     const s = await loadStoreWith('not an object at all');
     expect([s.theme, s.density, s.activeView]).toEqual(['dark', 'comfortable', 'workspace']);
   });
+
+  // Telemetry is opt-in and off by default (FR-5). Rehydration must never *enable* it from a
+  // truthy-but-not-`true` value — otherwise a `1`, `"yes"`, or `{}` left in a tampered store would
+  // silently turn on data collection the user never agreed to.
+  it('leaves telemetry off by default (no persisted value)', async () => {
+    const s = await loadStoreWith({});
+    expect(s.telemetryEnabled).toBe(false);
+  });
+
+  it('enables telemetry only for an explicit boolean true', async () => {
+    const s = await loadStoreWith({ telemetryEnabled: true });
+    expect(s.telemetryEnabled).toBe(true);
+  });
+
+  it.each([1, 'yes', {}, 'true', [true]])(
+    'keeps telemetry off for a truthy non-boolean (%o)',
+    async (value) => {
+      const s = await loadStoreWith({ telemetryEnabled: value });
+      expect(s.telemetryEnabled).toBe(false);
+    },
+  );
 });

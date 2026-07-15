@@ -3,9 +3,16 @@ import { useCallback } from 'react';
 
 import { useUiStore } from '../../stores/ui-store.js';
 import { EditorArea } from '../editor/editor-area.js';
+import { SettingsPanel } from '../settings/settings-panel.js';
 import { WorkspacePanel } from '../workspace/workspace-panel.js';
 
 import { PrimaryPlaceholder } from './placeholder-views.js';
+
+function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
+  if (view === 'workspace') return <WorkspacePanel />;
+  if (view === 'settings') return <SettingsPanel />;
+  return <PrimaryPlaceholder />;
+}
 
 /**
  * The three-pane workbench (Design Review §5): the resizable panels between the activity rail and
@@ -33,7 +40,7 @@ export function Workbench(): React.JSX.Element {
       className="min-h-0 flex-1"
     >
       <ResizablePanel id="primary" minSize={16} defaultSize={22} className="min-w-0">
-        {activeView === 'workspace' ? <WorkspacePanel /> : <PrimaryPlaceholder />}
+        <PrimaryPanel view={activeView} />
       </ResizablePanel>
       <ResizeHandle aria-label="Resize primary panel" />
       <ResizablePanel id="editor" minSize={30} defaultSize={52} className="min-w-0">
