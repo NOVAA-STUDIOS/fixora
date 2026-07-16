@@ -1,42 +1,41 @@
-import type { Finding } from '@fixora/shared-types';
+import { relative, sep } from 'node:path';
 
-import type { Analyzer, AnalysisTarget } from '../analyzer.js';
+import type { Analyzer } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
-import { parseStructure } from '../structure.js';
 import { resolveNodeTool } from '../tools/resolve.js';
 
-import { createGrounder, type AdapterDeps, type RawFinding } from './support.js';
+import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
- * The tsc adapter (TypeScript type errors, ADR-025). Unlike eslint/ruff, the type-checker is
- * inherently *project-wide* — it needs the whole program to resolve a type — so it runs `tsc
- * --noEmit` over the workspace's own tsconfig and we keep the diagnostics that land in the target
- * file. That redundancy across files is what the incremental cache (keyed by content + tool version +
- * config) exists to absorb.
+ * The tsc adapter (TypeScript type errors, ADR-025). The type-checker is inherently project-wide, so
+ * it runs `tsc --noEmit` over the workspace's own tsconfig **once** and we distribute the diagnostics
+ * across their files. (This is the analyzer whose per-file invocation was the original performance
+ * bug; workspace-scope is the fix.)
  */
 
 // `file(line,col): error TSxxxx: message` — the `--pretty false` diagnostic line.
 const DIAGNOSTIC = /^(.+?)\((\d+),(\d+)\):\s+(error|warning)\s+(TS\d+):\s+(.*)$/;
 
-function toPosix(path: string): string {
-  return path.replace(/\\/g, '/');
+function toRelPosix(root: string, file: string): string {
+  const rel = file.includes(':') || file.startsWith('/') ? relative(root, file) : file;
+  return rel.split(sep).join('/');
 }
 
 export function createTscAnalyzer(deps: AdapterDeps = {}): Analyzer {
   const runner = deps.runner ?? runTool;
   const resolveTool =
-    deps.resolveTool ??
-    ((t: AnalysisTarget): ReturnType<typeof resolveNodeTool> =>
-      resolveNodeTool(t.workspaceRoot, 'typescript', 'tsc'));
+    deps.resolveTool ?? ((root: string) => resolveNodeTool(root, 'typescript', 'tsc'));
+
   return {
     id: 'tsc',
 
-    supports(language, workspace) {
-      return language === 'typescript' && workspace.tools.has('tsc');
+    supports(capabilities) {
+      return capabilities.tools.has('tsc');
     },
 
-    async *analyze(target: AnalysisTarget, signal: AbortSignal): AsyncIterable<Finding> {
-      const tool = resolveTool(target);
+    async *run(context, signal) {
+      if (!context.files.some((f) => f.language === 'typescript')) return;
+      const tool = resolveTool(context.root);
       if (tool === null) return;
 
       let run;
@@ -44,21 +43,17 @@ export function createTscAnalyzer(deps: AdapterDeps = {}): Analyzer {
         run = await runner({
           command: tool.command,
           args: [...tool.args, '--noEmit', '--pretty', 'false'],
-          cwd: target.workspaceRoot,
+          cwd: context.root,
           signal,
-          timeoutMs: 120_000, // a cold project type-check is slow; give it room
+          timeoutMs: 180_000, // a cold project type-check is slow; give it room
         });
       } catch {
         return;
       }
+      if (signal.aborted) return;
 
-      const { symbols } = await parseStructure(target.language, target.source, target.file);
-      const grounder = createGrounder('tsc', target, symbols);
-      const wantRel = target.file;
-      const wantAbs = toPosix(target.absPath);
-
+      const byFile = new Map<string, RawFinding[]>();
       for (const line of run.stdout.split(/\r?\n/)) {
-        if (signal.aborted) return;
         const match = DIAGNOSTIC.exec(line);
         if (match === null) continue;
         const [, rawFile, lineStr, colStr, level, ruleId, message] = match;
@@ -71,8 +66,7 @@ export function createTscAnalyzer(deps: AdapterDeps = {}): Analyzer {
         ) {
           continue;
         }
-        const file = toPosix(rawFile);
-        if (file !== wantRel && file !== wantAbs && !file.endsWith(`/${wantRel}`)) continue;
+        const file = toRelPosix(context.root, rawFile);
         const raw: RawFinding = {
           ruleId,
           severity: level === 'error' ? 'error' : 'warning',
@@ -83,8 +77,12 @@ export function createTscAnalyzer(deps: AdapterDeps = {}): Analyzer {
           fixable: false,
           toolOutput: line,
         };
-        yield grounder.ground(raw);
+        const list = byFile.get(file);
+        if (list === undefined) byFile.set(file, [raw]);
+        else list.push(raw);
       }
+
+      yield* groundByFile('tsc', context, byFile, signal);
     },
   };
 }

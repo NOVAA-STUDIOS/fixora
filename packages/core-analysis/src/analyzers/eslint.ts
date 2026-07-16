@@ -1,18 +1,18 @@
-import type { Category, Finding, Severity } from '@fixora/shared-types';
+import { relative, sep } from 'node:path';
 
-import type { Analyzer, AnalysisTarget } from '../analyzer.js';
-import { findingId } from '../finding-id.js';
-import { runTool, type ToolRunner } from '../process/run-tool.js';
-import { parseStructure } from '../structure.js';
-import { enclosingSymbol } from '../symbols/symbols.js';
+import type { Category } from '@fixora/shared-types';
+
+import type { Analyzer } from '../analyzer.js';
+import { runTool } from '../process/run-tool.js';
 import { resolveNodeTool } from '../tools/resolve.js';
+
+import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
  * The ESLint adapter — the flagship for the TS/JS market (ADR-025). It runs the **workspace's own**
- * eslint with the **workspace's own config** (via `--stdin`, so it lints the in-memory content
- * including unsaved edits), then normalises ESLint's JSON to `Finding`s. Because it is the user's
- * eslint at the user's version with the user's rules, our findings match their CI — a tool that
- * argues with your CI is a tool you uninstall (TDD §5.2).
+ * eslint with the **workspace's own config**, **once** over the whole directory (not once per file —
+ * that would spawn hundreds of node processes), and normalises the JSON to grounded `Finding`s.
+ * Because it is the user's eslint at their version with their rules, our findings match their CI.
  */
 
 interface EslintMessage {
@@ -26,6 +26,7 @@ interface EslintMessage {
   fix?: unknown;
 }
 interface EslintFileResult {
+  filePath: string;
   messages: EslintMessage[];
 }
 
@@ -34,86 +35,74 @@ function categoryFor(severity: 1 | 2): Category {
   return severity === 2 ? 'correctness' : 'style';
 }
 
-function sourceLine(lines: readonly string[], line: number): string {
-  return lines[line - 1] ?? '';
+function toRelPosix(root: string, absPath: string): string {
+  return relative(root, absPath).split(sep).join('/');
 }
 
-export function createEslintAnalyzer(runner: ToolRunner = runTool): Analyzer {
+export function createEslintAnalyzer(deps: AdapterDeps = {}): Analyzer {
+  const runner = deps.runner ?? runTool;
+  const resolveTool = deps.resolveTool ?? ((root: string) => resolveNodeTool(root, 'eslint'));
+
   return {
     id: 'eslint',
 
-    supports(language, workspace) {
-      return (
-        (language === 'typescript' || language === 'javascript') && workspace.tools.has('eslint')
-      );
+    supports(capabilities) {
+      return capabilities.tools.has('eslint');
     },
 
-    async *analyze(target: AnalysisTarget, signal: AbortSignal): AsyncIterable<Finding> {
-      const tool = resolveNodeTool(target.workspaceRoot, 'eslint');
+    async *run(context, signal) {
+      const hasJsTs = context.files.some(
+        (f) => f.language === 'typescript' || f.language === 'javascript',
+      );
+      if (!hasJsTs) return;
+      const tool = resolveTool(context.root);
       if (tool === null) return;
 
       let run;
       try {
         run = await runner({
           command: tool.command,
-          args: [...tool.args, '--format', 'json', '--stdin', '--stdin-filename', target.absPath],
-          cwd: target.workspaceRoot,
-          input: target.source,
+          args: [...tool.args, '--format', 'json', '.'],
+          cwd: context.root,
           signal,
         });
       } catch {
-        return; // aborted or the process failed to spawn — no findings, never throw
+        return; // aborted or failed to spawn — no findings, never throw
       }
-      if (run.stdout.trim() === '') return;
+      if (signal.aborted || run.stdout.trim() === '') return;
 
       let results: EslintFileResult[];
       try {
         results = JSON.parse(run.stdout) as EslintFileResult[];
       } catch {
-        return; // not JSON (a crash or a config error) — degrade to nothing rather than a bad finding
+        return; // not JSON (a crash or config error) — degrade to nothing
       }
 
-      const lines = target.source.split(/\r?\n/);
-      const { symbols } = await parseStructure(target.language, target.source, target.file);
-
-      for (const file of results) {
-        for (const message of file.messages) {
-          if (signal.aborted) return;
-          if (message.ruleId === null) continue; // parse errors / config problems, not lint findings
-          const severity: Severity = message.severity === 2 ? 'error' : 'warning';
-          const symbol = enclosingSymbol(symbols, message.line);
-          const snippet = sourceLine(lines, message.line);
-          yield {
-            id: findingId({
-              source: 'eslint',
-              ruleId: message.ruleId,
-              file: target.file,
-              enclosingSymbol: symbol,
-              snippet,
-            }),
-            source: 'eslint',
+      const byFile = new Map<string, RawFinding[]>();
+      for (const fileResult of results) {
+        const file = toRelPosix(context.root, fileResult.filePath);
+        for (const message of fileResult.messages) {
+          if (message.ruleId === null) continue; // parse/config errors, not lint findings
+          const raw: RawFinding = {
             ruleId: message.ruleId,
-            severity,
+            severity: message.severity === 2 ? 'error' : 'warning',
             category: categoryFor(message.severity === 2 ? 2 : 1),
-            location: {
-              file: target.file,
-              startLine: message.line,
-              startCol: message.column,
-              endLine: message.endLine ?? message.line,
-              endCol: message.endColumn ?? message.column,
-            },
             message: message.message,
-            evidence: {
-              ...(symbol !== undefined ? { enclosingSymbol: symbol } : {}),
-              snippet,
-              relatedLocations: [],
-              toolOutput: message,
-            },
+            startLine: message.line,
+            startCol: message.column,
+            ...(message.endLine !== undefined
+              ? { endLine: message.endLine, endCol: message.endColumn }
+              : {}),
             fixable: message.fix !== undefined,
-            confidence: 1,
+            toolOutput: message,
           };
+          const list = byFile.get(file);
+          if (list === undefined) byFile.set(file, [raw]);
+          else list.push(raw);
         }
       }
+
+      yield* groundByFile('eslint', context, byFile, signal);
     },
   };
 }

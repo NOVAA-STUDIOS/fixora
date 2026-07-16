@@ -1,7 +1,7 @@
 import type { Finding, Language, Severity, SymbolKind, SymbolRef } from '@fixora/shared-types';
 import { type Node, Query } from 'web-tree-sitter';
 
-import type { AnalysisTarget, Analyzer } from '../analyzer.js';
+import type { AnalysisContext, Analyzer } from '../analyzer.js';
 import { findingId } from '../finding-id.js';
 import { parse } from '../parser/tree-sitter.js';
 
@@ -194,14 +194,14 @@ function complexityFinding(
   threshold: number,
   severity: Severity,
   symbol: SymbolRef,
-  target: AnalysisTarget,
+  file: string,
 ): Finding {
   const snippet = `${symbol.kind} ${symbol.name}`;
   return {
     id: findingId({
       source: 'complexity',
       ruleId,
-      file: target.file,
+      file,
       enclosingSymbol: symbol,
       snippet,
     }),
@@ -232,59 +232,66 @@ function functionKind(node: Node): SymbolKind {
 export const complexityAnalyzer: Analyzer = {
   id: 'complexity',
 
-  // Tree-sitter based: it needs no external tool, so it applies to every language we can parse.
+  // Tree-sitter based: it needs no external tool, so it is always active.
   supports(): boolean {
     return true;
   },
 
-  async *analyze(target: AnalysisTarget, signal: AbortSignal): AsyncIterable<Finding> {
-    const parsed = await parse(target.language, target.source);
-    try {
-      const query = new Query(parsed.grammar, FUNCTION_QUERIES[target.language]);
+  async *run(context: AnalysisContext, signal: AbortSignal): AsyncIterable<Finding> {
+    // Read the signal through a call so a later check is not narrowed to a constant by the compiler.
+    const aborted = (): boolean => signal.aborted;
+    for (const analysisFile of context.files) {
+      if (aborted()) return;
+      const source = context.readSource(analysisFile.absPath);
+      if (source === null) continue;
+      const parsed = await parse(analysisFile.language, source);
       try {
-        for (const match of query.matches(parsed.root)) {
-          if (signal.aborted) return;
-          let fnNode: Node | undefined;
-          let nameNode: Node | undefined;
-          for (const capture of match.captures) {
-            if (capture.name === 'fn') fnNode = capture.node;
-            else if (capture.name === 'name') nameNode = capture.node;
-          }
-          if (fnNode === undefined || nameNode === undefined) continue;
+        const query = new Query(parsed.grammar, FUNCTION_QUERIES[analysisFile.language]);
+        try {
+          for (const match of query.matches(parsed.root)) {
+            if (aborted()) return;
+            let fnNode: Node | undefined;
+            let nameNode: Node | undefined;
+            for (const capture of match.captures) {
+              if (capture.name === 'fn') fnNode = capture.node;
+              else if (capture.name === 'name') nameNode = capture.node;
+            }
+            if (fnNode === undefined || nameNode === undefined) continue;
 
-          const symbol = toSymbol(nameNode.text, functionKind(fnNode), fnNode, target.file);
-          const { cyclomatic, cognitive } = measure(fnNode, target.language);
+            const symbol = toSymbol(nameNode.text, functionKind(fnNode), fnNode, analysisFile.file);
+            const { cyclomatic, cognitive } = measure(fnNode, analysisFile.language);
 
-          const cycSeverity = severityFor(cyclomatic, CYCLOMATIC_WARN, CYCLOMATIC_ERROR);
-          if (cycSeverity !== null) {
-            yield complexityFinding(
-              'cyclomatic-complexity',
-              'a cyclomatic complexity',
-              cyclomatic,
-              CYCLOMATIC_WARN,
-              cycSeverity,
-              symbol,
-              target,
-            );
+            const cycSeverity = severityFor(cyclomatic, CYCLOMATIC_WARN, CYCLOMATIC_ERROR);
+            if (cycSeverity !== null) {
+              yield complexityFinding(
+                'cyclomatic-complexity',
+                'a cyclomatic complexity',
+                cyclomatic,
+                CYCLOMATIC_WARN,
+                cycSeverity,
+                symbol,
+                analysisFile.file,
+              );
+            }
+            const cogSeverity = severityFor(cognitive, COGNITIVE_WARN, COGNITIVE_ERROR);
+            if (cogSeverity !== null) {
+              yield complexityFinding(
+                'cognitive-complexity',
+                'a cognitive complexity',
+                cognitive,
+                COGNITIVE_WARN,
+                cogSeverity,
+                symbol,
+                analysisFile.file,
+              );
+            }
           }
-          const cogSeverity = severityFor(cognitive, COGNITIVE_WARN, COGNITIVE_ERROR);
-          if (cogSeverity !== null) {
-            yield complexityFinding(
-              'cognitive-complexity',
-              'a cognitive complexity',
-              cognitive,
-              COGNITIVE_WARN,
-              cogSeverity,
-              symbol,
-              target,
-            );
-          }
+        } finally {
+          query.delete();
         }
       } finally {
-        query.delete();
+        parsed.dispose();
       }
-    } finally {
-      parsed.dispose();
     }
   },
 };

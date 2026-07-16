@@ -1,17 +1,17 @@
-import type { Category, Finding } from '@fixora/shared-types';
+import { relative, sep } from 'node:path';
 
-import type { Analyzer, AnalysisTarget } from '../analyzer.js';
+import type { Category } from '@fixora/shared-types';
+
+import type { Analyzer } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
-import { parseStructure } from '../structure.js';
 import { resolvePathTool } from '../tools/resolve.js';
 
-import { createGrounder, type AdapterDeps, type RawFinding } from './support.js';
+import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
- * The ruff adapter (Python, ADR-025). ruff is the fast, ubiquitous Python linter; it reads the
- * in-memory content over stdin (`--stdin-filename`) so it sees unsaved edits, and emits JSON we
- * normalise to `Finding`s. As with eslint, it is the *workspace's* ruff with the *workspace's*
- * config, so findings match the user's CI.
+ * The ruff adapter (Python, ADR-025). Runs the workspace's ruff **once** over the directory and
+ * normalises its JSON. As with eslint it is the *workspace's* ruff with the *workspace's* config, so
+ * findings match the user's CI.
  */
 
 interface RuffPoint {
@@ -21,56 +21,52 @@ interface RuffPoint {
 interface RuffMessage {
   code: string | null;
   message: string;
+  filename: string;
   location: RuffPoint;
   end_location?: RuffPoint;
   fix?: unknown;
 }
 
-/** Map a ruff code prefix to a category (ruff has no severity/category taxonomy of its own). */
 function categoryFor(code: string): Category {
   const prefix = code[0];
-  if (prefix === 'S') return 'security'; // flake8-bandit
-  if (code.startsWith('PLR') || prefix === 'C') return 'maintainability'; // refactor / complexity
+  if (prefix === 'S') return 'security';
+  if (code.startsWith('PLR') || prefix === 'C') return 'maintainability';
   if (prefix === 'E' || prefix === 'W' || prefix === 'D' || prefix === 'Q') return 'style';
-  return 'correctness'; // F (pyflakes), B (bugbear), etc.
+  return 'correctness';
+}
+
+function toRelPosix(root: string, absPath: string): string {
+  return relative(root, absPath).split(sep).join('/');
 }
 
 export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
   const runner = deps.runner ?? runTool;
-  const resolveTool =
-    deps.resolveTool ?? ((): ReturnType<typeof resolvePathTool> => resolvePathTool('ruff'));
+  const resolveTool = deps.resolveTool ?? (() => resolvePathTool('ruff'));
+
   return {
     id: 'ruff',
 
-    supports(language, workspace) {
-      return language === 'python' && workspace.tools.has('ruff');
+    supports(capabilities) {
+      return capabilities.tools.has('ruff');
     },
 
-    async *analyze(target: AnalysisTarget, signal: AbortSignal): AsyncIterable<Finding> {
-      const tool = resolveTool(target);
+    async *run(context, signal) {
+      if (!context.files.some((f) => f.language === 'python')) return;
+      const tool = resolveTool(context.root);
       if (tool === null) return;
 
       let run;
       try {
         run = await runner({
           command: tool.command,
-          args: [
-            ...tool.args,
-            'check',
-            '--output-format',
-            'json',
-            '--stdin-filename',
-            target.absPath,
-            '-',
-          ],
-          cwd: target.workspaceRoot,
-          input: target.source,
+          args: [...tool.args, 'check', '--output-format', 'json', '.'],
+          cwd: context.root,
           signal,
         });
       } catch {
         return;
       }
-      if (run.stdout.trim() === '') return;
+      if (signal.aborted || run.stdout.trim() === '') return;
 
       let messages: RuffMessage[];
       try {
@@ -79,15 +75,13 @@ export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
         return;
       }
 
-      const { symbols } = await parseStructure(target.language, target.source, target.file);
-      const grounder = createGrounder('ruff', target, symbols);
-
+      const byFile = new Map<string, RawFinding[]>();
       for (const message of messages) {
-        if (signal.aborted) return;
-        if (message.code === null) continue; // syntax errors surface elsewhere, not as a rule finding
+        if (message.code === null) continue;
+        const file = toRelPosix(context.root, message.filename);
         const raw: RawFinding = {
           ruleId: message.code,
-          severity: 'warning', // ruff violations are uniform; grounding confidence is 1 regardless
+          severity: 'warning',
           category: categoryFor(message.code),
           message: message.message,
           startLine: message.location.row,
@@ -98,8 +92,12 @@ export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
           fixable: message.fix !== undefined && message.fix !== null,
           toolOutput: message,
         };
-        yield grounder.ground(raw);
+        const list = byFile.get(file);
+        if (list === undefined) byFile.set(file, [raw]);
+        else list.push(raw);
       }
+
+      yield* groundByFile('ruff', context, byFile, signal);
     },
   };
 }

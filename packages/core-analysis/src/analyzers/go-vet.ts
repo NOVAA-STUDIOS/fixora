@@ -1,19 +1,15 @@
-import { dirname } from 'node:path';
+import { relative, sep } from 'node:path';
 
-import type { Finding } from '@fixora/shared-types';
-
-import type { Analyzer, AnalysisTarget } from '../analyzer.js';
+import type { Analyzer } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
-import { parseStructure } from '../structure.js';
 import { resolvePathTool } from '../tools/resolve.js';
 
-import { createGrounder, type AdapterDeps, type RawFinding } from './support.js';
+import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
- * The go vet adapter (Go, ADR-025). Go's tooling is the cleanest of the three — one official
- * toolchain — but it works on *packages*, not single files, so we vet the file's package and keep the
- * diagnostics that land in the target file. `-json` gives us the analyzer name (printf, shadow, …) as
- * a real rule id, which text output does not.
+ * The go vet adapter (Go, ADR-025). Go's tooling works on packages, and `go vet ./...` vets every
+ * package in the module **once** — so workspace-scope is the natural shape here. `-json` gives us the
+ * analyzer name (printf, shadow, …) as a real rule id, which text output does not.
  */
 
 /** `go vet -json` shape: { pkgPath: { analyzerName: [{ posn, message }] } }. */
@@ -28,38 +24,39 @@ function parsePosn(posn: string): { file: string; line: number; col: number } | 
   return { file, line: Number(lineStr), col: Number(colStr) };
 }
 
-function toPosix(path: string): string {
-  return path.replace(/\\/g, '/');
+function toRelPosix(root: string, file: string): string {
+  return relative(root, file).split(sep).join('/');
 }
 
 export function createGoVetAnalyzer(deps: AdapterDeps = {}): Analyzer {
   const runner = deps.runner ?? runTool;
-  const resolveTool =
-    deps.resolveTool ?? ((): ReturnType<typeof resolvePathTool> => resolvePathTool('go'));
+  const resolveTool = deps.resolveTool ?? (() => resolvePathTool('go'));
+
   return {
     id: 'go-vet',
 
-    supports(language, workspace) {
-      return language === 'go' && workspace.tools.has('go');
+    supports(capabilities) {
+      return capabilities.tools.has('go');
     },
 
-    async *analyze(target: AnalysisTarget, signal: AbortSignal): AsyncIterable<Finding> {
-      const tool = resolveTool(target);
+    async *run(context, signal) {
+      if (!context.files.some((f) => f.language === 'go')) return;
+      const tool = resolveTool(context.root);
       if (tool === null) return;
 
-      // Vet the package that contains the file. go vet cannot read stdin, so it sees the file on disk.
-      const pkgDir = dirname(target.absPath);
       let run;
       try {
         run = await runner({
           command: tool.command,
-          args: [...tool.args, 'vet', '-json', pkgDir],
-          cwd: target.workspaceRoot,
+          args: [...tool.args, 'vet', '-json', './...'],
+          cwd: context.root,
           signal,
+          timeoutMs: 180_000,
         });
       } catch {
         return;
       }
+      if (signal.aborted) return;
 
       // go vet prints the JSON report to stderr; a build failure produces non-JSON there instead.
       const payload = run.stderr.trim() || run.stdout.trim();
@@ -72,19 +69,13 @@ export function createGoVetAnalyzer(deps: AdapterDeps = {}): Analyzer {
         return;
       }
 
-      const { symbols } = await parseStructure(target.language, target.source, target.file);
-      const grounder = createGrounder('go-vet', target, symbols);
-      const wantAbs = toPosix(target.absPath);
-      const wantRel = target.file;
-
+      const byFile = new Map<string, RawFinding[]>();
       for (const analyzers of Object.values(report)) {
         for (const [analyzerName, diagnostics] of Object.entries(analyzers)) {
           for (const diagnostic of diagnostics) {
-            if (signal.aborted) return;
             const pos = parsePosn(diagnostic.posn);
             if (pos === null) continue;
-            const file = toPosix(pos.file);
-            if (file !== wantAbs && !file.endsWith(`/${wantRel}`)) continue; // a different file in the package
+            const file = toRelPosix(context.root, pos.file);
             const raw: RawFinding = {
               ruleId: analyzerName,
               severity: 'warning',
@@ -95,10 +86,14 @@ export function createGoVetAnalyzer(deps: AdapterDeps = {}): Analyzer {
               fixable: false,
               toolOutput: diagnostic,
             };
-            yield grounder.ground(raw);
+            const list = byFile.get(file);
+            if (list === undefined) byFile.set(file, [raw]);
+            else list.push(raw);
           }
         }
       }
+
+      yield* groundByFile('go-vet', context, byFile, signal);
     },
   };
 }

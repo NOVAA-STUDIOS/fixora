@@ -1,35 +1,40 @@
-import type { Finding } from '@fixora/shared-types';
+import { relative, sep } from 'node:path';
 
-import type { Analyzer, AnalysisTarget } from '../analyzer.js';
+import type { Analyzer } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
-import { parseStructure } from '../structure.js';
 import { resolvePathTool } from '../tools/resolve.js';
 
-import { createGrounder, type AdapterDeps, type RawFinding } from './support.js';
+import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
- * The mypy adapter (Python type errors, ADR-025). Runs the workspace's mypy over the file with column
- * numbers, and normalises its `file:line:col: error: message [code]` text. The rule id is mypy's own
- * error code (e.g. `arg-type`), so findings line up with what the user's mypy CI reports.
+ * The mypy adapter (Python type errors, ADR-025). Runs the workspace's mypy **once** over the
+ * directory with column numbers and normalises its `file:line:col: error: message [code]` text. The
+ * rule id is mypy's own error code (e.g. `arg-type`), so findings line up with the user's mypy CI.
  */
 
-// `path:line:col: error|warning|note: message  [code]`  — non-greedy path so the first `:digits:` wins.
+// `path:line:col: error|warning|note: message  [code]` — non-greedy path so the first `:digits:` wins.
 const DIAGNOSTIC = /^(.+?):(\d+):(\d+):\s+(error|warning|note):\s+(.*)$/;
 const TRAILING_CODE = /\s+\[([a-z0-9-]+)\]\s*$/;
 
+function toRelPosix(root: string, file: string): string {
+  const rel = file.startsWith('/') || file.includes(':\\') ? relative(root, file) : file;
+  return rel.split(sep).join('/');
+}
+
 export function createMypyAnalyzer(deps: AdapterDeps = {}): Analyzer {
   const runner = deps.runner ?? runTool;
-  const resolveTool =
-    deps.resolveTool ?? ((): ReturnType<typeof resolvePathTool> => resolvePathTool('mypy'));
+  const resolveTool = deps.resolveTool ?? (() => resolvePathTool('mypy'));
+
   return {
     id: 'mypy',
 
-    supports(language, workspace) {
-      return language === 'python' && workspace.tools.has('mypy');
+    supports(capabilities) {
+      return capabilities.tools.has('mypy');
     },
 
-    async *analyze(target: AnalysisTarget, signal: AbortSignal): AsyncIterable<Finding> {
-      const tool = resolveTool(target);
+    async *run(context, signal) {
+      if (!context.files.some((f) => f.language === 'python')) return;
+      const tool = resolveTool(context.root);
       if (tool === null) return;
 
       let run;
@@ -41,25 +46,30 @@ export function createMypyAnalyzer(deps: AdapterDeps = {}): Analyzer {
             '--no-error-summary',
             '--show-column-numbers',
             '--no-color-output',
-            target.absPath,
+            '.',
           ],
-          cwd: target.workspaceRoot,
+          cwd: context.root,
           signal,
-          timeoutMs: 120_000,
+          timeoutMs: 180_000,
         });
       } catch {
         return;
       }
+      if (signal.aborted) return;
 
-      const { symbols } = await parseStructure(target.language, target.source, target.file);
-      const grounder = createGrounder('mypy', target, symbols);
-
+      const byFile = new Map<string, RawFinding[]>();
       for (const line of run.stdout.split(/\r?\n/)) {
-        if (signal.aborted) return;
         const match = DIAGNOSTIC.exec(line);
         if (match === null) continue;
-        const [, , lineStr, colStr, level, rawMessage] = match;
-        if (lineStr === undefined || colStr === undefined || rawMessage === undefined) continue;
+        const [, rawFile, lineStr, colStr, level, rawMessage] = match;
+        if (
+          rawFile === undefined ||
+          lineStr === undefined ||
+          colStr === undefined ||
+          rawMessage === undefined
+        ) {
+          continue;
+        }
         if (level === 'note') continue; // notes annotate a prior error; not a finding on their own
 
         let message = rawMessage;
@@ -69,6 +79,7 @@ export function createMypyAnalyzer(deps: AdapterDeps = {}): Analyzer {
           ruleId = code[1];
           message = message.slice(0, code.index);
         }
+        const file = toRelPosix(context.root, rawFile);
         const raw: RawFinding = {
           ruleId,
           severity: level === 'error' ? 'error' : 'warning',
@@ -79,8 +90,12 @@ export function createMypyAnalyzer(deps: AdapterDeps = {}): Analyzer {
           fixable: false,
           toolOutput: line,
         };
-        yield grounder.ground(raw);
+        const list = byFile.get(file);
+        if (list === undefined) byFile.set(file, [raw]);
+        else list.push(raw);
       }
+
+      yield* groundByFile('mypy', context, byFile, signal);
     },
   };
 }

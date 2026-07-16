@@ -1,5 +1,3 @@
-import type { Language } from '@fixora/shared-types';
-
 import type { Analyzer, WorkspaceCapabilities } from './analyzer.js';
 import { complexityAnalyzer } from './analyzers/complexity.js';
 import { createEslintAnalyzer } from './analyzers/eslint.js';
@@ -26,11 +24,10 @@ export function defaultAnalyzers(): Analyzer[] {
   ];
 }
 
-/** The analyzers that apply to this language in this workspace — the ones whose tool is present. */
+/** The analyzers active in this workspace — the ones whose tool is present. */
 export function applicableAnalyzers(
   analyzers: readonly Analyzer[],
-  language: Language,
   capabilities: WorkspaceCapabilities,
 ): Analyzer[] {
-  return analyzers.filter((analyzer) => analyzer.supports(language, capabilities));
+  return analyzers.filter((analyzer) => analyzer.supports(capabilities));
 }

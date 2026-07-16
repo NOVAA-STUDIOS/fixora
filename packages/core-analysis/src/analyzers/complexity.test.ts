@@ -1,21 +1,37 @@
 import type { Finding, Language } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
-import type { AnalysisTarget } from '../analyzer.js';
+import type { AnalysisFile } from '../analyzer.js';
+import { createAnalysisContext } from '../context.js';
 
 import { complexityAnalyzer } from './complexity.js';
 
-function target(language: Language, file: string, source: string): AnalysisTarget {
-  return { language, file, absPath: `/ws/${file}`, source, workspaceRoot: '/ws' };
+interface FileWithSource extends AnalysisFile {
+  source: string;
 }
 
-async function run(t: AnalysisTarget): Promise<Finding[]> {
+function context(files: FileWithSource[]) {
+  const sources = new Map(files.map((f) => [f.absPath, f.source]));
+  return createAnalysisContext({
+    root: '/ws',
+    capabilities: { root: '/ws', tools: new Set<string>(), versions: new Map<string, string>() },
+    files: files.map(({ file, absPath, language }) => ({ file, absPath, language })),
+    readSource: (p) => sources.get(p) ?? null,
+  });
+}
+
+async function run(files: FileWithSource[]): Promise<Finding[]> {
   const out: Finding[] = [];
-  for await (const f of complexityAnalyzer.analyze(t, new AbortController().signal)) out.push(f);
+  for await (const f of complexityAnalyzer.run(context(files), new AbortController().signal)) {
+    out.push(f);
+  }
   return out;
 }
 
-// A function with many decision points: 10 ifs + a boolean operator comfortably clears the threshold.
+function file(file: string, language: Language, source: string): FileWithSource {
+  return { file, absPath: `/ws/${file}`, language, source };
+}
+
 const COMPLEX_TS = `export function decide(a: number): number {
   if (a === 1) return 1;
   if (a === 2) return 2;
@@ -39,26 +55,32 @@ export function simple(a: number): number {
 `;
 
 describe('complexityAnalyzer', () => {
-  it('applies to every language (no external tool required)', () => {
+  it('is always active (no external tool required)', () => {
     const caps = { root: '/ws', tools: new Set<string>(), versions: new Map<string, string>() };
-    expect(complexityAnalyzer.supports('typescript', caps)).toBe(true);
-    expect(complexityAnalyzer.supports('go', caps)).toBe(true);
+    expect(complexityAnalyzer.supports(caps)).toBe(true);
   });
 
   it('flags a high-complexity function and leaves a simple one alone', async () => {
-    const findings = await run(target('typescript', 'src/decide.ts', COMPLEX_TS));
+    const findings = await run([file('src/decide.ts', 'typescript', COMPLEX_TS)]);
     const cyc = findings.find((f) => f.ruleId === 'cyclomatic-complexity');
     expect(cyc).toBeDefined();
     expect(cyc?.source).toBe('complexity');
     expect(cyc?.category).toBe('maintainability');
     expect(cyc?.evidence.enclosingSymbol?.name).toBe('decide');
-    expect(cyc?.confidence).toBe(1);
-    // `simple` is below threshold — it must not appear.
+    expect(cyc?.location.file).toBe('src/decide.ts');
     expect(findings.some((f) => f.evidence.enclosingSymbol?.name === 'simple')).toBe(false);
   });
 
-  it('gives a nested function a higher cognitive than cyclomatic score', async () => {
-    // Deeply nested branching: cognitive penalises the nesting, so it should exceed cyclomatic.
+  it('iterates every file in the workspace', async () => {
+    const findings = await run([
+      file('a.ts', 'typescript', COMPLEX_TS),
+      file('b.ts', 'typescript', COMPLEX_TS),
+    ]);
+    const files = new Set(findings.map((f) => f.location.file));
+    expect(files).toEqual(new Set(['a.ts', 'b.ts']));
+  });
+
+  it('gives a nested function a cognitive complexity finding', async () => {
     const nested = `def f(items):
     total = 0
     for a in items:
@@ -70,15 +92,15 @@ describe('complexityAnalyzer', () => {
                             total += c
     return total
 `;
-    const findings = await run(target('python', 'app/f.py', nested));
+    const findings = await run([file('app/f.py', 'python', nested)]);
     const cog = findings.find((r) => r.ruleId === 'cognitive-complexity');
     expect(cog).toBeDefined();
     expect(cog?.severity === 'warning' || cog?.severity === 'error').toBe(true);
   });
 
-  it('produces stable ids across runs (same input, same id)', async () => {
-    const a = await run(target('typescript', 'src/decide.ts', COMPLEX_TS));
-    const b = await run(target('typescript', 'src/decide.ts', COMPLEX_TS));
+  it('produces stable ids across runs', async () => {
+    const a = await run([file('src/decide.ts', 'typescript', COMPLEX_TS)]);
+    const b = await run([file('src/decide.ts', 'typescript', COMPLEX_TS)]);
     expect(a.map((f) => f.id)).toEqual(b.map((f) => f.id));
   });
 
@@ -86,8 +108,8 @@ describe('complexityAnalyzer', () => {
     const controller = new AbortController();
     controller.abort();
     const out: Finding[] = [];
-    for await (const f of complexityAnalyzer.analyze(
-      target('typescript', 'src/decide.ts', COMPLEX_TS),
+    for await (const f of complexityAnalyzer.run(
+      context([file('src/decide.ts', 'typescript', COMPLEX_TS)]),
       controller.signal,
     )) {
       out.push(f);

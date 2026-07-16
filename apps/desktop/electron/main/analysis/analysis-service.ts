@@ -39,6 +39,10 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
       const open = deps.workspaces.requireRoot();
       const targets = collectTargets(open);
 
+      // A fresh run supersedes the previous one. Clear first, then persist per file as results
+      // arrive — so a file that no longer has findings correctly ends up empty (the worker sends no
+      // message for a clean file).
+      deps.findings.clearWorkspace(open.id);
       emit(window, { status: 'running' });
 
       // Capability detection and all engine work happen in the isolated worker (ADR-017); main only
