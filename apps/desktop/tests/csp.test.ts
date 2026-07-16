@@ -19,15 +19,21 @@ describe('the Content Security Policy', () => {
   const production = buildCsp('production');
   const development = buildCsp('development', 'http://localhost:5173');
 
-  it('never permits unsafe-eval, in any environment', () => {
+  it('never permits unsafe-eval or an unsafe-inline script, in any environment', () => {
+    // `unsafe-eval` is banned outright. `unsafe-inline` is banned specifically in `script-src` — the
+    // Fast-Refresh preamble is allowed by a nonce instead (ADR-006). `style-src` keeps its inline
+    // exemption (an inline style is not a script-execution primitive), so scope to script-src.
+    const scriptSrc = (csp: string) => /script-src ([^;]*)/.exec(csp)?.[1] ?? '';
     expect(production).not.toContain('unsafe-eval');
     expect(development).not.toContain('unsafe-eval');
+    expect(scriptSrc(production)).not.toContain('unsafe-inline');
+    expect(scriptSrc(development)).not.toContain('unsafe-inline');
   });
 
-  it('never permits inline script', () => {
+  it('production ships exactly self; dev adds only a nonce for the Fast-Refresh preamble', () => {
     const scriptSrc = (csp: string) => /script-src ([^;]*)/.exec(csp)?.[1] ?? '';
     expect(scriptSrc(production)).toBe("'self'");
-    expect(scriptSrc(development)).toBe("'self'");
+    expect(scriptSrc(development)).toBe("'self' 'nonce-fixora-dev-nonce'");
   });
 
   it('denies by default rather than allowing by default', () => {

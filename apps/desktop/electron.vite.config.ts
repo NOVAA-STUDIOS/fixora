@@ -6,6 +6,23 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 import type { Plugin } from 'vite';
 
+import { DEV_CSP_NONCE } from './electron/main/security/csp.js';
+
+/**
+ * The `<meta>` CSP in index.html is the production "second lock" (Electronegativity reads it, and
+ * csp.test asserts it matches the shipped header). In dev, though, it would also apply — and it has
+ * no nonce, so it would block the Fast-Refresh preamble the header CSP deliberately allows. So in the
+ * dev server only, strip the meta tag; the header CSP (set by main) governs the running dev app. The
+ * built HTML keeps the strict meta untouched.
+ */
+const stripCspMetaInDev: Plugin = {
+  name: 'fixora-strip-csp-meta-dev',
+  apply: 'serve',
+  transformIndexHtml(html) {
+    return html.replace(/<meta\b[^>]*Content-Security-Policy[^>]*>/i, '');
+  },
+};
+
 /**
  * The analysis utility process (ADR-017) is authored as ESM and NOT bundled: it imports the ESM
  * engine (`@fixora/core-analysis`), which loads tree-sitter WASM via `import.meta.url` — that only
@@ -68,7 +85,13 @@ export default defineConfig({
   },
   renderer: {
     root: __dirname,
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), stripCspMetaInDev],
+    // A fixed CSP nonce. In dev, Vite stamps it on the scripts it injects — including
+    // `@vitejs/plugin-react`'s inline Fast-Refresh preamble — so the strict CSP can allow that
+    // preamble via `'nonce-…'` (a nonce is not `'unsafe-inline'`; ADR-006's rule holds). In the
+    // production build there is no inline script; the nonce attribute on the bundled `<script>` is
+    // harmless (it is allowed by `'self'`), so the shipped policy is untouched.
+    html: { cspNonce: DEV_CSP_NONCE },
     build: {
       rollupOptions: {
         input: { index: resolve(__dirname, 'index.html') },

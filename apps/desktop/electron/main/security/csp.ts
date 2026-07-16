@@ -13,16 +13,30 @@
 
 export type CspEnvironment = 'development' | 'production';
 
-/** The dev server needs a websocket for HMR. It gets that and nothing else. */
+/**
+ * The fixed nonce Vite stamps on dev-injected scripts (`html.cspNonce` in electron.vite.config), so
+ * the dev CSP can allow `@vitejs/plugin-react`'s inline Fast-Refresh preamble via `'nonce-…'` without
+ * `'unsafe-inline'`. Dev-only: production ships no inline script and the strict policy below.
+ */
+export const DEV_CSP_NONCE = 'fixora-dev-nonce';
+
+/**
+ * The dev server needs a websocket for HMR, and a nonce for the Fast-Refresh preamble. It gets those
+ * and nothing else — no `'unsafe-inline'`, no `'unsafe-eval'`, in any environment (ADR-006).
+ */
 export function buildCsp(environment: CspEnvironment, devServerOrigin?: string): string {
   const connect = ["'self'"];
-  if (environment === 'development' && devServerOrigin !== undefined) {
-    connect.push(devServerOrigin, devServerOrigin.replace(/^http/, 'ws'));
+  const script = ["'self'"];
+  if (environment === 'development') {
+    script.push(`'nonce-${DEV_CSP_NONCE}'`);
+    if (devServerOrigin !== undefined) {
+      connect.push(devServerOrigin, devServerOrigin.replace(/^http/, 'ws'));
+    }
   }
 
   const directives = [
     "default-src 'none'",
-    "script-src 'self'",
+    `script-src ${script.join(' ')}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self' data:",
