@@ -31,6 +31,10 @@ export const channels = [
   'workspace:current',
   'fs:listDir',
   'fs:readFile',
+  'analysis:run',
+  'analysis:cancel',
+  'analysis:list',
+  'analysis:summary',
 ] as const;
 
 export type Channel = (typeof channels)[number];
@@ -45,7 +49,12 @@ export function isChannel(value: string): value is Channel {
  * Main → renderer event channels (push). Unidirectional, fire-and-forget, one payload schema
  * each (declared in events.ts). The renderer subscribes; it cannot emit these.
  */
-export const eventChannels = ['window:maximizedChanged', 'workspace:filesChanged'] as const;
+export const eventChannels = [
+  'window:maximizedChanged',
+  'workspace:filesChanged',
+  'analysis:findingsAdded',
+  'analysis:state',
+] as const;
 
 export type EventChannel = (typeof eventChannels)[number];
 

@@ -27,6 +27,10 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'workspace:current',
       'fs:listDir',
       'fs:readFile',
+      'analysis:run',
+      'analysis:cancel',
+      'analysis:list',
+      'analysis:summary',
     ]);
   });
 });

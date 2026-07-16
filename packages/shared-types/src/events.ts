@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { AnalysisStateSchema, FindingSchema } from './analysis.js';
 import type { EventChannel } from './channels.js';
 import { FilesChangedSchema } from './workspace.js';
 
@@ -18,9 +19,15 @@ export const WindowMaximizedChangedSchema = z.object({
 });
 export type WindowMaximizedChanged = z.infer<typeof WindowMaximizedChangedSchema>;
 
+/** A batch of findings the analysis produced, streamed to the panel as they arrive (M3). */
+export const FindingsAddedSchema = z.object({ findings: z.array(FindingSchema) });
+export type FindingsAdded = z.infer<typeof FindingsAddedSchema>;
+
 export const eventContracts = {
   'window:maximizedChanged': WindowMaximizedChangedSchema,
   'workspace:filesChanged': FilesChangedSchema,
+  'analysis:findingsAdded': FindingsAddedSchema,
+  'analysis:state': AnalysisStateSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

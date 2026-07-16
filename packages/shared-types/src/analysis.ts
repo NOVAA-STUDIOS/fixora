@@ -114,3 +114,31 @@ export const FindingSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 export type Finding = z.infer<typeof FindingSchema>;
+
+/** The filters the findings panel applies — by severity, source and/or file (all optional). */
+export const FindingsFilterSchema = z.object({
+  severity: SeveritySchema.optional(),
+  source: FindingSourceSchema.optional(),
+  relPath: z.string().optional(),
+});
+export type FindingsFilter = z.infer<typeof FindingsFilterSchema>;
+
+/** Grouped counts for the panel header — computed in SQL, not by loading rows into the renderer. */
+export const FindingsSummarySchema = z.object({
+  total: z.number().int().nonnegative(),
+  bySeverity: z.object({
+    error: z.number().int().nonnegative(),
+    warning: z.number().int().nonnegative(),
+    info: z.number().int().nonnegative(),
+  }),
+  bySource: z.record(FindingSourceSchema, z.number().int().nonnegative()),
+});
+export type FindingsSummary = z.infer<typeof FindingsSummarySchema>;
+
+/** The analysis run lifecycle the engine reports to the panel (main → renderer event). */
+export const AnalysisStateSchema = z.object({
+  status: z.enum(['idle', 'running', 'done', 'error']),
+  summary: FindingsSummarySchema.optional(),
+  message: z.string().optional(),
+});
+export type AnalysisState = z.infer<typeof AnalysisStateSchema>;

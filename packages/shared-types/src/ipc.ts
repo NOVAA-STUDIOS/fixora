@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
 import { DirEntrySchema, FileContentSchema, WorkspaceSchema } from './workspace.js';
 
@@ -85,6 +86,18 @@ export const contracts = {
     request: z.object({ relPath: z.string().min(1) }),
     response: z.object({ file: FileContentSchema }),
   },
+
+  // Analysis (M3). `analysis:run` kicks off a workspace analysis in the isolated utility process
+  // (ADR-017); findings stream back as `analysis:findingsAdded` events and are persisted, so the
+  // panel reads them with `analysis:list`/`analysis:summary` and survives a restart. The renderer
+  // never runs a tool — it asks main, which owns the workspace root and the worker.
+  'analysis:run': { request: empty, response: z.void() },
+  'analysis:cancel': { request: empty, response: z.void() },
+  'analysis:list': {
+    request: z.object({ filter: FindingsFilterSchema.optional() }),
+    response: z.object({ findings: z.array(FindingSchema) }),
+  },
+  'analysis:summary': { request: empty, response: FindingsSummarySchema },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;
