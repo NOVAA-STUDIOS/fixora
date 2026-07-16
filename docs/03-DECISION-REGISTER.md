@@ -40,6 +40,8 @@ Statuses: `Accepted` · `Proposed` (needs sign-off) · `Superseded` · `Rejected
 | [031](#adr-031) | `docs/adr/` is generated from this register, and CI fails on drift | Accepted |
 | [032](#adr-032) | Ladle over Storybook for the component workbench | Accepted |
 | [033](#adr-033) | `node:sqlite` instead of better-sqlite3 for local persistence — amends ADR-011 | Accepted |
+| [034](#adr-034) | tree-sitter via WebAssembly (web-tree-sitter) with prebuilt grammars | Accepted |
+| [035](#adr-035) | Analyzers are workspace-scoped: each tool runs once per analysis, not per file | Accepted |
 
 ---
 
@@ -992,5 +994,69 @@ integrity tests are the mitigation. In Node's test suite it is no longer marked 
 **Long-term impact.** Removes a native build step from the desktop app entirely — no `electron-rebuild`, no
 per-ABI prebuild coordination, no compiler prerequisite. The `SqliteDriver` seam is the insurance that makes
 this reversible if `node:sqlite` ever disappoints.
-</content>
-</invoke>
+
+<a id="adr-034"></a>
+
+## ADR-034 — tree-sitter via WebAssembly (web-tree-sitter) with prebuilt grammars
+
+**Status:** Accepted — 2026-07-16
+
+**Decision.** The analysis engine parses with **`web-tree-sitter`** (tree-sitter compiled to WebAssembly),
+loading **prebuilt grammar `.wasm`** for TypeScript/JavaScript, Python and Go from `tree-sitter-wasms`. No
+native tree-sitter bindings, no compile step.
+
+**Why.** The same reasoning as ADR-005 (Electron over Tauri: no C++ toolchain in the build) and ADR-033
+(`node:sqlite`: use the runtime, don't compile a native module). Native `tree-sitter` bindings would
+reintroduce `node-gyp`, a per-ABI rebuild on every Electron bump, and a compiler prerequisite on every
+machine — for a parser. WASM grammars are data we ship; loading them needs only the WASM runtime the engine
+already carries. The engine stays pure-TS and runs unchanged in a CLI, a CI action, and the test harness
+(TDD §2), which is where its per-language conformance tests live.
+
+**Alternatives considered.** _Native `tree-sitter` + `node-gyp`_ — rejected: the native-build tax ADR-005/033
+exist to avoid. _Regex/hand-rolled parsing_ — rejected: not real symbol/scope/call-graph extraction, and
+unmaintainable across three languages. _One grammar (TS only)_ — rejected: violates ADR-025 (three deep).
+
+**Trade-offs accepted.** WASM parsing is somewhat slower than native (irrelevant at file scale, and it runs
+in the isolated utility process, ADR-017, so it can never freeze the UI). The `.wasm` assets must ship and be
+**unpacked from the ASAR** at packaging (M8) since tree-sitter reads them as files; `tree-sitter-wasms` is a
+runtime dependency for that reason. The WASM lifecycle (init once, load each grammar once, dispose trees) is
+wrapped so the rest of the engine never touches it.
+
+**Long-term impact.** Adding a language is adding a grammar `.wasm` + a query set + conformance tests — no
+build-system change. The isolation (ADR-017) means even a runaway parse on a 40 MB minified file is a killed
+worker, not a hung app.
+
+<a id="adr-035"></a>
+
+## ADR-035 — Analyzers are workspace-scoped: each tool runs once per analysis, not per file
+
+**Status:** Accepted — 2026-07-16
+
+**Decision.** An analyzer's `run(context)` is invoked **once per analysis**, over the whole set of files.
+External-tool adapters spawn their tool a **single time** (`eslint .`, `tsc --noEmit`, `go vet ./...`,
+`ruff check .`, `mypy .`, `semgrep scan .`) and distribute the findings across their files; the tree-sitter
+complexity analyzer iterates the files itself. A shared per-run symbol cache parses each file once no matter
+how many tools report in it.
+
+**Why.** The type-checkers and vetters are inherently **project-scoped** — `tsc`/`mypy`/`go vet` need the
+whole program to resolve a type or a package. Invoking them once *per file* is O(files × project): a real
+repo re-runs the entire type-checker for every file and never finishes. Running each tool once is not only
+orders of magnitude faster, it is **exactly the invocation the user's CI runs** — so our findings match their
+CI by construction (the ADR-002/ADR-007 acceptance test), rather than approximating it.
+
+**Alternatives considered.** _Per-file invocation with a cache_ (the first cut) — rejected: the cache keyed on
+file content, which does nothing for a project-wide tool whose result is the same call regardless of which
+file triggered it; the quadratic blow-up remained. _A separate "project analyzer" interface_ — rejected as
+unnecessary surface: one workspace-scoped `run()` covers both the file-iterating analyzer (complexity) and
+the once-per-workspace tools, and keeps the engine a single loop.
+
+**Trade-offs accepted.** Incremental analysis is coarser: a file change re-runs the workspace analysis, not
+just that file. Acceptable for M3 (analysis is user-triggered), and a future incremental mode can re-run only
+the file-scoped analyzers for a changed file while reusing the last project-tool result. The worker collects
+findings and posts them grouped by file, so a very large result set is buffered before the first paint —
+bounded in practice, and a candidate for streaming later.
+
+**Long-term impact.** This is the decision that makes the engine usable on a real codebase. It also fixes the
+grounding contract: because each tool is the user's own tool run their own way, "matches your CI" is a
+property of the architecture, not a hope.
+

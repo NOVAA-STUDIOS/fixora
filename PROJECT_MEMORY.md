@@ -9,6 +9,57 @@ Updated after every milestone. Newest milestone first.
 
 ---
 
+## M3 — Deterministic analysis engine (2026-07-16)
+
+### Project-scoped tools must run once over the workspace, never once per file
+
+`tsc`, `mypy`, and `go vet` need the whole program/package to resolve a type — they are project-scoped. The
+first cut modelled every analyzer as per-file (`analyze(oneFile)`), so the engine invoked `tsc --noEmit` (a
+full project type-check) **once for every file**: O(files × project). On this monorepo the app just sat on
+"Analyzing…" forever. The fix was to make the analyzer contract **workspace-scoped** — `run(context)` is
+called once, each tool spawns a single time (`eslint .`, `tsc --noEmit`, `go vet ./...`), and findings are
+distributed back to their files. A shared per-run symbol cache parses each file once. The bonus is that this
+is _also_ the correct grounding: running the user's own tool their own way, once, is exactly what their CI
+does, so "findings match your CI" becomes a property of the architecture, not a hope. The lesson: before
+choosing a per-item interface, ask whether the work is per-item — a project tool wearing a per-file interface
+is a quadratic bug waiting to happen.
+
+### Verify the workflow the user actually runs, not the one that's easy to script
+
+Two separate black screens (M2's GPU one, M3's dev-server one) both hid because every "verification" I ran was
+the **built** app (`electron .` on `file://`), while the user ran `pnpm dev` (the Vite dev server). They are
+different renderers: the dev server injects an inline Fast-Refresh preamble the strict CSP blocks; the built
+bundle has no inline script. The built app rendering told me nothing about `pnpm dev`. Always reproduce the
+_standard developer path_, not a convenient proxy for it — and if you catch yourself with a "special internal
+launch procedure," that gap is the bug.
+
+### A strict CSP and Vite dev coexist via a nonce, not `unsafe-inline`
+
+`@vitejs/plugin-react` injects `window.$RefreshReg$ = …` as an inline `<script>` in dev. `script-src 'self'`
+blocks it → `$RefreshReg$` undefined → the transformed modules throw → black screen. Do **not** reach for
+`'unsafe-inline'` (ADR-006 forbids it in every env). Vite's `html.cspNonce` stamps a nonce on the injected
+scripts; allow `'nonce-…'` in the _dev_ CSP (a nonce is not `unsafe-inline` — the security property holds),
+and strip the static production `<meta>` CSP in the dev server only so it doesn't also block it. Production
+ships no inline script and is untouched.
+
+### CJS main cannot `require` an ESM-only package — and importing its barrel runs its top-level code
+
+Main is CJS (a sandboxed preload forces it). `@fixora/core-analysis` is ESM-only (`exports` has no `require`),
+and its barrel runs `createRequire(import.meta.url)` at module load. A CJS `require()` of it threw
+`ERR_PACKAGE_PATH_NOT_EXPORTED` before any window. The right fix was architectural, not a bundler flag: the
+engine belongs in the isolated worker (ADR-017), so main imports **none** of it. When a privileged CJS process
+"just needs one helper" from an ESM engine, that's the smell that the helper is on the wrong side of the
+boundary.
+
+### tree-sitter grammars are WASM data you ship — and a runtime dependency
+
+Native tree-sitter would drag `node-gyp` and a per-Electron-ABI rebuild back in (the exact tax ADR-005/033
+avoid). `web-tree-sitter` + prebuilt `tree-sitter-wasms` keeps the engine build-free. But the grammar `.wasm`
+is loaded at **runtime** (via `createRequire`), so `tree-sitter-wasms` must be a `dependency`, not `dev`, and
+packaging (M8) must unpack the `.wasm` from the ASAR — tree-sitter reads them as files.
+
+---
+
 ## M2 — Workspace, editor, local persistence (2026-07-15)
 
 ### `node:sqlite` was the escape hatch when the native module had no prebuild (ADR-033)

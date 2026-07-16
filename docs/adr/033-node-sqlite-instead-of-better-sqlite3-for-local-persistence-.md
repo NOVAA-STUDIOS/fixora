@@ -51,5 +51,5 @@ integrity tests are the mitigation. In Node's test suite it is no longer marked 
 **Long-term impact.** Removes a native build step from the desktop app entirely — no `electron-rebuild`, no
 per-ABI prebuild coordination, no compiler prerequisite. The `SqliteDriver` seam is the insurance that makes
 this reversible if `node:sqlite` ever disappoints.
-</content>
-</invoke>
+
+<a id="adr-034"></a>

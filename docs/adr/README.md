@@ -41,3 +41,5 @@ To add or change a decision: edit the register, then run `pnpm adr:sync`.
 | [031](./031-docs-adr-is-generated-from-this-register-and-ci-fails-on-dri.md) | `docs/adr/` is generated from this register, and CI fails on drift | Accepted |
 | [032](./032-ladle-over-storybook-for-the-component-workbench.md) | Ladle over Storybook for the component workbench | Accepted |
 | [033](./033-node-sqlite-instead-of-better-sqlite3-for-local-persistence-.md) | `node:sqlite` instead of better-sqlite3 for local persistence (amends ADR-011) | Accepted |
+| [034](./034-tree-sitter-via-webassembly-web-tree-sitter-with-prebuilt-gr.md) | tree-sitter via WebAssembly (web-tree-sitter) with prebuilt grammars | Accepted |
+| [035](./035-analyzers-are-workspace-scoped-each-tool-runs-once-per-analy.md) | Analyzers are workspace-scoped: each tool runs once per analysis, not per file | Accepted |

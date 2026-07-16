@@ -1,26 +1,79 @@
 # Fixora — Project Status
 
-**Updated:** 2026-07-15 · **Current milestone:** M3 Deterministic analysis engine — **in progress**
-**Previous milestone:** M2 Workspace, editor, local persistence — **✅ approved 2026-07-15** (manual verification completed)
+**Updated:** 2026-07-16 · **Current milestone:** M3 Deterministic analysis engine — **complete, audited + red-teamed, awaiting approval**
+**Next milestone:** M4 Backend, auth, entitlements — **blocked on explicit approval of M3**
 
 ---
 
 ## Milestones
 
-| #      | Milestone                                | Status                                 | Notes                     |
-| ------ | ---------------------------------------- | -------------------------------------- | ------------------------- |
-| —      | Blueprint                                | ✅ Signed off 2026-07-13               | 28 ADRs accepted          |
-| **M0** | **Foundations**                          | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14     |
-| **M1** | **Design system & app shell**            | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14     |
-| **M2** | **Workspace, editor, local persistence** | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-15     |
-| **M3** | **Deterministic analysis engine**        | ▶ **In progress**                      | The moat. Zero AI.        |
-| M4     | Backend, auth, entitlements              | ⏸ Not started                          | Parallelisable with M1–M3 |
-| M5     | AI layer + provider abstraction          | ⏸ Not started                          |                           |
-| M6     | The repair loop                          | ⏸ Not started                          | Hardest milestone         |
-| M7     | Launch capability suite (4 profiles)     | ⏸ Not started                          |                           |
-| M8     | Packaging, signing, updates              | ⏸ Not started                          |                           |
-| M9     | Commercial layer                         | ⏸ Not started                          |                           |
-| M10    | Website & launch                         | ⏸ Not started                          | Separate repo             |
+| #      | Milestone                                | Status                                 | Notes                               |
+| ------ | ---------------------------------------- | -------------------------------------- | ----------------------------------- |
+| —      | Blueprint                                | ✅ Signed off 2026-07-13               | 28 ADRs accepted                    |
+| **M0** | **Foundations**                          | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14               |
+| **M1** | **Design system & app shell**            | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14               |
+| **M2** | **Workspace, editor, local persistence** | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-15               |
+| **M3** | **Deterministic analysis engine**        | ✅ **Complete — awaiting approval**    | The moat. Zero AI. Acceptance below |
+| M4     | Backend, auth, entitlements              | ▶ Ready on M3 approval                 | Parallelisable with M1–M3           |
+| M5     | AI layer + provider abstraction          | ⏸ Not started                          |                                     |
+| M6     | The repair loop                          | ⏸ Not started                          | Hardest milestone                   |
+| M7     | Launch capability suite (4 profiles)     | ⏸ Not started                          |                                     |
+| M8     | Packaging, signing, updates              | ⏸ Not started                          |                                     |
+| M9     | Commercial layer                         | ⏸ Not started                          |                                     |
+| M10    | Website & launch                         | ⏸ Not started                          | Separate repo                       |
+
+---
+
+## M3 acceptance criteria — verified, not asserted
+
+The roadmap defines one: _"Runs against real repos and produces findings that match what those repos' own CI
+produces. Fixora is genuinely useful at this milestone with no LLM at all."_
+
+| Check                                        | Status | How it was verified                                                                                                                                                                                                                                                                                   |
+| -------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Findings match the tool's own output (TS/JS) | ✅     | A **live** acceptance test runs the monorepo's real `eslint` subprocess over a fixture with real violations; the adapter yields exactly those violations, grounded (right file/line, enclosing symbol via tree-sitter, stable id). They match because it **is** eslint (`acceptance-eslint.test.ts`). |
+| Useful with the LLM switched off (ADR-002)   | ✅     | Verified in the running app: analysis on a real JSX project produced a genuine `cyclomatic-complexity` warning on a complex `Contact` function — from the tree-sitter analyzer, **no external tool and no AI**. Clicking it opened the file at the line.                                              |
+| The findings panel displays results          | ✅     | Live: the Problems panel rendered the finding with severity filters (All/Error/Warning/Info counts), and click-to-open jumped to `Contact.jsx:341` in Monaco.                                                                                                                                         |
+| Analysis scales (a real repo, not a toy)     | ✅     | The workspace-scoped engine (ADR-035) runs each tool **once**, not per file; the real-project run completed in seconds (was unusable when tsc/etc. ran per file).                                                                                                                                     |
+
+**Environment note on the other two languages.** `go`, `ruff`, `mypy`, `semgrep` are not installed on this
+machine, so their _live_ acceptance must run where those toolchains exist. Their adapters are unit-tested
+against **real-format** tool output and share the exact subprocess + grounding path proven live with eslint;
+the tree-sitter layer (symbols, imports, call graph, complexity) has per-language conformance tests for all
+four languages.
+
+**M3 build stats:** `@fixora/core-analysis` (pure TS, no Electron/React) — the unified `Finding` model,
+tree-sitter parsing for TS/JS/Python/Go (symbols, imports, within-file call graph), 7 analyzers (complexity +
+eslint/tsc/ruff/mypy/go-vet/semgrep) behind one workspace-scoped interface, capability detection, a no-shell
+subprocess runner. Plus SQLite findings persistence (migration v3), the analysis IPC contracts, the
+utility-process host + ESM worker (ADR-017), and the virtualised findings panel. Tests: **core-analysis 47**,
+desktop suite green.
+
+---
+
+## M3 audit + red-team (2026-07-16) — passed
+
+Per the standing instruction, an internal audit ran before marking M3 done and a red-team before requesting
+approval.
+
+| Pass      | Finding                                                                                                                                                                                                                      | Resolution                                                                                                                                                                                                    |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Audit** | Project-scoped tools (`tsc`/`mypy`/`go vet`) were invoked **once per file** — O(files × project), unusable on a real repo (the app hung "Analyzing…" on this monorepo).                                                      | Re-architected to workspace-scoped analyzers (ADR-035): each tool runs once, findings distributed by file. Verified fast on a real project. This was the difference between a demo and a tool.                |
+| **Audit** | `tree-sitter-wasms` (the grammar `.wasm` the worker loads at **runtime**) was a `devDependency` — a production install would omit it and grammar loading would fail.                                                         | Moved to `dependencies`.                                                                                                                                                                                      |
+| **Audit** | `pnpm dev` black-screened while the built app rendered (found because the built app was verified, not the dev server). The strict CSP blocked `@vitejs/plugin-react`'s inline Fast-Refresh preamble, so React never mounted. | A dev CSP **nonce** (Vite `html.cspNonce`) allows the preamble without `'unsafe-inline'`; the strict `<meta>` is stripped in the dev server only. Production CSP is untouched. `pnpm dev` verified rendering. |
+
+**Assessed and clean:** the worker only reads files main vetted (path guard + secrets denylist + ignore +
+size); the subprocess runner never uses a shell (args as an array — command-injection defence); findings are
+kept only for the vetted file set; the worker is timeout-, cancel-, and crash-isolated (ADR-017), so a runaway
+tool degrades one panel, never the editor. **Assessed and accepted (documented risk):** analysis runs the
+**workspace's own tooling** (ADR-007) — eslint plugins, a tsconfig, etc. — which is code execution, the same
+trust a developer already extends by opening a repo in their editor and running its build; the utility-process
+isolation (ADR-017) is the containment, and tightening that sandbox is explicitly M6's job. **Noted for later:**
+project-tool incremental granularity (re-analysis re-runs the workspace, not one changed file); the worker
+buffers all findings before posting (bounded in practice; a streaming refinement).
+
+**Environment note:** the `gitleaks` gate could not run (binary absent); a manual secret scan of the M3 diff
+found none. The gate stays mandatory in CI.
 
 ---
 

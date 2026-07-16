@@ -8,6 +8,51 @@ this file is a **product surface on the website** (Repo §3), not an afterthough
 
 ## [Unreleased]
 
+### M3 — Deterministic analysis engine (2026-07-16)
+
+The moat, and it contains **zero AI** (ADR-002): findings come from tree-sitter and the workspace's own
+linters/type-checkers, each with a rule id, a location, and evidence. Fixora is genuinely useful here with
+the LLM switched off.
+
+#### Added
+
+- **`@fixora/core-analysis`** — a pure-TS engine (no Electron/React, boundary-gated; runs in a CLI, a CI
+  action, and the test harness): the unified `Finding` model (stable-across-runs id that survives a patch
+  shifting lines); tree-sitter via WASM (ADR-034) for TypeScript/JavaScript, Python and Go — symbol
+  extraction, imports, and a within-file call graph, with per-language conformance tests; **seven analyzers**
+  behind one interface — complexity (cyclomatic + cognitive, tree-sitter, always on) and adapters for the
+  workspace's own **eslint, tsc, ruff, mypy, go vet, Semgrep**; capability detection; and a no-shell
+  subprocess runner (args as an array — command-injection defence).
+- **Findings persistence** — SQLite migration v3 + a findings repository (per-file replace, grouped summary in
+  SQL), so the panel loads instantly and survives a restart.
+- **Isolated analysis** (ADR-017) — an ESM utility-process worker runs the engine; main vets which files it
+  may read and manages its lifecycle (one job at a time, hard timeout, cancel, kill+restart on crash). A
+  runaway parse or wedged tool degrades one panel, never the editor.
+- **Findings panel** — virtualised, severity-filterable, backed by the persisted store; clicking a finding
+  opens its file at the location. Streaming IPC (`analysis:run/cancel/list/summary` + `analysis:findingsAdded`
+  / `analysis:state`), zod-validated both directions.
+- **Live acceptance** — a test runs the real eslint subprocess over a fixture and asserts the adapter yields
+  exactly eslint's own violations, grounded. Verified in the running app on a real JSX project: a real
+  `cyclomatic-complexity` finding, rendered and click-to-open.
+
+#### Fixed (M3 audit + red-team, before requesting approval)
+
+- **Analyzers run once per workspace, not per file** (ADR-035). Project-scoped tools (`tsc`/`mypy`/`go vet`)
+  were re-running the whole type-checker/vet for every file — O(files × project), unusable on a real repo.
+  Each tool now spawns once (`eslint .`, `tsc --noEmit`, `go vet ./...`, …) and findings are distributed by
+  file; complexity iterates files in tree-sitter. This is also what makes findings **match the user's CI** —
+  it is the same single invocation they run.
+- **`tree-sitter-wasms` is a runtime dependency**, not dev — the worker loads its grammar `.wasm` at runtime,
+  so a production install must include it.
+- **`pnpm dev` no longer black-screens.** `electron-vite dev` serves the renderer from the Vite dev server,
+  where `@vitejs/plugin-react` injects an inline Fast-Refresh preamble that the strict CSP (`script-src
+  'self'`) blocked — so React never mounted. Fixed with a dev CSP **nonce** (Vite `html.cspNonce`; a nonce is
+  not `'unsafe-inline'`, ADR-006 holds) and stripping the static `<meta>` CSP in the dev server only.
+  Production CSP unchanged. (The built app rendered all along, which is why this hid until dev was verified.)
+- **Main must not import the ESM engine.** Main is CJS; importing `@fixora/core-analysis` threw
+  `ERR_PACKAGE_PATH_NOT_EXPORTED` at startup. The engine belongs in the isolated worker anyway — main now
+  imports none of it and enumerates targets with the desktop's own language helper.
+
 ### M2 — Workspace, editor, local persistence (2026-07-15)
 
 The shell opens a real folder now: a file tree, a working editor, and persistence that survives a
