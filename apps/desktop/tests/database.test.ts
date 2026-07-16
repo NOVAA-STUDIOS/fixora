@@ -175,7 +175,7 @@ describe('repositories', () => {
     expect(summary.total).toBe(3);
     expect(summary.bySeverity.error).toBe(2);
     expect(summary.bySeverity.warning).toBe(1);
-    expect(summary.bySource.eslint).toBe(1);
+    expect(summary.bySource['eslint']).toBe(1);
 
     // Re-analyzing a.ts replaces only its findings, not b.py's.
     findings.replaceForFile(ws.id, 'a.ts', [make('1', 'error', 'eslint', 'a.ts')]);

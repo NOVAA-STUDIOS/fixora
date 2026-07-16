@@ -46,6 +46,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@fixora/core-analysis':
+        specifier: workspace:*
+        version: link:../../packages/core-analysis
       '@fixora/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types

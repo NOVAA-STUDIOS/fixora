@@ -1,7 +1,16 @@
+import { join } from 'node:path';
+
 import { app, BrowserWindow } from 'electron';
 
+import { createAnalysisHost } from './analysis/analysis-host.js';
+import { createAnalysisService } from './analysis/analysis-service.js';
 import { openDatabase } from './db/database.js';
-import { createFileIndexRepository, createWorkspaceRepository } from './db/repositories.js';
+import {
+  createFileIndexRepository,
+  createFindingsRepository,
+  createWorkspaceRepository,
+} from './db/repositories.js';
+import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
@@ -53,9 +62,19 @@ if (!gotTheLock) {
         files: createFileIndexRepository(driver),
       });
 
+      // The analysis engine runs in an isolated utility process (ADR-017). The worker is emitted
+      // next to the main bundle as ESM (it imports the ESM engine + loads tree-sitter WASM).
+      const analysisHost = createAnalysisHost(join(__dirname, 'analysis-worker.mjs'));
+      const analysisService = createAnalysisService({
+        workspaces: workspaceService,
+        findings: createFindingsRepository(driver),
+        host: analysisHost,
+      });
+
       registerSystemHandlers();
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
+      registerAnalysisHandlers(analysisService);
 
       // Reopen the last workspace (if its folder still exists), like an IDE restoring your project.
       // Off the critical path — a failure here never blocks launch.
@@ -70,6 +89,7 @@ if (!gotTheLock) {
       mountRouter();
 
       app.on('will-quit', () => {
+        analysisHost.dispose();
         driver.close();
       });
 

@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Category, Finding, FindingSource, Severity } from '@fixora/shared-types';
+import type {
+  Finding,
+  FindingSource,
+  FindingsFilter,
+  FindingsSummary,
+  Severity,
+} from '@fixora/shared-types';
 
 import type { Row, SqliteDriver } from './driver.js';
 
@@ -132,20 +138,6 @@ export function createFileIndexRepository(driver: SqliteDriver, now: () => numbe
 
 export type FileIndexRepository = ReturnType<typeof createFileIndexRepository>;
 
-/** Filters the findings panel applies (Design Review): by severity, source and/or file. */
-export type FindingsFilter = {
-  severity?: Severity;
-  source?: FindingSource;
-  relPath?: string;
-};
-
-/** Grouped counts the panel shows without loading every finding into the renderer (DB §1). */
-export type FindingsSummary = {
-  total: number;
-  bySeverity: Record<Severity, number>;
-  bySource: Partial<Record<FindingSource, number>>;
-};
-
 export function createFindingsRepository(driver: SqliteDriver, now: () => number = Date.now) {
   return {
     /**
@@ -229,7 +221,7 @@ export function createFindingsRepository(driver: SqliteDriver, now: () => number
         const key = row['severity'] as Severity;
         if (key in bySeverity) bySeverity[key] = row['n'] as number;
       }
-      const bySource: Partial<Record<FindingSource, number>> = {};
+      const bySource: Record<string, number> = {};
       for (const row of driver
         .prepare(
           'SELECT source, COUNT(*) AS n FROM findings WHERE workspace_id = ? GROUP BY source',
