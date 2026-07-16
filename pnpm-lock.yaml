@@ -134,6 +134,9 @@ importers:
       '@fixora/shared-types':
         specifier: workspace:*
         version: link:../shared-types
+      tree-sitter-wasms:
+        specifier: 0.1.12
+        version: 0.1.12
       web-tree-sitter:
         specifier: 0.25.10
         version: 0.25.10
@@ -147,9 +150,6 @@ importers:
       '@types/node':
         specifier: 26.1.1
         version: 26.1.1
-      tree-sitter-wasms:
-        specifier: 0.1.12
-        version: 0.1.12
       typescript:
         specifier: 6.0.3
         version: 6.0.3

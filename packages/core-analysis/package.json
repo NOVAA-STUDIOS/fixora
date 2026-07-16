@@ -22,13 +22,13 @@
   },
   "dependencies": {
     "@fixora/shared-types": "workspace:*",
+    "tree-sitter-wasms": "0.1.12",
     "web-tree-sitter": "0.25.10"
   },
   "devDependencies": {
     "@fixora/eslint-config": "workspace:*",
     "@fixora/tsconfig": "workspace:*",
     "@types/node": "26.1.1",
-    "tree-sitter-wasms": "0.1.12",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
   }
