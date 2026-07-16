@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import type { Category, Finding, FindingSource, Severity } from '@fixora/shared-types';
+
 import type { Row, SqliteDriver } from './driver.js';
 
 /**
@@ -129,3 +131,127 @@ export function createFileIndexRepository(driver: SqliteDriver, now: () => numbe
 }
 
 export type FileIndexRepository = ReturnType<typeof createFileIndexRepository>;
+
+/** Filters the findings panel applies (Design Review): by severity, source and/or file. */
+export type FindingsFilter = {
+  severity?: Severity;
+  source?: FindingSource;
+  relPath?: string;
+};
+
+/** Grouped counts the panel shows without loading every finding into the renderer (DB §1). */
+export type FindingsSummary = {
+  total: number;
+  bySeverity: Record<Severity, number>;
+  bySource: Partial<Record<FindingSource, number>>;
+};
+
+export function createFindingsRepository(driver: SqliteDriver, now: () => number = Date.now) {
+  return {
+    /**
+     * Replace all findings for one file in one transaction — analysis is incremental and re-runs a
+     * file at a time (TDD §5.2), so a fresh run for a path atomically supersedes the previous one.
+     * `OR REPLACE` collapses the rare case of two identical findings sharing a stable id in one batch.
+     */
+    replaceForFile(workspaceId: string, relPath: string, findings: readonly Finding[]): void {
+      const ts = now();
+      driver.transaction(() => {
+        driver
+          .prepare('DELETE FROM findings WHERE workspace_id = ? AND rel_path = ?')
+          .run(workspaceId, relPath);
+        const insert = driver.prepare(
+          `INSERT OR REPLACE INTO findings
+             (id, workspace_id, finding_id, rel_path, source, rule_id, severity, category,
+              start_line, start_col, end_line, end_col, message, fixable, confidence, data_json, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        );
+        for (const f of findings) {
+          insert.run(
+            randomUUID(),
+            workspaceId,
+            f.id,
+            f.location.file,
+            f.source,
+            f.ruleId,
+            f.severity,
+            f.category,
+            f.location.startLine,
+            f.location.startCol,
+            f.location.endLine,
+            f.location.endCol,
+            f.message,
+            f.fixable ? 1 : 0,
+            f.confidence,
+            JSON.stringify(f),
+            ts,
+          );
+        }
+      });
+    },
+
+    /** Findings for a workspace, most-severe-then-file order, optionally filtered and paged. */
+    list(workspaceId: string, filter: FindingsFilter = {}, limit = 500, offset = 0): Finding[] {
+      const where: string[] = ['workspace_id = ?'];
+      const params: (string | number)[] = [workspaceId];
+      if (filter.severity !== undefined) {
+        where.push('severity = ?');
+        params.push(filter.severity);
+      }
+      if (filter.source !== undefined) {
+        where.push('source = ?');
+        params.push(filter.source);
+      }
+      if (filter.relPath !== undefined) {
+        where.push('rel_path = ?');
+        params.push(filter.relPath);
+      }
+      params.push(limit, offset);
+      return driver
+        .prepare(
+          `SELECT data_json FROM findings WHERE ${where.join(' AND ')}
+             ORDER BY
+               CASE severity WHEN 'error' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,
+               rel_path, start_line
+             LIMIT ? OFFSET ?`,
+        )
+        .all(...params)
+        .map((row) => JSON.parse(row['data_json'] as string) as Finding);
+    },
+
+    /** Grouped counts for the panel header — computed in SQL, never by loading rows. */
+    summary(workspaceId: string): FindingsSummary {
+      const bySeverity: Record<Severity, number> = { error: 0, warning: 0, info: 0 };
+      for (const row of driver
+        .prepare(
+          'SELECT severity, COUNT(*) AS n FROM findings WHERE workspace_id = ? GROUP BY severity',
+        )
+        .all(workspaceId)) {
+        const key = row['severity'] as Severity;
+        if (key in bySeverity) bySeverity[key] = row['n'] as number;
+      }
+      const bySource: Partial<Record<FindingSource, number>> = {};
+      for (const row of driver
+        .prepare(
+          'SELECT source, COUNT(*) AS n FROM findings WHERE workspace_id = ? GROUP BY source',
+        )
+        .all(workspaceId)) {
+        bySource[row['source'] as FindingSource] = row['n'] as number;
+      }
+      const total = bySeverity.error + bySeverity.warning + bySeverity.info;
+      return { total, bySeverity, bySource };
+    },
+
+    countForWorkspace(workspaceId: string): number {
+      const row = driver
+        .prepare('SELECT COUNT(*) AS n FROM findings WHERE workspace_id = ?')
+        .get(workspaceId);
+      return (row?.['n'] as number | undefined) ?? 0;
+    },
+
+    clearWorkspace(workspaceId: string): void {
+      driver.prepare('DELETE FROM findings WHERE workspace_id = ?').run(workspaceId);
+    },
+  };
+}
+
+export type FindingsRepository = ReturnType<typeof createFindingsRepository>;

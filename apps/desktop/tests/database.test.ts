@@ -8,8 +8,11 @@ import { openDatabase } from '../electron/main/db/database.js';
 import { currentSchemaVersion, migrate } from '../electron/main/db/migrate.js';
 import { migrations } from '../electron/main/db/migrations.js';
 import { createNodeSqliteDriver } from '../electron/main/db/node-sqlite-driver.js';
+import type { Finding } from '@fixora/shared-types';
+
 import {
   createFileIndexRepository,
+  createFindingsRepository,
   createWorkspaceRepository,
 } from '../electron/main/db/repositories.js';
 
@@ -53,15 +56,16 @@ describe('migrations', () => {
     ).run();
     d1.close();
 
-    // Re-open through the full pipeline: it applies v2 and the v1 row survives.
+    // Re-open through the full pipeline: it applies every later migration and the v1 row survives.
     const { driver, recovered } = openDatabase({ dir });
     expect(recovered).toBe(false);
-    expect(currentSchemaVersion(driver)).toBe(2);
+    expect(currentSchemaVersion(driver)).toBe(migrations.length);
     expect(driver.prepare('SELECT name FROM workspaces WHERE id = ?').get('w1')).toEqual({
       name: 'repo',
     });
-    // The v2 table now exists.
+    // The later tables now exist (v2 files_index, v3 findings).
     expect(() => driver.prepare('SELECT * FROM files_index').all()).not.toThrow();
+    expect(() => driver.prepare('SELECT * FROM findings').all()).not.toThrow();
     driver.close();
   });
 
@@ -133,6 +137,77 @@ describe('repositories', () => {
       { relPath: 'c.go', language: 'go', sizeBytes: 30, mtime: 3, contentHash: 'h3' },
     ]);
     expect(files.countForWorkspace(ws.id)).toBe(1);
+    driver.close();
+  });
+
+  it('replaces findings per file and summarises by severity/source', () => {
+    const { driver } = openDatabase({ dir });
+    const workspaces = createWorkspaceRepository(driver);
+    const findings = createFindingsRepository(driver);
+    const ws = workspaces.upsertByRootPath('/repo', 'repo');
+
+    const make = (
+      id: string,
+      sev: Finding['severity'],
+      src: Finding['source'],
+      file: string,
+    ): Finding => ({
+      id,
+      source: src,
+      ruleId: 'r',
+      severity: sev,
+      category: 'correctness',
+      location: { file, startLine: 1, startCol: 1, endLine: 1, endCol: 2 },
+      message: 'm',
+      evidence: { snippet: 's', relatedLocations: [], toolOutput: null },
+      fixable: false,
+      confidence: 1,
+    });
+
+    findings.replaceForFile(ws.id, 'a.ts', [
+      make('1', 'error', 'eslint', 'a.ts'),
+      make('2', 'warning', 'complexity', 'a.ts'),
+    ]);
+    findings.replaceForFile(ws.id, 'b.py', [make('3', 'error', 'ruff', 'b.py')]);
+    expect(findings.countForWorkspace(ws.id)).toBe(3);
+
+    const summary = findings.summary(ws.id);
+    expect(summary.total).toBe(3);
+    expect(summary.bySeverity.error).toBe(2);
+    expect(summary.bySeverity.warning).toBe(1);
+    expect(summary.bySource.eslint).toBe(1);
+
+    // Re-analyzing a.ts replaces only its findings, not b.py's.
+    findings.replaceForFile(ws.id, 'a.ts', [make('1', 'error', 'eslint', 'a.ts')]);
+    expect(findings.countForWorkspace(ws.id)).toBe(2);
+
+    // Filter + severity ordering: errors first.
+    const errors = findings.list(ws.id, { severity: 'error' });
+    expect(errors.map((f) => f.id).sort()).toEqual(['1', '3']);
+    driver.close();
+  });
+
+  it('cascades findings when a workspace is removed', () => {
+    const { driver } = openDatabase({ dir });
+    const workspaces = createWorkspaceRepository(driver);
+    const findings = createFindingsRepository(driver);
+    const ws = workspaces.upsertByRootPath('/repo', 'repo');
+    findings.replaceForFile(ws.id, 'a.ts', [
+      {
+        id: '1',
+        source: 'eslint',
+        ruleId: 'r',
+        severity: 'error',
+        category: 'correctness',
+        location: { file: 'a.ts', startLine: 1, startCol: 1, endLine: 1, endCol: 2 },
+        message: 'm',
+        evidence: { snippet: 's', relatedLocations: [], toolOutput: null },
+        fixable: false,
+        confidence: 1,
+      },
+    ]);
+    workspaces.remove(ws.id);
+    expect(findings.countForWorkspace(ws.id)).toBe(0);
     driver.close();
   });
 

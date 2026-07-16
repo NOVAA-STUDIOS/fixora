@@ -71,4 +71,40 @@ export const migrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 3,
+    name: 'findings',
+    up: (d) => {
+      // The analysis engine's output (M3). `finding_id` is the stable-across-runs id (core-analysis
+      // `findingId`) — unique per workspace — so re-analyzing a file replaces its rows by
+      // (workspace_id, rel_path) while a finding keeps its identity for the verification comparison
+      // (M6). The full Finding (evidence, raw tool output) is kept as JSON; the columns exist for the
+      // panel's grouping/filtering by severity, source and file without parsing every row.
+      d.exec(`
+        CREATE TABLE findings (
+          id           TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          finding_id   TEXT NOT NULL,
+          rel_path     TEXT NOT NULL,
+          source       TEXT NOT NULL,
+          rule_id      TEXT NOT NULL,
+          severity     TEXT NOT NULL,
+          category     TEXT NOT NULL,
+          start_line   INTEGER NOT NULL,
+          start_col    INTEGER NOT NULL,
+          end_line     INTEGER NOT NULL,
+          end_col      INTEGER NOT NULL,
+          message      TEXT NOT NULL,
+          fixable      INTEGER NOT NULL,
+          confidence   REAL NOT NULL,
+          data_json    TEXT NOT NULL,
+          created_at   INTEGER NOT NULL,
+          UNIQUE(workspace_id, finding_id)
+        );
+        CREATE INDEX idx_findings_workspace ON findings(workspace_id, severity);
+        CREATE INDEX idx_findings_file ON findings(workspace_id, rel_path);
+        CREATE INDEX idx_findings_source ON findings(workspace_id, source);
+      `);
+    },
+  },
 ];
