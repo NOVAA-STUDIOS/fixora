@@ -1,0 +1,33 @@
+{
+  "name": "@fixora/core-ai",
+  "version": "0.1.0",
+  "description": "The AI repair layer: the secret gate (the single choke point), the provider abstraction, and task profiles. Pure TS — no Electron, no React. BYOK transport is direct from the main process (ADR-012, AI-Pipeline §2-3).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fixora/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@fixora/eslint-config": "workspace:*",
+    "@fixora/tsconfig": "workspace:*",
+    "@types/node": "26.1.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}
