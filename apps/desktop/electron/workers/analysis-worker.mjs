@@ -9,13 +9,29 @@
 // `import.meta.url`, which only works when it is imported as a real module, not bundled into CJS.
 import { readFileSync } from 'node:fs';
 
-import { analyzeFile, createMemoryCache, defaultAnalyzers } from '@fixora/core-analysis';
+import {
+  analyzeFile,
+  createMemoryCache,
+  defaultAnalyzers,
+  detectCapabilities,
+  languageForPath,
+} from '@fixora/core-analysis';
 
 const port = process.parentPort;
 const analyzers = defaultAnalyzers();
 const cache = createMemoryCache();
 /** jobId -> AbortController, so a cancel message stops the matching run. */
 const jobs = new Map();
+/** workspaceRoot -> detected WorkspaceCapabilities; detection spawns `tool --version` probes. */
+const capabilitiesByRoot = new Map();
+
+async function capabilitiesFor(root) {
+  const cached = capabilitiesByRoot.get(root);
+  if (cached !== undefined) return cached;
+  const detected = await detectCapabilities(root);
+  capabilitiesByRoot.set(root, detected);
+  return detected;
+}
 
 port.on('message', (event) => {
   const message = event.data;
@@ -29,31 +45,23 @@ port.on('message', (event) => {
 });
 
 async function runJob(message) {
-  const { jobId, workspaceRoot, capabilities, targets } = message;
+  const { jobId, workspaceRoot, targets } = message;
   const controller = new AbortController();
   jobs.set(jobId, controller);
-  const caps = {
-    root: workspaceRoot,
-    tools: new Set(capabilities.tools),
-    versions: new Map(capabilities.versions),
-  };
 
   try {
+    const caps = await capabilitiesFor(workspaceRoot);
     for (const t of targets) {
       if (controller.signal.aborted) break;
+      const language = languageForPath(t.file);
+      if (language === null) continue;
       let source;
       try {
         source = readFileSync(t.absPath, 'utf8');
       } catch {
         continue; // file vanished or is unreadable — skip, do not fail the whole job
       }
-      const target = {
-        file: t.file,
-        absPath: t.absPath,
-        language: t.language,
-        source,
-        workspaceRoot,
-      };
+      const target = { file: t.file, absPath: t.absPath, language, source, workspaceRoot };
       const findings = [];
       try {
         for await (const finding of analyzeFile({ target, capabilities: caps, analyzers, cache }, controller.signal)) {

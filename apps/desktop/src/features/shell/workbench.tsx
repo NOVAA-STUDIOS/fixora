@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 
 import { useUiStore } from '../../stores/ui-store.js';
 import { EditorArea } from '../editor/editor-area.js';
+import { FindingsPanel } from '../findings/findings-panel.js';
 import { SettingsPanel } from '../settings/settings-panel.js';
 import { WorkspacePanel } from '../workspace/workspace-panel.js';
 
@@ -10,6 +11,7 @@ import { PrimaryPlaceholder } from './placeholder-views.js';
 
 function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
   if (view === 'workspace') return <WorkspacePanel />;
+  if (view === 'findings') return <FindingsPanel />;
   if (view === 'settings') return <SettingsPanel />;
   return <PrimaryPlaceholder />;
 }

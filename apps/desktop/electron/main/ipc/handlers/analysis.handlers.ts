@@ -8,8 +8,8 @@ import { registerHandler } from '../router.js';
  * vets the files, and owns the worker (ADR-017, Security §3).
  */
 export function registerAnalysisHandlers(service: AnalysisService): void {
-  registerHandler('analysis:run', async (_req, { window }) => {
-    if (window !== null) await service.run(window);
+  registerHandler('analysis:run', (_req, { window }) => {
+    if (window !== null) service.run(window);
   });
 
   registerHandler('analysis:cancel', (_req, { window }) => {

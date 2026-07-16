@@ -2,13 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { readdirSync, statSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
-import { detectCapabilities, languageForPath } from '@fixora/core-analysis';
-import type { WorkspaceCapabilities } from '@fixora/core-analysis';
 import type { AnalysisState, Finding, FindingsFilter } from '@fixora/shared-types';
 import type { BrowserWindow } from 'electron';
 
 import type { FindingsRepository } from '../db/repositories.js';
 import { emitToWindow } from '../ipc/emit.js';
+import { detectLanguage, isDeepLanguage } from '../services/fs/language.js';
 import { isSecretPath } from '../services/fs/secrets-denylist.js';
 import type { OpenWorkspace, WorkspaceService } from '../services/workspace-service.js';
 
@@ -31,36 +30,22 @@ export interface AnalysisServiceDeps {
 }
 
 export function createAnalysisService(deps: AnalysisServiceDeps) {
-  // Capability detection spawns `tool --version` probes; cache the result per workspace root.
-  const capabilitiesByRoot = new Map<string, WorkspaceCapabilities>();
-
-  async function capabilitiesFor(root: string): Promise<WorkspaceCapabilities> {
-    const cached = capabilitiesByRoot.get(root);
-    if (cached !== undefined) return cached;
-    const detected = await detectCapabilities(root);
-    capabilitiesByRoot.set(root, detected);
-    return detected;
-  }
-
   function emit(window: BrowserWindow, state: AnalysisState): void {
     if (!window.isDestroyed()) emitToWindow(window, 'analysis:state', state);
   }
 
   return {
-    async run(window: BrowserWindow): Promise<void> {
+    run(window: BrowserWindow): void {
       const open = deps.workspaces.requireRoot();
       const targets = collectTargets(open);
-      const capabilities = await capabilitiesFor(open.rootPath);
 
       emit(window, { status: 'running' });
 
+      // Capability detection and all engine work happen in the isolated worker (ADR-017); main only
+      // hands over the vetted targets. This keeps the ESM engine (and its WASM) out of the CJS main.
       deps.host.run({
         id: randomUUID(),
         workspaceRoot: open.rootPath,
-        capabilities: {
-          tools: [...capabilities.tools],
-          versions: [...capabilities.versions.entries()],
-        },
         targets,
         onFileFindings: (file, findings) => {
           deps.findings.replaceForFile(open.id, file, findings);
@@ -120,8 +105,8 @@ function collectTargets(open: OpenWorkspace): AnalysisTargetRef[] {
         continue;
       }
       if (!entry.isFile()) continue;
-      const language = languageForPath(relPath);
-      if (language === null) continue;
+      const language = detectLanguage(relPath);
+      if (language === null || !isDeepLanguage(language)) continue;
       if (open.ignore.ignores(relPath) || isSecretPath(relPath)) continue;
       const absPath = join(open.rootPath, relPath);
       try {

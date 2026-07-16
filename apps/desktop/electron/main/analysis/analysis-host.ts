@@ -17,7 +17,6 @@ export interface AnalysisTargetRef {
 export interface AnalysisJob {
   id: string;
   workspaceRoot: string;
-  capabilities: { tools: string[]; versions: [string, string][] };
   targets: AnalysisTargetRef[];
   timeoutMs?: number;
   onFileFindings: (file: string, findings: Finding[]) => void;
@@ -142,7 +141,6 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
         type: 'analyze',
         jobId: job.id,
         workspaceRoot: job.workspaceRoot,
-        capabilities: job.capabilities,
         targets: job.targets,
       });
     },
