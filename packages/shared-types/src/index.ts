@@ -69,3 +69,11 @@ export {
   type SymbolRef,
 } from './analysis.js';
 export { FindingsAddedSchema, type FindingsAdded } from './events.js';
+export {
+  RepairOutputSchema,
+  TaskProfileSchema,
+  TestOutputSchema,
+  type RepairOutput,
+  type TaskProfile,
+  type TestOutput,
+} from './ai.js';

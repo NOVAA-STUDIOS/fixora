@@ -134,6 +134,9 @@ importers:
       '@fixora/shared-types':
         specifier: workspace:*
         version: link:../shared-types
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@fixora/eslint-config':
         specifier: workspace:*

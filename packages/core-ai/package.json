@@ -21,7 +21,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@fixora/shared-types": "workspace:*"
+    "@fixora/shared-types": "workspace:*",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@fixora/eslint-config": "workspace:*",
