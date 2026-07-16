@@ -131,7 +131,9 @@ export const FindingsSummarySchema = z.object({
     warning: z.number().int().nonnegative(),
     info: z.number().int().nonnegative(),
   }),
-  bySource: z.record(FindingSourceSchema, z.number().int().nonnegative()),
+  // Keyed by source, but only the sources actually present appear — a string-keyed record so a
+  // partial map is valid (not every tool ran).
+  bySource: z.record(z.string(), z.number().int().nonnegative()),
 });
 export type FindingsSummary = z.infer<typeof FindingsSummarySchema>;
 
