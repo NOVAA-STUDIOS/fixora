@@ -25,3 +25,30 @@ export type {
   ProviderRole,
   ResponseSchema,
 } from './provider/types.js';
+
+export {
+  DEFAULT_BUDGETS,
+  estimateTokens,
+  inputBudget,
+  type TokenBudget,
+} from './context/budget.js';
+export {
+  buildContext,
+  type BuiltContext,
+  type BuiltTarget,
+  type ContextInput,
+  type TargetRange,
+} from './context/context-builder.js';
+export {
+  buildProviderRequest,
+  profileWantsStructuredOutput,
+  type BuildRequestOptions,
+} from './profiles/profiles.js';
+export {
+  parseRepairOutput,
+  parseTestOutput,
+  REPAIR_JSON_SCHEMA,
+  TEST_JSON_SCHEMA,
+  type ParseResult,
+} from './profiles/schemas.js';
+export { prepareRequest, type PreparedRequest } from './pipeline/prepare.js';
