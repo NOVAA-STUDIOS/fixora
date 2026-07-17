@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fixora/core-ai": "workspace:*",
     "@fixora/core-analysis": "workspace:*",
     "@fixora/shared-types": "workspace:*",
     "@fixora/tokens": "workspace:*",

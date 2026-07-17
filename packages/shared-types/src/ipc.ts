@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+import {
+  AiConfigSchema,
+  AiRunRequestSchema,
+  AiRunResponseSchema,
+} from './ai.js';
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
 import { DirEntrySchema, FileContentSchema, WorkspaceSchema } from './workspace.js';
@@ -98,6 +103,20 @@ export const contracts = {
     response: z.object({ findings: z.array(FindingSchema) }),
   },
   'analysis:summary': { request: empty, response: FindingsSummarySchema },
+
+  // AI (M5, BYOK). Config is readable/settable by the renderer, but the key is write-only from its
+  // point of view: `ai:setKey` takes one and it goes to the OS keychain; nothing ever returns it.
+  // `ai:run` executes a grounded task against a finding — the secret gate runs inside, before any
+  // provider call — and streams prose via `ai:delta`, resolving to a typed outcome value.
+  'ai:getConfig': { request: empty, response: AiConfigSchema },
+  'ai:setKey': {
+    request: z.object({ key: z.string().min(1), model: z.string().min(1).optional() }),
+    response: AiConfigSchema,
+  },
+  'ai:clearKey': { request: empty, response: AiConfigSchema },
+  'ai:setModel': { request: z.object({ model: z.string().min(1) }), response: AiConfigSchema },
+  'ai:run': { request: AiRunRequestSchema, response: AiRunResponseSchema },
+  'ai:cancel': { request: empty, response: z.void() },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;
