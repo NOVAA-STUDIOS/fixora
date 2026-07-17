@@ -4,6 +4,7 @@ import {
   AiConfigSchema,
   AiRunRequestSchema,
   AiRunResponseSchema,
+  ApplyRepairRequestSchema,
 } from './ai.js';
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
@@ -117,6 +118,9 @@ export const contracts = {
   'ai:setModel': { request: z.object({ model: z.string().min(1) }), response: AiConfigSchema },
   'ai:run': { request: AiRunRequestSchema, response: AiRunResponseSchema },
   'ai:cancel': { request: empty, response: z.void() },
+  // Apply a verified repair to the file on disk (path-guarded in main). The renderer sends the target
+  // range + the repaired code; main splices and writes. Returns void — the editor + analysis refresh.
+  'ai:applyRepair': { request: ApplyRepairRequestSchema, response: z.void() },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

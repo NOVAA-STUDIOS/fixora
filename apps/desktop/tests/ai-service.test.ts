@@ -6,6 +6,7 @@ import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-serv
 import type { KeyStore } from '../electron/main/ai/key-store.js';
 import type { FindingsRepository } from '../electron/main/db/repositories.js';
 import type { WorkspaceService } from '../electron/main/services/workspace-service.js';
+import type { VerificationService } from '../electron/main/verification/verification-service.js';
 
 const CLEAN_FILE = `export function greet(name: string): string {
   const msg = 'hi ' + name;
@@ -68,16 +69,33 @@ function deps(overrides: {
 
   const findings = {
     getByFindingId: () => makeFinding(),
+    list: () => [makeFinding()],
   } as unknown as FindingsRepository;
 
   const workspace = {
     getCurrent: () => ({ id: 'ws1', rootPath: '/root', name: 'proj', ignore: [] }),
   } as unknown as WorkspaceService;
 
+  const verification: VerificationService = {
+    verify: () =>
+      Promise.resolve({
+        report: {
+          verdict: 'verified',
+          targetResolved: true,
+          newFindingCount: 0,
+          syntaxOk: true,
+          ran: ['syntax', 'eslint'],
+        },
+        originalCode: 'ORIGINAL_SYMBOL_TEXT',
+      }),
+    dispose: () => undefined,
+  };
+
   return {
     keyStore,
     findings,
     workspace,
+    verification,
     providerFactory: () => overrides.provider,
     readFile: () => overrides.fileContent ?? CLEAN_FILE,
   };
@@ -121,6 +139,9 @@ describe('AI service (BYOK run orchestration)', () => {
       endLine: 4,
       symbolName: 'greet',
     });
+    // The proposal already carries its verification verdict (ADR-003).
+    expect(result.proposal.verification.verdict).toBe('verified');
+    expect(result.proposal.originalCode).toBe('ORIGINAL_SYMBOL_TEXT');
   });
 
   it('BLOCKS at the gate when the target file contains a secret — no provider call', async () => {

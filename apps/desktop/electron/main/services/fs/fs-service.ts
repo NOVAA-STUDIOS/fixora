@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
 import { type IgnoreMatcher } from './ignore-rules.js';
@@ -91,6 +91,25 @@ export function readTextFile(root: string, relPath: string): FileContent {
     language: detectLanguage(relPath),
     content: readFileSync(absolute, 'utf8'),
   };
+}
+
+/**
+ * Write text to a file inside the workspace — the one place Fixora modifies the user's code, and only
+ * ever to apply a repair the user accepted. Same guards as reading: the path is workspace-relative and
+ * run through `assertInsideWorkspace`, and a secret-denylisted path is refused outright. It writes to an
+ * existing file only (a repair replaces code that was analyzed), never creates new files here.
+ */
+export function writeTextFile(root: string, relPath: string, content: string): void {
+  const normalized = relPath.replace(/\\/g, '/');
+  if (isSecretPath(normalized)) {
+    throw new SecretFileError(normalized);
+  }
+  const absolute = assertInsideWorkspace(join(root, relPath), root);
+  const stat = statSync(absolute);
+  if (stat.isDirectory()) {
+    throw new Error('Refusing to write over a directory.');
+  }
+  writeFileSync(absolute, content, 'utf8');
 }
 
 export class SecretFileError extends Error {

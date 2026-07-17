@@ -8,6 +8,40 @@ this file is a **product surface on the website** (Repo §3), not an afterthough
 
 ## [Unreleased]
 
+### Mission pivot → BYOK Public Beta (2026-07-16)
+
+Reprioritised to ship a stable, trustworthy **BYOK Public Beta**. The beta runs AI desktop→provider
+direct (OpenRouter first) with the user's own key — no account, no server on the AI path. The managed
+backend (`fixora-api`) and desktop sign-in are deferred to v1.1 (built and green; nothing wasted).
+
+### Beta-M5 — Verified AI Repair, BYOK (2026-07-17)
+
+The product: a grounded, gated, **verified** repair loop with bring-your-own-key.
+
+#### Added
+
+- **`@fixora/core-ai`** — pure-TS AI layer. The **secret gate** (the single outbound choke point, fails
+  closed: path denylist + known-key patterns + entropy backstop; names the file+rule, never carries the
+  secret); the **provider abstraction** with the **OpenRouter** BYOK adapter (SSE, JSON-schema output,
+  retryable-vs-terminal errors, abort=cancel); the **context builder** (reuses the M3 engine — target =
+  whole enclosing symbol, evidence = the deterministic finding, token budgeter drops neighbours whole);
+  **task profiles** repair/explain/test with strict output parsing + one re-ask.
+- **BYOK key store** — the OpenRouter key encrypted with the OS keychain (`safeStorage`/DPAPI); only a
+  hint + model ever cross IPC, never the key. Settings → AI UI to set/remove the key and pick a model.
+- **AI runs** — grounded on a stored finding, gated before any provider call, streamed to the panel;
+  per-finding Explain / Repair / Test actions.
+- **Verified repair (ADR-003)** — a proposed fix is applied to a throwaway **overlay** (source copied,
+  `node_modules` junction-linked; the real files are never touched), the analyzers + a tree-sitter syntax
+  check re-run on that one file, and the result becomes a verdict: **VERIFIED** (target resolved, nothing
+  new), **REGRESSION** (broke syntax or introduced a finding — Apply is disabled), or **UNRESOLVED**.
+  Tiered + honest: the report says which checks ran. A Monaco **diff viewer** with **Apply / Copy /
+  Reject**; Apply splices the verified code through the same path guard reads use.
+
+#### Verified
+
+- 185 desktop tests + 62 package tests pass (zero regression). Live: `safeStorage` DPAPI round-trip; the
+  verification worker producing a real syntax verdict (valid→ok, broken→regression) over a real overlay.
+
 ### M3 — Deterministic analysis engine (2026-07-16)
 
 The moat, and it contains **zero AI** (ADR-002): findings come from tree-sitter and the workspace's own

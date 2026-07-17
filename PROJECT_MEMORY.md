@@ -9,6 +9,44 @@ Updated after every milestone. Newest milestone first.
 
 ---
 
+## Beta pivot + Beta-M5 — Verified AI Repair, BYOK (2026-07-17)
+
+### The pivot: BYOK deletes the server from the critical path
+
+The mission changed to shipping a Public Beta. The key realisation: **BYOK inverts what needs building.**
+The whole `fixora-api` gateway (Supabase auth, quota, metering) and desktop PKCE sign-in exist to support
+the *managed* tier — our keys, our billing, so we must meter server-side. With bring-your-own-key the AI
+call goes desktop→provider direct; there is no token to meter and no server on the AI path. So five phases
+of backend work became a v1.1 asset (built, green, committed) and the beta got smaller and more private.
+The lesson: when priorities change, re-derive the critical path from first principles — don't keep building
+the plan you had.
+
+### `core-ai` is pure, so it bundles into main; `core-analysis` is not, so it can't
+
+M3 learned the hard way that `@fixora/core-analysis` must run in a utility process: it loads tree-sitter
+WASM via `import.meta.url`, which only resolves as a real module in `node_modules`, never bundled into the
+CJS main. `@fixora/core-ai` has none of that — it is pure logic — so it goes on the electron-vite `BUNDLED`
+list and the BYOK provider call runs *direct from main* (AI-Pipeline §3). The rule: a package can live in
+main iff it has no runtime file/WASM resolution of its own.
+
+### Verification reuses the finding's own enclosing symbol — no second parse in main
+
+A repair is grounded on a stored `Finding`, and the finding **already carries** `evidence.enclosingSymbol`
+(computed during M3 analysis). So main needs no tree-sitter to know the target range — it reads it off the
+finding. Re-analysis of the patch happens in the worker (which has the engine), on a throwaway **overlay**:
+copy the source, junction-link `node_modules` (a Windows junction needs no elevation), patch the one file,
+re-run. The real files are never mutated to verify — a crash mid-verify must not leave a half-patched repo.
+
+### Verdict compares by (source, rule, symbol), not the DB's snippet-sensitive id
+
+The DB finding id intentionally includes a normalised snippet so it survives line shifts — but that means
+*any* code change gives every finding a new id, which would make every repair look like it introduced
+"new" findings. The verification signature is `source:rule:enclosingSymbol` instead, so "the same problem"
+survives the fix and a genuinely new problem stands out. Syntax break (tree-sitter `hasError`) is always a
+regression, even when no analyzer runs — the honest floor when a project has no tools configured.
+
+---
+
 ## M3 — Deterministic analysis engine (2026-07-16)
 
 ### Project-scoped tools must run once over the workspace, never once per file

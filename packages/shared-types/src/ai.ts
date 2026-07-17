@@ -67,13 +67,42 @@ export const RepairTargetSchema = z.object({
   symbolName: z.string().nullable(),
 });
 
+/**
+ * The verification verdict (ADR-003). This is the claim that justifies leaving the editor:
+ *   - `verified`   — the target finding is resolved and no new problem was introduced.
+ *   - `regression` — the fix broke syntax or introduced a finding that was not there before.
+ *   - `unresolved` — nothing broke, but the finding is still present (the fix didn't take).
+ *   - `skipped`    — verification could not run (no analyzer available for this file).
+ */
+export const VerdictSchema = z.enum(['verified', 'regression', 'unresolved', 'skipped']);
+export type Verdict = z.infer<typeof VerdictSchema>;
+
+/**
+ * The verification report. Tiered and honest (ADR-003): we say exactly which checks ran, so the UI can
+ * read "verified against eslint, tsc, syntax" rather than overclaiming. `newFindingCount` is the number
+ * of problems the patched file has that the original did not.
+ */
+export const VerificationReportSchema = z.object({
+  verdict: VerdictSchema,
+  targetResolved: z.boolean(),
+  newFindingCount: z.number().int().nonnegative(),
+  syntaxOk: z.boolean(),
+  /** The checks that actually ran, e.g. ['syntax', 'eslint', 'tsc']. */
+  ran: z.array(z.string()),
+  note: z.string().optional(),
+});
+export type VerificationReport = z.infer<typeof VerificationReportSchema>;
+
 export const AiProposalSchema = z.discriminatedUnion('profile', [
   z.object({
     profile: z.literal('repair'),
     repairedCode: z.string(),
+    /** The original text of the target symbol — the left side of the diff view. */
+    originalCode: z.string(),
     rationale: z.string(),
     confidence: z.number().min(0).max(1),
     target: RepairTargetSchema,
+    verification: VerificationReportSchema,
   }),
   z.object({ profile: z.literal('explain'), explanation: z.string() }),
   z.object({
@@ -84,6 +113,15 @@ export const AiProposalSchema = z.discriminatedUnion('profile', [
   }),
 ]);
 export type AiProposal = z.infer<typeof AiProposalSchema>;
+
+/** Apply a verified repair: replace the target line range in the file with the repaired code. */
+export const ApplyRepairRequestSchema = z.object({
+  file: z.string().min(1),
+  startLine: z.number().int().positive(),
+  endLine: z.number().int().positive(),
+  code: z.string(),
+});
+export type ApplyRepairRequest = z.infer<typeof ApplyRepairRequestSchema>;
 
 /** One reason the gate refused a send — which part, which rule — with no secret attached. */
 export const GateMatchInfoSchema = z.object({

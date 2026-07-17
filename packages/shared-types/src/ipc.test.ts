@@ -37,6 +37,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'ai:setModel',
       'ai:run',
       'ai:cancel',
+      'ai:applyRepair',
     ]);
   });
 });

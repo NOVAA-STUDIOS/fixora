@@ -24,13 +24,38 @@ export interface AnalysisJob {
   onError: (message: string) => void;
 }
 
-interface ActiveJob {
-  id: string;
-  timer: NodeJS.Timeout;
-  onFileFindings: AnalysisJob['onFileFindings'];
-  onDone: AnalysisJob['onDone'];
-  onError: AnalysisJob['onError'];
+export interface VerifyResult {
+  syntaxOk: boolean;
+  findings: Finding[];
+  aborted: boolean;
 }
+
+export interface VerifyJob {
+  id: string;
+  /** The overlay root (a copy of the workspace with the patch applied) — never the real workspace. */
+  overlayRoot: string;
+  target: AnalysisTargetRef;
+  timeoutMs?: number;
+  onResult: (result: VerifyResult) => void;
+  onError: (message: string) => void;
+}
+
+type ActiveJob =
+  | {
+      kind: 'analyze';
+      id: string;
+      timer: NodeJS.Timeout;
+      onFileFindings: AnalysisJob['onFileFindings'];
+      onDone: AnalysisJob['onDone'];
+      onError: AnalysisJob['onError'];
+    }
+  | {
+      kind: 'verify';
+      id: string;
+      timer: NodeJS.Timeout;
+      onResult: VerifyJob['onResult'];
+      onError: VerifyJob['onError'];
+    };
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 
@@ -38,6 +63,7 @@ const DEFAULT_TIMEOUT_MS = 180_000;
 type WorkerMessage =
   | { type: 'fileFindings'; jobId: string; file: string; findings: Finding[] }
   | { type: 'done'; jobId: string; aborted: boolean }
+  | { type: 'verifyResult'; jobId: string; syntaxOk: boolean; findings: Finding[]; aborted: boolean }
   | { type: 'error'; jobId: string; message: string };
 
 function asWorkerMessage(value: unknown): WorkerMessage | null {
@@ -55,6 +81,15 @@ function asWorkerMessage(value: unknown): WorkerMessage | null {
       findings: m['findings'] as Finding[],
     };
   }
+  if (m['type'] === 'verifyResult' && Array.isArray(m['findings'])) {
+    return {
+      type: 'verifyResult',
+      jobId: String(m['jobId']),
+      syntaxOk: m['syntaxOk'] === true,
+      findings: m['findings'] as Finding[],
+      aborted: m['aborted'] === true,
+    };
+  }
   if (m['type'] === 'done')
     return { type: 'done', jobId: String(m['jobId']), aborted: m['aborted'] === true };
   if (m['type'] === 'error')
@@ -64,6 +99,7 @@ function asWorkerMessage(value: unknown): WorkerMessage | null {
 
 export interface AnalysisHost {
   run(job: AnalysisJob): void;
+  verify(job: VerifyJob): void;
   cancel(): void;
   dispose(): void;
 }
@@ -82,14 +118,28 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
     if (message === null || active === null) return;
     const job = active;
     if (message.jobId !== job.id) return;
-    if (message.type === 'fileFindings') {
-      job.onFileFindings(message.file, message.findings);
-    } else if (message.type === 'done') {
-      finish(job);
-      job.onDone(message.aborted);
-    } else {
+    if (message.type === 'error') {
       finish(job);
       job.onError(message.message);
+      return;
+    }
+    if (job.kind === 'analyze') {
+      if (message.type === 'fileFindings') {
+        job.onFileFindings(message.file, message.findings);
+      } else if (message.type === 'done') {
+        finish(job);
+        job.onDone(message.aborted);
+      }
+      return;
+    }
+    // verify job
+    if (message.type === 'verifyResult') {
+      finish(job);
+      job.onResult({
+        syntaxOk: message.syntaxOk,
+        findings: message.findings,
+        aborted: message.aborted,
+      });
     }
   }
 
@@ -131,6 +181,7 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
         }
       }, job.timeoutMs ?? DEFAULT_TIMEOUT_MS);
       active = {
+        kind: 'analyze',
         id: job.id,
         timer,
         onFileFindings: job.onFileFindings,
@@ -142,6 +193,26 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
         jobId: job.id,
         workspaceRoot: job.workspaceRoot,
         targets: job.targets,
+      });
+    },
+
+    verify(job: VerifyJob): void {
+      this.cancel();
+      const child = ensureWorker();
+      const timer = setTimeout(() => {
+        const stalled = active;
+        kill();
+        if (stalled !== null) {
+          active = null;
+          stalled.onError('Verification timed out.');
+        }
+      }, job.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      active = { kind: 'verify', id: job.id, timer, onResult: job.onResult, onError: job.onError };
+      child.postMessage({
+        type: 'verify',
+        jobId: job.id,
+        workspaceRoot: job.overlayRoot,
+        target: job.target,
       });
     },
 

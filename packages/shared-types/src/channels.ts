@@ -41,6 +41,7 @@ export const channels = [
   'ai:setModel',
   'ai:run',
   'ai:cancel',
+  'ai:applyRepair',
 ] as const;
 
 export type Channel = (typeof channels)[number];

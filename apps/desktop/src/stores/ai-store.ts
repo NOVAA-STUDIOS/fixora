@@ -30,6 +30,8 @@ type AiState = {
 
   run: (profile: TaskProfile, findingId: string) => Promise<void>;
   cancel: () => Promise<void>;
+  /** Apply the current repair proposal to the file on disk. Returns true on success. */
+  applyRepair: () => Promise<boolean>;
   dismiss: () => void;
   listen: () => () => void;
 };
@@ -98,6 +100,23 @@ export const useAiStore = create<AiState>((set, get) => ({
   cancel: async () => {
     await invoke('ai:cancel', {});
     set({ status: 'idle' });
+  },
+
+  applyRepair: async () => {
+    const { proposal } = get();
+    if (proposal?.profile !== 'repair') return false;
+    const result = await invoke('ai:applyRepair', {
+      file: proposal.target.file,
+      startLine: proposal.target.startLine,
+      endLine: proposal.target.endLine,
+      code: proposal.repairedCode,
+    });
+    if (!result.ok) {
+      set({ status: 'error', errorMessage: result.error.message });
+      return false;
+    }
+    get().dismiss();
+    return true;
   },
 
   dismiss: () => {
