@@ -10,31 +10,23 @@ import {
   type ProviderMessage,
   type ProviderRequest,
 } from '@fixora/core-ai';
-import type {
-  AiProposal,
-  AiRunRequest,
-  AiRunResponse,
-  Finding,
-  Language,
-  TaskProfile,
-} from '@fixora/shared-types';
+import type { AiRunRequest, AiRunResponse, Language } from '@fixora/shared-types';
 import type { BrowserWindow } from 'electron';
 
 import type { FindingsRepository } from '../db/repositories.js';
 import { emitToWindow } from '../ipc/emit.js';
 import { readTextFile } from '../services/fs/fs-service.js';
 import type { WorkspaceService } from '../services/workspace-service.js';
+import type { VerificationService } from '../verification/verification-service.js';
 
 import type { KeyStore } from './key-store.js';
 
 /**
  * The AI run orchestrator (AI-Pipeline). It is the only thing in main that talks to a provider, and it
- * does so BYOK — direct to OpenRouter with the user's key, never through a server (there is no server
- * for the beta). Every run is grounded on a stored deterministic finding, built into a context, and
- * passed through the secret gate (inside `prepareRequest`) before a single byte leaves the machine.
- *
- * One run at a time per app, cancellable — the same shape as analysis. Streamed prose reaches the
- * renderer as `ai:delta`; the run resolves to a typed `AiRunResponse` value (ok / blocked / error).
+ * does so BYOK — direct to OpenRouter with the user's key, never through a server. Every run is grounded
+ * on a stored deterministic finding, built into a context, and passed through the secret gate before a
+ * single byte leaves the machine. A repair is then **verified** on an overlay before it is shown, so the
+ * proposal the user sees already carries its verdict (ADR-003).
  */
 
 const EXT_LANGUAGE: Record<string, Language> = {
@@ -59,6 +51,7 @@ export interface AiServiceDeps {
   keyStore: KeyStore;
   findings: FindingsRepository;
   workspace: WorkspaceService;
+  verification: VerificationService;
   /** Injected so tests can drive a fake provider; defaults to the real OpenRouter adapter. */
   providerFactory?: (key: string) => AIProvider;
   /** Injected for tests; defaults to the path-guarded, secret-denylisted reader. */
@@ -72,6 +65,14 @@ export interface AiService {
 }
 
 type StreamResult = { ok: true; text: string } | { ok: false; message: string };
+
+interface Target {
+  symbolName: string | null;
+  startLine: number;
+  endLine: number;
+}
+
+const SCHEMA_ERROR = Symbol('schema_error');
 
 export function createAiService(deps: AiServiceDeps): AiService {
   const makeProvider =
@@ -120,45 +121,6 @@ export function createAiService(deps: AiServiceDeps): AiService {
     return { ...request, messages };
   }
 
-  function buildProposal(
-    profile: TaskProfile,
-    finding: Finding,
-    target: { symbolName: string | null; startLine: number; endLine: number },
-    text: string,
-  ): AiRunResponse {
-    if (profile === 'explain') {
-      return { status: 'ok', proposal: { profile: 'explain', explanation: text } };
-    }
-    if (profile === 'repair') {
-      const parsed = parseRepairOutput(text);
-      if (!parsed.ok) return { status: 'error', code: 'schema_error', message: 'The model returned an invalid repair.' };
-      const proposal: AiProposal = {
-        profile: 'repair',
-        repairedCode: parsed.value.repairedCode,
-        rationale: parsed.value.rationale,
-        confidence: parsed.value.confidence,
-        target: {
-          file: finding.location.file,
-          startLine: target.startLine,
-          endLine: target.endLine,
-          symbolName: target.symbolName,
-        },
-      };
-      return { status: 'ok', proposal };
-    }
-    const parsed = parseTestOutput(text);
-    if (!parsed.ok) return { status: 'error', code: 'schema_error', message: 'The model returned an invalid test.' };
-    return {
-      status: 'ok',
-      proposal: {
-        profile: 'test',
-        framework: parsed.value.framework,
-        testCode: parsed.value.testCode,
-        rationale: parsed.value.rationale,
-      },
-    };
-  }
-
   return {
     cancel() {
       active?.abort();
@@ -191,7 +153,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
       }
 
       const symbol = finding.evidence.enclosingSymbol;
-      const target = symbol
+      const target: Target = symbol
         ? { symbolName: symbol.name, startLine: symbol.location.startLine, endLine: symbol.location.endLine }
         : { symbolName: null, startLine: finding.location.startLine, endLine: finding.location.endLine };
 
@@ -222,27 +184,81 @@ export function createAiService(deps: AiServiceDeps): AiService {
       const provider = makeProvider(key);
       const wantsStructured = profileWantsStructuredOutput(request.profile);
 
-      try {
-        let result = await streamOnce(provider, prepared.request, controller.signal, window, !wantsStructured);
-        if (controller.signal.aborted) {
-          return { status: 'error', code: 'cancelled', message: 'Cancelled.' };
+      // Turn a raw completion into a response. `repair` verifies on an overlay before returning; a
+      // schema violation returns the SCHEMA_ERROR sentinel so run() can re-ask exactly once.
+      const finalize = async (text: string): Promise<AiRunResponse | typeof SCHEMA_ERROR> => {
+        if (request.profile === 'explain') {
+          return { status: 'ok', proposal: { profile: 'explain', explanation: text } };
         }
-        if (!result.ok) {
-          if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message: result.message });
-          return { status: 'error', code: 'provider_error', message: result.message };
+        if (request.profile === 'test') {
+          const parsed = parseTestOutput(text);
+          if (!parsed.ok) return SCHEMA_ERROR;
+          return {
+            status: 'ok',
+            proposal: {
+              profile: 'test',
+              framework: parsed.value.framework,
+              testCode: parsed.value.testCode,
+              rationale: parsed.value.rationale,
+            },
+          };
+        }
+        const parsed = parseRepairOutput(text);
+        if (!parsed.ok) return SCHEMA_ERROR;
+        const { report, originalCode } = await deps.verification.verify({
+          finding,
+          repairedCode: parsed.value.repairedCode,
+          target: {
+            file: finding.location.file,
+            startLine: target.startLine,
+            endLine: target.endLine,
+            language,
+          },
+          workspaceRoot: workspace.rootPath,
+          originalContent: content,
+          originalFindings: deps.findings.list(workspace.id, { relPath: finding.location.file }),
+        });
+        return {
+          status: 'ok',
+          proposal: {
+            profile: 'repair',
+            repairedCode: parsed.value.repairedCode,
+            originalCode,
+            rationale: parsed.value.rationale,
+            confidence: parsed.value.confidence,
+            target: {
+              file: finding.location.file,
+              startLine: target.startLine,
+              endLine: target.endLine,
+              symbolName: target.symbolName,
+            },
+            verification: report,
+          },
+        };
+      };
+
+      try {
+        let stream = await streamOnce(provider, prepared.request, controller.signal, window, !wantsStructured);
+        if (controller.signal.aborted) return { status: 'error', code: 'cancelled', message: 'Cancelled.' };
+        if (!stream.ok) {
+          if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message: stream.message });
+          return { status: 'error', code: 'provider_error', message: stream.message };
         }
 
-        let response = buildProposal(request.profile, finding, target, result.text);
-        // One automatic re-ask on a schema violation, then a loud typed failure (AI-Pipeline §3).
-        if (response.status === 'error' && response.code === 'schema_error' && wantsStructured) {
-          result = await streamOnce(
+        let response = await finalize(stream.text);
+        if (response === SCHEMA_ERROR && wantsStructured) {
+          stream = await streamOnce(
             provider,
-            reAskRequest(prepared.request, result.text),
+            reAskRequest(prepared.request, stream.text),
             controller.signal,
             window,
             false,
           );
-          if (result.ok) response = buildProposal(request.profile, finding, target, result.text);
+          if (stream.ok) response = await finalize(stream.text);
+        }
+        if (response === SCHEMA_ERROR) {
+          if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error' });
+          return { status: 'error', code: 'schema_error', message: 'The model returned an invalid response.' };
         }
 
         if (window !== null) {

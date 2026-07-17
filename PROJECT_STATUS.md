@@ -1,7 +1,32 @@
 # Fixora — Project Status
 
-**Updated:** 2026-07-16 · **Current milestone:** M3 Deterministic analysis engine — **complete, audited + red-teamed, awaiting approval**
-**Next milestone:** M4 Backend, auth, entitlements — **blocked on explicit approval of M3**
+**Updated:** 2026-07-17 · **Mission:** ship a **BYOK Public Beta** this month (pivot 2026-07-16).
+**Current work:** Beta-M5 Verified AI Repair — Phases A–D ✅ done + verified; Phase E (local history) next.
+
+## Mission pivot (2026-07-16) — BYOK-first Public Beta
+
+Priorities changed to shipping a stable, trustworthy Public Beta. The beta is **BYOK-only** (bring your
+own key, OpenRouter first): AI runs desktop→provider direct, so there is **no account/sign-in and no
+server on the AI path**. Consequently the managed-tier backend (`fixora-api`, built + green in its own
+repo, commits `e2add0a..286cc5b`) and the desktop Supabase PKCE sign-in are **deferred to v1.1** (the
+half-built desktop auth is preserved in `git stash@{0}`). Revenue at launch = **Stripe Payment Link +
+offline Ed25519 license** (no billing backend). Deferred to v1.1: teams, enterprise, marketplace,
+plugins, cloud sync, API platform, analytics/reports, collaboration, org management.
+
+### Beta track
+
+| Phase | Scope | Status |
+| ----- | ----- | ------ |
+| Beta-M5 A | `@fixora/core-ai`: secret gate + provider abstraction + OpenRouter (BYOK) | ✅ done + verified |
+| Beta-M5 B | context builder (reuses M3) + task profiles + schema-constrained output | ✅ done + verified |
+| Beta-M5 C | keychain BYOK key store + AI IPC + streaming + settings/finding UI | ✅ done + verified (live safeStorage) |
+| Beta-M5 D | verified repair: overlay + re-run analyzers + verdict + diff + apply/copy | ✅ done + verified (live worker) |
+| Beta-M5 E | local history (sessions/patches/verifications) | ▶ next |
+| Beta-M5 F | acceptance + audit + red-team + docs | ⏸ |
+| Licensing | Stripe link + offline license | ⏸ |
+| Packaging | Windows installer (unsigned beta) | ⏸ |
+| Website | download page + BYOK guide + Stripe link | ⏸ |
+| Release | acceptance + audit + red-team; tag Public Beta | ⏸ |
 
 ---
 
@@ -13,14 +38,10 @@
 | **M0** | **Foundations**                          | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14               |
 | **M1** | **Design system & app shell**            | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14               |
 | **M2** | **Workspace, editor, local persistence** | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-15               |
-| **M3** | **Deterministic analysis engine**        | ✅ **Complete — awaiting approval**    | The moat. Zero AI. Acceptance below |
-| M4     | Backend, auth, entitlements              | ▶ Ready on M3 approval                 | Parallelisable with M1–M3           |
-| M5     | AI layer + provider abstraction          | ⏸ Not started                          |                                     |
-| M6     | The repair loop                          | ⏸ Not started                          | Hardest milestone                   |
-| M7     | Launch capability suite (4 profiles)     | ⏸ Not started                          |                                     |
-| M8     | Packaging, signing, updates              | ⏸ Not started                          |                                     |
-| M9     | Commercial layer                         | ⏸ Not started                          |                                     |
-| M10    | Website & launch                         | ⏸ Not started                          | Separate repo                       |
+| **M3** | **Deterministic analysis engine**        | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-16               |
+| **M4** | **Backend, auth, entitlements**          | ✅ **Built (fixora-api A–E), deferred to v1.1** | BYOK beta needs no server; ready to switch on |
+| **Beta-M5** | **Verified AI Repair (BYOK)**       | ▶ **In progress** — Phases A–D done    | The beta product; see Beta track above |
+| M6+    | Teams / enterprise / marketplace / cloud | ⏸ v1.1 backlog                         | Deferred by the beta pivot          |
 
 ---
 

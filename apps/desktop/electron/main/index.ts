@@ -20,6 +20,7 @@ import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
 import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
 import { createWorkspaceService } from './services/workspace-service.js';
+import { createVerificationService } from './verification/verification-service.js';
 import { createMainWindow } from './windows/main-window.js';
 
 /**
@@ -79,10 +80,14 @@ if (!gotTheLock) {
       // AI (M5, BYOK). core-ai is pure and bundled into main (no WASM), so the provider call runs
       // direct from the main process with the user's keychain-stored key. The renderer never sees it.
       const keyStore = createKeyStore({ dir: app.getPath('userData'), cipher: safeStorageCipher });
+      // Verification runs on its OWN worker (ADR-003 overlay), isolated from workspace analysis.
+      const verificationHost = createAnalysisHost(join(__dirname, 'analysis-worker.mjs'));
+      const verification = createVerificationService({ host: verificationHost });
       const aiService = createAiService({
         keyStore,
         findings: findingsRepo,
         workspace: workspaceService,
+        verification,
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
 
@@ -90,7 +95,7 @@ if (!gotTheLock) {
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerAnalysisHandlers(analysisService);
-      registerAiHandlers({ keyStore, aiService });
+      registerAiHandlers({ keyStore, aiService, workspace: workspaceService });
 
       // Reopen the last workspace (if its folder still exists), like an IDE restoring your project.
       // Off the critical path — a failure here never blocks launch.
@@ -106,6 +111,7 @@ if (!gotTheLock) {
 
       app.on('will-quit', () => {
         analysisHost.dispose();
+        verification.dispose();
         driver.close();
       });
 

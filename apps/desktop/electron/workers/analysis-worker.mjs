@@ -7,11 +7,14 @@
 //
 // ESM on purpose: the engine (`@fixora/core-analysis`) is ESM and loads tree-sitter WASM via
 // `import.meta.url`, which only works when it is imported as a real module, not bundled into CJS.
+import { readFileSync } from 'node:fs';
+
 import {
   analyzeWorkspace,
   createAnalysisContext,
   detectCapabilities,
   languageForPath,
+  parse,
 } from '@fixora/core-analysis';
 
 const port = process.parentPort;
@@ -36,8 +39,54 @@ port.on('message', (event) => {
   }
   if (message.type === 'analyze') {
     void runJob(message);
+    return;
+  }
+  if (message.type === 'verify') {
+    void runVerify(message);
   }
 });
+
+/**
+ * Verify a repair (ADR-003). The overlay root already has the patched file on disk; we (1) parse it to
+ * confirm the fix did not break syntax, then (2) re-run the analyzers on that one file. Main compares
+ * the resulting findings against the original to decide verified / regression / unresolved. Tiered and
+ * honest: this is static analysis + syntax; tests are a later, opt-in tier.
+ */
+async function runVerify(message) {
+  const { jobId, workspaceRoot, target } = message;
+  const controller = new AbortController();
+  jobs.set(jobId, controller);
+  try {
+    let syntaxOk = true;
+    try {
+      const source = readFileSync(target.absPath, 'utf8');
+      const tree = await parse(target.language, source);
+      syntaxOk = !tree.root.hasError;
+      tree.dispose();
+    } catch {
+      syntaxOk = false;
+    }
+
+    const capabilities = await capabilitiesFor(workspaceRoot);
+    const context = createAnalysisContext({ root: workspaceRoot, capabilities, files: [target] });
+    const findings = [];
+    for await (const finding of analyzeWorkspace({ context }, controller.signal)) {
+      findings.push(finding);
+    }
+
+    port.postMessage({
+      type: 'verifyResult',
+      jobId,
+      syntaxOk,
+      findings,
+      aborted: controller.signal.aborted,
+    });
+  } catch (error) {
+    port.postMessage({ type: 'error', jobId, message: String(error) });
+  } finally {
+    jobs.delete(jobId);
+  }
+}
 
 async function runJob(message) {
   const { jobId, workspaceRoot, targets } = message;
