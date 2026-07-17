@@ -60,6 +60,9 @@ const BUNDLED = [
   '@fixora/shared-types',
   '@fixora/shared-types/channels',
   '@fixora/tokens',
+  // core-ai is pure TS (no WASM, no import.meta.url), so — unlike core-analysis — it bundles cleanly
+  // into the CJS main. That is what lets the BYOK provider call run "direct from main" (AI-Pipeline §3).
+  '@fixora/core-ai',
   'zod',
   // chokidar@5 is ESM-only; the main bundle is CJS, so a `require('chokidar')` would fail. Bundle
   // it in (it is pure JS in v4+). `ignore` is CJS and can stay external.

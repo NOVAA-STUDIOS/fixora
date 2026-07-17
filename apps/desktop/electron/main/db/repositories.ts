@@ -210,6 +210,16 @@ export function createFindingsRepository(driver: SqliteDriver, now: () => number
         .map((row) => JSON.parse(row['data_json'] as string) as Finding);
     },
 
+    /** One finding by its stable id — what an AI action loads to ground itself (M5). */
+    getByFindingId(workspaceId: string, findingId: string): Finding | null {
+      const row = driver
+        .prepare(
+          'SELECT data_json FROM findings WHERE workspace_id = ? AND finding_id = ? LIMIT 1',
+        )
+        .get(workspaceId, findingId);
+      return row === undefined ? null : (JSON.parse(row['data_json'] as string) as Finding);
+    },
+
     /** Grouped counts for the panel header — computed in SQL, never by loading rows. */
     summary(workspaceId: string): FindingsSummary {
       const bySeverity: Record<Severity, number> = { error: 0, warning: 0, info: 0 };

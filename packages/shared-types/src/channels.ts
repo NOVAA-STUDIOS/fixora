@@ -35,6 +35,12 @@ export const channels = [
   'analysis:cancel',
   'analysis:list',
   'analysis:summary',
+  'ai:getConfig',
+  'ai:setKey',
+  'ai:clearKey',
+  'ai:setModel',
+  'ai:run',
+  'ai:cancel',
 ] as const;
 
 export type Channel = (typeof channels)[number];
@@ -54,6 +60,8 @@ export const eventChannels = [
   'workspace:filesChanged',
   'analysis:findingsAdded',
   'analysis:state',
+  'ai:delta',
+  'ai:runState',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

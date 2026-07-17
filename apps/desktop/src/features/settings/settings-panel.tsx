@@ -1,4 +1,7 @@
+import { AI_MODEL_OPTIONS } from '@fixora/shared-types';
 import {
+  Button,
+  Input,
   Kbd,
   Select,
   SelectContent,
@@ -7,8 +10,9 @@ import {
   SelectValue,
   Switch,
 } from '@fixora/ui';
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 
+import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
@@ -30,6 +34,7 @@ export function SettingsPanel(): React.JSX.Element {
       </header>
       <div className="flex flex-col gap-6 p-4">
         <AppearanceSettings />
+        <AiSettings />
         <PrivacySettings />
         <Keybindings />
       </div>
@@ -79,6 +84,105 @@ function AppearanceSettings(): React.JSX.Element {
           </SelectContent>
         </Select>
       </Field>
+    </Group>
+  );
+}
+
+function AiSettings(): React.JSX.Element {
+  const config = useAiStore((s) => s.config);
+  const loadConfig = useAiStore((s) => s.loadConfig);
+  const setKey = useAiStore((s) => s.setKey);
+  const clearKey = useAiStore((s) => s.clearKey);
+  const setModel = useAiStore((s) => s.setModel);
+
+  const keyId = useId();
+  const modelId = useId();
+  const [draftKey, setDraftKey] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void loadConfig();
+  }, [loadConfig]);
+
+  const configured = config?.configured ?? false;
+  const model = config?.model ?? AI_MODEL_OPTIONS[0];
+
+  const save = async (): Promise<void> => {
+    if (draftKey.trim().length === 0) return;
+    setSaving(true);
+    setError(null);
+    const message = await setKey(draftKey.trim(), model);
+    setSaving(false);
+    if (message !== null) {
+      setError(message);
+      return;
+    }
+    setDraftKey('');
+  };
+
+  return (
+    <Group title="AI (bring your own key)">
+      <p className="max-w-md text-xs text-fg-muted">
+        Fixora uses <span className="text-fg-secondary">your</span> provider key, stored encrypted in
+        your OS keychain and never sent anywhere but the provider you choose. Get an OpenRouter key at
+        openrouter.ai. Your code never passes through Fixora&rsquo;s servers.
+      </p>
+
+      <Field label="Model" htmlFor={modelId}>
+        <Select
+          value={model}
+          onValueChange={(v) => {
+            void setModel(v);
+          }}
+        >
+          <SelectTrigger id={modelId} className="w-60">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {AI_MODEL_OPTIONS.map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+
+      {configured ? (
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-sm text-fg">
+            Key configured{' '}
+            <span className="text-fg-muted">({config?.keyHint ?? '••••'})</span>
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => void clearKey()}>
+            Remove key
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <label htmlFor={keyId} className="text-sm text-fg">
+            OpenRouter API key
+          </label>
+          <div className="flex items-center gap-2">
+            <Input
+              id={keyId}
+              type="password"
+              autoComplete="off"
+              placeholder="sk-or-v1-…"
+              value={draftKey}
+              onChange={(e) => {
+                setDraftKey(e.target.value);
+              }}
+              className="flex-1"
+            />
+            <Button size="sm" onClick={() => void save()} disabled={saving || draftKey.trim().length === 0}>
+              Save
+            </Button>
+          </div>
+          {error !== null && <span className="text-xs text-danger-text">{error}</span>}
+        </div>
+      )}
     </Group>
   );
 }

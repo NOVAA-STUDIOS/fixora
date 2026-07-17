@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { AiDeltaSchema, AiRunStateSchema } from './ai.js';
 import { AnalysisStateSchema, FindingSchema } from './analysis.js';
 import type { EventChannel } from './channels.js';
 import { FilesChangedSchema } from './workspace.js';
@@ -28,6 +29,8 @@ export const eventContracts = {
   'workspace:filesChanged': FilesChangedSchema,
   'analysis:findingsAdded': FindingsAddedSchema,
   'analysis:state': AnalysisStateSchema,
+  'ai:delta': AiDeltaSchema,
+  'ai:runState': AiRunStateSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

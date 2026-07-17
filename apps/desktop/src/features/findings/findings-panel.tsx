@@ -1,8 +1,10 @@
-import type { Finding, Severity } from '@fixora/shared-types';
+import type { Finding, Severity, TaskProfile } from '@fixora/shared-types';
 import { AlertIcon, Button, VirtualList, cn } from '@fixora/ui';
 import { useEffect } from 'react';
 
 import { basename } from '../../lib/path.js';
+import { useAiStore } from '../../stores/ai-store.js';
+import { AiPanel } from '../ai/ai-panel.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { useFindingsStore } from './findings-store.js';
@@ -33,8 +35,14 @@ export function FindingsPanel(): React.JSX.Element {
   const listen = useFindingsStore((s) => s.listen);
 
   const workspace = useWorkspaceStore((s) => s.workspace);
+  const loadAiConfig = useAiStore((s) => s.loadConfig);
+  const listenAi = useAiStore((s) => s.listen);
 
   useEffect(() => listen(), [listen]);
+  useEffect(() => listenAi(), [listenAi]);
+  useEffect(() => {
+    void loadAiConfig();
+  }, [loadAiConfig]);
   useEffect(() => {
     if (workspace !== null) void refresh();
   }, [workspace, refresh]);
@@ -93,9 +101,17 @@ export function FindingsPanel(): React.JSX.Element {
           renderItem={(finding) => <FindingRow finding={finding} />}
         />
       )}
+
+      <AiPanel />
     </section>
   );
 }
+
+const AI_ACTIONS: readonly { profile: TaskProfile; label: string }[] = [
+  { profile: 'explain', label: 'Explain' },
+  { profile: 'repair', label: 'Repair' },
+  { profile: 'test', label: 'Test' },
+];
 
 function SeverityFilter({
   label,
@@ -128,24 +144,52 @@ function SeverityFilter({
 
 function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
   const selectFile = useWorkspaceStore((s) => s.selectFile);
+  const runAi = useAiStore((s) => s.run);
+  const aiConfigured = useAiStore((s) => s.config?.configured ?? false);
+  const aiBusy = useAiStore((s) => s.status === 'running');
+
   return (
-    <button
-      type="button"
-      onClick={() => {
-        selectFile(finding.location.file);
-      }}
-      title={finding.message}
-      className="flex w-full flex-col items-start gap-0.5 border-b border-border-subtle px-3 py-1.5 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
-    >
-      <span className="flex w-full items-center gap-1.5">
-        <AlertIcon className={cn('size-3.5 shrink-0', SEVERITY_STYLE[finding.severity])} />
-        <span className="truncate text-xs text-fg">{finding.message}</span>
-      </span>
-      <span className="pl-5 text-[11px] text-fg-muted">
-        {basename(finding.location.file)}:{finding.location.startLine} · {finding.source} (
-        {finding.ruleId})
-      </span>
-    </button>
+    <div className="group relative border-b border-border-subtle">
+      <button
+        type="button"
+        onClick={() => {
+          selectFile(finding.location.file);
+        }}
+        title={finding.message}
+        className="flex w-full flex-col items-start gap-0.5 px-3 py-1.5 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
+      >
+        <span className="flex w-full items-center gap-1.5">
+          <AlertIcon className={cn('size-3.5 shrink-0', SEVERITY_STYLE[finding.severity])} />
+          <span className="truncate text-xs text-fg">{finding.message}</span>
+        </span>
+        <span className="pl-5 text-[11px] text-fg-muted">
+          {basename(finding.location.file)}:{finding.location.startLine} · {finding.source} (
+          {finding.ruleId})
+        </span>
+      </button>
+
+      {/* AI actions — siblings of the open-file button, not nested (valid HTML). Shown on hover/focus
+          within the row, and only when a BYOK key is configured. */}
+      <div className="absolute right-2 top-1 hidden items-center gap-1 group-focus-within:flex group-hover:flex">
+        {aiConfigured ? (
+          AI_ACTIONS.map((action) => (
+            <button
+              key={action.profile}
+              type="button"
+              disabled={aiBusy}
+              onClick={() => void runAi(action.profile, finding.id)}
+              className="rounded bg-canvas px-1.5 py-0.5 text-[11px] text-fg-secondary shadow-sm hover:bg-hover hover:text-fg disabled:opacity-50"
+            >
+              {action.label}
+            </button>
+          ))
+        ) : (
+          <span className="rounded bg-canvas px-1.5 py-0.5 text-[11px] text-fg-muted shadow-sm">
+            Add a key in Settings → AI
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 

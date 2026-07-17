@@ -2,6 +2,9 @@ import { join } from 'node:path';
 
 import { app, BrowserWindow } from 'electron';
 
+import { createAiService } from './ai/ai-service.js';
+import { safeStorageCipher } from './ai/cipher.js';
+import { createKeyStore } from './ai/key-store.js';
 import { createAnalysisHost } from './analysis/analysis-host.js';
 import { createAnalysisService } from './analysis/analysis-service.js';
 import { openDatabase } from './db/database.js';
@@ -10,6 +13,7 @@ import {
   createFindingsRepository,
   createWorkspaceRepository,
 } from './db/repositories.js';
+import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
@@ -64,17 +68,29 @@ if (!gotTheLock) {
 
       // The analysis engine runs in an isolated utility process (ADR-017). The worker is emitted
       // next to the main bundle as ESM (it imports the ESM engine + loads tree-sitter WASM).
+      const findingsRepo = createFindingsRepository(driver);
       const analysisHost = createAnalysisHost(join(__dirname, 'analysis-worker.mjs'));
       const analysisService = createAnalysisService({
         workspaces: workspaceService,
-        findings: createFindingsRepository(driver),
+        findings: findingsRepo,
         host: analysisHost,
+      });
+
+      // AI (M5, BYOK). core-ai is pure and bundled into main (no WASM), so the provider call runs
+      // direct from the main process with the user's keychain-stored key. The renderer never sees it.
+      const keyStore = createKeyStore({ dir: app.getPath('userData'), cipher: safeStorageCipher });
+      const aiService = createAiService({
+        keyStore,
+        findings: findingsRepo,
+        workspace: workspaceService,
+        appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
 
       registerSystemHandlers();
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerAnalysisHandlers(analysisService);
+      registerAiHandlers({ keyStore, aiService });
 
       // Reopen the last workspace (if its folder still exists), like an IDE restoring your project.
       // Off the critical path — a failure here never blocks launch.

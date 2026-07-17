@@ -31,6 +31,12 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'analysis:cancel',
       'analysis:list',
       'analysis:summary',
+      'ai:getConfig',
+      'ai:setKey',
+      'ai:clearKey',
+      'ai:setModel',
+      'ai:run',
+      'ai:cancel',
     ]);
   });
 });
