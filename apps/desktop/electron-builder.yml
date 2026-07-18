@@ -1,0 +1,48 @@
+# Packaging config (Beta). Unsigned for the beta — code signing (ADR-021, Azure Trusted Signing) lands
+# for the paid launch. Produces an NSIS installer for Windows.
+#
+# The critical detail is asarUnpack: the analysis/verification worker is ESM and loads tree-sitter WASM
+# via import.meta.url, which only resolves against real files on disk — never from inside app.asar. So the
+# worker and its WASM-bearing deps are unpacked to app.asar.unpacked/ (electron-vite bundles everything
+# else into the CJS main). This is the same constraint M2/M3 hit; packaging is where it is finally paid.
+appId: dev.fixora.app
+productName: Fixora
+copyright: © 2026 Fixora
+
+directories:
+  output: release
+  buildResources: build
+
+# electron-vite has already built main/preload/renderer into out/. We ship that, plus the manifest.
+# The other @fixora/* workspace packages are bundled into the CJS main by electron-vite, so their
+# node_modules entries are excluded here (only core-analysis is a real runtime package, for the worker).
+files:
+  - out/**/*
+  - package.json
+  - '!node_modules/@fixora/core-ai/**'
+  - '!node_modules/@fixora/shared-types/**'
+  - '!node_modules/@fixora/tokens/**'
+  - '!node_modules/@fixora/ui/**'
+  - '!node_modules/**/{.turbo,__tests__,test,tests}/**'
+  - '!node_modules/**/*.{map,ts,tsbuildinfo}'
+
+# Everything the ESM worker needs at runtime, kept as real files outside the asar. The core-analysis
+# glob is recursive, so it also unpacks its nested node_modules/{tree-sitter-wasms,web-tree-sitter} —
+# where the grammar + core `.wasm` files actually live under pnpm's isolated linker.
+asarUnpack:
+  - out/main/analysis-worker.mjs
+  - node_modules/@fixora/core-analysis/**
+
+nodeGypRebuild: false
+npmRebuild: false
+
+win:
+  target:
+    - nsis
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false

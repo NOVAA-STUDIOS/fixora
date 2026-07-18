@@ -12,3 +12,6 @@ Thumbs.db
 !.env.example
 electronegativity-report.sarif
 *.tsbuildinfo
+
+# electron-builder packaging output
+apps/desktop/release/
