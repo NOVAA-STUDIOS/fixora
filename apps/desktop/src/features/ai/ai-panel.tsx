@@ -99,7 +99,7 @@ export function AiPanel(): React.JSX.Element {
         <div className="min-h-0 flex-1 overflow-y-auto p-3 text-xs text-fg-secondary">
           {status === 'blocked' && blocked !== null && (
             <div className="flex flex-col gap-1 text-danger-text">
-              <p className="font-semibold">
+              <p className="font-semibold [overflow-wrap:anywhere]">
                 Blocked: a secret was detected. Nothing was sent to the provider.
               </p>
               <ul className="list-disc pl-5">
@@ -113,7 +113,9 @@ export function AiPanel(): React.JSX.Element {
           )}
 
           {status === 'error' && errorMessage !== null && (
-            <p className="text-danger-text">{errorMessage}</p>
+            // overflow-wrap:anywhere, not break-words: a provider error can contain a bare URL,
+            // which has no break opportunity and would otherwise force the pane to scroll sideways.
+            <p className="text-danger-text [overflow-wrap:anywhere]">{errorMessage}</p>
           )}
 
           {(profile === 'explain' || status === 'running') && streamText.length > 0 && (

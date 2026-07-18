@@ -129,7 +129,7 @@ export function EditorArea(): React.JSX.Element {
       {saveError !== null && (
         <p
           role="alert"
-          className="shrink-0 border-b border-border-subtle bg-danger-bg px-3 py-1 text-xs text-danger-text"
+          className="shrink-0 border-b border-border-subtle bg-danger-bg px-3 py-1 text-xs text-danger-text [overflow-wrap:anywhere]"
         >
           {saveError}
         </p>
@@ -182,7 +182,7 @@ function ActiveFile({ relPath }: { relPath: string }): React.JSX.Element {
     return (
       <div
         role="alert"
-        className="flex h-full items-center justify-center p-6 text-center text-sm text-danger-text"
+        className="flex h-full items-center justify-center p-6 text-center text-sm text-danger-text [overflow-wrap:anywhere]"
       >
         {state.message}
       </div>

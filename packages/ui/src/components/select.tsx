@@ -30,6 +30,9 @@ export const SelectTrigger = forwardRef<
         'focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'data-[placeholder]:text-fg-muted',
+        // The value can be arbitrarily long (a model id from a live catalogue, a file path).
+        // It truncates; the chevron never gets pushed out of the control.
+        '[&>span]:min-w-0 [&>span]:truncate',
         className,
       )}
       {...props}
@@ -53,6 +56,9 @@ export const SelectContent = forwardRef<
         position={position}
         className={cn(
           'z-(--fx-z-popover) overflow-hidden rounded-md',
+          // Capped so a long list (the OpenRouter catalogue is ~80 entries) scrolls inside the
+          // popover instead of growing past the window edge.
+          'max-h-[min(20rem,var(--radix-select-content-available-height))]',
           'bg-overlay text-fg border border-border-subtle shadow-lg',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           position === 'popper' && 'w-[var(--radix-select-trigger-width)]',
@@ -60,7 +66,9 @@ export const SelectContent = forwardRef<
         )}
         {...props}
       >
-        <SelectPrimitive.Viewport className="p-1">{children}</SelectPrimitive.Viewport>
+        <SelectPrimitive.Viewport className="max-h-[inherit] overflow-y-auto overscroll-contain p-1">
+          {children}
+        </SelectPrimitive.Viewport>
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
   );
@@ -76,6 +84,8 @@ export const SelectItem = forwardRef<
       className={cn(
         'relative flex h-(--fx-row-height) cursor-default select-none items-center rounded-sm',
         'pl-7 pr-2 text-sm outline-none',
+        // Long labels truncate rather than wrapping the row to two lines and breaking the rhythm.
+        'min-w-0',
         'data-[highlighted]:bg-hover data-[highlighted]:text-fg',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
@@ -87,7 +97,9 @@ export const SelectItem = forwardRef<
           <CheckIcon className="size-4 text-accent-text" />
         </SelectPrimitive.ItemIndicator>
       </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemText>
+        <span className="block min-w-0 truncate">{children}</span>
+      </SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
   );
 });

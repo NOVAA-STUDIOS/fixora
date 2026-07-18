@@ -73,7 +73,7 @@ export function SplashScreen({
 
       {failed ? (
         <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
-          <p role="alert" className="text-sm text-danger-text">
+          <p role="alert" className="text-sm text-danger-text [overflow-wrap:anywhere]">
             {errorMessage ?? 'Fixora could not finish starting up.'}
           </p>
           <p className="text-xs text-fg-muted">

@@ -1,6 +1,7 @@
 import { PanelGroupRoot, ResizablePanel, ResizeHandle } from '@fixora/ui';
 import { useCallback } from 'react';
 
+import { ErrorBoundary } from '../../app/error-boundary.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { AiPanel } from '../ai/ai-panel.js';
 import { EditorArea } from '../editor/editor-area.js';
@@ -52,15 +53,23 @@ export function Workbench(): React.JSX.Element {
         minWidth, so the layout can never become over-constrained.
       */}
       <ResizablePanel id="primary" minSize={220} defaultSize="22" className="min-w-0">
-        <PrimaryPanel view={activeView} />
+        {/* Per-pane, so a malformed finding or an unreadable file costs the user one panel rather
+            than the whole window. The root boundary in main.tsx is the backstop behind these. */}
+        <ErrorBoundary label="The side panel">
+          <PrimaryPanel view={activeView} />
+        </ErrorBoundary>
       </ResizablePanel>
       <ResizeHandle aria-label="Resize primary panel" />
       <ResizablePanel id="editor" minSize={320} defaultSize="52" className="min-w-0">
-        <EditorArea />
+        <ErrorBoundary label="The editor">
+          <EditorArea />
+        </ErrorBoundary>
       </ResizablePanel>
       <ResizeHandle aria-label="Resize AI panel" />
       <ResizablePanel id="ai" minSize={240} defaultSize="26" className="min-w-0">
-        <AiPanel />
+        <ErrorBoundary label="The assistant panel">
+          <AiPanel />
+        </ErrorBoundary>
       </ResizablePanel>
     </PanelGroupRoot>
   );
