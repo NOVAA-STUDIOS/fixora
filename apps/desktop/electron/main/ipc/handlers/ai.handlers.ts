@@ -3,7 +3,7 @@ import type { KeyStore } from '../../ai/key-store.js';
 import type { RepairHistoryRepository } from '../../db/repositories.js';
 import { readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
-import { spliceLines } from '../../verification/patch.js';
+import { sliceLines, spliceLines } from '../../verification/patch.js';
 import { registerHandler } from '../router.js';
 
 /**
@@ -33,13 +33,17 @@ export function registerAiHandlers(deps: {
     deps.aiService.cancel();
   });
 
-  registerHandler('ai:applyRepair', ({ file, startLine, endLine, code, historyId }) => {
+  registerHandler('ai:applyRepair', ({ file, startLine, endLine, code, expectedOriginal, historyId }) => {
     const workspace = deps.workspace.getCurrent();
     if (workspace === null) {
       throw new Error('No workspace is open.');
     }
-    // Apply against the current file content (re-read now), so the splice uses live line numbers.
+    // Re-read now, and refuse if the target range no longer matches what the repair was computed
+    // against — the file changed under us, and splicing a stale range would corrupt it (audit fix).
     const current = readTextFile(workspace.rootPath, file).content;
+    if (sliceLines(current, startLine, endLine) !== expectedOriginal) {
+      throw new Error('The file changed since this repair was proposed. Re-run the repair.');
+    }
     const patched = spliceLines(current, startLine, endLine, code);
     writeTextFile(workspace.rootPath, file, patched);
     if (historyId !== undefined) deps.history.markApplied(historyId);

@@ -111,6 +111,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       startLine: proposal.target.startLine,
       endLine: proposal.target.endLine,
       code: proposal.repairedCode,
+      expectedOriginal: proposal.originalCode,
       historyId: proposal.historyId,
     });
     if (!result.ok) {

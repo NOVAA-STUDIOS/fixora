@@ -37,6 +37,16 @@ finding. Re-analysis of the patch happens in the worker (which has the engine), 
 copy the source, junction-link `node_modules` (a Windows junction needs no elevation), patch the one file,
 re-run. The real files are never mutated to verify — a crash mid-verify must not leave a half-patched repo.
 
+### Apply must verify the target range still matches, or it corrupts the file
+
+Apply splices the repaired symbol into a **line range**. But the proposal was computed against a snapshot of
+the file — if the user (or a formatter, or a git checkout) changes the file between "Repair" and "Apply", the
+range is stale and splicing it silently corrupts the code. The audit caught this before any real use. The fix:
+apply carries `expectedOriginal` (the exact text the range held at proposal time) and main **refuses if the
+current range no longer matches**. Cheap, deterministic, and it turns a corruption bug into an honest "the
+file changed, re-run the repair." The lesson: any operation that mutates a file by position must re-validate
+the position against what it was computed for — position is not identity.
+
 ### Local SQLite is allowed to hold code — the audit trail keeps the before/after
 
 The cloud schema forbids code, paths, and diffs (a CI test enforces the denylist). **Local SQLite is the
