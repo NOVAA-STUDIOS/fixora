@@ -22,7 +22,20 @@ import { assertCspIsSafe, buildCsp } from './csp.js';
  * page — a phishing site, or a `https://…` that a browser extension turns into something worse
  * — in the user's real browser.
  */
-const ALLOWED_EXTERNAL_HOSTS = new Set(['fixora.dev', 'github.com']);
+const ALLOWED_EXTERNAL_HOSTS = new Set([
+  'fixora.dev',
+  'github.com',
+  // Documentation hosts for the analyzers we run. The problem details panel links a finding to the
+  // rule's own docs, which is the honest answer to "what does this rule actually mean" — we do not
+  // ship a per-rule knowledge base and will not invent one. These are added one host at a time,
+  // deliberately: the URLs are built by us from a fixed template, never taken from tool output
+  // wholesale, so a hostile rule id can change a *path* here but never the host.
+  'eslint.org',
+  'docs.astral.sh',
+  'mypy.readthedocs.io',
+  'pkg.go.dev',
+  'semgrep.dev',
+]);
 
 function isAllowedExternalHost(host: string): boolean {
   return ALLOWED_EXTERNAL_HOSTS.has(host) || host.endsWith('.fixora.dev');

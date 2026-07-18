@@ -86,6 +86,13 @@ export const contracts = {
     request: empty,
     response: z.object({ workspace: WorkspaceSchema.nullable() }),
   },
+  // Closing the workspace. Main forgets the trusted root and stops watching the folder, so every
+  // path-guarded handler goes back to refusing — closing is a real teardown, not a renderer-side blank.
+  'workspace:close': {
+    request: z.object({}),
+    response: z.void(),
+  },
+
   'fs:listDir': {
     request: z.object({ relPath: z.string() }),
     response: z.object({ entries: z.array(DirEntrySchema) }),
@@ -93,6 +100,12 @@ export const contracts = {
   'fs:readFile': {
     request: z.object({ relPath: z.string().min(1) }),
     response: z.object({ file: FileContentSchema }),
+  },
+  // Saving an edited file. Same guards as reading: workspace-relative, path-guarded, and refused for
+  // a secrets-denylisted path. The renderer can only ever write inside the open workspace.
+  'fs:writeFile': {
+    request: z.object({ relPath: z.string().min(1), content: z.string() }),
+    response: z.void(),
   },
 
   // Analysis (M3). `analysis:run` kicks off a workspace analysis in the isolated utility process

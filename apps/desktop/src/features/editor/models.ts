@@ -53,6 +53,25 @@ export function hasModel(relPath: string): boolean {
   return model !== undefined && !model.isDisposed();
 }
 
+/** The live text of an open file, or null if it isn't open. What `save` writes to disk. */
+export function modelTextFor(relPath: string): string | null {
+  const model = cache.get(relPath);
+  if (model === undefined || model.isDisposed()) return null;
+  return model.getValue();
+}
+
+/**
+ * Replace an open file's text in place — used after a repair is applied to disk, so the buffer the
+ * user is looking at shows the change. `pushEditOperations` (rather than `setValue`) keeps the undo
+ * stack intact, so the user can still ctrl-Z an applied repair.
+ */
+export function refreshModelText(relPath: string, content: string): void {
+  const model = cache.get(relPath);
+  if (model === undefined || model.isDisposed()) return;
+  if (model.getValue() === content) return;
+  model.pushEditOperations([], [{ range: model.getFullModelRange(), text: content }], () => null);
+}
+
 export function disposeModel(relPath: string): void {
   cache.get(relPath)?.dispose();
   cache.delete(relPath);

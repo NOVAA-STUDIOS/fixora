@@ -19,6 +19,8 @@ export function EditorArea(): React.JSX.Element {
   const activeTab = useEditorStore((s) => s.activeTab);
   const setActive = useEditorStore((s) => s.setActive);
   const closeTab = useEditorStore((s) => s.closeTab);
+  const dirty = useEditorStore((s) => s.dirty);
+  const saveError = useEditorStore((s) => s.saveError);
 
   // A file selected in the tree opens a tab here. This is the one cross-slice link, made explicit.
   const selectedFile = useWorkspaceStore((s) => s.selectedFile);
@@ -53,40 +55,65 @@ export function EditorArea(): React.JSX.Element {
         aria-label="Open files"
         className="flex h-8 shrink-0 items-stretch overflow-x-auto border-b border-border-subtle bg-canvas"
       >
-        {tabs.map((tab) => (
-          <div
-            key={tab.relPath}
-            className={cn(
-              'group flex items-center gap-1 border-r border-border-subtle pl-3 pr-1 text-xs',
-              tab.relPath === activeTab ? 'bg-inset text-fg' : 'text-fg-muted hover:text-fg',
-            )}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab.relPath === activeTab}
-              onClick={() => {
-                setActive(tab.relPath);
-              }}
-              className="max-w-40 truncate py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
-              title={tab.relPath}
+        {tabs.map((tab) => {
+          const isDirty = dirty.includes(tab.relPath);
+          return (
+            <div
+              key={tab.relPath}
+              className={cn(
+                'group flex items-center gap-1 border-r border-border-subtle pl-3 pr-1 text-xs',
+                tab.relPath === activeTab ? 'bg-inset text-fg' : 'text-fg-muted hover:text-fg',
+              )}
             >
-              {tab.name}
-            </button>
-            <button
-              type="button"
-              aria-label={`Close ${tab.name}`}
-              onClick={() => {
-                disposeModel(tab.relPath);
-                closeTab(tab.relPath);
-              }}
-              className="rounded-sm p-0.5 text-fg-muted opacity-0 hover:bg-hover hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
-            >
-              <WinCloseIcon className="size-3.5" />
-            </button>
-          </div>
-        ))}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab.relPath === activeTab}
+                onClick={() => {
+                  setActive(tab.relPath);
+                }}
+                className="flex max-w-40 items-center gap-1.5 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
+                title={isDirty ? `${tab.relPath} — unsaved changes` : tab.relPath}
+              >
+                <span className="truncate">{tab.name}</span>
+                {isDirty && (
+                  <span
+                    aria-label="Unsaved changes"
+                    title="Unsaved changes — Ctrl+S to save"
+                    className="size-1.5 shrink-0 rounded-full bg-accent"
+                  />
+                )}
+              </button>
+              <button
+                type="button"
+                aria-label={`Close ${tab.name}`}
+                onClick={() => {
+                  // Never discard unsaved work silently.
+                  if (
+                    isDirty &&
+                    !window.confirm(`${tab.name} has unsaved changes. Close without saving?`)
+                  ) {
+                    return;
+                  }
+                  disposeModel(tab.relPath);
+                  closeTab(tab.relPath);
+                }}
+                className="rounded-sm p-0.5 text-fg-muted opacity-0 hover:bg-hover hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+              >
+                <WinCloseIcon className="size-3.5" />
+              </button>
+            </div>
+          );
+        })}
       </div>
+      {saveError !== null && (
+        <p
+          role="alert"
+          className="shrink-0 border-b border-border-subtle bg-danger-bg px-3 py-1 text-xs text-danger-text"
+        >
+          {saveError}
+        </p>
+      )}
       <div className="min-h-0 flex-1">
         {activeTab !== null && <ActiveFile key={activeTab} relPath={activeTab} />}
       </div>

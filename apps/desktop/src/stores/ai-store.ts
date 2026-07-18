@@ -1,6 +1,7 @@
 import type { AiConfig, AiProposal, GateMatchInfo, TaskProfile } from '@fixora/shared-types';
 import { create } from 'zustand';
 
+import { refreshModelText } from '../features/editor/models.js';
 import { useHistoryStore } from '../features/history/history-store.js';
 import { invoke, subscribe } from '../lib/bridge.js';
 
@@ -118,7 +119,10 @@ export const useAiStore = create<AiState>((set, get) => ({
       set({ status: 'error', errorMessage: result.error.message });
       return false;
     }
-    // Reflect the applied repair in the history view immediately.
+    // Reflect the applied repair everywhere the user can see it: the open buffer (so the editor shows
+    // the new code, undo intact) and the history list.
+    const reread = await invoke('fs:readFile', { relPath: proposal.target.file });
+    if (reread.ok) refreshModelText(proposal.target.file, reread.value.file.content);
     void useHistoryStore.getState().refresh();
     get().dismiss();
     return true;

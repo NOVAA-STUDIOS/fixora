@@ -75,6 +75,16 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
       return { workspace: record };
     },
 
+    /**
+     * Close the workspace: main forgets the trusted root, so every path-guarded handler goes back to
+     * refusing. The recents row stays (that is the point of recents) but the *authorization* to open
+     * it again comes from that row, not from this session — closing must not widen what the renderer
+     * can reach. The watcher is stopped by the handler that owns it.
+     */
+    close(): void {
+      current = null;
+    },
+
     /** The current workspace, or null if none is open. FS handlers read the root from here. */
     getCurrent(): OpenWorkspace | null {
       return current;

@@ -37,6 +37,20 @@ describe('openExternal', () => {
     expect(openExternalSpy).toHaveBeenCalledTimes(2);
   });
 
+  // The problem details panel links a finding to its analyzer's documentation. Those hosts were
+  // added to the allowlist deliberately, so they are pinned here — and a *lookalike* of one still
+  // has to be refused (the suffix cases below cover the trick).
+  it.each([
+    'https://eslint.org/docs/latest/rules/no-eval',
+    'https://docs.astral.sh/ruff/rules/',
+    'https://mypy.readthedocs.io/en/stable/error_code_list.html',
+    'https://pkg.go.dev/cmd/vet',
+    'https://semgrep.dev/r/python.lang.security.audit',
+  ])('opens the analyzer docs URL %s', (docs) => {
+    openExternal(docs);
+    expect(openExternalSpy).toHaveBeenCalledWith(docs);
+  });
+
   it.each([
     'file:///C:/Windows/System32/cmd.exe',
     'ms-msdt:/id PCWDiagnostic',
@@ -55,6 +69,8 @@ describe('openExternal', () => {
     'https://fixora.dev.attacker.com/', // suffix-of-a-suffix trick
     'https://notfixora.dev/',
     'https://github.com.attacker.com/',
+    'https://eslint.org.attacker.com/', // a docs host lookalike is still hostile
+    'https://noteslint.org/',
   ])('refuses https to a host not on the allowlist: %s', (hostile) => {
     expect(() => {
       openExternal(hostile);

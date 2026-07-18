@@ -5,6 +5,8 @@ import { useEffect } from 'react';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { DiffEditor } from '../editor/diff-editor.js';
+import { useFindingsStore } from '../findings/findings-store.js';
+import { ProblemDetails } from '../findings/problem-details.js';
 
 import { VerdictBadge } from './verdict-badge.js';
 
@@ -45,6 +47,10 @@ export function AiPanel(): React.JSX.Element {
   const loadConfig = useAiStore((s) => s.loadConfig);
   const listen = useAiStore((s) => s.listen);
 
+  // When no run is active the pane is the *problem details* view: everything known about the
+  // selected finding, right above the buttons that act on it. Understand first, then spend a token.
+  const selected = useFindingsStore((s) => s.findings.find((f) => f.id === s.selectedId) ?? null);
+
   useEffect(() => {
     void loadConfig();
   }, [loadConfig]);
@@ -60,7 +66,11 @@ export function AiPanel(): React.JSX.Element {
     >
       <header className="flex h-8 shrink-0 items-center justify-between border-b border-border-subtle px-3">
         <span className="flex items-center gap-2 text-xs font-semibold capitalize text-fg">
-          {status === 'idle' ? 'Assistant' : (profile ?? 'AI')}
+          {status === 'idle'
+            ? selected !== null
+              ? 'Problem details'
+              : 'Assistant'
+            : (profile ?? 'AI')}
           {status === 'running' && <span className="text-fg-muted">running…</span>}
           {repair !== null && <VerdictBadge verdict={repair.verification.verdict} />}
         </span>
@@ -78,7 +88,11 @@ export function AiPanel(): React.JSX.Element {
       </header>
 
       {status === 'idle' ? (
-        <IdleGuide configured={configured} />
+        selected !== null ? (
+          <ProblemDetails finding={selected} />
+        ) : (
+          <IdleGuide configured={configured} />
+        )
       ) : repair !== null ? (
         <RepairResult proposal={repair} />
       ) : (
