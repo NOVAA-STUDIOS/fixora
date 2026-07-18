@@ -70,6 +70,13 @@ export {
 } from './analysis.js';
 export { FindingsAddedSchema, type FindingsAdded } from './events.js';
 export {
+  FREE_LICENSE,
+  LicensePayloadSchema,
+  LicenseStatusSchema,
+  type LicensePayload,
+  type LicenseStatus,
+} from './license.js';
+export {
   AI_MODEL_OPTIONS,
   AiConfigSchema,
   AiDeltaSchema,

@@ -8,6 +8,21 @@ this file is a **product surface on the website** (Repo §3), not an afterthough
 
 ## [Unreleased]
 
+### Licensing — BYOK-free, offline Pro (2026-07-18)
+
+Revenue at launch with no billing backend. BYOK is fully free; a one-time **Supporter/Pro** license is an
+**Ed25519-signed token verified entirely offline** (no license server, nothing calls home). Modelled as a
+generic entitlement the app reads, so v1.1's managed tier swaps the issuer, not the reader (ADR-036/038).
+
+- Offline verifier (`node:crypto` Ed25519) + license service (activate / deactivate / persist), read as a
+  `LicenseStatus`. Settings → License to paste + activate a key; the key never crosses back out.
+- Owner tooling: `license-keygen.mjs` (one-time keypair; private key stays offline) and `sign-license.mjs`
+  (mint a key per Stripe purchase). The app ships with an **empty** public-key slot and honestly reports
+  "licensing isn't enabled" until the owner provisions one — the production signing key is never in the repo.
+- Setup + fulfilment flow: `docs/LICENSING.md`.
+- Verified: 9 tests — genuine sign→verify round-trip accepted; tampered payload, wrong key, expired, and
+  malformed all rejected; service activates/persists/deactivates and never stores an invalid key.
+
 ### Mission pivot → BYOK Public Beta (2026-07-16)
 
 Reprioritised to ship a stable, trustworthy **BYOK Public Beta**. The beta runs AI desktop→provider
