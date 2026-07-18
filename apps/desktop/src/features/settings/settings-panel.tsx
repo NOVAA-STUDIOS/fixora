@@ -37,7 +37,7 @@ export function SettingsPanel(): React.JSX.Element {
   return (
     <section
       aria-label="Settings"
-      className="flex h-full flex-col overflow-y-auto border-r border-border-subtle bg-canvas"
+      className="flex h-full min-w-0 flex-col overflow-y-auto overflow-x-hidden border-r border-border-subtle bg-canvas"
     >
       <header className="flex h-8 shrink-0 items-center border-b border-border-subtle px-3">
         <span className="text-xs font-semibold text-fg">Settings</span>
@@ -70,7 +70,7 @@ function AppearanceSettings(): React.JSX.Element {
             setTheme(v as typeof theme);
           }}
         >
-          <SelectTrigger id={themeId} className="w-40">
+          <SelectTrigger id={themeId} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -86,7 +86,7 @@ function AppearanceSettings(): React.JSX.Element {
             setDensity(v as typeof density);
           }}
         >
-          <SelectTrigger id={densityId} className="w-40">
+          <SelectTrigger id={densityId} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -147,7 +147,7 @@ function AiSettings(): React.JSX.Element {
             void setModel(v);
           }}
         >
-          <SelectTrigger id={modelId} className="w-60">
+          <SelectTrigger id={modelId} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -342,6 +342,11 @@ function Group({
   );
 }
 
+/**
+ * A labelled setting. Stacked (label above control) rather than label-left/control-right: this panel
+ * is a resizable side pane, and a fixed-width control beside a label is exactly what clipped and
+ * produced a horizontal scrollbar at narrow widths. Stacked + full-width controls never overflow.
+ */
 function Field({
   label,
   htmlFor,
@@ -352,7 +357,7 @@ function Field({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <label htmlFor={htmlFor} className="text-sm text-fg">
         {label}
       </label>

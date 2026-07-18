@@ -20,12 +20,19 @@ type FindingsState = {
   filter: FindingsFilter;
   error: string | null;
 
+  /** Findings the user hid this session (Ignore). Not persisted — a view convenience, not a decision. */
+  ignoredIds: string[];
+
   /** Load the persisted findings + summary for the current workspace. */
   refresh: () => Promise<void>;
   /** Kick off an analysis run in the isolated worker. */
   run: () => Promise<void>;
   cancel: () => Promise<void>;
   setFilter: (filter: FindingsFilter) => Promise<void>;
+  /** Hide a finding from the list for this session. */
+  ignore: (id: string) => void;
+  /** Un-hide everything ignored this session. */
+  showIgnored: () => void;
   /** Subscribe to streamed findings + run-state; returns an unsubscribe. Call once on mount. */
   listen: () => () => void;
 };
@@ -38,6 +45,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   status: 'idle',
   filter: {},
   error: null,
+  ignoredIds: [],
 
   refresh: async () => {
     const [list, summary] = await Promise.all([
@@ -64,6 +72,14 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   setFilter: async (filter) => {
     set({ filter });
     await get().refresh();
+  },
+
+  ignore: (id) => {
+    set((s) => (s.ignoredIds.includes(id) ? s : { ignoredIds: [...s.ignoredIds, id] }));
+  },
+
+  showIgnored: () => {
+    set({ ignoredIds: [] });
   },
 
   listen: () => {

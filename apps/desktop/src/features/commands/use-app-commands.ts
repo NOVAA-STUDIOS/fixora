@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 
 import { useUiStore } from '../../stores/ui-store.js';
+import { useFindingsStore } from '../findings/findings-store.js';
+import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import type { Command } from './registry.js';
 
@@ -16,9 +18,34 @@ export function useAppCommands(): Command[] {
   const setActiveView = useUiStore((s) => s.setActiveView);
   const togglePalette = useUiStore((s) => s.togglePalette);
   const setPaletteOpen = useUiStore((s) => s.setPaletteOpen);
+  const pickAndOpen = useWorkspaceStore((s) => s.pickAndOpen);
+  const runAnalysis = useFindingsStore((s) => s.run);
 
   return useMemo(
     () => [
+      // The two actions a first-time user needs most, reachable by keyboard and by palette search.
+      {
+        id: 'workspace.open',
+        title: 'Open folder…',
+        group: 'Workspace',
+        keybinding: 'mod+o',
+        keywords: ['project', 'switch', 'repository', 'repo'],
+        run: () => {
+          setPaletteOpen(false);
+          void pickAndOpen();
+        },
+      },
+      {
+        id: 'analysis.run',
+        title: 'Run analysis',
+        group: 'Workspace',
+        keywords: ['analyze', 'scan', 'lint', 'problems', 'findings'],
+        run: () => {
+          setPaletteOpen(false);
+          setActiveView('findings');
+          void runAnalysis();
+        },
+      },
       {
         id: 'palette.open',
         title: 'Open command palette',
@@ -50,7 +77,7 @@ export function useAppCommands(): Command[] {
       },
       {
         id: 'view.workspace',
-        title: 'Go to Workspace',
+        title: 'Go to Files',
         group: 'Go to',
         run: () => {
           setActiveView('workspace');
@@ -59,7 +86,7 @@ export function useAppCommands(): Command[] {
       },
       {
         id: 'view.findings',
-        title: 'Go to Findings',
+        title: 'Go to Problems',
         group: 'Go to',
         run: () => {
           setActiveView('findings');
@@ -86,6 +113,14 @@ export function useAppCommands(): Command[] {
         },
       },
     ],
-    [toggleTheme, toggleDensity, setActiveView, togglePalette, setPaletteOpen],
+    [
+      toggleTheme,
+      toggleDensity,
+      setActiveView,
+      togglePalette,
+      setPaletteOpen,
+      pickAndOpen,
+      runAnalysis,
+    ],
   );
 }

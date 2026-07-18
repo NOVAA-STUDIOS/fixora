@@ -44,15 +44,22 @@ export function Workbench(): React.JSX.Element {
       onLayoutChanged={onLayoutChanged}
       className="min-h-0 flex-1"
     >
-      <ResizablePanel id="primary" minSize={16} defaultSize={22} className="min-w-0">
+      {/*
+        react-resizable-panels v4: a NUMBER is pixels, a unit-less STRING is a percentage. So the
+        defaults below are proportions, and the minimums are hard pixel floors — a pane must never
+        shrink to the point its content becomes unreadable (a settings label per line, a clipped
+        select). The floors sum to 780px + the 64px rail, which still fits the window's 940px
+        minWidth, so the layout can never become over-constrained.
+      */}
+      <ResizablePanel id="primary" minSize={220} defaultSize="22" className="min-w-0">
         <PrimaryPanel view={activeView} />
       </ResizablePanel>
       <ResizeHandle aria-label="Resize primary panel" />
-      <ResizablePanel id="editor" minSize={30} defaultSize={52} className="min-w-0">
+      <ResizablePanel id="editor" minSize={320} defaultSize="52" className="min-w-0">
         <EditorArea />
       </ResizablePanel>
       <ResizeHandle aria-label="Resize AI panel" />
-      <ResizablePanel id="ai" minSize={16} defaultSize={26} className="min-w-0">
+      <ResizablePanel id="ai" minSize={240} defaultSize="26" className="min-w-0">
         <AiPanel />
       </ResizablePanel>
     </PanelGroupRoot>

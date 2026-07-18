@@ -1,8 +1,9 @@
 import type { RepairHistoryEntry } from '@fixora/shared-types';
-import { CheckIcon, cn } from '@fixora/ui';
+import { Button, CheckIcon, cn } from '@fixora/ui';
 import { useEffect } from 'react';
 
 import { basename } from '../../lib/path.js';
+import { useUiStore } from '../../stores/ui-store.js';
 import { VerdictBadge } from '../ai/verdict-badge.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
@@ -19,6 +20,7 @@ export function HistoryPanel(): React.JSX.Element {
   const loaded = useHistoryStore((s) => s.loaded);
   const refresh = useHistoryStore((s) => s.refresh);
   const workspace = useWorkspaceStore((s) => s.workspace);
+  const setActiveView = useUiStore((s) => s.setActiveView);
 
   // Reload whenever the panel is shown, so applying a repair elsewhere is reflected here.
   useEffect(() => {
@@ -35,10 +37,28 @@ export function HistoryPanel(): React.JSX.Element {
       </header>
 
       {entries.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-fg-muted">
-          {loaded
-            ? 'No repairs yet. Run a repair from the Problems panel to build your history.'
-            : 'Loading…'}
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
+          {loaded ? (
+            <>
+              <p className="text-sm font-medium text-fg">No repairs yet</p>
+              <p className="max-w-xs text-xs text-fg-muted">
+                Every repair you review is recorded here — its verdict, the code before and after,
+                and whether you applied it. It stays on your machine.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-1"
+                onClick={() => {
+                  setActiveView('findings');
+                }}
+              >
+                Go to Problems
+              </Button>
+            </>
+          ) : (
+            <p className="text-sm text-fg-muted">Loading…</p>
+          )}
         </div>
       ) : (
         <ul className="min-h-0 flex-1 overflow-y-auto">

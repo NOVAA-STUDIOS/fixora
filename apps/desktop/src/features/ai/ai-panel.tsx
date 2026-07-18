@@ -3,6 +3,7 @@ import { Button } from '@fixora/ui';
 import { useEffect } from 'react';
 
 import { useAiStore } from '../../stores/ai-store.js';
+import { useUiStore } from '../../stores/ui-store.js';
 import { DiffEditor } from '../editor/diff-editor.js';
 
 import { VerdictBadge } from './verdict-badge.js';
@@ -77,11 +78,7 @@ export function AiPanel(): React.JSX.Element {
       </header>
 
       {status === 'idle' ? (
-        <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-fg-muted">
-          {configured
-            ? 'Pick Explain, Repair, or Test on a problem to start.'
-            : 'Add a provider key in Settings → AI to enable repairs.'}
-        </div>
+        <IdleGuide configured={configured} />
       ) : repair !== null ? (
         <RepairResult proposal={repair} />
       ) : (
@@ -125,6 +122,58 @@ export function AiPanel(): React.JSX.Element {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * The idle assistant pane. A first-time user should never have to guess what to do here, so it states
+ * the next step and gives them the button for it — set up a key, or go pick a finding to repair.
+ */
+function IdleGuide({ configured }: { configured: boolean }): React.JSX.Element {
+  const setActiveView = useUiStore((s) => s.setActiveView);
+
+  if (!configured) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
+        <p className="text-sm font-medium text-fg">Set up AI to repair code</p>
+        <p className="max-w-xs text-xs text-fg-muted">
+          Fixora uses your own provider key. Your code goes straight to the provider you choose —
+          never through a Fixora server.
+        </p>
+        <Button
+          variant="primary"
+          size="sm"
+          className="mt-1"
+          onClick={() => {
+            setActiveView('settings');
+          }}
+        >
+          Add your API key
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
+      <p className="text-sm font-medium text-fg">Ready to repair</p>
+      <p className="max-w-xs text-xs text-fg-muted">
+        Pick a finding in Problems, then choose <span className="text-fg-secondary">Explain</span>,{' '}
+        <span className="text-fg-secondary">Repair</span>, or{' '}
+        <span className="text-fg-secondary">Test</span>. Every repair is verified before you apply
+        it.
+      </p>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mt-1"
+        onClick={() => {
+          setActiveView('findings');
+        }}
+      >
+        Go to Problems
+      </Button>
+    </div>
   );
 }
 

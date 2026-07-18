@@ -63,3 +63,14 @@
     user-select: none;
   }
 }
+
+/*
+ * The line highlight applied when the user jumps to a finding (Monaco decoration, code-editor.tsx).
+ * A subtle accent wash + a left accent bar so the exact line the finding sits on is unmistakable —
+ * the user never hunts for the problem after clicking it. Class name is referenced from JS, so it
+ * lives here (global), not in a scoped module.
+ */
+.fx-finding-line {
+  background: color-mix(in srgb, var(--fx-color-accent) 16%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--fx-color-accent);
+}

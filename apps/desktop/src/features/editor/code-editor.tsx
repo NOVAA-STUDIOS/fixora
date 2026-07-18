@@ -2,6 +2,7 @@ import type * as monaco from 'monaco-editor';
 import { useEffect, useRef } from 'react';
 
 import { useUiStore } from '../../stores/ui-store.js';
+import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { modelFor } from './models.js';
 import { setupMonaco } from './monaco-setup.js';
@@ -24,7 +25,9 @@ export function CodeEditor({
 }): React.JSX.Element {
   const container = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const theme = useUiStore((s) => s.theme);
+  const revealTarget = useWorkspaceStore((s) => s.revealTarget);
 
   // Mount the editor once.
   useEffect(() => {
@@ -60,6 +63,39 @@ export function CodeEditor({
   useEffect(() => {
     setupMonaco().editor.setTheme(themeForAppearance(theme));
   }, [theme]);
+
+  // Jump to + highlight a finding's range when this file is the reveal target (clicking a finding).
+  // `token` is in the deps so re-clicking the same finding re-reveals it.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (editor === null) return;
+    decorationsRef.current?.clear();
+    if (revealTarget?.relPath !== relPath) return;
+
+    const monaco = setupMonaco();
+    const range = new monaco.Range(
+      revealTarget.startLine,
+      revealTarget.startCol,
+      revealTarget.endLine,
+      revealTarget.endCol,
+    );
+    editor.revealRangeInCenterIfOutsideViewport(range, monaco.editor.ScrollType.Smooth);
+    editor.setPosition({ lineNumber: revealTarget.startLine, column: revealTarget.startCol });
+    decorationsRef.current = editor.createDecorationsCollection([
+      {
+        range: new monaco.Range(revealTarget.startLine, 1, revealTarget.endLine, 1),
+        options: {
+          isWholeLine: true,
+          className: 'fx-finding-line',
+          // A marker in the scrollbar too, so the line stays findable in a long file.
+          overviewRuler: {
+            color: '#8b5cf6',
+            position: monaco.editor.OverviewRulerLane.Right,
+          },
+        },
+      },
+    ]);
+  }, [revealTarget, relPath, content]);
 
   return <div ref={container} className="h-full w-full" />;
 }
