@@ -11,6 +11,7 @@ import { openDatabase } from './db/database.js';
 import {
   createFileIndexRepository,
   createFindingsRepository,
+  createRepairHistoryRepository,
   createWorkspaceRepository,
 } from './db/repositories.js';
 import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
@@ -80,6 +81,7 @@ if (!gotTheLock) {
       // AI (M5, BYOK). core-ai is pure and bundled into main (no WASM), so the provider call runs
       // direct from the main process with the user's keychain-stored key. The renderer never sees it.
       const keyStore = createKeyStore({ dir: app.getPath('userData'), cipher: safeStorageCipher });
+      const repairHistory = createRepairHistoryRepository(driver);
       // Verification runs on its OWN worker (ADR-003 overlay), isolated from workspace analysis.
       const verificationHost = createAnalysisHost(join(__dirname, 'analysis-worker.mjs'));
       const verification = createVerificationService({ host: verificationHost });
@@ -88,6 +90,7 @@ if (!gotTheLock) {
         findings: findingsRepo,
         workspace: workspaceService,
         verification,
+        history: repairHistory,
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
 
@@ -95,7 +98,7 @@ if (!gotTheLock) {
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerAnalysisHandlers(analysisService);
-      registerAiHandlers({ keyStore, aiService, workspace: workspaceService });
+      registerAiHandlers({ keyStore, aiService, workspace: workspaceService, history: repairHistory });
 
       // Reopen the last workspace (if its folder still exists), like an IDE restoring your project.
       // Off the critical path — a failure here never blocks launch.

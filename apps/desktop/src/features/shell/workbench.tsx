@@ -2,8 +2,10 @@ import { PanelGroupRoot, ResizablePanel, ResizeHandle } from '@fixora/ui';
 import { useCallback } from 'react';
 
 import { useUiStore } from '../../stores/ui-store.js';
+import { AiPanel } from '../ai/ai-panel.js';
 import { EditorArea } from '../editor/editor-area.js';
 import { FindingsPanel } from '../findings/findings-panel.js';
+import { HistoryPanel } from '../history/history-panel.js';
 import { SettingsPanel } from '../settings/settings-panel.js';
 import { WorkspacePanel } from '../workspace/workspace-panel.js';
 
@@ -12,6 +14,7 @@ import { PrimaryPlaceholder } from './placeholder-views.js';
 function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
   if (view === 'workspace') return <WorkspacePanel />;
   if (view === 'findings') return <FindingsPanel />;
+  if (view === 'history') return <HistoryPanel />;
   if (view === 'settings') return <SettingsPanel />;
   return <PrimaryPlaceholder />;
 }
@@ -50,19 +53,8 @@ export function Workbench(): React.JSX.Element {
       </ResizablePanel>
       <ResizeHandle aria-label="Resize AI panel" />
       <ResizablePanel id="ai" minSize={16} defaultSize={26} className="min-w-0">
-        <AiPlaceholder />
+        <AiPanel />
       </ResizablePanel>
     </PanelGroupRoot>
-  );
-}
-
-function AiPlaceholder(): React.JSX.Element {
-  return (
-    <section
-      aria-label="Assistant"
-      className="flex h-full items-center justify-center border-l border-border-subtle bg-canvas text-sm text-fg-muted"
-    >
-      AI panel — M5
-    </section>
   );
 }

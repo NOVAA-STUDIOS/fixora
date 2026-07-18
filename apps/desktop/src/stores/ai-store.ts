@@ -1,6 +1,7 @@
 import type { AiConfig, AiProposal, GateMatchInfo, TaskProfile } from '@fixora/shared-types';
 import { create } from 'zustand';
 
+import { useHistoryStore } from '../features/history/history-store.js';
 import { invoke, subscribe } from '../lib/bridge.js';
 
 /**
@@ -110,11 +111,14 @@ export const useAiStore = create<AiState>((set, get) => ({
       startLine: proposal.target.startLine,
       endLine: proposal.target.endLine,
       code: proposal.repairedCode,
+      historyId: proposal.historyId,
     });
     if (!result.ok) {
       set({ status: 'error', errorMessage: result.error.message });
       return false;
     }
+    // Reflect the applied repair in the history view immediately.
+    void useHistoryStore.getState().refresh();
     get().dismiss();
     return true;
   },

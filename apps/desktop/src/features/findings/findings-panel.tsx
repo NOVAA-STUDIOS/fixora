@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 
 import { basename } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
-import { AiPanel } from '../ai/ai-panel.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { useFindingsStore } from './findings-store.js';
@@ -35,14 +34,8 @@ export function FindingsPanel(): React.JSX.Element {
   const listen = useFindingsStore((s) => s.listen);
 
   const workspace = useWorkspaceStore((s) => s.workspace);
-  const loadAiConfig = useAiStore((s) => s.loadConfig);
-  const listenAi = useAiStore((s) => s.listen);
 
   useEffect(() => listen(), [listen]);
-  useEffect(() => listenAi(), [listenAi]);
-  useEffect(() => {
-    void loadAiConfig();
-  }, [loadAiConfig]);
   useEffect(() => {
     if (workspace !== null) void refresh();
   }, [workspace, refresh]);
@@ -101,8 +94,6 @@ export function FindingsPanel(): React.JSX.Element {
           renderItem={(finding) => <FindingRow finding={finding} />}
         />
       )}
-
-      <AiPanel />
     </section>
   );
 }

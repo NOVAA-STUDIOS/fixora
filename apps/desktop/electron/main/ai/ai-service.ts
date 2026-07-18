@@ -13,7 +13,7 @@ import {
 import type { AiRunRequest, AiRunResponse, Language } from '@fixora/shared-types';
 import type { BrowserWindow } from 'electron';
 
-import type { FindingsRepository } from '../db/repositories.js';
+import type { FindingsRepository, RepairHistoryRepository } from '../db/repositories.js';
 import { emitToWindow } from '../ipc/emit.js';
 import { readTextFile } from '../services/fs/fs-service.js';
 import type { WorkspaceService } from '../services/workspace-service.js';
@@ -52,6 +52,7 @@ export interface AiServiceDeps {
   findings: FindingsRepository;
   workspace: WorkspaceService;
   verification: VerificationService;
+  history: RepairHistoryRepository;
   /** Injected so tests can drive a fake provider; defaults to the real OpenRouter adapter. */
   providerFactory?: (key: string) => AIProvider;
   /** Injected for tests; defaults to the path-guarded, secret-denylisted reader. */
@@ -218,10 +219,29 @@ export function createAiService(deps: AiServiceDeps): AiService {
           originalContent: content,
           originalFindings: deps.findings.list(workspace.id, { relPath: finding.location.file }),
         });
+        // Record every reviewed repair in the local audit trail (Beta Phase E), whatever the verdict —
+        // an unresolved or regressed attempt is part of the history too. Apply stamps it later.
+        const historyId = deps.history.record({
+          workspaceId: workspace.id,
+          findingId: finding.id,
+          relPath: finding.location.file,
+          symbolName: target.symbolName,
+          ruleId: finding.ruleId,
+          source: finding.source,
+          verdict: report.verdict,
+          rationale: parsed.value.rationale,
+          originalCode,
+          repairedCode: parsed.value.repairedCode,
+          model: deps.keyStore.getConfig().model,
+          confidence: parsed.value.confidence,
+          startLine: target.startLine,
+          endLine: target.endLine,
+        });
         return {
           status: 'ok',
           proposal: {
             profile: 'repair',
+            historyId,
             repairedCode: parsed.value.repairedCode,
             originalCode,
             rationale: parsed.value.rationale,
