@@ -86,6 +86,8 @@ export {
   AiRunStateSchema,
   ApplyRepairRequestSchema,
   DEFAULT_AI_MODEL,
+  RETIRED_AI_MODELS,
+  resolveModelId,
   GateMatchInfoSchema,
   RepairHistoryEntrySchema,
   RepairOutputSchema,

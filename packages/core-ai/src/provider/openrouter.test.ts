@@ -106,3 +106,94 @@ describe('OpenRouter provider', () => {
     expect(body['response_format']).toMatchObject({ type: 'json_schema' });
   });
 });
+
+/**
+ * Regression: the beta shipped model ids that OpenRouter had retired, so every AI action returned
+ * 404 — and the adapter discarded the response body, leaving the user with "Provider error
+ * (HTTP 404)" and nothing to act on. The status is not the diagnosis; the body is.
+ */
+describe('error reporting', () => {
+  function errorResponse(status: number, body: string, statusText = ''): Response {
+    return new Response(body, { status, statusText });
+  }
+
+  async function firstEvent(response: Response, model = 'anthropic/claude-sonnet-5') {
+    const provider = createOpenRouterProvider({
+      apiKey: 'sk-or-v1-test',
+      fetchImpl: () => Promise.resolve(response),
+    });
+    for await (const event of provider.stream(
+      { model, messages: [{ role: 'user', content: 'hi' }] },
+      new AbortController().signal,
+    )) {
+      return event;
+    }
+    throw new Error('provider yielded no event');
+  }
+
+  it("surfaces OpenRouter's own message for a 404 instead of only the status", async () => {
+    const event = await firstEvent(
+      errorResponse(404, JSON.stringify({ error: { message: 'No endpoints found for model' } })),
+    );
+    expect(event.type).toBe('error');
+    if (event.type !== 'error') return;
+    expect(event.message).toContain('No endpoints found for model');
+    expect(event.providerCode).toBe('HTTP_404');
+    // A 404 is a bad model id, not a transient fault — retrying it just burns time.
+    expect(event.retryable).toBe(false);
+  });
+
+  it('names the rejected model on a 404, since that is the thing to change', async () => {
+    const event = await firstEvent(
+      errorResponse(404, JSON.stringify({ error: { message: 'not found' } })),
+      'anthropic/claude-3.5-sonnet',
+    );
+    if (event.type !== 'error') throw new Error('expected error');
+    expect(event.message).toContain('anthropic/claude-3.5-sonnet');
+    expect(event.message).toContain('openrouter.ai/models');
+  });
+
+  it('points at the key for 401, and stays retryable for 429/5xx', async () => {
+    const unauthorized = await firstEvent(
+      errorResponse(401, JSON.stringify({ error: { message: 'Invalid API key' } })),
+    );
+    if (unauthorized.type !== 'error') throw new Error('expected error');
+    expect(unauthorized.message).toContain('Invalid API key');
+    expect(unauthorized.message).toContain('Settings');
+    expect(unauthorized.retryable).toBe(false);
+
+    const rateLimited = await firstEvent(errorResponse(429, '{}'));
+    if (rateLimited.type !== 'error') throw new Error('expected error');
+    expect(rateLimited.retryable).toBe(true);
+
+    const serverError = await firstEvent(errorResponse(503, '{}'));
+    if (serverError.type !== 'error') throw new Error('expected error');
+    expect(serverError.retryable).toBe(true);
+  });
+
+  it('degrades to the status when the body is not JSON, rather than throwing', async () => {
+    const event = await firstEvent(errorResponse(502, '<html>Bad Gateway</html>'));
+    if (event.type !== 'error') throw new Error('expected error');
+    expect(event.message).toContain('502');
+    expect(event.message).toContain('Bad Gateway');
+  });
+
+  it('posts to the documented chat-completions endpoint', async () => {
+    let seenUrl = '';
+    const provider = createOpenRouterProvider({
+      apiKey: 'sk-or-v1-test',
+      fetchImpl: (url) => {
+        seenUrl = url;
+        return Promise.resolve(new Response('', { status: 500 }));
+      },
+    });
+    for await (const ignored of provider.stream(
+      { model: 'anthropic/claude-sonnet-5', messages: [{ role: 'user', content: 'hi' }] },
+      new AbortController().signal,
+    )) {
+      void ignored;
+      break;
+    }
+    expect(seenUrl).toBe('https://openrouter.ai/api/v1/chat/completions');
+  });
+});

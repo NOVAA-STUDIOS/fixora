@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { type AiConfig, DEFAULT_AI_MODEL } from '@fixora/shared-types';
+import { type AiConfig, DEFAULT_AI_MODEL, resolveModelId } from '@fixora/shared-types';
 
 import type { SecretCipher } from './cipher.js';
 
@@ -54,7 +54,9 @@ export function createKeyStore(options: KeyStoreOptions): KeyStore {
       return {
         keyEnc: typeof parsed.keyEnc === 'string' ? parsed.keyEnc : null,
         hint: typeof parsed.hint === 'string' ? parsed.hint : null,
-        model: typeof parsed.model === 'string' ? parsed.model : DEFAULT_AI_MODEL,
+        // A model id we shipped and OpenRouter has since retired is migrated forward here, on read.
+        // Otherwise the stored preference outlives the upgrade and the install keeps 404-ing.
+        model: typeof parsed.model === 'string' ? resolveModelId(parsed.model) : DEFAULT_AI_MODEL,
       };
     } catch {
       // Missing or corrupt — start clean. Losing a stored key degrades to "paste it again", never a crash.

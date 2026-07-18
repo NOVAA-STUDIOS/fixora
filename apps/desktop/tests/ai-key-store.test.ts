@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { SecretCipher } from '../electron/main/ai/cipher.js';
 import { createKeyStore } from '../electron/main/ai/key-store.js';
+import { DEFAULT_AI_MODEL } from '@fixora/shared-types';
 
 // A reversible stand-in for safeStorage — the real one needs the Electron runtime + an OS user.
 const fakeCipher: SecretCipher = {
@@ -67,5 +68,33 @@ describe('BYOK key store', () => {
     // Missing file → a new instance starts clean.
     const reloaded = createKeyStore({ dir, cipher: fakeCipher, fileName: 'creds.json' });
     expect(reloaded.getConfig().configured).toBe(false);
+  });
+
+  it('migrates a retired model id forward, keeping the key', () => {
+    // An install from before the model list was corrected. The stored id 404s at OpenRouter, and a
+    // stored preference outlives an upgrade — so without this the update would appear to fix nothing.
+    const store = createKeyStore({ dir, cipher: fakeCipher, fileName: 'legacy.json' });
+    store.setKey('sk-or-v1-1234');
+    const onDisk = JSON.parse(readFileSync(join(dir, 'legacy.json'), 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    writeFileSync(
+      join(dir, 'legacy.json'),
+      JSON.stringify({ ...onDisk, model: 'anthropic/claude-3.5-sonnet' }),
+    );
+
+    const reloaded = createKeyStore({ dir, cipher: fakeCipher, fileName: 'legacy.json' });
+    expect(reloaded.getConfig().model).toBe(DEFAULT_AI_MODEL);
+    expect(reloaded.getConfig().configured).toBe(true);
+  });
+
+  it('leaves alone a model id we never shipped — the user’s own choice is theirs', () => {
+    const store = createKeyStore({ dir, cipher: fakeCipher, fileName: 'custom.json' });
+    store.setKey('sk-or-v1-1234');
+    store.setModel('some-provider/a-model-we-never-shipped');
+
+    const reloaded = createKeyStore({ dir, cipher: fakeCipher, fileName: 'custom.json' });
+    expect(reloaded.getConfig().model).toBe('some-provider/a-model-we-never-shipped');
   });
 });
