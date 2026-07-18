@@ -191,7 +191,8 @@ function AiSettings(): React.JSX.Element {
             {/* Free first: the beta should not cost anyone credits to try. Paid models stay
                 available below — switching to Claude, GPT or Gemini is always the user's call. */}
             {modelOptions.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
+              // title: the full id stays reachable on hover once the label truncates.
+              <SelectItem key={m.id} value={m.id} title={m.id}>
                 {m.free ? `${m.name} · free` : m.name}
               </SelectItem>
             ))}
