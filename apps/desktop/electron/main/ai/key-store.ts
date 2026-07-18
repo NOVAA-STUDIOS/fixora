@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { type AiConfig, DEFAULT_AI_MODEL, resolveModelId } from '@fixora/shared-types';
+import { type AiConfig, UNRESOLVED_MODEL } from '@fixora/shared-types';
 
 import type { SecretCipher } from './cipher.js';
 
@@ -54,13 +54,13 @@ export function createKeyStore(options: KeyStoreOptions): KeyStore {
       return {
         keyEnc: typeof parsed.keyEnc === 'string' ? parsed.keyEnc : null,
         hint: typeof parsed.hint === 'string' ? parsed.hint : null,
-        // A model id we shipped and OpenRouter has since retired is migrated forward here, on read.
-        // Otherwise the stored preference outlives the upgrade and the install keeps 404-ing.
-        model: typeof parsed.model === 'string' ? resolveModelId(parsed.model) : DEFAULT_AI_MODEL,
+        // Stored as-is. Whether the id still exists is the catalogue's call, made at resolve time —
+        // this layer does not guess, and must never migrate on a read that never checked.
+        model: typeof parsed.model === 'string' ? parsed.model : UNRESOLVED_MODEL,
       };
     } catch {
       // Missing or corrupt — start clean. Losing a stored key degrades to "paste it again", never a crash.
-      return { keyEnc: null, hint: null, model: DEFAULT_AI_MODEL };
+      return { keyEnc: null, hint: null, model: UNRESOLVED_MODEL };
     }
   }
 
@@ -69,7 +69,12 @@ export function createKeyStore(options: KeyStoreOptions): KeyStore {
   }
 
   function config(): AiConfig {
-    return { configured: state.keyEnc !== null, model: state.model, keyHint: state.hint };
+    return {
+      configured: state.keyEnc !== null,
+      model: state.model,
+      keyHint: state.hint,
+      migratedFrom: null,
+    };
   }
 
   return {

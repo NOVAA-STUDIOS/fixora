@@ -5,6 +5,7 @@ import { app, BrowserWindow } from 'electron';
 import { createAiService } from './ai/ai-service.js';
 import { safeStorageCipher } from './ai/cipher.js';
 import { createKeyStore } from './ai/key-store.js';
+import { createModelCatalogue } from './ai/model-catalogue.js';
 import { createAnalysisHost } from './analysis/analysis-host.js';
 import { createAnalysisService } from './analysis/analysis-service.js';
 import { openDatabase } from './db/database.js';
@@ -107,11 +108,16 @@ if (!gotTheLock) {
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerAnalysisHandlers(analysisService);
+      // The live OpenRouter catalogue. Public endpoint, no key — it is safe to consult before the
+      // user has configured anything, and a failure to reach it never blocks launch.
+      const modelCatalogue = createModelCatalogue();
+
       registerAiHandlers({
         keyStore,
         aiService,
         workspace: workspaceService,
         history: repairHistory,
+        catalogue: modelCatalogue,
       });
       registerLicenseHandlers({ license });
 

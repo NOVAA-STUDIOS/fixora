@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   AiConfigSchema,
+  AiModelListSchema,
   AiRunRequestSchema,
   AiRunResponseSchema,
   ApplyRepairRequestSchema,
@@ -131,6 +132,12 @@ export const contracts = {
   },
   'ai:clearKey': { request: empty, response: AiConfigSchema },
   'ai:setModel': { request: z.object({ model: z.string().min(1) }), response: AiConfigSchema },
+  // The live OpenRouter catalogue, for the model picker. Public endpoint, no key involved — the
+  // list can be shown before the user has configured anything.
+  'ai:listModels': {
+    request: z.object({ refresh: z.boolean().optional() }),
+    response: AiModelListSchema,
+  },
   'ai:run': { request: AiRunRequestSchema, response: AiRunResponseSchema },
   'ai:cancel': { request: empty, response: z.void() },
   // Apply a verified repair to the file on disk (path-guarded in main). The renderer sends the target
