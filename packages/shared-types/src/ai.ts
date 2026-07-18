@@ -122,6 +122,12 @@ export const ApplyRepairRequestSchema = z.object({
   startLine: z.number().int().positive(),
   endLine: z.number().int().positive(),
   code: z.string(),
+  /**
+   * The exact text the target range held when the repair was proposed. Main refuses to apply if the
+   * file has changed since (the range would be stale) — a repair is never spliced into code it was
+   * not computed against.
+   */
+  expectedOriginal: z.string(),
   /** The history row to mark as applied (from the repair proposal). */
   historyId: z.string().optional(),
 });

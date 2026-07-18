@@ -1060,3 +1060,94 @@ bounded in practice, and a candidate for streaming later.
 grounding contract: because each tool is the user's own tool run their own way, "matches your CI" is a
 property of the architecture, not a hope.
 
+<a id="adr-036"></a>
+
+## ADR-036 — Ship a BYOK-first Public Beta; defer the managed tier to v1.1
+
+**Status:** Accepted — 2026-07-16
+
+**Decision.** The Public Beta is **bring-your-own-key only**. AI runs desktop → provider directly (OpenRouter
+first, with OpenAI/Anthropic/Google reachable through it) using a key the user stores in their OS keychain.
+There is **no account, no sign-in, and no Fixora server on the AI path** in the beta. The managed tier — the
+`fixora-api` gateway (Supabase auth, quota, entitlements, metering) and the desktop PKCE sign-in — is built,
+green, and **deferred to v1.1**, ready to switch on. Revenue at launch is a **Stripe Payment Link + an offline
+license key** (ADR-038-adjacent), not a billing backend.
+
+**Why.** The mission became: ship a trustworthy beta this month. BYOK inverts what the beta needs — with the
+user's own key there is nothing to meter, so the entire account/quota/billing backend leaves the critical
+path. That makes the beta smaller, faster to ship, and **more private** (nothing but the provider call leaves
+the machine), which is the product's whole thesis. The managed work is not wasted; it is the v1.1 tier.
+
+**Alternatives considered.** _Finish the managed tier first_ — rejected: it is the slow path and puts our
+provider cost + a billing integration in front of a beta that does not need them. _Optional sign-in in the
+beta_ — rejected: cost now, little beta benefit. _Managed AI (our keys) in the beta_ — rejected: most work,
+needs the backend deployed + Stripe, and puts our token spend on the critical path.
+
+**Trade-offs accepted.** Beta users must obtain their own OpenRouter key (a documented one-time step). No
+server-side usage analytics in the beta (acceptable; the point is privacy). The deferred backend must be
+kept building so v1.1 can turn it on without rot.
+
+**Long-term impact.** The provider abstraction (ADR-012) stays; the beta ships one adapter and gains the
+others by architecture. When the managed tier turns on, the client's transport switches from BYOK-direct to
+the gateway behind the same interface — no client rewrite.
+
+<a id="adr-037"></a>
+
+## ADR-037 — A repair emits a replacement symbol; Fixora derives the diff and applies by verified range
+
+**Status:** Accepted — 2026-07-17 — refines ADR-013
+
+**Decision.** The model returns, under a strict JSON schema, the **full replacement text for the target
+symbol** (plus rationale + confidence) — not a unified diff. Fixora computes the diff deterministically
+(original symbol vs. replacement) for the diff viewer, and applies by **replacing the target line range**.
+Apply carries the exact original text the range held at proposal time and is **refused if the file changed
+since** (the range would be stale).
+
+**Why.** A model-authored unified diff is a source of silent corruption: fuzzy hunk headers, mismatched
+context, off-by-one line numbers — in a system that writes to people's source files. Having the model return
+the replacement symbol and computing the diff ourselves makes malformed diffs **impossible**, makes apply a
+**deterministic range replacement** rather than a fuzzy patch, and still honours ADR-013's intent — surgical,
+reviewable, **never a whole-file rewrite** (the unit is the enclosing symbol). It composes cleanly with the
+grounding: the target range comes from the finding's own enclosing symbol (tree-sitter), so we always know
+exactly what to replace.
+
+**Alternatives considered.** _Model emits a unified diff (ADR-013 literal)_ — retained as the *presented*
+artifact (we still show a diff) but rejected as the *transport*: parsing model diffs reliably across
+languages is a tar pit. _Whole-file replacement_ — rejected: violates ADR-013 and buries the change.
+
+**Trade-offs accepted.** The model must return the whole symbol even for a one-line fix (a few more output
+tokens; trivial and bounded by the symbol). A repair that needs to change *two* symbols is out of scope for
+the beta (one target per repair) — a deliberate limit, not a gap.
+
+**Long-term impact.** Apply is transactional and safe by construction (verified range + stale-guard), which
+is what lets "Apply" be a one-click action the user trusts. Multi-symbol / cross-file repairs are a v1.1
+extension behind the same "replacement + verify" model.
+
+<a id="adr-038"></a>
+
+## ADR-038 — A local, private repair-history audit trail
+
+**Status:** Accepted — 2026-07-18
+
+**Decision.** Every repair the user reviews is recorded in **local SQLite** (migration v4) with its
+verification verdict, the model, the **before/after code**, and whether it was applied. A History panel lists
+the trail. It is local-only and never leaves the machine.
+
+**Why.** The product's claim is "trust us with your code." An audit trail the user can **inspect** — exactly
+what the AI proposed, what it was verified against, and what they accepted — turns that claim into something
+checkable. The local/cloud code-retention line (DB §1) is a hard, tested boundary: the **cloud** schema
+forbids code/paths/diffs, but **local** SQLite is meant to hold everything about the user's code, so storing
+the before/after text is not only allowed, it is what makes "review a past fix / copy it again" work.
+
+**Alternatives considered.** _Record only a verdict + metadata_ — rejected: without the code, the history
+cannot show what changed or let the user re-use a past fix. _Record applied repairs only_ — rejected: a
+regressed or unresolved attempt is part of the audit too; recording all reviewed repairs is the honest trail.
+_Store in the cloud_ — rejected outright: it is the user's code; it stays on their machine (ADR-004).
+
+**Trade-offs accepted.** History grows with use (bounded per workspace; a clear/retention control is a later
+refinement). No cross-device history in the beta (it is local — consistent with BYOK-first, ADR-036).
+
+**Long-term impact.** The trail is the substrate for later product surfaces (apply-rate metrics — the ADR-003
+north-star — computed locally; export; "undo a past apply"), and it is where a v1.1 opt-in sync would attach
+if the user ever wants it.
+

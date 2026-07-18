@@ -37,3 +37,5 @@ bounded in practice, and a candidate for streaming later.
 **Long-term impact.** This is the decision that makes the engine usable on a real codebase. It also fixes the
 grounding contract: because each tool is the user's own tool run their own way, "matches your CI" is a
 property of the architecture, not a hope.
+
+<a id="adr-036"></a>

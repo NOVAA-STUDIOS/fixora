@@ -43,3 +43,6 @@ To add or change a decision: edit the register, then run `pnpm adr:sync`.
 | [033](./033-node-sqlite-instead-of-better-sqlite3-for-local-persistence-.md) | `node:sqlite` instead of better-sqlite3 for local persistence (amends ADR-011) | Accepted |
 | [034](./034-tree-sitter-via-webassembly-web-tree-sitter-with-prebuilt-gr.md) | tree-sitter via WebAssembly (web-tree-sitter) with prebuilt grammars | Accepted |
 | [035](./035-analyzers-are-workspace-scoped-each-tool-runs-once-per-analy.md) | Analyzers are workspace-scoped: each tool runs once per analysis, not per file | Accepted |
+| [036](./036-ship-a-byok-first-public-beta-defer-the-managed-tier-to-v1-1.md) | Ship a BYOK-first Public Beta; defer the managed tier to v1.1 | Accepted |
+| [037](./037-a-repair-emits-a-replacement-symbol-fixora-derives-the-diff-.md) | A repair emits a replacement symbol; Fixora derives the diff and applies by verified range | Accepted |
+| [038](./038-a-local-private-repair-history-audit-trail.md) | A local, private repair-history audit trail | Accepted |

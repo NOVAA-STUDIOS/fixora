@@ -1,7 +1,7 @@
 # Fixora — Project Status
 
 **Updated:** 2026-07-18 · **Mission:** ship a **BYOK Public Beta** this month (pivot 2026-07-16).
-**Current work:** Beta-M5 Verified AI Repair — Phases A–E ✅ done + verified; Phase F (closure) next.
+**Current work:** Beta-M5 Verified AI Repair — **Phases A–F ✅ done + verified**. Next track: Licensing → Packaging → Website → Docs → Release.
 
 ## Mission pivot (2026-07-16) — BYOK-first Public Beta
 
@@ -22,7 +22,7 @@ plugins, cloud sync, API platform, analytics/reports, collaboration, org managem
 | Beta-M5 C | keychain BYOK key store + AI IPC + streaming + settings/finding UI | ✅ done + verified (live safeStorage) |
 | Beta-M5 D | verified repair: overlay + re-run analyzers + verdict + diff + apply/copy | ✅ done + verified (live worker) |
 | Beta-M5 E | repair history (SQLite v4) + History panel; AI panel in its own pane | ✅ done + verified |
-| Beta-M5 F | acceptance + audit + red-team + docs | ▶ next |
+| Beta-M5 F | acceptance (over-HTTP + live smokes) + audit + red-team + docs/ADRs | ✅ done — see [BETA-ACCEPTANCE.md](docs/BETA-ACCEPTANCE.md), ADR-036/037/038 |
 | Licensing | Stripe link + offline license | ⏸ |
 | Packaging | Windows installer (unsigned beta) | ⏸ |
 | Website | download page + BYOK guide + Stripe link | ⏸ |

@@ -47,6 +47,20 @@ The product: a grounded, gated, **verified** repair loop with bring-your-own-key
 - 185 desktop tests + 62 package tests pass (zero regression). Live: `safeStorage` DPAPI round-trip; the
   verification worker producing a real syntax verdict (valid→ok, broken→regression) over a real overlay.
 
+#### Phase F — acceptance, audit, red-team (2026-07-18)
+
+- **Real over-HTTP acceptance** — a local OpenRouter-compatible SSE server drives the real adapter over a
+  real socket through the whole pipeline (gate → stream → schema-parse). Only a real LLM's answer quality
+  is left to the owner's own-key run (procedure in `docs/BETA-ACCEPTANCE.md`).
+- **Audit fix (A1): stale apply.** `ai:applyRepair` now carries the original text the target range held at
+  proposal time and **refuses to apply if the file changed since** — a repair is never spliced into code it
+  was not computed against. Red-teamed.
+- **Red-team of the write path** — `ai:applyRepair` refuses path traversal, refuses to write over a secret
+  (`.env`), and refuses a stale apply; a fresh apply writes only the target range and records history.
+- **ADR-036** (BYOK-first beta, managed tier deferred), **ADR-037** (repair emits a replacement symbol; we
+  derive the diff + apply by verified range, refining ADR-013), **ADR-038** (local repair-history audit
+  trail). `pnpm gate:adr` in sync.
+
 ### M3 — Deterministic analysis engine (2026-07-16)
 
 The moat, and it contains **zero AI** (ADR-002): findings come from tree-sitter and the workspace's own
