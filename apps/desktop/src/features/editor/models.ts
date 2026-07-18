@@ -8,6 +8,18 @@ import type * as monaco from 'monaco-editor';
  */
 const cache = new Map<string, monaco.editor.ITextModel>();
 
+/**
+ * Per-file "this is what's on disk" marker, as Monaco's *alternative version id*. Dirty state is
+ * `current id !== baseline id`, not "a change event fired" — which matters twice:
+ *
+ * - Monaco emits content events we did not cause (EOL normalisation on model creation, for one), so
+ *   event-counting marks a file dirty that the user never touched. On a tool where the next keystroke
+ *   is Ctrl+S, that risks writing a file nobody edited.
+ * - Undoing back to the original state returns to the baseline id, so the file correctly goes *clean*
+ *   again. Event-counting can only ever ratchet dirty.
+ */
+const baselines = new Map<string, number>();
+
 /** Our language ids → Monaco's. Unknown maps to plaintext. */
 function monacoLanguage(language: string | null): string {
   const map: Record<string, string> = {
@@ -45,7 +57,22 @@ export function modelFor(
   const uri = m.Uri.parse(`fixora:/${encodeURI(relPath)}`);
   const model = m.editor.createModel(content, monacoLanguage(language), uri);
   cache.set(relPath, model);
+  baselines.set(relPath, model.getAlternativeVersionId());
   return model;
+}
+
+/** Does this file differ from what we last knew to be on disk? */
+export function isModelDirty(relPath: string): boolean {
+  const model = cache.get(relPath);
+  if (model === undefined || model.isDisposed()) return false;
+  return model.getAlternativeVersionId() !== baselines.get(relPath);
+}
+
+/** Record the current text as matching disk — after a successful save, or a reload. */
+export function markModelSaved(relPath: string): void {
+  const model = cache.get(relPath);
+  if (model === undefined || model.isDisposed()) return;
+  baselines.set(relPath, model.getAlternativeVersionId());
 }
 
 export function hasModel(relPath: string): boolean {
@@ -70,9 +97,12 @@ export function refreshModelText(relPath: string, content: string): void {
   if (model === undefined || model.isDisposed()) return;
   if (model.getValue() === content) return;
   model.pushEditOperations([], [{ range: model.getFullModelRange(), text: content }], () => null);
+  // This text IS what is on disk now (the repair was applied there first), so it is the new baseline.
+  baselines.set(relPath, model.getAlternativeVersionId());
 }
 
 export function disposeModel(relPath: string): void {
   cache.get(relPath)?.dispose();
   cache.delete(relPath);
+  baselines.delete(relPath);
 }
