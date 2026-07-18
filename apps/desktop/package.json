@@ -11,7 +11,10 @@
     "preview": "node scripts/electron-vite-gui.mjs preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint electron src electron.vite.config.ts --max-warnings 0",
-    "test": "vitest run"
+    "test": "vitest run",
+    "package:win": "pnpm --filter @fixora/core-analysis build && electron-vite build && node scripts/prepackage.mjs && electron-builder --win --config electron-builder.yml",
+    "package:dir": "pnpm --filter @fixora/core-analysis build && electron-vite build && node scripts/prepackage.mjs && electron-builder --dir --win --config electron-builder.yml",
+    "prepackage": "node scripts/prepackage.mjs"
   },
   "dependencies": {
     "@fixora/core-ai": "workspace:*",
@@ -43,6 +46,8 @@
     "tailwindcss": "4.3.2",
     "typescript": "6.0.3",
     "vite": "7.3.6",
-    "vitest": "4.1.10"
-  }
+    "vitest": "4.1.10",
+    "electron-builder": "25.1.8"
+  },
+  "author": "Fixora"
 }
