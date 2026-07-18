@@ -34,9 +34,14 @@ export function EditorArea(): React.JSX.Element {
     return (
       <section
         aria-label="Editor"
-        className="flex h-full items-center justify-center bg-inset text-sm text-fg-muted"
+        className="flex h-full flex-col items-center justify-center gap-2 bg-inset p-6 text-center"
       >
-        Select a file to view it
+        <p className="text-sm font-medium text-fg">No file open</p>
+        <p className="max-w-sm text-xs text-fg-muted">
+          Pick a file in <span className="text-fg-secondary">Files</span>, or click a finding in{' '}
+          <span className="text-fg-secondary">Problems</span> to jump straight to the line
+          it&rsquo;s on.
+        </p>
       </section>
     );
   }

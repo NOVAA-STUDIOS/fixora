@@ -24,11 +24,26 @@ export type TreeNode = {
   loading: boolean;
 };
 
+/**
+ * Where to reveal + highlight in the editor after a jump (e.g. clicking a finding). `token` bumps on
+ * every request so clicking the same finding twice re-reveals it, even though the target is identical.
+ */
+export type RevealTarget = {
+  relPath: string;
+  startLine: number;
+  startCol: number;
+  endLine: number;
+  endCol: number;
+  token: number;
+};
+
 type WorkspaceState = {
   workspace: WorkspaceInfo | null;
   nodes: TreeNode[];
   /** relPath of the file the user last activated in the tree (drives the editor). */
   selectedFile: string | null;
+  /** The location the editor should scroll to + highlight, or null (a plain file open). */
+  revealTarget: RevealTarget | null;
   opening: boolean;
   error: string | null;
 
@@ -38,9 +53,19 @@ type WorkspaceState = {
   openPath: (path: string) => Promise<void>;
   toggleDir: (relPath: string) => Promise<void>;
   selectFile: (relPath: string) => void;
+  /** Open a file AND scroll to + highlight a range — what clicking a finding does. */
+  revealAt: (location: {
+    file: string;
+    startLine: number;
+    startCol: number;
+    endLine: number;
+    endCol: number;
+  }) => void;
   /** Re-fetch a directory's children in place (used by the file watcher). */
   refreshDir: (relPath: string) => Promise<void>;
 };
+
+let revealToken = 0;
 
 function entryToNode(entry: DirEntryInfo, depth: number): TreeNode {
   return { ...entry, depth, expanded: false, loading: false };
@@ -50,6 +75,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspace: null,
   nodes: [],
   selectedFile: null,
+  revealTarget: null,
   opening: false,
   error: null,
 
@@ -82,6 +108,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workspace: opened.value.workspace,
       nodes: root.ok ? root.value.entries.map((e) => entryToNode(e, 0)) : [],
       selectedFile: null,
+      revealTarget: null,
       opening: false,
       error: root.ok ? null : root.error.message,
     });
@@ -129,7 +156,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   selectFile: (relPath) => {
-    set({ selectedFile: relPath });
+    set({ selectedFile: relPath, revealTarget: null });
+  },
+
+  revealAt: (location) => {
+    revealToken += 1;
+    set({
+      selectedFile: location.file,
+      revealTarget: {
+        relPath: location.file,
+        startLine: location.startLine,
+        startCol: location.startCol,
+        endLine: location.endLine,
+        endCol: location.endCol,
+        token: revealToken,
+      },
+    });
   },
 
   refreshDir: async (relPath) => {
