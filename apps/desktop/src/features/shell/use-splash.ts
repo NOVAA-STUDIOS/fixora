@@ -28,17 +28,48 @@ export const SPLASH_FADE_MS = 300;
  */
 export const SPLASH_RETRY_MIN_MS = 400;
 
+/**
+ * The status line, in the order startup actually reaches them.
+ *
+ * Each message corresponds to real work: index 0 is "we have started", 1 is "the workspace query
+ * came back", 2 is "its files are listed". There is deliberately no "Preparing AI engine" — nothing
+ * about the AI provider is initialized at launch (the BYOK config is read lazily when the assistant
+ * panel first mounts), and narrating a step the app does not take is the kind of small lie that
+ * makes a user right not to trust the rest of the screen.
+ *
+ * `Ready` is index 3 and is shown **only** once initialization has genuinely resolved.
+ */
+export const SPLASH_MESSAGES = [
+  'Initializing Fixora…',
+  'Loading workspace…',
+  'Preparing editor…',
+  'Ready',
+] as const;
+
+/**
+ * How long each message is held *at minimum*, so a step that completes in 20ms is still readable.
+ *
+ * This paces the display; it never runs ahead of the work. The message shown is the *lesser* of "how
+ * far the work has actually got" and "how far the clock allows" — so a stage is never announced
+ * before it has happened, and a fast startup does not strobe through four strings in one frame.
+ */
+export const SPLASH_MESSAGE_HOLD_MS = 850;
+
 export type SplashState =
   | { visible: true; phase: SplashPhase; message: string; errorMessage: string | null }
   | { visible: false };
 
-export function useSplash(initialize: () => Promise<unknown>): {
+export function useSplash(initialize: (onStage?: (stage: string) => void) => Promise<unknown>): {
   state: SplashState;
   retry: () => void;
   dismiss: () => void;
 } {
   const [phase, setPhase] = useState<SplashPhase | 'done'>('entering');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  /** How far the *work* has got: 0 started, 1 workspace resolved, 2 files listed, 3 fully done. */
+  const [reached, setReached] = useState(0);
+  /** How far the *clock* permits showing, so fast steps stay readable. Never exceeds `reached`. */
+  const [allowed, setAllowed] = useState(0);
 
   // Held in refs so `run` can be a stable callback: re-creating it would restart initialization.
   const cancelled = useRef(false);
@@ -54,6 +85,15 @@ export function useSplash(initialize: () => Promise<unknown>): {
     (floorMs: number) => {
       const startedAt = Date.now();
       setErrorMessage(null);
+      setReached(0);
+      setAllowed(0);
+      // The clock's permission to advance. It only ever *allows* a message; whether one is shown
+      // still depends on the work having reached it.
+      for (let step = 1; step < SPLASH_MESSAGES.length; step += 1) {
+        later(() => {
+          if (!cancelled.current) setAllowed(step);
+        }, SPLASH_MESSAGE_HOLD_MS * step);
+      }
       // A frame at opacity-0 before flipping to opacity-100 is what gives us a fade *in* rather than
       // an abrupt paint — the element has to be mounted at the initial opacity for the transition to
       // have something to animate from.
@@ -62,37 +102,46 @@ export function useSplash(initialize: () => Promise<unknown>): {
         if (!cancelled.current) setPhase('loading');
       }, 30);
 
-      void initializeRef.current().then(
-        () => {
+      void initializeRef
+        .current((stage) => {
           if (cancelled.current) return;
-          // Rule 1 and 2: whichever of "work finished" and "floor elapsed" is later.
-          const remaining = Math.max(0, floorMs - (Date.now() - startedAt));
-          later(() => {
+          // A stage report only ever moves this forward, and only to the step it names.
+          setReached((current) => Math.max(current, stage === 'workspace' ? 1 : 2));
+        })
+        .then(
+          () => {
             if (cancelled.current) return;
-            setPhase('leaving');
+            // "Ready" is gated on the promise actually resolving — never on the clock. This is the
+            // one message that claims completion, so it is the one that must never be predicted.
+            setReached(SPLASH_MESSAGES.length - 1);
+            // Rule 1 and 2: whichever of "work finished" and "floor elapsed" is later.
+            const remaining = Math.max(0, floorMs - (Date.now() - startedAt));
             later(() => {
-              if (!cancelled.current) setPhase('done');
-            }, SPLASH_FADE_MS);
-          }, remaining);
-        },
-        (error: unknown) => {
-          if (cancelled.current) return;
-          setErrorMessage(
-            error instanceof Error && error.message !== ''
-              ? error.message
-              : 'Fixora could not finish starting up.',
-          );
-          // Rule 3: surface it now, not after the floor. The short delay only lets the fade-in
-          // finish, so the error does not pop in mid-transition.
-          const sinceStart = Date.now() - startedAt;
-          later(
-            () => {
-              if (!cancelled.current) setPhase('error');
-            },
-            Math.max(0, SPLASH_FADE_MS - sinceStart),
-          );
-        },
-      );
+              if (cancelled.current) return;
+              setPhase('leaving');
+              later(() => {
+                if (!cancelled.current) setPhase('done');
+              }, SPLASH_FADE_MS);
+            }, remaining);
+          },
+          (error: unknown) => {
+            if (cancelled.current) return;
+            setErrorMessage(
+              error instanceof Error && error.message !== ''
+                ? error.message
+                : 'Fixora could not finish starting up.',
+            );
+            // Rule 3: surface it now, not after the floor. The short delay only lets the fade-in
+            // finish, so the error does not pop in mid-transition.
+            const sinceStart = Date.now() - startedAt;
+            later(
+              () => {
+                if (!cancelled.current) setPhase('error');
+              },
+              Math.max(0, SPLASH_FADE_MS - sinceStart),
+            );
+          },
+        );
     },
     [later],
   );
@@ -121,13 +170,16 @@ export function useSplash(initialize: () => Promise<unknown>): {
     }, SPLASH_FADE_MS);
   }, [later]);
 
+  // The whole honesty rule in one expression: never ahead of the work, never faster than readable.
+  const messageIndex = Math.min(reached, allowed, SPLASH_MESSAGES.length - 1);
+
   const state: SplashState =
     phase === 'done'
       ? { visible: false }
       : {
           visible: true,
           phase,
-          message: 'Restoring your workspace…',
+          message: SPLASH_MESSAGES[messageIndex] ?? SPLASH_MESSAGES[0],
           errorMessage,
         };
 

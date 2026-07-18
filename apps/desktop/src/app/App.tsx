@@ -22,7 +22,14 @@ export function App(): React.JSX.Element {
   const hydrateCurrent = useWorkspaceStore((s) => s.hydrateCurrent);
 
   // Stable across renders so the splash hook does not re-run initialization on every store update.
-  const initialize = useCallback(() => hydrateCurrent(), [hydrateCurrent]);
+  // The stage callback lets the launch screen report work that actually happened.
+  const initialize = useCallback(
+    (onStage?: (stage: string) => void) =>
+      hydrateCurrent((stage) => {
+        onStage?.(stage);
+      }),
+    [hydrateCurrent],
+  );
   const { state, retry, dismiss } = useSplash(initialize);
 
   return (

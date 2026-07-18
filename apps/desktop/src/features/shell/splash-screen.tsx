@@ -53,9 +53,19 @@ export function SplashScreen({
         phase === 'leaving' ? 'pointer-events-none' : '',
       ].join(' ')}
     >
-      <div className="motion-safe:animate-[fx-splash-in_420ms_ease-out_both] flex flex-col items-center gap-4">
-        <FixoraMark className="size-16 drop-shadow-lg" title="Fixora" />
-        <div className="flex flex-col items-center gap-1.5">
+      {/* A staggered entrance for elements that are otherwise unchanged — same mark, wordmark,
+          tagline, colours and type, arriving in the order you read them rather than all at once.
+          Delays are on the existing keyframe, so `motion-safe:` still governs the whole thing and a
+          reduce-motion user sees the finished composition immediately. */}
+      <div className="flex flex-col items-center gap-4">
+        <FixoraMark
+          className="motion-safe:animate-[fx-splash-in_420ms_ease-out_both] size-16 drop-shadow-lg"
+          title="Fixora"
+        />
+        <div
+          className="motion-safe:animate-[fx-splash-in_420ms_ease-out_both] flex flex-col items-center gap-1.5"
+          style={{ animationDelay: '500ms' }}
+        >
           <h1 className="text-2xl font-semibold tracking-tight text-fg">Fixora</h1>
           <p className="text-sm text-fg-muted">Fix smarter. Ship faster.</p>
         </div>
@@ -80,14 +90,21 @@ export function SplashScreen({
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-3">
-          {/* An indeterminate sweep, not a percentage: we do not know how long restoring a workspace
-              takes, and a progress bar that lies is worse than one that only says "working". It keeps
-              animating for as long as this screen is up, because the work really is still running. */}
+        <div
+          className="motion-safe:animate-[fx-splash-in_420ms_ease-out_both] flex flex-col items-center gap-3"
+          style={{ animationDelay: '900ms' }}
+        >
+          {/* An indeterminate sweep, not a percentage. Startup is two round-trips that typically
+              finish in well under a second — a percentage over two coarse steps would be a number
+              invented to look precise, and a progress bar that lies is worse than one that only says
+              "working". The sweep keeps animating for as long as this screen is up. */}
           <div className="h-0.5 w-40 overflow-hidden rounded-full bg-border-subtle">
             <div className="motion-safe:animate-[fx-splash-sweep_1.4s_ease-in-out_infinite] h-full w-1/3 rounded-full bg-accent" />
           </div>
-          <p className="text-xs text-fg-muted">{message}</p>
+          {/* aria-live so the sequence is announced rather than silently swapped under a reader. */}
+          <p aria-live="polite" className="text-xs text-fg-muted">
+            {message}
+          </p>
         </div>
       )}
     </div>

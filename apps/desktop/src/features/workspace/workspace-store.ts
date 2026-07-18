@@ -38,6 +38,12 @@ export type RevealTarget = {
   token: number;
 };
 
+/**
+ * The steps startup actually performs, reported as each one completes. There are two, because two is
+ * how many round-trips launching takes — the launch screen narrates these rather than a script.
+ */
+export type HydrationStage = 'workspace' | 'files';
+
 type WorkspaceState = {
   workspace: WorkspaceInfo | null;
   nodes: TreeNode[];
@@ -49,7 +55,7 @@ type WorkspaceState = {
   error: string | null;
 
   /** On launch, adopt a workspace main already restored (reopen-last-project) and load its tree. */
-  hydrateCurrent: () => Promise<void>;
+  hydrateCurrent: (onStage?: (stage: HydrationStage) => void) => Promise<void>;
   pickAndOpen: () => Promise<void>;
   openPath: (path: string) => Promise<void>;
   toggleDir: (relPath: string) => Promise<void>;
@@ -84,11 +90,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   opening: false,
   error: null,
 
-  hydrateCurrent: async () => {
+  hydrateCurrent: async (onStage) => {
+    // `onStage` reports what has *actually* completed, so the launch screen narrates real work
+    // rather than a scripted sequence. Startup is genuinely two round-trips; there is no third.
     // Throws on a genuine failure so the launch screen can report it. Swallowing these left the app
     // to start into a silently empty tree, with nothing to indicate the restore had failed at all.
     const current = await invoke('workspace:current', {});
     if (!current.ok) throw new Error(current.error.message);
+    onStage?.('workspace');
     // No workspace to restore is not a failure — it is a first run, or a project the user closed.
     if (current.value.workspace === null) return;
 
@@ -98,6 +107,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workspace: current.value.workspace,
       nodes: root.value.entries.map((e) => entryToNode(e, 0)),
     });
+    onStage?.('files');
   },
 
   pickAndOpen: async () => {

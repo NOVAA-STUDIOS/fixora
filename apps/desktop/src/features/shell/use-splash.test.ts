@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   SPLASH_FADE_MS,
+  SPLASH_MESSAGES,
+  SPLASH_MESSAGE_HOLD_MS,
   SPLASH_MIN_VISIBLE_MS,
   SPLASH_RETRY_MIN_MS,
   useSplash,
@@ -185,5 +187,118 @@ describe('useSplash', () => {
     rerender();
     // A splash that restarts the work it is waiting on would never finish.
     expect(initialize).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The status line makes claims about what the app is doing, so the claims have to be true. Two rules
+ * govern it: a message is never shown before the work it names has happened, and "Ready" is never
+ * shown until initialization has genuinely resolved.
+ */
+describe('progressive status messages', () => {
+  it('starts on the first message', async () => {
+    const { promise } = deferred();
+    const { result } = renderHook(() => useSplash(() => promise));
+    await advance(50);
+    expect(result.current.state).toMatchObject({ message: SPLASH_MESSAGES[0] });
+  });
+
+  it('never runs ahead of the work, however long the clock has been ticking', async () => {
+    const { promise } = deferred();
+    // Reports nothing and never settles: the work has not progressed past step 0.
+    const { result } = renderHook(() => useSplash(() => promise));
+
+    await advance(SPLASH_MESSAGE_HOLD_MS * 10);
+    // The clock would happily allow the last message; the work has not earned it.
+    expect(result.current.state).toMatchObject({ message: SPLASH_MESSAGES[0] });
+  });
+
+  it('advances as real stages are reported, but not faster than they can be read', async () => {
+    const { promise, resolve } = deferred();
+    let report: ((stage: string) => void) | undefined;
+    const { result } = renderHook(() =>
+      useSplash((onStage) => {
+        report = onStage;
+        return promise;
+      }),
+    );
+
+    await advance(50);
+    // Both real stages complete almost immediately, as they do on a fast machine.
+    act(() => {
+      report?.('workspace');
+      report?.('files');
+    });
+
+    // The work is at step 2, but the clock has only released step 1 — no strobing through strings.
+    await advance(SPLASH_MESSAGE_HOLD_MS);
+    expect(result.current.state).toMatchObject({ message: SPLASH_MESSAGES[1] });
+
+    await advance(SPLASH_MESSAGE_HOLD_MS);
+    expect(result.current.state).toMatchObject({ message: SPLASH_MESSAGES[2] });
+
+    // And it stops there: "Ready" is not the clock's to give.
+    await advance(SPLASH_MESSAGE_HOLD_MS * 5);
+    expect(result.current.state).toMatchObject({ message: SPLASH_MESSAGES[2] });
+
+    await act(async () => {
+      resolve();
+      await promise;
+    });
+    expect(result.current.state).toMatchObject({ message: 'Ready' });
+  });
+
+  it('never shows Ready while initialization is still running', async () => {
+    const { promise, resolve } = deferred();
+    let report: ((stage: string) => void) | undefined;
+    const { result } = renderHook(() =>
+      useSplash((onStage) => {
+        report = onStage;
+        return promise;
+      }),
+    );
+
+    act(() => {
+      report?.('workspace');
+      report?.('files');
+    });
+    // Far beyond every hold and the floor itself — completion is not a thing time can assert.
+    await advance(SPLASH_MIN_VISIBLE_MS * 4);
+    expect(result.current.state).not.toMatchObject({ message: 'Ready' });
+
+    await act(async () => {
+      resolve();
+      await promise;
+    });
+    expect(result.current.state).toMatchObject({ message: 'Ready' });
+  });
+
+  it('resets the sequence on retry rather than resuming mid-way', async () => {
+    const first = deferred();
+    const second = deferred();
+    let attempt = 0;
+    const { result } = renderHook(() =>
+      useSplash((onStage) => {
+        attempt += 1;
+        if (attempt === 1) {
+          onStage?.('workspace');
+          return first.promise;
+        }
+        return second.promise;
+      }),
+    );
+
+    await act(async () => {
+      first.reject(new Error('nope'));
+      await first.promise.catch(() => undefined);
+    });
+    await advance(SPLASH_FADE_MS);
+
+    act(() => {
+      result.current.retry();
+    });
+    await advance(50);
+    // Back to the beginning: the second attempt has not reported anything yet.
+    expect(result.current.state).toMatchObject({ message: SPLASH_MESSAGES[0] });
   });
 });
