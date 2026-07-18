@@ -16,7 +16,9 @@ const appDir = process.cwd(); // apps/desktop
 const link = join(appDir, 'node_modules', '@fixora', 'core-analysis');
 
 if (!existsSync(link)) {
-  console.error('prepackage: node_modules/@fixora/core-analysis not found — run pnpm install first.');
+  console.error(
+    'prepackage: node_modules/@fixora/core-analysis not found — run pnpm install first.',
+  );
   process.exit(1);
 }
 
@@ -42,4 +44,6 @@ rmSync(link, { recursive: true, force: true }); // remove the symlink (not its t
 mkdirSync(dirname(link), { recursive: true });
 cpSync(real, link, { recursive: true, dereference: true, filter });
 
-console.log(`prepackage: vendored @fixora/core-analysis into ${link} (dereferenced, with WASM deps).`);
+console.log(
+  `prepackage: vendored @fixora/core-analysis into ${link} (dereferenced, with WASM deps).`,
+);

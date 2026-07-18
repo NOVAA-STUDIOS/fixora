@@ -38,7 +38,9 @@ describe('splice / slice', () => {
     expect(spliceLines(FILE, 2, 3, 'NEW')).toBe(['line1', 'NEW', 'line4', 'line5'].join('\n'));
   });
   it('replaces a range with multi-line content', () => {
-    expect(spliceLines(FILE, 2, 2, 'a\nb')).toBe(['line1', 'a', 'b', 'line3', 'line4', 'line5'].join('\n'));
+    expect(spliceLines(FILE, 2, 2, 'a\nb')).toBe(
+      ['line1', 'a', 'b', 'line3', 'line4', 'line5'].join('\n'),
+    );
   });
   it('slices a 1-based inclusive range', () => {
     expect(sliceLines(FILE, 2, 3)).toBe('line2\nline3');

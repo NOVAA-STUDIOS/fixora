@@ -15,7 +15,7 @@ Updated after every milestone. Newest milestone first.
 
 The mission changed to shipping a Public Beta. The key realisation: **BYOK inverts what needs building.**
 The whole `fixora-api` gateway (Supabase auth, quota, metering) and desktop PKCE sign-in exist to support
-the *managed* tier — our keys, our billing, so we must meter server-side. With bring-your-own-key the AI
+the _managed_ tier — our keys, our billing, so we must meter server-side. With bring-your-own-key the AI
 call goes desktop→provider direct; there is no token to meter and no server on the AI path. So five phases
 of backend work became a v1.1 asset (built, green, committed) and the beta got smaller and more private.
 The lesson: when priorities change, re-derive the critical path from first principles — don't keep building
@@ -26,7 +26,7 @@ the plan you had.
 M3 learned the hard way that `@fixora/core-analysis` must run in a utility process: it loads tree-sitter
 WASM via `import.meta.url`, which only resolves as a real module in `node_modules`, never bundled into the
 CJS main. `@fixora/core-ai` has none of that — it is pure logic — so it goes on the electron-vite `BUNDLED`
-list and the BYOK provider call runs *direct from main* (AI-Pipeline §3). The rule: a package can live in
+list and the BYOK provider call runs _direct from main_ (AI-Pipeline §3). The rule: a package can live in
 main iff it has no runtime file/WASM resolution of its own.
 
 ### Verification reuses the finding's own enclosing symbol — no second parse in main
@@ -60,7 +60,7 @@ is a hard, testable boundary — lean into it on the local side rather than bein
 ### Verdict compares by (source, rule, symbol), not the DB's snippet-sensitive id
 
 The DB finding id intentionally includes a normalised snippet so it survives line shifts — but that means
-*any* code change gives every finding a new id, which would make every repair look like it introduced
+_any_ code change gives every finding a new id, which would make every repair look like it introduced
 "new" findings. The verification signature is `source:rule:enclosingSymbol` instead, so "the same problem"
 survives the fix and a genuinely new problem stands out. Syntax break (tree-sitter `hasError`) is always a
 regression, even when no analyzer runs — the honest floor when a project has no tools configured.

@@ -32,7 +32,8 @@ export interface GateMatch {
   readonly kind: GateMatchKind;
 }
 
-export type GateResult = { readonly ok: true } | { readonly ok: false; readonly matches: GateMatch[] };
+export type GateResult =
+  { readonly ok: true } | { readonly ok: false; readonly matches: GateMatch[] };
 
 export function gate(parts: readonly GatePart[]): GateResult {
   const matches: GateMatch[] = [];

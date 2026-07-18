@@ -33,21 +33,24 @@ export function registerAiHandlers(deps: {
     deps.aiService.cancel();
   });
 
-  registerHandler('ai:applyRepair', ({ file, startLine, endLine, code, expectedOriginal, historyId }) => {
-    const workspace = deps.workspace.getCurrent();
-    if (workspace === null) {
-      throw new Error('No workspace is open.');
-    }
-    // Re-read now, and refuse if the target range no longer matches what the repair was computed
-    // against — the file changed under us, and splicing a stale range would corrupt it (audit fix).
-    const current = readTextFile(workspace.rootPath, file).content;
-    if (sliceLines(current, startLine, endLine) !== expectedOriginal) {
-      throw new Error('The file changed since this repair was proposed. Re-run the repair.');
-    }
-    const patched = spliceLines(current, startLine, endLine, code);
-    writeTextFile(workspace.rootPath, file, patched);
-    if (historyId !== undefined) deps.history.markApplied(historyId);
-  });
+  registerHandler(
+    'ai:applyRepair',
+    ({ file, startLine, endLine, code, expectedOriginal, historyId }) => {
+      const workspace = deps.workspace.getCurrent();
+      if (workspace === null) {
+        throw new Error('No workspace is open.');
+      }
+      // Re-read now, and refuse if the target range no longer matches what the repair was computed
+      // against — the file changed under us, and splicing a stale range would corrupt it (audit fix).
+      const current = readTextFile(workspace.rootPath, file).content;
+      if (sliceLines(current, startLine, endLine) !== expectedOriginal) {
+        throw new Error('The file changed since this repair was proposed. Re-run the repair.');
+      }
+      const patched = spliceLines(current, startLine, endLine, code);
+      writeTextFile(workspace.rootPath, file, patched);
+      if (historyId !== undefined) deps.history.markApplied(historyId);
+    },
+  );
 
   registerHandler('ai:history', () => {
     const workspace = deps.workspace.getCurrent();

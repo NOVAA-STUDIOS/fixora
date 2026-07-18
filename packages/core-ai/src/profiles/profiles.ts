@@ -65,9 +65,7 @@ function buildUserMessage(context: BuiltContext): string {
   );
 
   if (context.neighbours.length > 0) {
-    const neighbourText = context.neighbours
-      .map((n) => `// ${n.label}\n${n.text}`)
-      .join('\n\n');
+    const neighbourText = context.neighbours.map((n) => `// ${n.label}\n${n.text}`).join('\n\n');
     sections.push(`Related context:\n${neighbourText}`);
   }
 

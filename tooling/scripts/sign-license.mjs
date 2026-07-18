@@ -35,6 +35,7 @@ const payload = {
 
 const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
 const signature = sign(null, payloadBytes, privateKey);
-const b64url = (b) => b.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64url = (b) =>
+  b.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 console.log(`${b64url(payloadBytes)}.${b64url(signature)}`);

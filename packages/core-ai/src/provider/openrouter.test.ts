@@ -63,14 +63,16 @@ describe('OpenRouter provider', () => {
   });
 
   it('surfaces a retryable error for 429', async () => {
-    const fetchImpl: FetchLike = () => Promise.resolve(new Response('rate limited', { status: 429 }));
+    const fetchImpl: FetchLike = () =>
+      Promise.resolve(new Response('rate limited', { status: 429 }));
     const provider = createOpenRouterProvider({ apiKey: 'k', fetchImpl });
     const [event] = await collect(provider.stream(REQUEST, new AbortController().signal));
     expect(event).toMatchObject({ type: 'error', retryable: true, providerCode: 'HTTP_429' });
   });
 
   it('surfaces a non-retryable error for 401 (bad key)', async () => {
-    const fetchImpl: FetchLike = () => Promise.resolve(new Response('unauthorized', { status: 401 }));
+    const fetchImpl: FetchLike = () =>
+      Promise.resolve(new Response('unauthorized', { status: 401 }));
     const provider = createOpenRouterProvider({ apiKey: 'bad', fetchImpl });
     const [event] = await collect(provider.stream(REQUEST, new AbortController().signal));
     expect(event).toMatchObject({ type: 'error', retryable: false, providerCode: 'HTTP_401' });

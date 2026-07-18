@@ -24,7 +24,10 @@ export const REPAIR_JSON_SCHEMA: ResponseSchema = {
         type: 'string',
         description: 'The full replacement source for the target symbol only. No surrounding file.',
       },
-      rationale: { type: 'string', description: 'Why the original was wrong and how this fixes it.' },
+      rationale: {
+        type: 'string',
+        description: 'Why the original was wrong and how this fixes it.',
+      },
       confidence: { type: 'number', minimum: 0, maximum: 1 },
     },
   },

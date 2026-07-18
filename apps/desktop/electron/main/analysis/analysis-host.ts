@@ -63,7 +63,13 @@ const DEFAULT_TIMEOUT_MS = 180_000;
 type WorkerMessage =
   | { type: 'fileFindings'; jobId: string; file: string; findings: Finding[] }
   | { type: 'done'; jobId: string; aborted: boolean }
-  | { type: 'verifyResult'; jobId: string; syntaxOk: boolean; findings: Finding[]; aborted: boolean }
+  | {
+      type: 'verifyResult';
+      jobId: string;
+      syntaxOk: boolean;
+      findings: Finding[];
+      aborted: boolean;
+    }
   | { type: 'error'; jobId: string; message: string };
 
 function asWorkerMessage(value: unknown): WorkerMessage | null {

@@ -16,10 +16,7 @@ function b64url(buf: Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function mint(
-  payload: Record<string, unknown>,
-  key: KeyObject = privateKey,
-): string {
+function mint(payload: Record<string, unknown>, key: KeyObject = privateKey): string {
   const bytes = Buffer.from(JSON.stringify(payload), 'utf8');
   return `${b64url(bytes)}.${b64url(sign(null, bytes, key))}`;
 }
@@ -51,7 +48,10 @@ describe('license verification (offline Ed25519)', () => {
     // Re-sign nothing: swap the payload for a longer expiry but keep the old signature.
     const forged = `${b64url(Buffer.from(JSON.stringify(proPayload({ expiresAt: 9_999_999_999_999 }))))}.${sigB64 ?? ''}`;
     expect(payloadB64).not.toBe('');
-    expect(verifyLicense(PUBLIC_DER_B64, forged)).toEqual({ valid: false, reason: 'bad-signature' });
+    expect(verifyLicense(PUBLIC_DER_B64, forged)).toEqual({
+      valid: false,
+      reason: 'bad-signature',
+    });
   });
 
   it('rejects a license signed by a different key', () => {

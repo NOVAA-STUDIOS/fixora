@@ -37,7 +37,8 @@ describe('prepareRequest — the gate runs before every provider request', () =>
 
   it('BLOCKS when the target code contains a secret — nothing is sent', () => {
     // A live-looking AWS key smuggled into the very code we would repair.
-    const withSecret = 'export function run() {\n  const k = "AKIAIOSFODNN7EXAMPLE";\n  return k;\n}';
+    const withSecret =
+      'export function run() {\n  const k = "AKIAIOSFODNN7EXAMPLE";\n  return k;\n}';
     const context = buildContext(inputWithTarget(withSecret));
     const prepared = prepareRequest('repair', context, { model: 'x' });
     expect(prepared.ok).toBe(false);
@@ -48,7 +49,12 @@ describe('prepareRequest — the gate runs before every provider request', () =>
   it('BLOCKS when a secret hides in a neighbour, not the target', () => {
     const context = buildContext({
       ...inputWithTarget('export function run() {\n  return 1;\n}\n'),
-      neighbours: [{ label: 'config.ts', text: 'export const TOKEN = "ghp_012345678901234567890123456789abcdef";' }],
+      neighbours: [
+        {
+          label: 'config.ts',
+          text: 'export const TOKEN = "ghp_012345678901234567890123456789abcdef";',
+        },
+      ],
     });
     const prepared = prepareRequest('explain', context, { model: 'x' });
     expect(prepared.ok).toBe(false);
