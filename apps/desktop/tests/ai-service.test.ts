@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
 import type { KeyStore } from '../electron/main/ai/key-store.js';
-import type { FindingsRepository } from '../electron/main/db/repositories.js';
+import type { FindingsRepository, RepairHistoryRepository } from '../electron/main/db/repositories.js';
 import type { WorkspaceService } from '../electron/main/services/workspace-service.js';
 import type { VerificationService } from '../electron/main/verification/verification-service.js';
 
@@ -91,11 +91,19 @@ function deps(overrides: {
     dispose: () => undefined,
   };
 
+  const history = {
+    record: () => 'history-1',
+    markApplied: () => undefined,
+    list: () => [],
+    clearWorkspace: () => undefined,
+  } as unknown as RepairHistoryRepository;
+
   return {
     keyStore,
     findings,
     workspace,
     verification,
+    history,
     providerFactory: () => overrides.provider,
     readFile: () => overrides.fileContent ?? CLEAN_FILE,
   };
@@ -139,9 +147,10 @@ describe('AI service (BYOK run orchestration)', () => {
       endLine: 4,
       symbolName: 'greet',
     });
-    // The proposal already carries its verification verdict (ADR-003).
+    // The proposal already carries its verification verdict (ADR-003) and a history id (Phase E).
     expect(result.proposal.verification.verdict).toBe('verified');
     expect(result.proposal.originalCode).toBe('ORIGINAL_SYMBOL_TEXT');
+    expect(result.proposal.historyId).toBe('history-1');
   });
 
   it('BLOCKS at the gate when the target file contains a secret — no provider call', async () => {

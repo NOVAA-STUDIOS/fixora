@@ -1,22 +1,18 @@
-import type { AiProposal, Verdict } from '@fixora/shared-types';
-import { Button, cn } from '@fixora/ui';
+import type { AiProposal } from '@fixora/shared-types';
+import { Button } from '@fixora/ui';
+import { useEffect } from 'react';
 
 import { useAiStore } from '../../stores/ai-store.js';
 import { DiffEditor } from '../editor/diff-editor.js';
 
-/**
- * The AI result surface (M5). It shows the active run: streamed prose for an explanation, a generated
- * test, or — the heart of the product — a **verified repair**: the diff, its verdict, and the actions.
- * A repair is never shown without its verification report (ADR-003), so the verdict badge is always
- * present and honest about what ran.
- */
+import { VerdictBadge } from './verdict-badge.js';
 
-const VERDICT_STYLE: Record<Verdict, { label: string; className: string }> = {
-  verified: { label: 'Verified', className: 'bg-success-bg text-success-text' },
-  regression: { label: 'Regression detected', className: 'bg-danger-bg text-danger-text' },
-  unresolved: { label: 'Unresolved', className: 'bg-warning-bg text-fg-secondary' },
-  skipped: { label: 'Not verified', className: 'bg-hover text-fg-muted' },
-};
+/**
+ * The AI result surface (M5), mounted in the workbench's AI pane. It shows the active run: streamed
+ * prose for an explanation, a generated test, or — the heart of the product — a **verified repair**:
+ * the diff, its verdict, and the actions. A repair is never shown without its verification report
+ * (ADR-003). It also owns loading the BYOK config + the delta subscription, since it is always mounted.
+ */
 
 const MONACO_LANG: Record<string, string> = {
   ts: 'typescript',
@@ -35,29 +31,35 @@ function monacoLanguage(file: string): string {
   return MONACO_LANG[file.split('.').pop()?.toLowerCase() ?? ''] ?? 'plaintext';
 }
 
-export function AiPanel(): React.JSX.Element | null {
+export function AiPanel(): React.JSX.Element {
   const status = useAiStore((s) => s.status);
   const profile = useAiStore((s) => s.activeProfile);
   const streamText = useAiStore((s) => s.streamText);
   const proposal = useAiStore((s) => s.proposal);
   const blocked = useAiStore((s) => s.blocked);
   const errorMessage = useAiStore((s) => s.errorMessage);
+  const configured = useAiStore((s) => s.config?.configured ?? false);
   const cancel = useAiStore((s) => s.cancel);
   const dismiss = useAiStore((s) => s.dismiss);
+  const loadConfig = useAiStore((s) => s.loadConfig);
+  const listen = useAiStore((s) => s.listen);
 
-  if (status === 'idle') return null;
+  useEffect(() => {
+    void loadConfig();
+  }, [loadConfig]);
+  useEffect(() => listen(), [listen]);
 
   // Narrowed once so the repair branch (badge + diff) is type-safe without redundant checks.
   const repair = status === 'done' && proposal?.profile === 'repair' ? proposal : null;
 
   return (
     <section
-      aria-label="AI result"
-      className="flex max-h-[55%] min-h-[8rem] shrink-0 flex-col border-t border-border-subtle bg-canvas"
+      aria-label="Assistant"
+      className="flex h-full min-h-0 flex-col border-l border-border-subtle bg-canvas"
     >
       <header className="flex h-8 shrink-0 items-center justify-between border-b border-border-subtle px-3">
         <span className="flex items-center gap-2 text-xs font-semibold capitalize text-fg">
-          {profile ?? 'AI'}
+          {status === 'idle' ? 'Assistant' : (profile ?? 'AI')}
           {status === 'running' && <span className="text-fg-muted">running…</span>}
           {repair !== null && <VerdictBadge verdict={repair.verification.verdict} />}
         </span>
@@ -66,13 +68,21 @@ export function AiPanel(): React.JSX.Element | null {
             Cancel
           </Button>
         ) : (
-          <Button variant="ghost" size="sm" onClick={dismiss}>
-            Dismiss
-          </Button>
+          status !== 'idle' && (
+            <Button variant="ghost" size="sm" onClick={dismiss}>
+              Dismiss
+            </Button>
+          )
         )}
       </header>
 
-      {repair !== null ? (
+      {status === 'idle' ? (
+        <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-fg-muted">
+          {configured
+            ? 'Pick Explain, Repair, or Test on a problem to start.'
+            : 'Add a provider key in Settings → AI to enable repairs.'}
+        </div>
+      ) : repair !== null ? (
         <RepairResult proposal={repair} />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto p-3 text-xs text-fg-secondary">
@@ -115,15 +125,6 @@ export function AiPanel(): React.JSX.Element | null {
         </div>
       )}
     </section>
-  );
-}
-
-function VerdictBadge({ verdict }: { verdict: Verdict }): React.JSX.Element {
-  const style = VERDICT_STYLE[verdict];
-  return (
-    <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium normal-case', style.className)}>
-      {style.label}
-    </span>
   );
 }
 

@@ -5,7 +5,9 @@ import type {
   FindingSource,
   FindingsFilter,
   FindingsSummary,
+  RepairHistoryEntry,
   Severity,
+  Verdict,
 } from '@fixora/shared-types';
 
 import type { Row, SqliteDriver } from './driver.js';
@@ -257,3 +259,103 @@ export function createFindingsRepository(driver: SqliteDriver, now: () => number
 }
 
 export type FindingsRepository = ReturnType<typeof createFindingsRepository>;
+
+/** What a repair records at proposal time — everything but the row id and timestamps. */
+export interface NewRepair {
+  workspaceId: string;
+  findingId: string;
+  relPath: string;
+  symbolName: string | null;
+  ruleId: string;
+  source: string;
+  verdict: Verdict;
+  rationale: string;
+  originalCode: string;
+  repairedCode: string;
+  model: string | null;
+  confidence: number;
+  startLine: number;
+  endLine: number;
+}
+
+function toHistoryEntry(row: Row): RepairHistoryEntry {
+  return {
+    id: row['id'] as string,
+    findingId: row['finding_id'] as string,
+    file: row['rel_path'] as string,
+    symbolName: (row['symbol_name'] as string | null) ?? null,
+    ruleId: row['rule_id'] as string,
+    source: row['source'] as string,
+    verdict: row['verdict'] as Verdict,
+    applied: (row['applied'] as number) === 1,
+    rationale: row['rationale'] as string,
+    originalCode: row['original_code'] as string,
+    repairedCode: row['repaired_code'] as string,
+    model: (row['model'] as string | null) ?? null,
+    confidence: row['confidence'] as number,
+    startLine: row['start_line'] as number,
+    endLine: row['end_line'] as number,
+    createdAt: row['created_at'] as number,
+    appliedAt: (row['applied_at'] as number | null) ?? null,
+  };
+}
+
+/**
+ * The repair audit trail (Beta Phase E). Every reviewed repair is recorded with its verdict; applying
+ * one stamps it applied. This is local and private — the trail the user can inspect to see exactly what
+ * the AI proposed and what they accepted.
+ */
+export function createRepairHistoryRepository(driver: SqliteDriver, now: () => number = Date.now) {
+  return {
+    record(repair: NewRepair): string {
+      const id = randomUUID();
+      driver
+        .prepare(
+          `INSERT INTO repairs
+             (id, workspace_id, finding_id, rel_path, symbol_name, rule_id, source, verdict, applied,
+              rationale, original_code, repaired_code, model, confidence, start_line, end_line, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          repair.workspaceId,
+          repair.findingId,
+          repair.relPath,
+          repair.symbolName,
+          repair.ruleId,
+          repair.source,
+          repair.verdict,
+          repair.rationale,
+          repair.originalCode,
+          repair.repairedCode,
+          repair.model,
+          repair.confidence,
+          repair.startLine,
+          repair.endLine,
+          now(),
+        );
+      return id;
+    },
+
+    markApplied(id: string): void {
+      driver
+        .prepare('UPDATE repairs SET applied = 1, applied_at = ? WHERE id = ?')
+        .run(now(), id);
+    },
+
+    list(workspaceId: string, limit = 200): RepairHistoryEntry[] {
+      return driver
+        .prepare(
+          'SELECT * FROM repairs WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?',
+        )
+        .all(workspaceId, limit)
+        .map(toHistoryEntry);
+    },
+
+    clearWorkspace(workspaceId: string): void {
+      driver.prepare('DELETE FROM repairs WHERE workspace_id = ?').run(workspaceId);
+    },
+  };
+}
+
+export type RepairHistoryRepository = ReturnType<typeof createRepairHistoryRepository>;

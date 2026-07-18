@@ -96,6 +96,8 @@ export type VerificationReport = z.infer<typeof VerificationReportSchema>;
 export const AiProposalSchema = z.discriminatedUnion('profile', [
   z.object({
     profile: z.literal('repair'),
+    /** The id of this repair's row in local history — echoed back on apply to mark it applied. */
+    historyId: z.string(),
     repairedCode: z.string(),
     /** The original text of the target symbol — the left side of the diff view. */
     originalCode: z.string(),
@@ -120,8 +122,32 @@ export const ApplyRepairRequestSchema = z.object({
   startLine: z.number().int().positive(),
   endLine: z.number().int().positive(),
   code: z.string(),
+  /** The history row to mark as applied (from the repair proposal). */
+  historyId: z.string().optional(),
 });
 export type ApplyRepairRequest = z.infer<typeof ApplyRepairRequestSchema>;
+
+/** One recorded repair in the local, private audit trail (Beta Phase E). */
+export const RepairHistoryEntrySchema = z.object({
+  id: z.string(),
+  findingId: z.string(),
+  file: z.string(),
+  symbolName: z.string().nullable(),
+  ruleId: z.string(),
+  source: z.string(),
+  verdict: VerdictSchema,
+  applied: z.boolean(),
+  rationale: z.string(),
+  originalCode: z.string(),
+  repairedCode: z.string(),
+  model: z.string().nullable(),
+  confidence: z.number().min(0).max(1),
+  startLine: z.number().int().positive(),
+  endLine: z.number().int().positive(),
+  createdAt: z.number(),
+  appliedAt: z.number().nullable(),
+});
+export type RepairHistoryEntry = z.infer<typeof RepairHistoryEntrySchema>;
 
 /** One reason the gate refused a send — which part, which rule — with no secret attached. */
 export const GateMatchInfoSchema = z.object({

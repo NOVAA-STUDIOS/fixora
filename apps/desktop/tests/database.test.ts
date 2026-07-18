@@ -13,7 +13,9 @@ import type { Finding } from '@fixora/shared-types';
 import {
   createFileIndexRepository,
   createFindingsRepository,
+  createRepairHistoryRepository,
   createWorkspaceRepository,
+  type NewRepair,
 } from '../electron/main/db/repositories.js';
 
 let dir: string;
@@ -117,6 +119,49 @@ describe('repositories', () => {
     expect(repo.recent().map((w) => w.rootPath)).toEqual(['/repo-a', '/repo-b']);
     // Re-open did not create a duplicate.
     expect(repo.recent()).toHaveLength(2);
+    driver.close();
+  });
+
+  it('records repair history, marks it applied, and lists newest first', () => {
+    const { driver } = openDatabase({ dir });
+    const workspaces = createWorkspaceRepository(driver);
+    const ws = workspaces.upsertByRootPath('/repo', 'repo');
+    let clock = 1000;
+    const history = createRepairHistoryRepository(driver, () => clock);
+
+    const base: Omit<NewRepair, 'ruleId' | 'verdict'> = {
+      workspaceId: ws.id,
+      findingId: 'f1',
+      relPath: 'src/a.ts',
+      symbolName: 'greet',
+      source: 'eslint',
+      rationale: 'use a template literal',
+      originalCode: 'a + b',
+      repairedCode: '`${a}${b}`',
+      model: 'anthropic/claude-3.5-sonnet',
+      confidence: 0.9,
+      startLine: 1,
+      endLine: 3,
+    };
+
+    const firstId = history.record({ ...base, ruleId: 'prefer-template', verdict: 'verified' });
+    clock = 2000;
+    history.record({ ...base, findingId: 'f2', ruleId: 'no-unused', verdict: 'regression' });
+
+    const entries = history.list(ws.id);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.ruleId).toBe('no-unused'); // newest first
+    expect(entries[1]?.applied).toBe(false);
+
+    clock = 3000;
+    history.markApplied(firstId);
+    const applied = history.list(ws.id).find((e) => e.id === firstId);
+    expect(applied?.applied).toBe(true);
+    expect(applied?.appliedAt).toBe(3000);
+    expect(applied?.repairedCode).toBe('`${a}${b}`'); // the code is preserved for later review
+
+    // Cascade + scoping: another workspace's history is separate.
+    expect(history.list('other-ws')).toEqual([]);
     driver.close();
   });
 

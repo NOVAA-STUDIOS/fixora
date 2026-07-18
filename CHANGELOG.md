@@ -36,6 +36,11 @@ The product: a grounded, gated, **verified** repair loop with bring-your-own-key
   new), **REGRESSION** (broke syntax or introduced a finding — Apply is disabled), or **UNRESOLVED**.
   Tiered + honest: the report says which checks ran. A Monaco **diff viewer** with **Apply / Copy /
   Reject**; Apply splices the verified code through the same path guard reads use.
+- **Repair history (audit trail)** — every reviewed repair is recorded in local SQLite (migration v4)
+  with its verdict, the model, the before/after code, and whether it was applied. A **History** panel
+  in the activity rail lists them newest-first with the verdict badge and an "applied" marker;
+  click-to-open jumps to the file. Local and private — the inspectable record of what the AI proposed
+  and what you accepted. The AI result panel also moved into its own workbench pane.
 
 #### Verified
 

@@ -37,6 +37,16 @@ finding. Re-analysis of the patch happens in the worker (which has the engine), 
 copy the source, junction-link `node_modules` (a Windows junction needs no elevation), patch the one file,
 re-run. The real files are never mutated to verify — a crash mid-verify must not leave a half-patched repo.
 
+### Local SQLite is allowed to hold code — the audit trail keeps the before/after
+
+The cloud schema forbids code, paths, and diffs (a CI test enforces the denylist). **Local SQLite is the
+opposite** (DB §1: local holds everything about the user's code), so the repair history stores the full
+original and repaired text, not just a verdict. That is what lets the History panel show a past fix and
+"copy again" work long after the run — and it stays private because it never leaves the machine. The
+audit trail records every reviewed repair regardless of verdict (a regressed or unresolved attempt is
+part of the history too); Apply stamps the row applied. The lesson: the local/cloud code-retention line
+is a hard, testable boundary — lean into it on the local side rather than being timid about storing code.
+
 ### Verdict compares by (source, rule, symbol), not the DB's snippet-sensitive id
 
 The DB finding id intentionally includes a normalised snippet so it survives line shifts — but that means

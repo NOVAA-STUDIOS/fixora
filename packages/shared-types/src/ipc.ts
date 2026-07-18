@@ -5,6 +5,7 @@ import {
   AiRunRequestSchema,
   AiRunResponseSchema,
   ApplyRepairRequestSchema,
+  RepairHistoryEntrySchema,
 } from './ai.js';
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
@@ -121,6 +122,11 @@ export const contracts = {
   // Apply a verified repair to the file on disk (path-guarded in main). The renderer sends the target
   // range + the repaired code; main splices and writes. Returns void — the editor + analysis refresh.
   'ai:applyRepair': { request: ApplyRepairRequestSchema, response: z.void() },
+  // The local repair audit trail for the open workspace, newest first.
+  'ai:history': {
+    request: empty,
+    response: z.object({ entries: z.array(RepairHistoryEntrySchema) }),
+  },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

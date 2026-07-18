@@ -1,5 +1,6 @@
 import type { AiService } from '../../ai/ai-service.js';
 import type { KeyStore } from '../../ai/key-store.js';
+import type { RepairHistoryRepository } from '../../db/repositories.js';
 import { readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { spliceLines } from '../../verification/patch.js';
@@ -16,6 +17,7 @@ export function registerAiHandlers(deps: {
   keyStore: KeyStore;
   aiService: AiService;
   workspace: WorkspaceService;
+  history: RepairHistoryRepository;
 }): void {
   registerHandler('ai:getConfig', () => deps.keyStore.getConfig());
 
@@ -31,7 +33,7 @@ export function registerAiHandlers(deps: {
     deps.aiService.cancel();
   });
 
-  registerHandler('ai:applyRepair', ({ file, startLine, endLine, code }) => {
+  registerHandler('ai:applyRepair', ({ file, startLine, endLine, code, historyId }) => {
     const workspace = deps.workspace.getCurrent();
     if (workspace === null) {
       throw new Error('No workspace is open.');
@@ -40,5 +42,12 @@ export function registerAiHandlers(deps: {
     const current = readTextFile(workspace.rootPath, file).content;
     const patched = spliceLines(current, startLine, endLine, code);
     writeTextFile(workspace.rootPath, file, patched);
+    if (historyId !== undefined) deps.history.markApplied(historyId);
+  });
+
+  registerHandler('ai:history', () => {
+    const workspace = deps.workspace.getCurrent();
+    if (workspace === null) return { entries: [] };
+    return { entries: deps.history.list(workspace.id) };
   });
 }

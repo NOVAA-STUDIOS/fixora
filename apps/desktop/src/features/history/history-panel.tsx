@@ -1,0 +1,85 @@
+import type { RepairHistoryEntry } from '@fixora/shared-types';
+import { CheckIcon, cn } from '@fixora/ui';
+import { useEffect } from 'react';
+
+import { basename } from '../../lib/path.js';
+import { VerdictBadge } from '../ai/verdict-badge.js';
+import { useWorkspaceStore } from '../workspace/workspace-store.js';
+
+import { useHistoryStore } from './history-store.js';
+
+/**
+ * The repair history panel (Beta Phase E) — the local, private audit trail. Every repair the user
+ * reviewed is here with its verification verdict and whether it was applied, newest first. Clicking one
+ * opens its file. This is what makes "trust us with your code" inspectable: the user can see exactly
+ * what the AI proposed and what they accepted, and it survives a restart because the data does.
+ */
+export function HistoryPanel(): React.JSX.Element {
+  const entries = useHistoryStore((s) => s.entries);
+  const loaded = useHistoryStore((s) => s.loaded);
+  const refresh = useHistoryStore((s) => s.refresh);
+  const workspace = useWorkspaceStore((s) => s.workspace);
+
+  // Reload whenever the panel is shown, so applying a repair elsewhere is reflected here.
+  useEffect(() => {
+    void refresh();
+  }, [refresh, workspace]);
+
+  return (
+    <section
+      aria-label="Repair history"
+      className="flex h-full flex-col border-r border-border-subtle bg-canvas"
+    >
+      <header className="flex h-8 shrink-0 items-center border-b border-border-subtle px-3">
+        <span className="text-xs font-semibold text-fg">Repair history</span>
+      </header>
+
+      {entries.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-fg-muted">
+          {loaded
+            ? 'No repairs yet. Run a repair from the Problems panel to build your history.'
+            : 'Loading…'}
+        </div>
+      ) : (
+        <ul className="min-h-0 flex-1 overflow-y-auto">
+          {entries.map((entry) => (
+            <HistoryRow key={entry.id} entry={entry} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function HistoryRow({ entry }: { entry: RepairHistoryEntry }): React.JSX.Element {
+  const selectFile = useWorkspaceStore((s) => s.selectFile);
+  return (
+    <li className="border-b border-border-subtle">
+      <button
+        type="button"
+        onClick={() => {
+          selectFile(entry.file);
+        }}
+        title={entry.rationale}
+        className="flex w-full flex-col items-start gap-1 px-3 py-2 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
+      >
+        <span className="flex w-full items-center gap-2">
+          <VerdictBadge verdict={entry.verdict} />
+          {entry.applied && (
+            <span className="flex items-center gap-0.5 text-[10px] text-success-text">
+              <CheckIcon className="size-3" /> applied
+            </span>
+          )}
+          <span className="ml-auto shrink-0 text-[10px] text-fg-muted">
+            {new Date(entry.createdAt).toLocaleString()}
+          </span>
+        </span>
+        <span className="truncate text-xs text-fg">{entry.rationale}</span>
+        <span className={cn('text-[11px] text-fg-muted')}>
+          {basename(entry.file)}
+          {entry.symbolName !== null && ` · ${entry.symbolName}`} · {entry.source} ({entry.ruleId})
+        </span>
+      </button>
+    </li>
+  );
+}

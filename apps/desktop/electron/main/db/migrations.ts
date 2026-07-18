@@ -107,4 +107,38 @@ export const migrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 4,
+    name: 'repairs',
+    up: (d) => {
+      // The auditable repair history (M5, Beta Phase E). Every AI repair the user reviews is recorded
+      // here with its verification verdict and whether it was applied — the local, private audit trail
+      // that makes "trust us with your code" a thing the user can inspect, not just a claim. Local
+      // SQLite may hold code (DB §1: local holds everything about the user's code), so the original and
+      // repaired text live here so a past fix can be reviewed or re-copied long after the run.
+      d.exec(`
+        CREATE TABLE repairs (
+          id            TEXT PRIMARY KEY,
+          workspace_id  TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          finding_id    TEXT NOT NULL,
+          rel_path      TEXT NOT NULL,
+          symbol_name   TEXT,
+          rule_id       TEXT NOT NULL,
+          source        TEXT NOT NULL,
+          verdict       TEXT NOT NULL,
+          applied       INTEGER NOT NULL DEFAULT 0,
+          rationale     TEXT NOT NULL,
+          original_code TEXT NOT NULL,
+          repaired_code TEXT NOT NULL,
+          model         TEXT,
+          confidence    REAL NOT NULL,
+          start_line    INTEGER NOT NULL,
+          end_line      INTEGER NOT NULL,
+          created_at    INTEGER NOT NULL,
+          applied_at    INTEGER
+        );
+        CREATE INDEX idx_repairs_workspace ON repairs(workspace_id, created_at DESC);
+      `);
+    },
+  },
 ];
