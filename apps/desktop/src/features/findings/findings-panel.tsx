@@ -166,19 +166,31 @@ function SeverityFilter({
 function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
   const revealAt = useWorkspaceStore((s) => s.revealAt);
   const ignore = useFindingsStore((s) => s.ignore);
+  const select = useFindingsStore((s) => s.select);
+  const isSelected = useFindingsStore((s) => s.selectedId === finding.id);
   const runAi = useAiStore((s) => s.run);
   const aiConfigured = useAiStore((s) => s.config?.configured ?? false);
   const aiBusy = useAiStore((s) => s.status === 'running');
   const setActiveView = useUiStore((s) => s.setActiveView);
 
   return (
-    <div className="flex flex-col gap-1.5 border-b border-border-subtle px-3 py-2">
+    <div
+      className={cn(
+        'flex flex-col gap-1.5 border-b border-border-subtle px-3 py-2',
+        // The selected row is what the details pane is describing — say so, with a bar rather than a
+        // fill, so the severity colours stay the loudest thing in the list.
+        isSelected && 'bg-hover shadow-[inset_2px_0_0_0_var(--fx-color-accent)]',
+      )}
+    >
       <button
         type="button"
         onClick={() => {
+          // One click does the whole job: describe it, open it, jump to it, highlight it.
+          select(finding.id);
           revealAt(finding.location);
         }}
-        title="Open and highlight this line"
+        aria-current={isSelected}
+        title="Show details and jump to this line"
         className="flex w-full flex-col items-start gap-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
       >
         <span className="flex w-full items-start gap-1.5">

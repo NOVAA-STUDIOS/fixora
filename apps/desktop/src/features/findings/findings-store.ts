@@ -22,6 +22,8 @@ type FindingsState = {
 
   /** Findings the user hid this session (Ignore). Not persisted — a view convenience, not a decision. */
   ignoredIds: string[];
+  /** The finding whose details are shown. Set by clicking a row. */
+  selectedId: string | null;
 
   /** Load the persisted findings + summary for the current workspace. */
   refresh: () => Promise<void>;
@@ -29,6 +31,8 @@ type FindingsState = {
   run: () => Promise<void>;
   cancel: () => Promise<void>;
   setFilter: (filter: FindingsFilter) => Promise<void>;
+  /** Show this finding's details. */
+  select: (id: string | null) => void;
   /** Hide a finding from the list for this session. */
   ignore: (id: string) => void;
   /** Un-hide everything ignored this session. */
@@ -46,6 +50,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   filter: {},
   error: null,
   ignoredIds: [],
+  selectedId: null,
 
   refresh: async () => {
     const [list, summary] = await Promise.all([
@@ -72,6 +77,10 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   setFilter: async (filter) => {
     set({ filter });
     await get().refresh();
+  },
+
+  select: (id) => {
+    set({ selectedId: id });
   },
 
   ignore: (id) => {

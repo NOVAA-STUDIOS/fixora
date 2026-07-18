@@ -1,7 +1,7 @@
 import type { DirEntryInfo, FileContentInfo, WorkspaceInfo } from '@fixora/shared-types';
 import { BrowserWindow, dialog } from 'electron';
 
-import { listDirectory, readTextFile } from '../../services/fs/fs-service.js';
+import { listDirectory, readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
 import { createWorkspaceWatcher, type WorkspaceWatcher } from '../../services/fs/watcher.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { emitToWindow } from '../emit.js';
@@ -92,6 +92,15 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     };
   });
 
+  registerHandler('workspace:close', () => {
+    // Stop watching first: a watcher outliving its workspace would keep emitting change events for a
+    // folder the app no longer has open.
+    void watcher?.close();
+    watcher = null;
+    watchedRoot = null;
+    service.close();
+  });
+
   registerHandler('fs:listDir', ({ relPath }) => {
     const { rootPath, ignore } = service.requireRoot();
     const entries: DirEntryInfo[] = listDirectory(rootPath, relPath, ignore);
@@ -102,6 +111,14 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     const { rootPath } = service.requireRoot();
     const file: FileContentInfo = readTextFile(rootPath, relPath);
     return { file };
+  });
+
+  // Saving an edit the user made in the editor. Goes through the same guards as reading — the path is
+  // workspace-relative, run through `assertInsideWorkspace`, and refused for a secrets-denylisted file
+  // — so "the renderer can write" never means "the renderer can write anywhere".
+  registerHandler('fs:writeFile', ({ relPath, content }) => {
+    const { rootPath } = service.requireRoot();
+    writeTextFile(rootPath, relPath, content);
   });
 }
 

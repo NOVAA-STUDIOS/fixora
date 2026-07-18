@@ -1,8 +1,9 @@
 import type { WorkspaceInfo } from '@fixora/shared-types';
-import { Button, ChevronDownIcon, FolderIcon, cn } from '@fixora/ui';
+import { Button, ChevronDownIcon, FolderIcon, WinCloseIcon, cn } from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
+import { useEditorStore } from '../editor/editor-store.js';
 
 import { FileTree } from './file-tree.js';
 import { useWorkspaceStore } from './workspace-store.js';
@@ -18,6 +19,7 @@ export function WorkspacePanel(): React.JSX.Element {
   const opening = useWorkspaceStore((s) => s.opening);
   const error = useWorkspaceStore((s) => s.error);
   const pickAndOpen = useWorkspaceStore((s) => s.pickAndOpen);
+  const reopenLast = useWorkspaceStore((s) => s.reopenLast);
 
   if (workspace !== null) {
     return (
@@ -55,9 +57,22 @@ export function WorkspacePanel(): React.JSX.Element {
           analysis.
         </p>
       </div>
-      <Button variant="primary" onClick={() => void pickAndOpen()} disabled={opening}>
-        {opening ? 'Opening…' : 'Open folder'}
-      </Button>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <Button variant="primary" onClick={() => void pickAndOpen()} disabled={opening}>
+          {opening ? 'Opening…' : 'Open folder'}
+        </Button>
+        {/* Only offered when there is actually something to reopen — a button that does nothing is
+            worse than no button. */}
+        <RecentWorkspaces
+          render={(recent) =>
+            recent.length === 0 ? null : (
+              <Button variant="ghost" onClick={() => void reopenLast()} disabled={opening}>
+                Reopen {recent[0]?.name ?? 'last project'}
+              </Button>
+            )
+          }
+        />
+      </div>
       {error !== null && (
         <p role="alert" className="max-w-xs text-xs text-danger-text">
           {error}
@@ -93,8 +108,27 @@ function OpenMenu(): React.JSX.Element {
   const pickAndOpen = useWorkspaceStore((s) => s.pickAndOpen);
   const openPath = useWorkspaceStore((s) => s.openPath);
   const current = useWorkspaceStore((s) => s.workspace);
+  const close = useWorkspaceStore((s) => s.close);
+  const closeAllTabs = useEditorStore((s) => s.closeAll);
+  const dirtyCount = useEditorStore((s) => s.dirty.length);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Closing throws away every open tab, so unsaved work gets one clear chance to survive.
+  const closeWorkspace = async (): Promise<void> => {
+    if (
+      dirtyCount > 0 &&
+      !window.confirm(
+        dirtyCount === 1
+          ? '1 file has unsaved changes. Close this project without saving?'
+          : `${String(dirtyCount)} files have unsaved changes. Close this project without saving?`,
+      )
+    ) {
+      return;
+    }
+    closeAllTabs();
+    await close();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -148,6 +182,18 @@ function OpenMenu(): React.JSX.Element {
             >
               <FolderIcon className="size-3.5 text-fg-muted" />
               Open folder…
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                void closeWorkspace();
+              }}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-fg hover:bg-hover"
+            >
+              <WinCloseIcon className="size-3.5 text-fg-muted" />
+              Close folder
             </button>
             <RecentWorkspaces
               render={(recent) =>

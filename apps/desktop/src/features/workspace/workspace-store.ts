@@ -2,6 +2,7 @@ import type { DirEntryInfo, WorkspaceInfo } from '@fixora/shared-types';
 import { create } from 'zustand';
 
 import { invoke } from '../../lib/bridge.js';
+import { useFindingsStore } from '../findings/findings-store.js';
 
 /**
  * The file-tree state (TanStack Query owns wire *results*, but the tree is a stateful,
@@ -61,6 +62,10 @@ type WorkspaceState = {
     endLine: number;
     endCol: number;
   }) => void;
+  /** Close the workspace: main forgets the root, the tree/editor empty out. */
+  close: () => Promise<void>;
+  /** Re-open the most recently used folder — the "reopen last project" a returning user expects. */
+  reopenLast: () => Promise<void>;
   /** Re-fetch a directory's children in place (used by the file watcher). */
   refreshDir: (relPath: string) => Promise<void>;
 };
@@ -172,6 +177,32 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         token: revealToken,
       },
     });
+  },
+
+  close: async () => {
+    await invoke('workspace:close', {});
+    // Findings belong to the folder that produced them — leaving them on screen would attribute one
+    // project's problems to the next one opened.
+    useFindingsStore.setState({
+      findings: [],
+      summary: null,
+      status: 'idle',
+      selectedId: null,
+      ignoredIds: [],
+      error: null,
+    });
+    set({ workspace: null, nodes: [], selectedFile: null, revealTarget: null, error: null });
+  },
+
+  reopenLast: async () => {
+    const recent = await invoke('workspace:recent', {});
+    const last = recent.ok ? recent.value.workspaces[0] : undefined;
+    if (last === undefined) {
+      // Nothing to reopen — fall back to the picker rather than leaving a dead button.
+      await get().pickAndOpen();
+      return;
+    }
+    await get().openPath(last.rootPath);
   },
 
   refreshDir: async (relPath) => {

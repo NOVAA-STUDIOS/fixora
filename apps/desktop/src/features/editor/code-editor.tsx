@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
+import { useEditorStore } from './editor-store.js';
 import { modelFor } from './models.js';
 import { setupMonaco } from './monaco-setup.js';
 import { themeForAppearance } from './monaco-theme.js';
@@ -11,8 +12,12 @@ import { themeForAppearance } from './monaco-theme.js';
 /**
  * A single Monaco editor instance that swaps which model it shows as the active tab changes. One
  * editor, many models (one per open file) — mounting a fresh editor per tab would be wasteful and
- * would drop view state. Read-only for M2: Fixora is a code *viewer* here; editing and patched
- * writes are M6, and there is no save path yet, so the editor must not imply one.
+ * would drop view state.
+ *
+ * The editor is **editable**: a tool you fix code in has to let you type. Edits stay in the Monaco
+ * model until saved (Ctrl/Cmd+S) through the guarded `fs:writeFile` channel; unsaved files are tracked
+ * in the editor store so the tab shows a dot and closing one warns first. This is orthogonal to the
+ * verified-repair flow, which still writes through its own path-guarded apply.
  */
 export function CodeEditor({
   relPath,
@@ -35,7 +40,9 @@ export function CodeEditor({
     if (el === null) return;
     const monaco = setupMonaco();
     const editor = monaco.editor.create(el, {
-      readOnly: true,
+      // Editable: Fixora is a place you fix code, not only read it. Writes still go through the
+      // guarded fs:writeFile channel, and unsaved edits are tracked so nothing is lost silently.
+      readOnly: false,
       theme: themeForAppearance(useUiStore.getState().theme),
       automaticLayout: true,
       minimap: { enabled: true },
@@ -45,18 +52,35 @@ export function CodeEditor({
       renderWhitespace: 'selection',
     });
     editorRef.current = editor;
+
+    // Ctrl/Cmd+S saves the file the editor is showing.
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      const model = editor.getModel();
+      if (model === null) return;
+      const path = decodeURI(model.uri.path).replace(/^\//, '');
+      void useEditorStore.getState().save(path);
+    });
+
     return () => {
       editor.dispose();
       editorRef.current = null;
     };
   }, []);
 
-  // Point the editor at the active file's model whenever the active file or its content changes.
+  // Point the editor at the active file's model whenever the active file or its content changes,
+  // and track unsaved edits so the tab can show a dot and closing can warn.
   useEffect(() => {
     const editor = editorRef.current;
     if (editor === null) return;
     const monaco = setupMonaco();
-    editor.setModel(modelFor(monaco, relPath, content, language));
+    const model = modelFor(monaco, relPath, content, language);
+    editor.setModel(model);
+    const sub = model.onDidChangeContent(() => {
+      useEditorStore.getState().markDirty(relPath);
+    });
+    return () => {
+      sub.dispose();
+    };
   }, [relPath, content, language]);
 
   // Follow the app theme.
@@ -81,6 +105,7 @@ export function CodeEditor({
     );
     editor.revealRangeInCenterIfOutsideViewport(range, monaco.editor.ScrollType.Smooth);
     editor.setPosition({ lineNumber: revealTarget.startLine, column: revealTarget.startCol });
+    editor.focus(); // land the caret where the problem is, ready to edit
     decorationsRef.current = editor.createDecorationsCollection([
       {
         range: new monaco.Range(revealTarget.startLine, 1, revealTarget.endLine, 1),
