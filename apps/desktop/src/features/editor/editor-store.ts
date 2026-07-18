@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { invoke } from '../../lib/bridge.js';
 import { basename } from '../../lib/path.js';
 
-import { disposeModel, modelTextFor } from './models.js';
+import { disposeModel, isModelDirty, markModelSaved, modelTextFor } from './models.js';
 
 /**
  * Open editor tabs (ADR-015: Monaco owns the *text*; this store owns *which files are open*, *which is
@@ -31,7 +31,8 @@ type EditorState = {
   openFile: (relPath: string, language: string | null) => void;
   closeTab: (relPath: string) => void;
   setActive: (relPath: string) => void;
-  markDirty: (relPath: string) => void;
+  /** Recompute dirty from the model's own version baseline (see models.ts). */
+  syncDirty: (relPath: string) => void;
   markClean: (relPath: string) => void;
   /** Write the active (or given) file's model text to disk. Returns true on success. */
   save: (relPath?: string) => Promise<boolean>;
@@ -76,8 +77,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ activeTab: relPath });
   },
 
-  markDirty: (relPath) => {
-    set((s) => (s.dirty.includes(relPath) ? s : { dirty: [...s.dirty, relPath] }));
+  syncDirty: (relPath) => {
+    const dirty = isModelDirty(relPath);
+    set((s) => {
+      const has = s.dirty.includes(relPath);
+      if (dirty === has) return s;
+      return { dirty: dirty ? [...s.dirty, relPath] : s.dirty.filter((p) => p !== relPath) };
+    });
   },
 
   markClean: (relPath) => {
@@ -106,6 +112,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ saveError: result.error.message });
       return false;
     }
+    markModelSaved(target);
     get().markClean(target);
     return true;
   },

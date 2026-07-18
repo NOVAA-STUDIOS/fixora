@@ -16,6 +16,9 @@ import { useFindingsStore } from './findings-store.js';
  * required. Zero AI in the findings themselves; this is the moat with the LLM switched off.
  */
 
+/** Fixed row height. Must match what FindingRow can actually occupy — see the VirtualList note. */
+const ROW_HEIGHT = 96;
+
 const SEVERITY_ORDER: Severity[] = ['error', 'warning', 'info'];
 const SEVERITY_STYLE: Record<Severity, string> = {
   error: 'text-danger-text',
@@ -40,6 +43,7 @@ export function FindingsPanel(): React.JSX.Element {
   const setFilter = useFindingsStore((s) => s.setFilter);
   const showIgnored = useFindingsStore((s) => s.showIgnored);
   const listen = useFindingsStore((s) => s.listen);
+  const selectedId = useFindingsStore((s) => s.selectedId);
 
   const workspace = useWorkspaceStore((s) => s.workspace);
 
@@ -117,7 +121,11 @@ export function FindingsPanel(): React.JSX.Element {
         <VirtualList
           items={visible}
           label="Problems"
-          estimateRowHeight={72}
+          // The list positions rows at a fixed stride, so a row must never be taller than this or
+          // rows overlap. FindingRow is built to fit: the message is clamped to two lines and the
+          // full text lives in the details panel, which is where a long message belongs anyway.
+          estimateRowHeight={ROW_HEIGHT}
+          isSelected={(f) => f.id === selectedId}
           getKey={(f) => f.id}
           className="min-h-0 flex-1"
           renderItem={(finding) => <FindingRow finding={finding} />}
@@ -176,7 +184,9 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
   return (
     <div
       className={cn(
-        'flex flex-col gap-1.5 border-b border-border-subtle px-3 py-2',
+        // h-full + overflow-hidden: the row owns exactly its slot in the virtual list and can never
+        // spill onto the row below, whatever the message length or the user's font scaling.
+        'flex h-full flex-col justify-center gap-1.5 overflow-hidden border-b border-border-subtle px-3 py-2',
         // The selected row is what the details pane is describing — say so, with a bar rather than a
         // fill, so the severity colours stay the loudest thing in the list.
         isSelected && 'bg-hover shadow-[inset_2px_0_0_0_var(--fx-color-accent)]',
@@ -190,25 +200,26 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
           revealAt(finding.location);
         }}
         aria-current={isSelected}
-        title="Show details and jump to this line"
+        // The clamped message is still readable in full on hover, without opening the details pane.
+        title={`${finding.message}\n${finding.location.file}:${String(finding.location.startLine)} — click for details`}
         className="flex w-full flex-col items-start gap-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
       >
         <span className="flex w-full items-start gap-1.5">
           <AlertIcon className={cn('mt-0.5 size-3.5 shrink-0', SEVERITY_STYLE[finding.severity])} />
-          <span className="text-xs leading-snug text-fg">{finding.message}</span>
+          {/* Clamped to two lines so every row is the same height. The full message — and the rule
+              id in full — are in the details panel one click away. */}
+          <span className="line-clamp-2 text-xs leading-snug text-fg">{finding.message}</span>
         </span>
-        {/* Wraps rather than truncates: the rule id is how a developer looks the problem up, so it
-            must stay readable even in a narrow panel. */}
-        <span className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-1 pl-5">
+        <span className="flex w-full min-w-0 items-center gap-1.5 pl-5">
           <span
             className={cn(
-              'rounded px-1 py-px text-[10px] font-medium capitalize',
+              'shrink-0 rounded px-1 py-px text-[10px] font-medium capitalize',
               SEVERITY_BADGE[finding.severity],
             )}
           >
             {finding.severity}
           </span>
-          <span className="text-[11px] break-words text-fg-muted">
+          <span className="min-w-0 truncate text-[11px] text-fg-muted">
             {basename(finding.location.file)}:{finding.location.startLine} · {finding.source} ·{' '}
             {finding.ruleId}
           </span>

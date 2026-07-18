@@ -76,7 +76,7 @@ export function CodeEditor({
     const model = modelFor(monaco, relPath, content, language);
     editor.setModel(model);
     const sub = model.onDidChangeContent(() => {
-      useEditorStore.getState().markDirty(relPath);
+      useEditorStore.getState().syncDirty(relPath);
     });
     return () => {
       sub.dispose();

@@ -9,6 +9,9 @@ export type VirtualListProps<T> = {
   renderItem: (item: T, index: number) => ReactNode;
   /** Fixed row height in px. Defaults to the density row-height token resolved to a number. */
   estimateRowHeight?: number;
+  /** Whether a row is the selected one. Rows are `role="option"`, so a listbox that has a selection
+   * must say which — a hardcoded `aria-selected={false}` tells a screen reader nothing is selected. */
+  isSelected?: (item: T, index: number) => boolean;
   /** A stable key per row — never the index, or selection jumps when the list reorders. */
   getKey: (item: T, index: number) => string;
   className?: string;
@@ -30,6 +33,7 @@ export function VirtualList<T>({
   items,
   renderItem,
   estimateRowHeight = 28,
+  isSelected,
   getKey,
   className,
   label,
@@ -64,7 +68,7 @@ export function VirtualList<T>({
             <div
               key={getKey(item, row.index)}
               role="option"
-              aria-selected={false}
+              aria-selected={isSelected?.(item, row.index) ?? false}
               data-index={row.index}
               style={{
                 position: 'absolute',
@@ -72,6 +76,7 @@ export function VirtualList<T>({
                 left: 0,
                 width: '100%',
                 height: `${String(row.size)}px`,
+                overflow: 'hidden',
                 transform: `translateY(${String(row.start)}px)`,
               }}
             >
