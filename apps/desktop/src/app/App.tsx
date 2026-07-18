@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
 
 import { AppShell } from '../features/shell/app-shell.js';
 import { SplashScreen } from '../features/shell/splash-screen.js';
+import { useSplash } from '../features/shell/use-splash.js';
 import { useFileWatch } from '../features/workspace/use-file-watch.js';
 import { useWorkspaceStore } from '../features/workspace/workspace-store.js';
 import { useAppearance } from '../hooks/use-appearance.js';
@@ -11,50 +12,31 @@ import { useAppearance } from '../hooks/use-appearance.js';
  * process restored on launch (reopen-last-project), keeps the tree in sync with disk, then renders
  * the application shell.
  *
- * The splash covers hydration — the workspace restore and its first directory listing — and leaves
- * as soon as that settles. The floor below is the only timing here that is not real work, and it
- * exists because a splash that vanishes in 40ms reads as a glitch rather than as a launch.
+ * The workbench mounts *underneath* the splash from the first frame, so initialization and the
+ * splash run concurrently — the splash is an overlay on a live app, never a gate in front of a dead
+ * one. Timing lives in `useSplash`.
  */
-const SPLASH_MIN_MS = 750;
-const SPLASH_FADE_MS = 300;
-
 export function App(): React.JSX.Element {
   useAppearance();
   useFileWatch();
   const hydrateCurrent = useWorkspaceStore((s) => s.hydrateCurrent);
 
-  const [phase, setPhase] = useState<'booting' | 'leaving' | 'ready'>('booting');
-
-  useEffect(() => {
-    let cancelled = false;
-    const startedAt = Date.now();
-
-    const finish = (): void => {
-      if (cancelled) return;
-      setPhase('leaving');
-      // Unmount only after the fade, so the workbench is never revealed by an element popping out.
-      setTimeout(() => {
-        if (!cancelled) setPhase('ready');
-      }, SPLASH_FADE_MS);
-    };
-
-    void hydrateCurrent()
-      // A failed restore must still let the user in: they land on "Open a project", which is exactly
-      // the right place to be when there was no workspace to restore.
-      .catch(() => undefined)
-      .then(() => {
-        setTimeout(finish, Math.max(0, SPLASH_MIN_MS - (Date.now() - startedAt)));
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hydrateCurrent]);
+  // Stable across renders so the splash hook does not re-run initialization on every store update.
+  const initialize = useCallback(() => hydrateCurrent(), [hydrateCurrent]);
+  const { state, retry, dismiss } = useSplash(initialize);
 
   return (
-    <div aria-busy={phase !== 'ready'} className="contents">
+    <div aria-busy={state.visible} className="contents">
       <AppShell />
-      {phase !== 'ready' && <SplashScreen leaving={phase === 'leaving'} />}
+      {state.visible && (
+        <SplashScreen
+          phase={state.phase}
+          message={state.message}
+          errorMessage={state.errorMessage}
+          onRetry={retry}
+          onDismiss={dismiss}
+        />
+      )}
     </div>
   );
 }

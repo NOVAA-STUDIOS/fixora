@@ -85,12 +85,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   error: null,
 
   hydrateCurrent: async () => {
+    // Throws on a genuine failure so the launch screen can report it. Swallowing these left the app
+    // to start into a silently empty tree, with nothing to indicate the restore had failed at all.
     const current = await invoke('workspace:current', {});
-    if (!current.ok || current.value.workspace === null) return;
+    if (!current.ok) throw new Error(current.error.message);
+    // No workspace to restore is not a failure — it is a first run, or a project the user closed.
+    if (current.value.workspace === null) return;
+
     const root = await invoke('fs:listDir', { relPath: '' });
+    if (!root.ok) throw new Error(root.error.message);
     set({
       workspace: current.value.workspace,
-      nodes: root.ok ? root.value.entries.map((e) => entryToNode(e, 0)) : [],
+      nodes: root.value.entries.map((e) => entryToNode(e, 0)),
     });
   },
 
