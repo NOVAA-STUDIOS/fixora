@@ -16,10 +16,13 @@ import {
 } from './db/repositories.js';
 import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
+import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
 import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
+import { createLicenseService } from './license/license-service.js';
+import { licensePublicKey } from './license/public-key.js';
 import { createWorkspaceService } from './services/workspace-service.js';
 import { createVerificationService } from './verification/verification-service.js';
 import { createMainWindow } from './windows/main-window.js';
@@ -94,11 +97,18 @@ if (!gotTheLock) {
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
 
+      // Licensing (Beta): offline Ed25519-verified entitlement. BYOK is free; a valid key is Pro.
+      const license = createLicenseService({
+        dir: app.getPath('userData'),
+        publicKey: licensePublicKey(),
+      });
+
       registerSystemHandlers();
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerAnalysisHandlers(analysisService);
       registerAiHandlers({ keyStore, aiService, workspace: workspaceService, history: repairHistory });
+      registerLicenseHandlers({ license });
 
       // Reopen the last workspace (if its folder still exists), like an IDE restoring your project.
       // Off the critical path — a failure here never blocks launch.

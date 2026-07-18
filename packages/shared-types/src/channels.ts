@@ -43,6 +43,9 @@ export const channels = [
   'ai:cancel',
   'ai:applyRepair',
   'ai:history',
+  'license:get',
+  'license:activate',
+  'license:deactivate',
 ] as const;
 
 export type Channel = (typeof channels)[number];

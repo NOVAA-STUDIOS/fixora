@@ -9,6 +9,7 @@ import {
 } from './ai.js';
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
+import { LicenseStatusSchema } from './license.js';
 import { DirEntrySchema, FileContentSchema, WorkspaceSchema } from './workspace.js';
 
 /**
@@ -127,6 +128,15 @@ export const contracts = {
     request: empty,
     response: z.object({ entries: z.array(RepairHistoryEntrySchema) }),
   },
+
+  // Licensing (Beta). Offline Ed25519-verified. `activate` takes a signed key and returns the resulting
+  // entitlement; nothing here is a secret, but the key never round-trips back out either.
+  'license:get': { request: empty, response: LicenseStatusSchema },
+  'license:activate': {
+    request: z.object({ key: z.string().min(1) }),
+    response: LicenseStatusSchema,
+  },
+  'license:deactivate': { request: empty, response: LicenseStatusSchema },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

@@ -13,9 +13,19 @@ import {
 import { useEffect, useId, useState } from 'react';
 
 import { useAiStore } from '../../stores/ai-store.js';
+import { isPro, useLicenseStore } from '../../stores/license-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
+
+const PURCHASE_URL = 'https://fixora.dev/pro';
+
+const LICENSE_REASON_MESSAGE: Record<string, string> = {
+  'licensing-not-configured': "Licensing isn't enabled in this build yet.",
+  malformed: "That doesn't look like a valid license key.",
+  'bad-signature': 'This license key is invalid.',
+  expired: 'This license has expired.',
+};
 
 /**
  * The settings surface (roadmap M2): theme, density, telemetry opt-in, and the keybinding list.
@@ -35,6 +45,7 @@ export function SettingsPanel(): React.JSX.Element {
       <div className="flex flex-col gap-6 p-4">
         <AppearanceSettings />
         <AiSettings />
+        <LicenseSettings />
         <PrivacySettings />
         <Keybindings />
       </div>
@@ -178,6 +189,88 @@ function AiSettings(): React.JSX.Element {
             />
             <Button size="sm" onClick={() => void save()} disabled={saving || draftKey.trim().length === 0}>
               Save
+            </Button>
+          </div>
+          {error !== null && <span className="text-xs text-danger-text">{error}</span>}
+        </div>
+      )}
+    </Group>
+  );
+}
+
+function LicenseSettings(): React.JSX.Element {
+  const status = useLicenseStore((s) => s.status);
+  const load = useLicenseStore((s) => s.load);
+  const activate = useLicenseStore((s) => s.activate);
+  const deactivate = useLicenseStore((s) => s.deactivate);
+
+  const keyId = useId();
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const pro = isPro(status);
+
+  const activateNow = async (): Promise<void> => {
+    if (draft.trim().length === 0) return;
+    setBusy(true);
+    setError(null);
+    const result = await activate(draft.trim());
+    setBusy(false);
+    if (result === null) {
+      setError('Something went wrong activating the license.');
+      return;
+    }
+    if (result.valid) {
+      setDraft('');
+      return;
+    }
+    setError(LICENSE_REASON_MESSAGE[result.reason ?? ''] ?? 'This license key was not accepted.');
+  };
+
+  return (
+    <Group title="License">
+      {pro ? (
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-sm text-fg">
+            Fixora Pro — thank you for supporting Fixora
+            {status?.licensedTo !== null && status !== null ? ` (${status.licensedTo})` : ''}.
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => void deactivate()}>
+            Remove
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <p className="max-w-md text-xs text-fg-muted">
+            Fixora is free with your own key. A one-time{' '}
+            <span className="text-fg-secondary">Supporter</span> license funds development and locks in
+            early-supporter benefits. Purchase at{' '}
+            <span className="text-fg-secondary">{PURCHASE_URL}</span>, then paste your key here.
+          </p>
+          <label htmlFor={keyId} className="text-sm text-fg">
+            License key
+          </label>
+          <div className="flex items-center gap-2">
+            <Input
+              id={keyId}
+              value={draft}
+              placeholder="paste your license key"
+              onChange={(e) => {
+                setDraft(e.target.value);
+              }}
+              className="flex-1"
+            />
+            <Button
+              size="sm"
+              onClick={() => void activateNow()}
+              disabled={busy || draft.trim().length === 0}
+            >
+              Activate
             </Button>
           </div>
           {error !== null && <span className="text-xs text-danger-text">{error}</span>}
