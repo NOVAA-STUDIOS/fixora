@@ -14,6 +14,16 @@ Current state: **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** · Hard-won context:
 
 ---
 
+## Using Fixora (Public Beta)
+
+Not building Fixora, just using it? Start with the **[User Guide](./docs/USER-GUIDE.md)** — install,
+add your own AI key, and run your first verified repair. The beta is **BYOK** (bring your own key) and
+free; a one-time **Supporter** license ([LICENSING.md](./docs/LICENSING.md)) funds development. Building
+the Windows installer: **[PACKAGING.md](./docs/PACKAGING.md)**. How the beta was verified:
+**[BETA-ACCEPTANCE.md](./docs/BETA-ACCEPTANCE.md)**.
+
+---
+
 ## Prerequisites
 
 | Tool     | Version | Why                                                        |
