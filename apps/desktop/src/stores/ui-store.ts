@@ -58,6 +58,12 @@ type UiState = {
    * milestones read before sending anything.
    */
   telemetryEnabled: boolean;
+  /**
+   * Save an edited file automatically a moment after typing stops. **Off by default**: writing a
+   * user's source file is not something to start doing without being asked, and an explicit Ctrl+S
+   * is the behaviour every editor has trained people to expect.
+   */
+  autoSave: boolean;
 
   setTheme: (theme: ThemeName) => void;
   toggleTheme: () => void;
@@ -68,6 +74,7 @@ type UiState = {
   togglePalette: () => void;
   setPanelLayout: (layout: PanelLayout) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
+  setAutoSave: (enabled: boolean) => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -79,6 +86,7 @@ export const useUiStore = create<UiState>()(
       paletteOpen: false,
       panelLayout: {},
       telemetryEnabled: false,
+      autoSave: false,
 
       setTheme: (theme) => {
         set({ theme });
@@ -107,6 +115,9 @@ export const useUiStore = create<UiState>()(
       setTelemetryEnabled: (telemetryEnabled) => {
         set({ telemetryEnabled });
       },
+      setAutoSave: (autoSave) => {
+        set({ autoSave });
+      },
     }),
     {
       name: 'fixora.ui',
@@ -117,6 +128,7 @@ export const useUiStore = create<UiState>()(
         activeView: s.activeView,
         panelLayout: s.panelLayout,
         telemetryEnabled: s.telemetryEnabled,
+        autoSave: s.autoSave,
       }),
       // Rehydration is the trust boundary for persisted state (see `oneOf` above). Every value
       // read back from localStorage is validated against the current known-good set before it
@@ -133,6 +145,9 @@ export const useUiStore = create<UiState>()(
           // Any non-`true` persisted value falls back to opt-OUT — telemetry is off unless the
           // stored value is explicitly the boolean true (FR-5).
           telemetryEnabled: p.telemetryEnabled === true,
+          // Same discipline: anything that is not explicitly `true` means "do not write the user's
+          // files without being asked".
+          autoSave: p.autoSave === true,
         };
       },
     },

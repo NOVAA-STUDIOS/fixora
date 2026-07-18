@@ -19,6 +19,7 @@ export {
   WinMaximizeIcon,
   WinRestoreIcon,
   WinCloseIcon,
+  FixoraMark,
 } from './components/icons.js';
 
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/tooltip.js';

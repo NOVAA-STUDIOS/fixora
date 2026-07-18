@@ -19,6 +19,9 @@ import { themeForAppearance } from './monaco-theme.js';
  * in the editor store so the tab shows a dot and closing one warns first. This is orthogonal to the
  * verified-repair flow, which still writes through its own path-guarded apply.
  */
+/** Long enough that a pause mid-sentence does not write the file; short enough to feel automatic. */
+const AUTO_SAVE_DEBOUNCE_MS = 1200;
+
 export function CodeEditor({
   relPath,
   content,
@@ -75,10 +78,24 @@ export function CodeEditor({
     const monaco = setupMonaco();
     const model = modelFor(monaco, relPath, content, language);
     editor.setModel(model);
+    let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
     const sub = model.onDidChangeContent(() => {
       useEditorStore.getState().syncDirty(relPath);
+
+      // Auto-save (off by default, Settings). Debounced so it fires once after typing stops rather
+      // than on every keystroke, and re-checked at fire time: the setting may have been turned off,
+      // or the edit undone back to clean, in the second since the last keypress.
+      if (!useUiStore.getState().autoSave) return;
+      if (autoSaveTimer !== null) clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        autoSaveTimer = null;
+        const editor = useEditorStore.getState();
+        if (useUiStore.getState().autoSave && editor.isDirty(relPath)) void editor.save(relPath);
+      }, AUTO_SAVE_DEBOUNCE_MS);
     });
+
     return () => {
+      if (autoSaveTimer !== null) clearTimeout(autoSaveTimer);
       sub.dispose();
     };
   }, [relPath, content, language]);

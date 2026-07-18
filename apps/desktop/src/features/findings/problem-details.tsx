@@ -5,7 +5,16 @@ import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
-import { CATEGORY_GUIDANCE, SOURCE_LABEL, docsLinkFor } from './finding-guidance.js';
+import {
+  CATEGORY_GUIDANCE,
+  SOURCE_LABEL,
+  docsLinkFor,
+  effortFor,
+  manualFixFor,
+  riskLevelFor,
+  whyTriggered,
+  type RiskLevel,
+} from './finding-guidance.js';
 import { useFindingsStore } from './findings-store.js';
 
 /**
@@ -21,6 +30,9 @@ import { useFindingsStore } from './findings-store.js';
 export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Element {
   const guidance = CATEGORY_GUIDANCE[finding.category];
   const docs = docsLinkFor(finding);
+  const risk = riskLevelFor(finding);
+  const effort = effortFor(finding);
+  const manualFix = manualFixFor(finding);
   const { file, startLine, startCol } = finding.location;
 
   const revealAt = useWorkspaceStore((s) => s.revealAt);
@@ -75,14 +87,46 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
           </pre>
         )}
 
-        {/* Guidance. Honest framing: this is what the *category* means, not a per-rule claim. */}
-        <Section title="What this means">{guidance.what}</Section>
+        {/* Risk and effort are both derived, and the footnote under them says so out loud. */}
+        <div className="flex flex-wrap gap-2">
+          <Metric label="Risk" value={<span className={RISK_STYLE[risk]}>{risk}</span>} />
+          <Metric label="Effort" value={effort.label} />
+        </div>
+        <p className="text-[11px] leading-relaxed text-fg-muted">
+          {effort.detail} Risk is derived from severity and category; effort from the rule class and
+          how much code this spans. Both are guides, not measurements.
+        </p>
+
+        {/* The specific part: why THIS code tripped the rule, not what the rule is in general. */}
+        <Section title="Why this code triggered it">{whyTriggered(finding)}</Section>
         <Section title="If you leave it">{guidance.ifIgnored}</Section>
-        <Section title="How fixes usually look">{guidance.fix}</Section>
+
+        <section className="flex flex-col gap-1.5">
+          <h3 className="text-[11px] font-semibold tracking-wide text-fg uppercase">
+            Suggested manual fix
+          </h3>
+          <p className="text-xs leading-relaxed text-fg-secondary">{manualFix.strategy}</p>
+          {manualFix.illustration !== undefined && (
+            <>
+              <pre className="overflow-x-auto rounded border border-border-subtle bg-inset p-2.5 text-[11px] leading-relaxed text-fg-secondary">
+                <code>{manualFix.illustration}</code>
+              </pre>
+              {/* Said plainly, because a code block in a repair tool looks like a patch. */}
+              <p className="text-[11px] text-fg-muted">
+                An illustration of the pattern — not a rewrite of your code. Use{' '}
+                <span className="text-fg-secondary">Repair</span> for a change generated against
+                this file and verified before you can apply it.
+              </p>
+            </>
+          )}
+        </section>
+
+        <Section title="What this category means">{guidance.what}</Section>
 
         <p className="text-[11px] leading-relaxed text-fg-muted">
-          The three notes above describe{' '}
-          <span className="text-fg-secondary">{finding.category}</span> problems in general.
+          &ldquo;What this category means&rdquo; describes{' '}
+          <span className="text-fg-secondary">{finding.category}</span> problems in general, not this
+          rule specifically.
           {docs !== null
             ? ' For what this exact rule checks, see the docs below, or ask'
             : ' For what this exact rule checks in your code, ask'}{' '}
@@ -162,6 +206,23 @@ const AI_ACTIONS: readonly { profile: TaskProfile; label: string }[] = [
   { profile: 'repair', label: 'Repair' },
   { profile: 'test', label: 'Generate test' },
 ];
+
+const RISK_STYLE: Record<RiskLevel, string> = {
+  critical: 'text-danger-text',
+  high: 'text-danger-text',
+  moderate: 'text-warning-text',
+  low: 'text-fg-secondary',
+};
+
+/** One derived value, in a bordered chip so it reads as a summary rather than as body text. */
+function Metric({ label, value }: { label: string; value: React.ReactNode }): React.JSX.Element {
+  return (
+    <div className="flex min-w-0 flex-1 basis-28 flex-col gap-0.5 rounded border border-border-subtle px-2.5 py-1.5">
+      <span className="text-[10px] font-medium tracking-wide text-fg-muted uppercase">{label}</span>
+      <span className="truncate text-xs font-medium capitalize text-fg">{value}</span>
+    </div>
+  );
+}
 
 function Section({
   title,
