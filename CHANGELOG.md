@@ -8,6 +8,16 @@ this file is a **product surface on the website** (Repo §3), not an afterthough
 
 ## [Unreleased]
 
+### Release preparation (2026-07-18)
+
+- **Packaging** — electron-builder (NSIS, unsigned beta) with the ESM+WASM worker asar-unpacked, plus a
+  `prepackage` step that vendors `@fixora/core-analysis` into the app as a real dir (pnpm's isolated
+  linker symlinks it outside the app dir, which electron-builder's asar packer rejects). `docs/PACKAGING.md`.
+- **Website** — a static download + trust page (`website/`): the verified-repair story, privacy claims as
+  testable statements, Free/Supporter pricing, email capture, `privacy.html`, and `security.txt`.
+- **Docs** — `docs/USER-GUIDE.md` (install → BYOK → analyze → verified repair → history → privacy) and a
+  beta-user section in the README.
+
 ### Licensing — BYOK-free, offline Pro (2026-07-18)
 
 Revenue at launch with no billing backend. BYOK is fully free; a one-time **Supporter/Pro** license is an
