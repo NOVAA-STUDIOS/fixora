@@ -22,6 +22,7 @@
     "gate:secrets": "node tooling/scripts/run-gitleaks.mjs",
     "gate:audit": "pnpm audit --audit-level high",
     "gate:adr": "tsx tooling/scripts/sync-adrs.ts --check",
+    "gate:website": "node tooling/scripts/check-website.mjs",
     "adr:sync": "tsx tooling/scripts/sync-adrs.ts",
     "ci": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm gate:contrast && pnpm gate:boundaries && pnpm gate:adr && pnpm gate:electron && pnpm gate:secrets && pnpm gate:audit"
   },

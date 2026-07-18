@@ -42,9 +42,16 @@ On a fresh Windows machine/VM (never ran `pnpm dev`), from `docs/BETA-ACCEPTANCE
 
 ## Publish
 
-- [ ] Fill `DOWNLOAD_URL`, `STRIPE_URL`, `FORM_ACTION` in `website/index.html`; real addresses in
-      `privacy.html` + `security.txt`.
+- [ ] Fill `DOWNLOAD_URL`, `STRIPE_URL`, `FORM_ACTION`, `DOCS_URL`, `ISSUES_URL` in
+      `website/index.html`; real addresses in `privacy.html` + `security.txt`.
 - [ ] Upload the installer (e.g. a GitHub Release for the tag); point `DOWNLOAD_URL` at it.
+- [ ] Capture `website/screenshots/problems.png` and `verified-repair.png` **against the sample
+      project in `examples/`**. Never against a real repository — a screenshot of a private codebase
+      is a source-code leak, and it is very hard to walk back once search engines have indexed it.
+- [ ] **`pnpm gate:website` must pass.** It fails while any placeholder or referenced asset is
+      unresolved, and it is the gate for this whole section. It is intentionally not in the
+      per-commit CI job (it would fail every PR until launch config lands) — run it here, and add it
+      to CI once it goes green.
 - [ ] Deploy `website/` (Cloudflare/GitHub Pages) at `fixora.dev`.
 - [ ] Announce. Collect the first beta users. 🎉
 

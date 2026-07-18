@@ -125,8 +125,8 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
 
         <p className="text-[11px] leading-relaxed text-fg-muted">
           &ldquo;What this category means&rdquo; describes{' '}
-          <span className="text-fg-secondary">{finding.category}</span> problems in general, not this
-          rule specifically.
+          <span className="text-fg-secondary">{finding.category}</span> problems in general, not
+          this rule specifically.
           {docs !== null
             ? ' For what this exact rule checks, see the docs below, or ask'
             : ' For what this exact rule checks in your code, ask'}{' '}
