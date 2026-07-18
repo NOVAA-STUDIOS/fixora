@@ -1,4 +1,3 @@
-import { AI_MODEL_OPTIONS } from '@fixora/shared-types';
 import {
   Button,
   Input,
@@ -106,6 +105,9 @@ function AiSettings(): React.JSX.Element {
   const setKey = useAiStore((s) => s.setKey);
   const clearKey = useAiStore((s) => s.clearKey);
   const setModel = useAiStore((s) => s.setModel);
+  const models = useAiStore((s) => s.models);
+  const loadModels = useAiStore((s) => s.loadModels);
+  const dismissMigrationNotice = useAiStore((s) => s.dismissMigrationNotice);
 
   const keyId = useId();
   const modelId = useId();
@@ -115,10 +117,19 @@ function AiSettings(): React.JSX.Element {
 
   useEffect(() => {
     void loadConfig();
-  }, [loadConfig]);
+    void loadModels();
+  }, [loadConfig, loadModels]);
 
   const configured = config?.configured ?? false;
-  const model = config?.model ?? AI_MODEL_OPTIONS[0];
+  const model = config?.model ?? '';
+
+  // Only models OpenRouter currently offers. A retired id is not in this list, so it cannot be
+  // picked again — and free ones sort first so the zero-cost path is the obvious one.
+  const modelOptions = [...(models?.models ?? [])].sort((a, b) => {
+    if (a.free !== b.free) return a.free ? -1 : 1;
+    if (a.codeCapable !== b.codeCapable) return a.codeCapable ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 
   const save = async (): Promise<void> => {
     if (draftKey.trim().length === 0) return;
@@ -141,6 +152,29 @@ function AiSettings(): React.JSX.Element {
         key at openrouter.ai. Your code never passes through Fixora&rsquo;s servers.
       </p>
 
+      {/* Explains a model the user did not choose. Shown once, then dismissed — a notice that
+          cannot be cleared becomes furniture people stop reading. */}
+      {config?.migratedFrom !== null && config?.migratedFrom !== undefined && (
+        <div
+          role="status"
+          className="flex items-start justify-between gap-3 rounded border border-border-subtle bg-inset px-3 py-2"
+        >
+          <p className="text-xs leading-relaxed text-fg-secondary">
+            <span className="font-medium text-fg">Model changed.</span>{' '}
+            <span className="font-mono">{config.migratedFrom}</span> is no longer offered by
+            OpenRouter, so Fixora switched you to <span className="font-mono">{model}</span>. Pick a
+            different one below at any time.
+          </p>
+          <button
+            type="button"
+            onClick={dismissMigrationNotice}
+            className="shrink-0 rounded px-2 py-0.5 text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+          >
+            Got it
+          </button>
+        </div>
+      )}
+
       <Field label="Model" htmlFor={modelId}>
         <Select
           value={model}
@@ -149,17 +183,25 @@ function AiSettings(): React.JSX.Element {
           }}
         >
           <SelectTrigger id={modelId} className="w-full">
-            <SelectValue />
+            <SelectValue
+              placeholder={modelOptions.length === 0 ? 'Loading models…' : 'Select a model'}
+            />
           </SelectTrigger>
           <SelectContent>
-            {AI_MODEL_OPTIONS.map((m) => (
-              <SelectItem key={m} value={m}>
-                {m}
+            {/* Free first: the beta should not cost anyone credits to try. Paid models stay
+                available below — switching to Claude, GPT or Gemini is always the user's call. */}
+            {modelOptions.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                {m.free ? `${m.name} · free` : m.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </Field>
+
+      {models?.notice !== null && models?.notice !== undefined && (
+        <p className="text-xs text-warning-text">{models.notice}</p>
+      )}
 
       {configured ? (
         <div className="flex items-center justify-between gap-4">

@@ -41,50 +41,52 @@ export const AiConfigSchema = z.object({
   configured: z.boolean(),
   model: z.string(),
   keyHint: z.string().nullable(),
+  /**
+   * Set when the stored model was no longer in OpenRouter's catalogue and was migrated for the user.
+   * Carries the id we moved *away from*, so the UI can explain the change rather than silently
+   * swapping the model out from under someone.
+   */
+  migratedFrom: z.string().nullable().default(null),
 });
 export type AiConfig = z.infer<typeof AiConfigSchema>;
 
-/**
- * A curated set of OpenRouter model ids the beta offers. Others work — this is the UI shortlist.
- *
- * **These ids expire.** OpenRouter retires slugs as providers rotate their line-ups, and it answers a
- * request for a retired slug with **404**, not with a descriptive error. That is exactly how the beta
- * broke: every id in the previous list (`anthropic/claude-3.5-sonnet`, `openai/gpt-4o`,
- * `openai/gpt-4o-mini`, `google/gemini-2.0-flash-001`) had been retired, so every AI action 404'd.
- *
- * Verified against https://openrouter.ai/api/v1/models on 2026-07-18. Before a release, re-check them
- * against that endpoint — a hardcoded list is a maintenance debt we are accepting knowingly for the
- * beta, not something that stays correct on its own. Fetching the live list is the v1.1 fix.
- */
-export const AI_MODEL_OPTIONS = [
-  'anthropic/claude-sonnet-5',
-  'anthropic/claude-opus-4.8',
-  'openai/gpt-5.6-terra',
-  'google/gemini-3.5-flash',
-] as const;
-
-/** Balanced default for code work. Users on a metered key can drop to a cheaper id in Settings. */
-export const DEFAULT_AI_MODEL = 'anthropic/claude-sonnet-5';
+/** One entry of the live OpenRouter catalogue, as the renderer needs it for the model picker. */
+export const AiModelOptionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  free: z.boolean(),
+  codeCapable: z.boolean(),
+});
+export type AiModelOption = z.infer<typeof AiModelOptionSchema>;
 
 /**
- * Model ids we shipped that OpenRouter has since retired. A stored preference outlives an upgrade, so
- * without this an existing install keeps its dead id and keeps 404-ing no matter what the new default
- * is — the upgrade would appear to fix nothing.
- *
- * Only ids *we* shipped belong here. A model the user chose themselves is their call: we do not
- * second-guess an id just because it is missing from our shortlist.
+ * Where the model list came from. The picker says so, because "these are the models that exist" and
+ * "these are the models that existed when we last had a network" are different promises.
  */
-export const RETIRED_AI_MODELS: readonly string[] = [
-  'anthropic/claude-3.5-sonnet',
-  'openai/gpt-4o',
-  'openai/gpt-4o-mini',
-  'google/gemini-2.0-flash-001',
-];
+export const ModelCatalogueSourceSchema = z.enum(['live', 'cache', 'unavailable']);
+export type ModelCatalogueSource = z.infer<typeof ModelCatalogueSourceSchema>;
 
-/** The model to actually use for a stored preference: the stored one, unless we retired it. */
-export function resolveModelId(stored: string): string {
-  return RETIRED_AI_MODELS.includes(stored) ? DEFAULT_AI_MODEL : stored;
-}
+export const AiModelListSchema = z.object({
+  models: z.array(AiModelOptionSchema),
+  source: ModelCatalogueSourceSchema,
+  /** Present when the catalogue could not be reached, or has nothing free to offer. */
+  notice: z.string().nullable().default(null),
+});
+export type AiModelList = z.infer<typeof AiModelListSchema>;
+
+/**
+ * No model id is compiled into the product any more.
+ *
+ * A baked-in list goes stale on OpenRouter's schedule, not ours: slugs are retired as providers
+ * rotate their line-ups, and a retired slug answers with a bare 404. That is exactly how the beta
+ * broke — every shipped id had been retired. The live catalogue is now the only authority on what
+ * exists, and the compiled-in *preferences* (see `PREFERRED_FREE_CODE_MODELS` in core-ai) are a
+ * wish-list resolved against it, never used as ids in their own right.
+ *
+ * This sentinel means "no model resolved yet" — a fresh install before the first catalogue fetch, or
+ * an install that has never had a reachable network. It is never sent to the provider.
+ */
+export const UNRESOLVED_MODEL = '';
 
 export const AiRunRequestSchema = z.object({
   profile: TaskProfileSchema,

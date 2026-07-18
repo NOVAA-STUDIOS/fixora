@@ -1,4 +1,10 @@
-import type { AiConfig, AiProposal, GateMatchInfo, TaskProfile } from '@fixora/shared-types';
+import type {
+  AiConfig,
+  AiModelList,
+  AiProposal,
+  GateMatchInfo,
+  TaskProfile,
+} from '@fixora/shared-types';
 import { create } from 'zustand';
 
 import { refreshModelText } from '../features/editor/models.js';
@@ -16,6 +22,11 @@ export type AiRunStatus = 'idle' | 'running' | 'blocked' | 'error' | 'done';
 
 type AiState = {
   config: AiConfig | null;
+  /** The live OpenRouter catalogue for the model picker; null until first loaded. */
+  models: AiModelList | null;
+  loadModels: (refresh?: boolean) => Promise<void>;
+  /** Dismiss the "we moved you to a different model" notice after the user has read it. */
+  dismissMigrationNotice: () => void;
 
   loadConfig: () => Promise<void>;
   setKey: (key: string, model?: string) => Promise<string | null>;
@@ -40,6 +51,16 @@ type AiState = {
 
 export const useAiStore = create<AiState>((set, get) => ({
   config: null,
+  models: null,
+
+  loadModels: async (refresh = false) => {
+    const result = await invoke('ai:listModels', refresh ? { refresh: true } : {});
+    if (result.ok) set({ models: result.value });
+  },
+
+  dismissMigrationNotice: () => {
+    set((s) => (s.config === null ? s : { config: { ...s.config, migratedFrom: null } }));
+  },
 
   loadConfig: async () => {
     const result = await invoke('ai:getConfig', {});

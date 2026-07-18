@@ -1,5 +1,6 @@
 import type { AiService } from '../../ai/ai-service.js';
 import type { KeyStore } from '../../ai/key-store.js';
+import type { ModelCatalogueService } from '../../ai/model-catalogue.js';
 import type { RepairHistoryRepository } from '../../db/repositories.js';
 import { readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
@@ -18,8 +19,22 @@ export function registerAiHandlers(deps: {
   aiService: AiService;
   workspace: WorkspaceService;
   history: RepairHistoryRepository;
+  catalogue: ModelCatalogueService;
 }): void {
-  registerHandler('ai:getConfig', () => deps.keyStore.getConfig());
+  // Resolving here is what makes a retired model self-heal: every config read checks the stored id
+  // against the live catalogue, migrates it if it is gone, and reports what it moved away from so the
+  // UI can explain itself. A failed fetch resolves to unchanged — we never migrate on a guess.
+  registerHandler('ai:getConfig', async () => {
+    const config = deps.keyStore.getConfig();
+    const { model, migratedFrom } = await deps.catalogue.resolve(config.model);
+    if (model !== config.model) {
+      // Persist it, so the migration happens once rather than on every read.
+      deps.keyStore.setModel(model);
+    }
+    return { ...config, model, migratedFrom };
+  });
+
+  registerHandler('ai:listModels', ({ refresh }) => deps.catalogue.list(refresh ?? false));
 
   registerHandler('ai:setKey', ({ key, model }) => deps.keyStore.setKey(key, model));
 

@@ -23,6 +23,16 @@ export {
   type FetchLike,
   type OpenRouterOptions,
 } from './provider/openrouter.js';
+export {
+  CATALOGUE_ENDPOINT,
+  NO_FREE_MODELS_MESSAGE,
+  PREFERRED_FREE_CODE_MODELS,
+  fetchModelCatalogue,
+  isModelAvailable,
+  pickDefaultModel,
+  toCatalogueModel,
+  type CatalogueModel,
+} from './provider/catalogue.js';
 export type {
   AIProvider,
   ProviderCapabilities,

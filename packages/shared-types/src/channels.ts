@@ -41,6 +41,7 @@ export const channels = [
   'ai:setKey',
   'ai:clearKey',
   'ai:setModel',
+  'ai:listModels',
   'ai:run',
   'ai:cancel',
   'ai:applyRepair',
