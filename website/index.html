@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fixora — Verified AI Code Repair</title>
+    <meta
+      name="description"
+      content="Fixora fixes your code with AI you can trust: every repair is verified against your own linters and type-checker before you apply it. Bring your own key. Your code never leaves your machine."
+    />
+    <!--
+      Owner: replace the three placeholders before publishing —
+        DOWNLOAD_URL   the Windows installer link (e.g. a GitHub release asset)
+        STRIPE_URL     your Stripe Payment Link for the Supporter/Pro license
+        FORM_ACTION    your email-capture endpoint (Buttondown/Formspree/etc.)
+      Static, dependency-free, self-contained. Deploy anywhere (Cloudflare Pages, GitHub Pages).
+    -->
+    <style>
+      :root {
+        --bg: #0b0b0f;
+        --surface: #14141b;
+        --surface-2: #1b1b24;
+        --border: #262633;
+        --fg: #ecebf3;
+        --fg-muted: #a0a0b0;
+        --accent: #8b5cf6;
+        --accent-fg: #ffffff;
+        --success: #34d399;
+        --danger: #f87171;
+        --radius: 12px;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #fbfbfd;
+          --surface: #ffffff;
+          --surface-2: #f4f4f8;
+          --border: #e6e6ee;
+          --fg: #16161d;
+          --fg-muted: #5c5c6b;
+          --accent: #7c3aed;
+        }
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: inherit; }
+      .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+      header {
+        position: sticky; top: 0; z-index: 10;
+        backdrop-filter: blur(10px);
+        background: color-mix(in srgb, var(--bg) 80%, transparent);
+        border-bottom: 1px solid var(--border);
+      }
+      .nav { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+      .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+      .brand .dot { width: 12px; height: 12px; border-radius: 4px; background: var(--accent); }
+      .nav a.link { color: var(--fg-muted); text-decoration: none; margin-left: 22px; font-size: 14px; }
+      .nav a.link:hover { color: var(--fg); }
+      .btn {
+        display: inline-block; padding: 12px 20px; border-radius: 10px;
+        font-weight: 600; text-decoration: none; font-size: 15px; border: 1px solid transparent;
+        transition: transform 0.05s ease, background 0.15s ease;
+      }
+      .btn:active { transform: translateY(1px); }
+      .btn-primary { background: var(--accent); color: var(--accent-fg); }
+      .btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
+      .btn-ghost { border-color: var(--border); color: var(--fg); }
+      .btn-ghost:hover { background: var(--surface-2); }
+
+      section { padding: 72px 0; border-bottom: 1px solid var(--border); }
+      h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 18px; }
+      h2 { font-size: clamp(24px, 4vw, 32px); letter-spacing: -0.01em; margin: 0 0 12px; }
+      .lede { font-size: clamp(17px, 2.4vw, 20px); color: var(--fg-muted); max-width: 640px; }
+      .eyebrow { color: var(--accent); font-weight: 600; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+      .hero { padding-top: 88px; }
+      .cta-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 30px; }
+      .cta-note { color: var(--fg-muted); font-size: 14px; }
+
+      .badges { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 34px; }
+      .badge {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+        padding: 7px 14px; font-size: 13px; color: var(--fg-muted);
+      }
+      .badge b { color: var(--fg); font-weight: 600; }
+
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-top: 34px; }
+      .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+      .card h3 { margin: 0 0 8px; font-size: 17px; }
+      .card p { margin: 0; color: var(--fg-muted); font-size: 15px; }
+      .step-n { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; }
+
+      .verdict { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+      .verdict.ok { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+      .verdict.no { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+
+      ul.claims { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 12px; }
+      ul.claims li { padding-left: 28px; position: relative; color: var(--fg-muted); }
+      ul.claims li::before { content: "✓"; position: absolute; left: 0; color: var(--success); font-weight: 700; }
+      ul.claims b { color: var(--fg); }
+
+      .price-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-top: 30px; }
+      .price { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
+      .price.pro { border-color: var(--accent); }
+      .price .amt { font-size: 30px; font-weight: 700; margin: 6px 0 2px; }
+      .price ul { list-style: none; padding: 0; margin: 16px 0 22px; display: grid; gap: 8px; color: var(--fg-muted); font-size: 15px; }
+
+      form.capture { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; max-width: 480px; }
+      form.capture input {
+        flex: 1; min-width: 200px; padding: 12px 14px; border-radius: 10px;
+        border: 1px solid var(--border); background: var(--surface); color: var(--fg); font-size: 15px;
+      }
+      form.capture input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+      footer { padding: 40px 0 64px; color: var(--fg-muted); font-size: 14px; }
+      footer a { color: var(--fg-muted); }
+      .smartscreen { margin-top: 16px; font-size: 13px; color: var(--fg-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap nav">
+        <div class="brand"><span class="dot"></span> Fixora</div>
+        <nav>
+          <a class="link" href="#how">How it works</a>
+          <a class="link" href="#privacy">Privacy</a>
+          <a class="link" href="#pricing">Pricing</a>
+          <a class="link" href="DOWNLOAD_URL">Download</a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="wrap">
+        <p class="eyebrow">Verified AI Code Repair</p>
+        <h1>Fix smarter.<br />Ship faster.</h1>
+        <p class="lede">
+          Fixora repairs your code with AI you can actually trust — every fix is <b style="color:var(--fg)">verified
+          against your own linters and type-checker</b> before you apply it. Bring your own key. Your code
+          never leaves your machine.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="DOWNLOAD_URL">Download for Windows</a>
+          <a class="btn btn-ghost" href="#how">See how it works</a>
+          <span class="cta-note">Free with your own API key · Public Beta</span>
+        </div>
+        <div class="smartscreen">
+          The beta installer is not yet code-signed, so Windows SmartScreen may warn on first run — click
+          <b>More info → Run anyway</b>. Signing lands for the paid launch.
+        </div>
+        <div class="badges">
+          <span class="badge"><b>Verified</b> — not just suggested</span>
+          <span class="badge"><b>Private</b> — local-first</span>
+          <span class="badge"><b>BYOK</b> — your key, your models</span>
+          <span class="badge"><b>Zero</b> code retention</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="how">
+      <div class="wrap">
+        <p class="eyebrow">The pipeline is the product</p>
+        <h2>Every repair is verified before you trust it</h2>
+        <p class="lede">
+          "The AI suggested this" is worth little. "This fix resolves the finding, compiles, and breaks no
+          other check" is worth shipping.
+        </p>
+        <div class="grid">
+          <div class="card"><span class="step-n">01 · GROUND</span><h3>Deterministic analysis</h3><p>Your own tree-sitter, ESLint, tsc, ruff, mypy, go&nbsp;vet — findings with a rule, a location, and evidence. Zero AI here.</p></div>
+          <div class="card"><span class="step-n">02 · REPAIR</span><h3>Grounded, gated AI</h3><p>The model fixes one grounded finding. A secret gate blocks any key or credential from ever reaching the provider.</p></div>
+          <div class="card"><span class="step-n">03 · VERIFY</span><h3>Re-run on a safe copy</h3><p>The fix is applied to a throwaway overlay and your analyzers re-run. <span class="verdict ok">Verified</span> or <span class="verdict no">Regression</span> — honestly.</p></div>
+          <div class="card"><span class="step-n">04 · APPLY</span><h3>You decide</h3><p>Review the diff, apply with one click, and keep a local audit trail of every repair. Regressions can't be applied.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="privacy">
+      <div class="wrap">
+        <p class="eyebrow">Trust, as testable claims</p>
+        <h2>Your code stays yours</h2>
+        <p class="lede">These aren't marketing lines — they're how the product is built.</p>
+        <ul class="claims">
+          <li><b>Bring your own key.</b> AI runs straight from the app to the provider you choose. There is no Fixora server on the AI path.</li>
+          <li><b>Your key is encrypted</b> with your OS keychain and never leaves the main process — the UI never even sees it.</li>
+          <li><b>A secret gate</b> scans every outbound payload and refuses to send a file containing an API key, private key, or token — naming the file and the rule.</li>
+          <li><b>Nothing is retained.</b> No code, paths, prompts, or findings are logged or stored off your machine. The repair history is local SQLite, on your disk.</li>
+          <li><b>Local-first.</b> Analysis and verification run on your machine. The cloud can't search what it never receives.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="pricing">
+      <div class="wrap">
+        <p class="eyebrow">Pricing</p>
+        <h2>Free with your key. Support if it helps you.</h2>
+        <div class="price-grid">
+          <div class="price">
+            <div>Free</div>
+            <div class="amt">$0</div>
+            <div class="cta-note">Bring your own key</div>
+            <ul>
+              <li>✓ Full verified-repair pipeline</li>
+              <li>✓ Explain, repair, generate tests</li>
+              <li>✓ Local history &amp; diff review</li>
+              <li>✓ Any OpenRouter model</li>
+            </ul>
+            <a class="btn btn-ghost" href="DOWNLOAD_URL">Download</a>
+          </div>
+          <div class="price pro">
+            <div>Supporter / Pro</div>
+            <div class="amt">One-time</div>
+            <div class="cta-note">Fund development · lock in early-supporter benefits</div>
+            <ul>
+              <li>✓ Everything in Free</li>
+              <li>✓ Supporter badge in-app</li>
+              <li>✓ Early-supporter pricing for v1.1</li>
+              <li>✓ A verified, private dev tool that keeps improving</li>
+            </ul>
+            <a class="btn btn-primary" href="STRIPE_URL">Become a supporter</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <p class="eyebrow">Stay in the loop</p>
+        <h2>Get beta updates</h2>
+        <p class="lede">Occasional email on new releases and what changed. No spam, unsubscribe anytime.</p>
+        <form class="capture" action="FORM_ACTION" method="post">
+          <input type="email" name="email" placeholder="you@example.com" required aria-label="Email address" />
+          <button class="btn btn-primary" type="submit">Notify me</button>
+        </form>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        Fixora — verified AI code repair. Public Beta.
+        · <a href="/privacy.html">Privacy</a>
+        · <a href="/.well-known/security.txt">Security</a>
+        · Made for developers who don't trust AI blindly.
+      </div>
+    </footer>
+  </body>
+</html>
