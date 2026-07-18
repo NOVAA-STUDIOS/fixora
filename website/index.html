@@ -9,12 +9,57 @@
       content="Fixora fixes your code with AI you can trust: every repair is verified against your own linters and type-checker before you apply it. Bring your own key. Your code never leaves your machine."
     />
     <!--
-      Owner: replace the three placeholders before publishing —
-        DOWNLOAD_URL   the Windows installer link (e.g. a GitHub release asset)
+      Owner: replace these placeholders before publishing —
+        DOWNLOAD_URL   the Windows installer link (a published GitHub release asset)
         STRIPE_URL     your Stripe Payment Link for the Supporter/Pro license
         FORM_ACTION    your email-capture endpoint (Buttondown/Formspree/etc.)
+        DOCS_URL       the hosted user guide
+        ISSUES_URL     the issue tracker
+
+      These are checked mechanically: `pnpm gate:website` fails while any placeholder or referenced
+      asset is unresolved. A download button that 404s is worse than no site at all, so this is not
+      left to whoever remembers. It is deliberately NOT in the per-commit CI job — it would fail
+      every PR until launch config lands — so it is a release gate; see docs/RELEASE-CHECKLIST.md.
+
       Static, dependency-free, self-contained. Deploy anywhere (Cloudflare Pages, GitHub Pages).
     -->
+    <link rel="canonical" href="https://fixora.dev/" />
+    <meta name="theme-color" content="#0b0b0f" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph / Twitter: what a shared link looks like in Slack, Discord, X. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Fixora" />
+    <meta property="og:title" content="Fixora — Verified AI Code Repair" />
+    <meta
+      property="og:description"
+      content="Every AI repair is re-checked against your own linters and type-checker before you can apply it. Bring your own key. Your code never touches a Fixora server."
+    />
+    <meta property="og:url" content="https://fixora.dev/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Fixora — Verified AI Code Repair" />
+    <meta
+      name="twitter:description"
+      content="Every AI repair is re-checked against your own linters and type-checker before you can apply it. Bring your own key."
+    />
+
+    <!-- An inline SVG favicon: one request fewer, and sharp at any size. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%238b5cf6'/%3E%3Cpath d='m20 24.5 3 3 5.5-6.5' stroke='%23fff' stroke-width='2.75' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"
+    />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Fixora",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Windows 10, Windows 11",
+        "description": "Verified AI code repair. Every repair is re-checked against your own linters and type-checker before you can apply it. Bring your own API key; your code never touches a Fixora server.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
     <style>
       :root {
         --bg: #0b0b0f;
@@ -194,6 +239,43 @@
         font-weight: 600;
       }
 
+      .shots {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 18px;
+        margin-top: 34px;
+      }
+      .shots figure {
+        margin: 0;
+      }
+      .shots img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+      .shots figcaption {
+        margin-top: 10px;
+        color: var(--fg-muted);
+        font-size: 14px;
+      }
+      .faq details {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        padding: 16px 18px;
+        margin-top: 12px;
+      }
+      .faq summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .faq details p {
+        margin: 10px 0 0;
+        color: var(--fg-muted);
+      }
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -337,9 +419,12 @@
       <div class="wrap nav">
         <div class="brand"><span class="dot"></span> Fixora</div>
         <nav>
+          <a class="link" href="#features">Features</a>
           <a class="link" href="#how">How it works</a>
+          <a class="link" href="#screenshots">Screenshots</a>
           <a class="link" href="#privacy">Privacy</a>
           <a class="link" href="#pricing">Pricing</a>
+          <a class="link" href="#faq">FAQ</a>
           <a class="link" href="DOWNLOAD_URL">Download</a>
         </nav>
       </div>
@@ -369,6 +454,61 @@
           <span class="badge"><b>Private</b> — local-first</span>
           <span class="badge"><b>BYOK</b> — your key, your models</span>
           <span class="badge"><b>Zero</b> code retention</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="wrap">
+        <p class="eyebrow">What you get</p>
+        <h2>A repair tool that shows its work</h2>
+        <p class="lede">
+          Fixora runs the tools you already trust, then uses AI only on top of what they found —
+          never instead of them.
+        </p>
+        <div class="grid">
+          <div class="card">
+            <h3>Analysis with your own tools</h3>
+            <p>
+              Fixora runs your project's ESLint, TypeScript, Ruff and mypy — your config, your
+              rules. Findings are grounded in real tool output, not a model's opinion.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Problem details before you spend a token</h3>
+            <p>
+              Rule, severity, category, exact line and column, the code in question, why it
+              triggered, and how the fix usually looks — so you can decide whether you even need AI.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Verified repair</h3>
+            <p>
+              Every AI repair is applied in a throwaway copy, re-analysed, and syntax-checked. You
+              see a verdict — verified, unresolved, or regression — before you can apply it.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Diff review, then apply</h3>
+            <p>
+              Nothing is written behind your back. Read the diff, copy it, or apply it — and a
+              repair that introduced a new problem cannot be applied at all.
+            </p>
+          </div>
+          <div class="card">
+            <h3>A real editor</h3>
+            <p>
+              Monaco, editable, with Ctrl+S, unsaved-change indicators and optional auto save. Fix
+              things yourself when that is faster than asking.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Local history</h3>
+            <p>
+              Every analysis and every applied repair is recorded in a local SQLite database. It is
+              on your disk, and it stays there.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -415,6 +555,48 @@
               Regressions can't be applied.
             </p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="screenshots">
+      <div class="wrap">
+        <p class="eyebrow">See it</p>
+        <h2>What using Fixora looks like</h2>
+        <p class="lede">
+          Findings on the left, your code in the middle, and everything known about the selected
+          problem on the right.
+        </p>
+        <!--
+          Owner: these must be captured against the sample project in `examples/`, never against a
+          real client repo — a screenshot of a private codebase is a source-code leak that is very
+          hard to walk back once it is indexed. `website:check` fails while any of them is missing.
+        -->
+        <div class="shots">
+          <figure>
+            <img
+              src="screenshots/problems.png"
+              alt="Fixora showing a list of analysis findings beside the highlighted line of code that produced one"
+              width="1382"
+              height="776"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>
+              Click a finding — it opens the file and jumps to the exact line.
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              src="screenshots/verified-repair.png"
+              alt="A proposed repair shown as a diff, labelled with a verification verdict"
+              width="1382"
+              height="776"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>Every repair arrives with a diff and a verification verdict.</figcaption>
+          </figure>
         </div>
       </div>
     </section>
@@ -499,6 +681,116 @@
           />
           <button class="btn btn-primary" type="submit">Notify me</button>
         </form>
+      </div>
+    </section>
+
+    <section id="faq" class="faq">
+      <div class="wrap">
+        <p class="eyebrow">Questions</p>
+        <h2>Frequently asked</h2>
+
+        <details>
+          <summary>Does my code get sent anywhere?</summary>
+          <p>
+            Analysis is entirely local — no network at all. When you ask for an explanation or a
+            repair, the relevant code is sent directly from your machine to the AI provider you
+            configured, using your key. It never passes through a Fixora server, because there is no
+            Fixora server.
+          </p>
+        </details>
+
+        <details>
+          <summary>What does &ldquo;bring your own key&rdquo; mean in practice?</summary>
+          <p>
+            You paste an API key from a provider such as OpenRouter. It is encrypted with Windows
+            DPAPI through your OS keychain and never leaves the main process — the interface can
+            never read it back. You are billed by that provider, at their prices, for what you use.
+          </p>
+        </details>
+
+        <details>
+          <summary>What stops the AI from sending a secret to the provider?</summary>
+          <p>
+            A gate that runs before every request: a path denylist for files like <code>.env</code>
+            and key material, pattern matching for known credential formats, and an entropy check as
+            a backstop. If it matches, the request is blocked and nothing is sent — you are told
+            what matched and why.
+          </p>
+        </details>
+
+        <details>
+          <summary>What does &ldquo;verified&rdquo; actually mean?</summary>
+          <p>
+            The proposed fix is applied to a throwaway copy of your project, then your analyzers and
+            a syntax check are run again on it. Fixora compares the findings before and after and
+            reports a verdict: verified if the problem is gone and nothing new appeared, unresolved
+            if it is still there, or regression if the fix introduced something new. A regression
+            cannot be applied.
+          </p>
+        </details>
+
+        <details>
+          <summary>Which languages are supported?</summary>
+          <p>
+            TypeScript, JavaScript, Python and Go — deliberately deep rather than broad. Fixora runs
+            the analyzers your project already configures for those languages.
+          </p>
+        </details>
+
+        <details>
+          <summary>Is it free?</summary>
+          <p>
+            Yes, with your own API key. A one-time supporter license is optional: it funds
+            development and locks in early-supporter benefits. It does not gate the repair
+            functionality.
+          </p>
+        </details>
+
+        <details>
+          <summary>Why is Windows warning me about the installer?</summary>
+          <p>
+            The beta build is not yet code-signed, so SmartScreen shows a warning for it. Choose
+            &ldquo;More info&rdquo; then &ldquo;Run anyway&rdquo;. Signing is planned before the
+            stable release — until then, only install a build you downloaded from this page.
+          </p>
+        </details>
+
+        <details>
+          <summary>Does it work offline?</summary>
+          <p>
+            Analysis, the editor, findings, problem details and history all work with no network.
+            Only the AI features need connectivity, since they call your provider.
+          </p>
+        </details>
+      </div>
+    </section>
+
+    <section id="contact">
+      <div class="wrap">
+        <p class="eyebrow">Docs &amp; contact</p>
+        <h2>Get help</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Documentation</h3>
+            <p>
+              The user guide covers setup, your first analysis, the repair flow and troubleshooting.
+            </p>
+            <p><a class="link" href="DOCS_URL">Read the user guide</a></p>
+          </div>
+          <div class="card">
+            <h3>Report a bug</h3>
+            <p>Beta feedback is genuinely useful — especially a repair that got a verdict wrong.</p>
+            <p><a class="link" href="ISSUES_URL">Open an issue</a></p>
+          </div>
+          <div class="card">
+            <h3>Security</h3>
+            <p>
+              Found something security-relevant? Please report it privately rather than in a public
+              issue.
+            </p>
+            <p><a class="link" href="/.well-known/security.txt">Security contact</a></p>
+          </div>
+        </div>
       </div>
     </section>
 
