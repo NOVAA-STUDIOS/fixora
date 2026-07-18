@@ -40,6 +40,12 @@ win:
   target:
     - nsis
   artifactName: ${productName}-Setup-${version}.${ext}
+  # The beta is unsigned (ADR-021 defers signing to the paid launch), and this says so explicitly
+  # rather than leaving electron-builder to discover it. Without this it downloads and extracts the
+  # winCodeSign toolchain to rewrite the exe's resources — an archive containing macOS symlinks, which
+  # 7-Zip cannot create on Windows unless Developer Mode is on, so the build fails on a signing step it
+  # was never going to perform. Turn this back on with the certificate when signing lands.
+  signAndEditExecutable: false
 
 nsis:
   oneClick: false
