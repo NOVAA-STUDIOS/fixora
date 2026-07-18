@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
 import type { KeyStore } from '../electron/main/ai/key-store.js';
-import type { FindingsRepository, RepairHistoryRepository } from '../electron/main/db/repositories.js';
+import type {
+  FindingsRepository,
+  RepairHistoryRepository,
+} from '../electron/main/db/repositories.js';
 import type { WorkspaceService } from '../electron/main/services/workspace-service.js';
 import type { VerificationService } from '../electron/main/verification/verification-service.js';
 
@@ -139,7 +142,8 @@ describe('AI service (BYOK run orchestration)', () => {
     const service = createAiService(deps({ provider: scriptedProvider([textEvents(json)]) }));
     const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
     expect(result.status).toBe('ok');
-    if (result.status !== 'ok' || result.proposal.profile !== 'repair') throw new Error('expected repair');
+    if (result.status !== 'ok' || result.proposal.profile !== 'repair')
+      throw new Error('expected repair');
     expect(result.proposal.confidence).toBe(0.92);
     expect(result.proposal.target).toEqual({
       file: 'src/greet.ts',

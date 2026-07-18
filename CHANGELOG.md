@@ -8,6 +8,13 @@ this file is a **product surface on the website** (Repo §3), not an afterthough
 
 ## [Unreleased]
 
+## [0.9.0-beta.1] — 2026-07-18 — Public Beta 🎉
+
+The first Public Beta: **Verified AI Code Repair**, bring-your-own-key. Open a repo, run your own
+analyzers, and let AI fix a finding — every repair is verified against your tools on a throwaway copy
+before you apply it, and your code never leaves your machine except the provider call you choose.
+`pnpm run ci` green: 323 tests + contrast, boundaries, ADR, electronegativity, gitleaks, and audit gates.
+
 ### Release preparation (2026-07-18)
 
 - **Packaging** — electron-builder (NSIS, unsigned beta) with the ESM+WASM worker asar-unpacked, plus a

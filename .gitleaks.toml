@@ -1,0 +1,30 @@
+# Fixora gitleaks configuration.
+#
+# Extends the default gitleaks ruleset (so real secrets are still caught everywhere), and allowlists the
+# handful of TEST FIXTURES that contain intentionally fake, credential-shaped strings. These are not real
+# secrets — they are the inputs to the very controls that keep real secrets safe:
+#   * the secret gate's "smuggle a live-looking key past it" suite (must contain fake AWS/GitHub/OpenAI/…
+#     keys, JWTs, and a private-key block, or it isn't testing anything);
+#   * the licensing round-trip tests (ephemeral Ed25519 material generated at runtime + fake license keys).
+#
+# The allowlist is path-scoped to those specific test files, so a real secret added anywhere else — or to a
+# non-test file — still fails the gate.
+
+title = "Fixora"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures with intentionally fake, credential-shaped strings (see file header)."
+paths = [
+  '''packages/core-ai/src/gate/secret-gate\.test\.ts''',
+  '''packages/core-ai/src/pipeline/prepare\.test\.ts''',
+  '''packages/core-ai/src/provider/openrouter\.test\.ts''',
+  '''packages/core-ai/src/provider/openrouter\.acceptance\.test\.ts''',
+  '''apps/desktop/tests/ai-service\.test\.ts''',
+  '''apps/desktop/tests/ai-apply-redteam\.test\.ts''',
+  '''apps/desktop/tests/ai-key-store\.test\.ts''',
+  '''apps/desktop/tests/license\.test\.ts''',
+  '''apps/desktop/tests/verification-service\.test\.ts''',
+]

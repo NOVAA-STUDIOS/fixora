@@ -38,7 +38,9 @@ beforeAll(async () => {
     res.write(frame({ choices: [{ delta: { content: REPAIR_JSON.slice(0, mid) } }] }));
     res.write(`data: {"choices":[{"delta":{"content":${JSON.stringify(REPAIR_JSON.slice(mid))}`);
     res.write('}}]}\n\n'); // the tail of the previous SSE line arrives in a later write
-    res.write(frame({ choices: [{ delta: {} }], usage: { prompt_tokens: 1200, completion_tokens: 40 } }));
+    res.write(
+      frame({ choices: [{ delta: {} }], usage: { prompt_tokens: 1200, completion_tokens: 40 } }),
+    );
     res.write('data: [DONE]\n\n');
     res.end();
   });

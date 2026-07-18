@@ -135,9 +135,9 @@ function AiSettings(): React.JSX.Element {
   return (
     <Group title="AI (bring your own key)">
       <p className="max-w-md text-xs text-fg-muted">
-        Fixora uses <span className="text-fg-secondary">your</span> provider key, stored encrypted in
-        your OS keychain and never sent anywhere but the provider you choose. Get an OpenRouter key at
-        openrouter.ai. Your code never passes through Fixora&rsquo;s servers.
+        Fixora uses <span className="text-fg-secondary">your</span> provider key, stored encrypted
+        in your OS keychain and never sent anywhere but the provider you choose. Get an OpenRouter
+        key at openrouter.ai. Your code never passes through Fixora&rsquo;s servers.
       </p>
 
       <Field label="Model" htmlFor={modelId}>
@@ -163,8 +163,7 @@ function AiSettings(): React.JSX.Element {
       {configured ? (
         <div className="flex items-center justify-between gap-4">
           <span className="text-sm text-fg">
-            Key configured{' '}
-            <span className="text-fg-muted">({config?.keyHint ?? '••••'})</span>
+            Key configured <span className="text-fg-muted">({config?.keyHint ?? '••••'})</span>
           </span>
           <Button variant="ghost" size="sm" onClick={() => void clearKey()}>
             Remove key
@@ -187,7 +186,11 @@ function AiSettings(): React.JSX.Element {
               }}
               className="flex-1"
             />
-            <Button size="sm" onClick={() => void save()} disabled={saving || draftKey.trim().length === 0}>
+            <Button
+              size="sm"
+              onClick={() => void save()}
+              disabled={saving || draftKey.trim().length === 0}
+            >
               Save
             </Button>
           </div>
@@ -248,8 +251,8 @@ function LicenseSettings(): React.JSX.Element {
         <div className="flex flex-col gap-2">
           <p className="max-w-md text-xs text-fg-muted">
             Fixora is free with your own key. A one-time{' '}
-            <span className="text-fg-secondary">Supporter</span> license funds development and locks in
-            early-supporter benefits. Purchase at{' '}
+            <span className="text-fg-secondary">Supporter</span> license funds development and locks
+            in early-supporter benefits. Purchase at{' '}
             <span className="text-fg-secondary">{PURCHASE_URL}</span>, then paste your key here.
           </p>
           <label htmlFor={keyId} className="text-sm text-fg">

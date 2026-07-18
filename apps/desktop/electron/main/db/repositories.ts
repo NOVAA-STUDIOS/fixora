@@ -215,9 +215,7 @@ export function createFindingsRepository(driver: SqliteDriver, now: () => number
     /** One finding by its stable id — what an AI action loads to ground itself (M5). */
     getByFindingId(workspaceId: string, findingId: string): Finding | null {
       const row = driver
-        .prepare(
-          'SELECT data_json FROM findings WHERE workspace_id = ? AND finding_id = ? LIMIT 1',
-        )
+        .prepare('SELECT data_json FROM findings WHERE workspace_id = ? AND finding_id = ? LIMIT 1')
         .get(workspaceId, findingId);
       return row === undefined ? null : (JSON.parse(row['data_json'] as string) as Finding);
     },
@@ -338,16 +336,12 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
     },
 
     markApplied(id: string): void {
-      driver
-        .prepare('UPDATE repairs SET applied = 1, applied_at = ? WHERE id = ?')
-        .run(now(), id);
+      driver.prepare('UPDATE repairs SET applied = 1, applied_at = ? WHERE id = ?').run(now(), id);
     },
 
     list(workspaceId: string, limit = 200): RepairHistoryEntry[] {
       return driver
-        .prepare(
-          'SELECT * FROM repairs WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?',
-        )
+        .prepare('SELECT * FROM repairs WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?')
         .all(workspaceId, limit)
         .map(toHistoryEntry);
     },

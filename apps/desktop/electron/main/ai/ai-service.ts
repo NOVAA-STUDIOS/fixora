@@ -85,7 +85,8 @@ export function createAiService(deps: AiServiceDeps): AiService {
         ...(deps.appMeta?.name !== undefined ? { appName: deps.appMeta.name } : {}),
       }));
 
-  const readFile = deps.readFile ?? ((root: string, rel: string) => readTextFile(root, rel).content);
+  const readFile =
+    deps.readFile ?? ((root: string, rel: string) => readTextFile(root, rel).content);
 
   let active: AbortController | null = null;
 
@@ -131,7 +132,11 @@ export function createAiService(deps: AiServiceDeps): AiService {
     async run(request, window): Promise<AiRunResponse> {
       const key = deps.keyStore.getKey();
       if (key === null) {
-        return { status: 'error', code: 'no_key', message: 'Add your provider key in Settings → AI.' };
+        return {
+          status: 'error',
+          code: 'no_key',
+          message: 'Add your provider key in Settings → AI.',
+        };
       }
       const workspace = deps.workspace.getCurrent();
       if (workspace === null) {
@@ -139,11 +144,19 @@ export function createAiService(deps: AiServiceDeps): AiService {
       }
       const finding = deps.findings.getByFindingId(workspace.id, request.findingId);
       if (finding === null) {
-        return { status: 'error', code: 'not_found', message: 'That finding is no longer available.' };
+        return {
+          status: 'error',
+          code: 'not_found',
+          message: 'That finding is no longer available.',
+        };
       }
       const language = languageFor(finding.location.file);
       if (language === null) {
-        return { status: 'error', code: 'not_found', message: 'Unsupported file type for AI actions.' };
+        return {
+          status: 'error',
+          code: 'not_found',
+          message: 'Unsupported file type for AI actions.',
+        };
       }
 
       let content: string;
@@ -155,8 +168,16 @@ export function createAiService(deps: AiServiceDeps): AiService {
 
       const symbol = finding.evidence.enclosingSymbol;
       const target: Target = symbol
-        ? { symbolName: symbol.name, startLine: symbol.location.startLine, endLine: symbol.location.endLine }
-        : { symbolName: null, startLine: finding.location.startLine, endLine: finding.location.endLine };
+        ? {
+            symbolName: symbol.name,
+            startLine: symbol.location.startLine,
+            endLine: symbol.location.endLine,
+          }
+        : {
+            symbolName: null,
+            startLine: finding.location.startLine,
+            endLine: finding.location.endLine,
+          };
 
       const context = buildContext({
         filePath: finding.location.file,
@@ -258,10 +279,18 @@ export function createAiService(deps: AiServiceDeps): AiService {
       };
 
       try {
-        let stream = await streamOnce(provider, prepared.request, controller.signal, window, !wantsStructured);
-        if (controller.signal.aborted) return { status: 'error', code: 'cancelled', message: 'Cancelled.' };
+        let stream = await streamOnce(
+          provider,
+          prepared.request,
+          controller.signal,
+          window,
+          !wantsStructured,
+        );
+        if (controller.signal.aborted)
+          return { status: 'error', code: 'cancelled', message: 'Cancelled.' };
         if (!stream.ok) {
-          if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message: stream.message });
+          if (window !== null)
+            emitToWindow(window, 'ai:runState', { status: 'error', message: stream.message });
           return { status: 'error', code: 'provider_error', message: stream.message };
         }
 
@@ -278,7 +307,11 @@ export function createAiService(deps: AiServiceDeps): AiService {
         }
         if (response === SCHEMA_ERROR) {
           if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error' });
-          return { status: 'error', code: 'schema_error', message: 'The model returned an invalid response.' };
+          return {
+            status: 'error',
+            code: 'schema_error',
+            message: 'The model returned an invalid response.',
+          };
         }
 
         if (window !== null) {

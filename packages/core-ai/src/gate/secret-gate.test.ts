@@ -37,11 +37,7 @@ describe('secret gate — nothing leaves the machine without passing this', () =
     ],
     ['google api key', 'key=AIzaSyA0123456789abcdefghijklmnopqrstuv', 'google-api-key'],
     ['stripe secret key', 'STRIPE=sk_live_0123456789abcdefABCDEF', 'stripe-secret-key'],
-    [
-      'jwt',
-      'auth=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.abcDEF123_-xyz',
-      'jwt',
-    ],
+    ['jwt', 'auth=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.abcDEF123_-xyz', 'jwt'],
     [
       'private key block',
       '-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----',

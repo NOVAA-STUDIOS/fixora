@@ -7,8 +7,8 @@ the `website/` folder to any static host (Cloudflare Pages, GitHub Pages, Netlif
 
 Search-and-replace across `index.html`:
 
-| Placeholder    | Replace with                                                             |
-| -------------- | ------------------------------------------------------------------------ |
+| Placeholder    | Replace with                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------ |
 | `DOWNLOAD_URL` | The Windows installer link (e.g. a GitHub Release asset for `Fixora-Setup-<version>.exe`). |
 | `STRIPE_URL`   | Your Stripe **Payment Link** for the Supporter/Pro license (see `docs/LICENSING.md`).      |
 | `FORM_ACTION`  | Your email-capture endpoint (Buttondown, Formspree, ConvertKit, …).                        |

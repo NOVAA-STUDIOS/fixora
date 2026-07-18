@@ -13,7 +13,10 @@ import { LicensePayloadSchema, type LicensePayload } from '@fixora/shared-types'
 
 export type VerifyResult =
   | { valid: true; payload: LicensePayload }
-  | { valid: false; reason: 'licensing-not-configured' | 'malformed' | 'bad-signature' | 'expired' };
+  | {
+      valid: false;
+      reason: 'licensing-not-configured' | 'malformed' | 'bad-signature' | 'expired';
+    };
 
 function base64urlToBuffer(value: string): Buffer {
   return Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
@@ -29,7 +32,8 @@ export function verifyLicense(
   const parts = license.trim().split('.');
   if (parts.length !== 2) return { valid: false, reason: 'malformed' };
   const [payloadB64, sigB64] = parts;
-  if (payloadB64 === undefined || sigB64 === undefined) return { valid: false, reason: 'malformed' };
+  if (payloadB64 === undefined || sigB64 === undefined)
+    return { valid: false, reason: 'malformed' };
 
   let payloadBytes: Buffer;
   let signature: Buffer;

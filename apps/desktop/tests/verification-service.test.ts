@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import type { Finding } from '@fixora/shared-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { AnalysisHost, VerifyJob, VerifyResult } from '../electron/main/analysis/analysis-host.js';
+import type {
+  AnalysisHost,
+  VerifyJob,
+  VerifyResult,
+} from '../electron/main/analysis/analysis-host.js';
 import { createVerificationService } from '../electron/main/verification/verification-service.js';
 
 let workspace: string;

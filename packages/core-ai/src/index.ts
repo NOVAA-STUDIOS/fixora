@@ -6,7 +6,13 @@
  * following phases behind these same boundaries.
  */
 
-export { gate, type GateMatch, type GateMatchKind, type GatePart, type GateResult } from './gate/secret-gate.js';
+export {
+  gate,
+  type GateMatch,
+  type GateMatchKind,
+  type GatePart,
+  type GateResult,
+} from './gate/secret-gate.js';
 export { isDeniedPath } from './gate/paths.js';
 export { hasHighEntropySecret, shannonEntropy } from './gate/entropy.js';
 export { SECRET_PATTERNS, type SecretPattern } from './gate/patterns.js';

@@ -19,7 +19,7 @@ function makeFinding(): Finding {
     severity: 'warning',
     category: 'maintainability',
     location: { file: 'src/greet.ts', startLine: 4, startCol: 3, endLine: 4, endCol: 27 },
-    message: "Use template literals instead of string concatenation.",
+    message: 'Use template literals instead of string concatenation.',
     evidence: {
       snippet: "const msg = 'hi ' + name;",
       relatedLocations: [],

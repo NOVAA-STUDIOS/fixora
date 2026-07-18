@@ -1,8 +1,4 @@
-import type {
-  AIProvider,
-  ProviderEvent,
-  ProviderRequest,
-} from './types.js';
+import type { AIProvider, ProviderEvent, ProviderRequest } from './types.js';
 
 /**
  * The OpenRouter adapter — the beta's single BYOK transport.
@@ -15,10 +11,7 @@ import type {
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
-export type FetchLike = (
-  input: string,
-  init: RequestInit,
-) => Promise<Response>;
+export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 export interface OpenRouterOptions {
   readonly apiKey: string;

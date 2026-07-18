@@ -107,7 +107,12 @@ if (!gotTheLock) {
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerAnalysisHandlers(analysisService);
-      registerAiHandlers({ keyStore, aiService, workspace: workspaceService, history: repairHistory });
+      registerAiHandlers({
+        keyStore,
+        aiService,
+        workspace: workspaceService,
+        history: repairHistory,
+      });
       registerLicenseHandlers({ license });
 
       // Reopen the last workspace (if its folder still exists), like an IDE restoring your project.

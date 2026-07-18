@@ -49,7 +49,11 @@ export function createVerificationService(deps: {
 }): VerificationService {
   return {
     async verify(input): Promise<{ report: VerificationReport; originalCode: string }> {
-      const originalCode = sliceLines(input.originalContent, input.target.startLine, input.target.endLine);
+      const originalCode = sliceLines(
+        input.originalContent,
+        input.target.startLine,
+        input.target.endLine,
+      );
       const patched = spliceLines(
         input.originalContent,
         input.target.startLine,

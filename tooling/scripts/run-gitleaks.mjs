@@ -27,7 +27,19 @@ if (probe.status !== 0) {
 
 const result = spawnSync(
   'gitleaks',
-  ['detect', '--source', '.', '--redact', '--no-banner', '--exit-code', '1'],
+  [
+    'detect',
+    '--source',
+    '.',
+    // Extends the default ruleset and allowlists only the test fixtures that intentionally contain
+    // fake, credential-shaped strings (the secret gate's own smuggle suite, the licensing tests).
+    '--config',
+    '.gitleaks.toml',
+    '--redact',
+    '--no-banner',
+    '--exit-code',
+    '1',
+  ],
   { stdio: 'inherit', shell: true },
 );
 

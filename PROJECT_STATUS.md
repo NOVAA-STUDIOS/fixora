@@ -1,7 +1,9 @@
 # Fixora — Project Status
 
 **Updated:** 2026-07-18 · **Mission:** ship a **BYOK Public Beta** this month (pivot 2026-07-16).
-**Current work:** Release mode. Beta-M5 ✅ + Licensing ✅. Next: Packaging → Website → Docs → Release.
+**Release:** Public Beta **v0.9.0-beta.1** — code complete, `pnpm run ci` green, tagged. Remaining before
+public launch is owner-side: provision the license keypair + Stripe link, build the installer on a build
+machine, and pass the clean-machine acceptance ([RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)).
 
 ## Mission pivot (2026-07-16) — BYOK-first Public Beta
 
@@ -15,33 +17,34 @@ plugins, cloud sync, API platform, analytics/reports, collaboration, org managem
 
 ### Beta track
 
-| Phase | Scope | Status |
-| ----- | ----- | ------ |
-| Beta-M5 A | `@fixora/core-ai`: secret gate + provider abstraction + OpenRouter (BYOK) | ✅ done + verified |
-| Beta-M5 B | context builder (reuses M3) + task profiles + schema-constrained output | ✅ done + verified |
-| Beta-M5 C | keychain BYOK key store + AI IPC + streaming + settings/finding UI | ✅ done + verified (live safeStorage) |
-| Beta-M5 D | verified repair: overlay + re-run analyzers + verdict + diff + apply/copy | ✅ done + verified (live worker) |
-| Beta-M5 E | repair history (SQLite v4) + History panel; AI panel in its own pane | ✅ done + verified |
-| Beta-M5 F | acceptance (over-HTTP + live smokes) + audit + red-team + docs/ADRs | ✅ done — see [BETA-ACCEPTANCE.md](docs/BETA-ACCEPTANCE.md), ADR-036/037/038 |
-| Licensing | Stripe link + offline Ed25519 license (BYOK free, Pro = supporter) | ✅ done + verified — see [LICENSING.md](docs/LICENSING.md) |
-| Packaging | Windows installer (unsigned beta) | ▶ next |
-| Website | download page + BYOK guide + Stripe link | ⏸ |
-| Release | acceptance + audit + red-team; tag Public Beta | ⏸ |
+| Phase     | Scope                                                                     | Status                                                                       |
+| --------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Beta-M5 A | `@fixora/core-ai`: secret gate + provider abstraction + OpenRouter (BYOK) | ✅ done + verified                                                           |
+| Beta-M5 B | context builder (reuses M3) + task profiles + schema-constrained output   | ✅ done + verified                                                           |
+| Beta-M5 C | keychain BYOK key store + AI IPC + streaming + settings/finding UI        | ✅ done + verified (live safeStorage)                                        |
+| Beta-M5 D | verified repair: overlay + re-run analyzers + verdict + diff + apply/copy | ✅ done + verified (live worker)                                             |
+| Beta-M5 E | repair history (SQLite v4) + History panel; AI panel in its own pane      | ✅ done + verified                                                           |
+| Beta-M5 F | acceptance (over-HTTP + live smokes) + audit + red-team + docs/ADRs       | ✅ done — see [BETA-ACCEPTANCE.md](docs/BETA-ACCEPTANCE.md), ADR-036/037/038 |
+| Licensing | Stripe link + offline Ed25519 license (BYOK free, Pro = supporter)        | ✅ done + verified — see [LICENSING.md](docs/LICENSING.md)                   |
+| Packaging | Windows installer (unsigned beta) + WASM-worker vendoring                  | ✅ config + fix + docs — build on owner machine ([PACKAGING.md](docs/PACKAGING.md)) |
+| Website   | download page + privacy + pricing + email capture                         | ✅ done ([website/](website/))                                               |
+| Docs      | user guide + README + release checklist                                   | ✅ done ([USER-GUIDE.md](docs/USER-GUIDE.md))                                |
+| Release   | `pnpm run ci` green (323 tests + all gates) · tag v0.9.0-beta.1            | ✅ code complete; owner clean-machine gate remains                           |
 
 ---
 
 ## Milestones
 
-| #      | Milestone                                | Status                                 | Notes                               |
-| ------ | ---------------------------------------- | -------------------------------------- | ----------------------------------- |
-| —      | Blueprint                                | ✅ Signed off 2026-07-13               | 28 ADRs accepted                    |
-| **M0** | **Foundations**                          | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14               |
-| **M1** | **Design system & app shell**            | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-14               |
-| **M2** | **Workspace, editor, local persistence** | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-15               |
-| **M3** | **Deterministic analysis engine**        | ✅ **Approved — audited + red-teamed** | Signed off 2026-07-16               |
-| **M4** | **Backend, auth, entitlements**          | ✅ **Built (fixora-api A–E), deferred to v1.1** | BYOK beta needs no server; ready to switch on |
-| **Beta-M5** | **Verified AI Repair (BYOK)**       | ▶ **In progress** — Phases A–D done    | The beta product; see Beta track above |
-| M6+    | Teams / enterprise / marketplace / cloud | ⏸ v1.1 backlog                         | Deferred by the beta pivot          |
+| #           | Milestone                                | Status                                          | Notes                                         |
+| ----------- | ---------------------------------------- | ----------------------------------------------- | --------------------------------------------- |
+| —           | Blueprint                                | ✅ Signed off 2026-07-13                        | 28 ADRs accepted                              |
+| **M0**      | **Foundations**                          | ✅ **Approved — audited + red-teamed**          | Signed off 2026-07-14                         |
+| **M1**      | **Design system & app shell**            | ✅ **Approved — audited + red-teamed**          | Signed off 2026-07-14                         |
+| **M2**      | **Workspace, editor, local persistence** | ✅ **Approved — audited + red-teamed**          | Signed off 2026-07-15                         |
+| **M3**      | **Deterministic analysis engine**        | ✅ **Approved — audited + red-teamed**          | Signed off 2026-07-16                         |
+| **M4**      | **Backend, auth, entitlements**          | ✅ **Built (fixora-api A–E), deferred to v1.1** | BYOK beta needs no server; ready to switch on |
+| **Beta-M5** | **Verified AI Repair (BYOK)**            | ▶ **In progress** — Phases A–D done             | The beta product; see Beta track above        |
+| M6+         | Teams / enterprise / marketplace / cloud | ⏸ v1.1 backlog                                  | Deferred by the beta pivot                    |
 
 ---
 

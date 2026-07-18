@@ -33,7 +33,8 @@ export function sliceLines(content: string, startLine: number, endLine: number):
  * bucket), so "the same problem" survives a fix that shifts lines, and a genuinely new problem stands out.
  */
 export function verificationSignature(finding: Finding): string {
-  const symbol = finding.evidence.enclosingSymbol?.name ?? `line:${String(finding.location.startLine)}`;
+  const symbol =
+    finding.evidence.enclosingSymbol?.name ?? `line:${String(finding.location.startLine)}`;
   return `${finding.source}:${finding.ruleId}:${symbol}`;
 }
 
