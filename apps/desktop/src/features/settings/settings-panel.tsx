@@ -44,6 +44,7 @@ export function SettingsPanel(): React.JSX.Element {
       </header>
       <div className="flex flex-col gap-6 p-4">
         <AppearanceSettings />
+        <EditorSettings />
         <AiSettings />
         <LicenseSettings />
         <PrivacySettings />
@@ -279,6 +280,33 @@ function LicenseSettings(): React.JSX.Element {
           {error !== null && <span className="text-xs text-danger-text">{error}</span>}
         </div>
       )}
+    </Group>
+  );
+}
+
+function EditorSettings(): React.JSX.Element {
+  const autoSave = useUiStore((s) => s.autoSave);
+  const setAutoSave = useUiStore((s) => s.setAutoSave);
+  const switchId = useId();
+
+  return (
+    <Group title="Editor">
+      <div className="flex items-start justify-between gap-4">
+        <label htmlFor={switchId} className="flex flex-col gap-0.5">
+          <span className="text-sm text-fg">Auto save</span>
+          <span className="max-w-md text-xs text-fg-muted">
+            Off by default. When on, an edited file is written about a second after you stop typing.
+            Fixora only ever writes files inside the open project, and a verified repair is still
+            applied through its own reviewed flow.
+          </span>
+        </label>
+        <Switch
+          id={switchId}
+          checked={autoSave}
+          onCheckedChange={setAutoSave}
+          aria-label="Auto save"
+        />
+      </div>
     </Group>
   );
 }

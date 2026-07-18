@@ -138,3 +138,55 @@ export function WinCloseIcon(props: IconProps): React.JSX.Element {
     </Icon>
   );
 }
+
+/**
+ * The Fixora brand mark: a rounded badge holding code brackets around a check.
+ *
+ * It is not built on the `Icon` helper above, because it is not an icon — icons are monochrome
+ * `currentColor` glyphs on a 24px grid, and a brand mark carries its own fill and proportions. It
+ * stays inline SVG rather than a bundled image file for the same reason the icons do, plus one
+ * more: the app renders under a strict CSP with no external hosts, and an inline mark is sharp at
+ * every Windows scaling factor without shipping four raster sizes.
+ *
+ * `title` is optional: the mark is decoration next to a visible "Fixora" wordmark, but a standalone
+ * use (a splash screen with no text yet painted) should name it.
+ */
+export function FixoraMark({
+  title,
+  ...props
+}: SVGProps<SVGSVGElement> & { title?: string }): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      role={title === undefined ? 'presentation' : 'img'}
+      aria-hidden={title === undefined ? true : undefined}
+      {...props}
+    >
+      {title !== undefined && <title>{title}</title>}
+      <defs>
+        <linearGradient id="fx-mark-g" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#a78bfa" />
+          <stop offset="1" stopColor="#7c3aed" />
+        </linearGradient>
+      </defs>
+      <rect width="48" height="48" rx="12" fill="url(#fx-mark-g)" />
+      {/* Brackets — "this is code" — wrapped around a check: "and it is fixed". */}
+      <path
+        d="M17.5 15.5 11 24l6.5 8.5M30.5 15.5 37 24l-6.5 8.5"
+        stroke="#ffffff"
+        strokeOpacity="0.55"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m20 24.5 3 3 5.5-6.5"
+        stroke="#ffffff"
+        strokeWidth="2.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

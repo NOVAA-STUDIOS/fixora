@@ -21,6 +21,8 @@ export function EditorArea(): React.JSX.Element {
   const closeTab = useEditorStore((s) => s.closeTab);
   const dirty = useEditorStore((s) => s.dirty);
   const saveError = useEditorStore((s) => s.saveError);
+  const saving = useEditorStore((s) => s.saving);
+  const save = useEditorStore((s) => s.save);
 
   // A file selected in the tree opens a tab here. This is the one cross-slice link, made explicit.
   const selectedFile = useWorkspaceStore((s) => s.selectedFile);
@@ -105,6 +107,24 @@ export function EditorArea(): React.JSX.Element {
             </div>
           );
         })}
+        {/* An explicit Save, because Ctrl+S is muscle memory for some people and invisible to
+            others. Disabled when there is nothing to save, so it also reports the file's state. */}
+        <div className="ml-auto flex shrink-0 items-center gap-2 pr-2 pl-3">
+          {saving !== null && <span className="text-[11px] text-fg-muted">Saving…</span>}
+          <button
+            type="button"
+            disabled={activeTab === null || !dirty.includes(activeTab) || saving !== null}
+            onClick={() => void save()}
+            title={
+              activeTab !== null && dirty.includes(activeTab)
+                ? 'Save this file (Ctrl+S)'
+                : 'No unsaved changes'
+            }
+            className="rounded border border-border-subtle px-2 py-0.5 text-[11px] text-fg-secondary hover:bg-hover hover:text-fg disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+          >
+            Save
+          </button>
+        </div>
       </div>
       {saveError !== null && (
         <p

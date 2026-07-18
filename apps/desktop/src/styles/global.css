@@ -74,3 +74,28 @@
   background: color-mix(in srgb, var(--fx-color-accent) 16%, transparent);
   box-shadow: inset 3px 0 0 0 var(--fx-color-accent);
 }
+
+/*
+ * Splash screen motion. Both are applied through Tailwind's `motion-safe:` variant, so a user with
+ * "reduce motion" set sees the composed screen without any of it.
+ */
+@keyframes fx-splash-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* An indeterminate sweep: it reports "working", never a percentage we cannot actually measure. */
+@keyframes fx-splash-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
