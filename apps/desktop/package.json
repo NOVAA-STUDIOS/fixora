@@ -16,12 +16,9 @@
     "package:dir": "pnpm --filter @fixora/core-analysis build && electron-vite build && node scripts/prepackage.mjs && electron-builder --dir --win --config electron-builder.yml",
     "prepackage": "node scripts/prepackage.mjs"
   },
+  "//dependencies": "Only @fixora/core-analysis is a RUNTIME dependency: the ESM analysis worker imports it from disk (out/main/analysis-worker.mjs) so it can resolve tree-sitter WASM via import.meta.url. Every other @fixora/* package is bundled into the CJS main and the renderer by electron-vite, which makes them build-time inputs — they belong in devDependencies. Keeping them here also broke packaging: electron-builder's production-dependency walker follows pnpm's workspace symlinks out to packages/*, then refuses the realpath for being outside apps/desktop.",
   "dependencies": {
-    "@fixora/core-ai": "workspace:*",
     "@fixora/core-analysis": "workspace:*",
-    "@fixora/shared-types": "workspace:*",
-    "@fixora/tokens": "workspace:*",
-    "@fixora/ui": "workspace:*",
     "chokidar": "5.0.0",
     "ignore": "7.0.6",
     "monaco-editor": "0.55.1",
@@ -30,8 +27,12 @@
     "zustand": "5.0.14"
   },
   "devDependencies": {
+    "@fixora/core-ai": "workspace:*",
     "@fixora/eslint-config": "workspace:*",
+    "@fixora/shared-types": "workspace:*",
+    "@fixora/tokens": "workspace:*",
     "@fixora/tsconfig": "workspace:*",
+    "@fixora/ui": "workspace:*",
     "@tailwindcss/vite": "4.3.2",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
