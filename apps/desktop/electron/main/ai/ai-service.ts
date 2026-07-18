@@ -2,6 +2,7 @@ import {
   buildContext,
   createOpenRouterProvider,
   DEFAULT_BUDGETS,
+  OPENROUTER_ENDPOINT,
   parseRepairOutput,
   parseTestOutput,
   prepareRequest,
@@ -103,7 +104,23 @@ export function createAiService(deps: AiServiceDeps): AiService {
         text += event.text;
         if (emitDeltas && window !== null) emitToWindow(window, 'ai:delta', { text: event.text });
       } else if (event.type === 'error') {
-        return { ok: false, message: `Provider error (${event.providerCode}).` };
+        // Carry the provider's own explanation through. Reporting only the code turned every
+        // failure into "Provider error (HTTP 404)" — technically true, and useless: the reason
+        // ("model not found", "insufficient credits") was already in hand and was being dropped here.
+        // The exact URL and model, alongside the provider's own words. Never the key or the payload.
+        console.error('[ai] provider error', {
+          url: OPENROUTER_ENDPOINT,
+          model: request.model,
+          code: event.providerCode,
+          message: event.message,
+        });
+        return {
+          ok: false,
+          message:
+            event.message.trim() === ''
+              ? `Provider error (${event.providerCode}).`
+              : `${event.message} (${event.providerCode})`,
+        };
       }
     }
     return { ok: true, text };

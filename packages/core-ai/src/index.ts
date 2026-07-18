@@ -19,6 +19,7 @@ export { SECRET_PATTERNS, type SecretPattern } from './gate/patterns.js';
 
 export {
   createOpenRouterProvider,
+  OPENROUTER_ENDPOINT,
   type FetchLike,
   type OpenRouterOptions,
 } from './provider/openrouter.js';
