@@ -1,4 +1,4 @@
-import type { AiProposal } from '@fixora/shared-types';
+import type { AiProposal, VerificationReport } from '@fixora/shared-types';
 import { Button } from '@fixora/ui';
 import { useEffect } from 'react';
 
@@ -9,6 +9,7 @@ import { useFindingsStore } from '../findings/findings-store.js';
 import { ProblemDetails } from '../findings/problem-details.js';
 
 import { VerdictBadge } from './verdict-badge.js';
+import { VerdictBanner } from './verdict-banner.js';
 
 /**
  * The AI result surface (M5), mounted in the workbench's AI pane. It shows the active run: streamed
@@ -204,12 +205,12 @@ function RepairResult({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <VerdictBanner report={report} />
+
       <div className="shrink-0 border-b border-border-subtle px-3 py-2 text-xs text-fg-secondary">
         <p>{proposal.rationale}</p>
         <p className="mt-1 text-fg-muted">
-          Confidence {Math.round(proposal.confidence * 100)}% · verified against{' '}
-          {report.ran.join(', ')}
-          {report.note !== undefined && ` · ${report.note}`}
+          Confidence {Math.round(proposal.confidence * 100)}% · checked with {report.ran.join(', ')}
         </p>
       </div>
 
@@ -222,8 +223,10 @@ function RepairResult({
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-3 py-2">
+        {/* Was "Reject", which read as a verdict rather than an action — and sat inches from a
+            "Rejected patch" badge that means something else entirely. */}
         <Button variant="ghost" size="sm" onClick={dismiss}>
-          Reject
+          Dismiss
         </Button>
         <Button
           variant="ghost"
