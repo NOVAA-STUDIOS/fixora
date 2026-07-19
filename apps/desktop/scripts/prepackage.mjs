@@ -13,6 +13,21 @@ import { cpSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync } from '
 import { dirname, join, sep } from 'node:path';
 
 const appDir = process.cwd(); // apps/desktop
+
+// The application icon is a tracked build resource, not something generated here: `pnpm icon`
+// rasterizes it and it is committed. Regenerating it on every package would put a flaky compositor
+// capture on the release path for a file that changes about once a year. But if it is missing,
+// electron-builder does not fail — it quietly substitutes the default Electron icon and ships a
+// generically-branded installer, which is exactly the defect this check exists to prevent.
+const icon = join(appDir, 'build', 'icon.png');
+if (!existsSync(icon)) {
+  console.error(
+    `prepackage: ${icon} is missing — electron-builder would fall back to the default Electron icon.\n` +
+      '           Run `pnpm --filter @fixora/desktop icon` to regenerate it.',
+  );
+  process.exit(1);
+}
+
 const link = join(appDir, 'node_modules', '@fixora', 'core-analysis');
 
 if (!existsSync(link)) {
