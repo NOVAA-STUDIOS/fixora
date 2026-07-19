@@ -1,4 +1,4 @@
-import type { AiProposal, VerificationReport } from '@fixora/shared-types';
+import type { AiProposal } from '@fixora/shared-types';
 import { Button } from '@fixora/ui';
 import { useEffect } from 'react';
 
