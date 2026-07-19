@@ -74,7 +74,14 @@ export default defineConfig({
     build: {
       externalizeDeps: { exclude: BUNDLED },
       rollupOptions: {
-        input: { index: resolve(__dirname, 'electron/main/index.ts') },
+        input: {
+          index: resolve(__dirname, 'electron/main/index.ts'),
+          // The real-pipeline acceptance harness (release blocker B4). Gated on an env flag so a
+          // production bundle never contains it — `pnpm package:win` output is unchanged.
+          ...(process.env['FIXORA_ACCEPTANCE'] === '1'
+            ? { acceptance: resolve(__dirname, 'electron/acceptance/run.ts') }
+            : {}),
+        },
       },
     },
   },
