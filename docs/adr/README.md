@@ -32,7 +32,7 @@ To add or change a decision: edit the register, then run `pnpm adr:sync`.
 | [022](./022-self-hosted-release-feed-not-github-releases.md) | Self-hosted release feed, not GitHub Releases | Accepted |
 | [023](./023-metering-and-entitlements-before-the-first-token-is-spent.md) | Metering and entitlements before the first token is spent | Accepted |
 | [024](./024-ship-4-capabilities-at-launch-not-12.md) | Ship 4 capabilities at launch, not 12 | Accepted |
-| [025](./025-three-languages-deep-not-ten-shallow.md) | Three languages deep, not ten shallow | Accepted |
+| [025](./025-language-tiers-production-analysis-and-validation.md) | Language tiers: production analysis, and validation | Accepted |
 | [026](./026-violet-as-the-single-brand-accent.md) | Violet as the single brand accent | Accepted |
 | [027](./027-server-side-kill-switches-for-every-ai-task-profile.md) | Server-side kill switches for every AI task profile | Accepted |
 | [028](./028-a-scored-golden-corpus-in-ci-from-m5-onward.md) | A scored golden corpus in CI from M5 onward | Accepted |

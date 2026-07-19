@@ -11,6 +11,12 @@ decisions, this records the current state produced by them.
 
 ## 1. Supported languages
 
+Two tiers with **different promises** (ADR-025, amended 2026-07-19). Tier A is analysis; Tier B is
+validation. The distinction is advertised rather than blurred — a developer told to expect a brace
+error and given one is served; a developer promised analysis and given a brace error is misled.
+
+### Tier A — production analysis languages
+
 | Language | Tier 1 (workspace) | Tier 2 (bundled) | Tier 3 (AI) | Status |
 |---|---|---|---|---|
 | TypeScript | eslint, tsc | eslint, tsc | planned | **Proven end-to-end** |
@@ -18,9 +24,25 @@ decisions, this records the current state produced by them.
 | JavaScript | eslint | eslint, tsc (checkJs) | planned | Analysis proven; see §9 |
 | Python | ruff, mypy | **ruff (vendored 0.15.22)** | planned | **Detection complete, repair acceptance pending** |
 | Go | go vet | none planned | planned | Tier 1 only |
-| HTML | none | *(not implemented)* | — | **Not started** |
-| CSS | none | *(not implemented)* | — | **Not started** |
-| JSON | none | *(not implemented)* | — | **Not started** |
+
+### Tier B — validation languages
+
+Deterministic validators only: parsing, syntax validity, structural errors. **No style rules, no
+formatting rules, no opinionated diagnostics, and no semantic reasoning in beta.** Tier B findings
+participate fully in analyze → explain → repair → verify → apply.
+
+| Language | Scope | Status |
+|---|---|---|
+| HTML | malformed tags, invalid nesting, duplicate attributes | **Not started** |
+| CSS | malformed declarations, unmatched braces, syntax validity | **Not started** |
+| JSON | syntax validity with line/column diagnostics | **Not started** |
+
+**Blocker for all three:** `LanguageSchema` in `packages/shared-types/src/analysis.ts` is currently
+`['typescript','javascript','python','go']`. Tier B requires extending it, which flows through the
+zod schemas, tree-sitter grammars, the analysis worker, `verification-service`'s `target.language`,
+and Monaco's language mapping. This is also the most likely cause of the unexplained
+`"path" argument must be of type string` crash on those three file types — a path built from an
+undefined language. Extending the enum and fixing the crash are the same piece of work.
 
 "Proven" means the full pipeline — analyze, detect, explain, repair, verify, apply, re-analyze — has
 been observed working in the real application, not in a test harness.
