@@ -31,7 +31,7 @@ Statuses: `Accepted` · `Proposed` (needs sign-off) · `Superseded` · `Rejected
 | [022](#adr-022) | Self-hosted release feed, not GitHub Releases | Accepted |
 | [023](#adr-023) | Metering and entitlements before the first token is spent | Accepted |
 | [024](#adr-024) | Ship 4 capabilities at launch, not 12 | Accepted |
-| [025](#adr-025) | Three languages deep, not ten shallow | Accepted |
+| [025](#adr-025) | Language tiers: production analysis, and validation | Accepted |
 | [026](#adr-026) | Violet as the single brand accent | Accepted |
 | [027](#adr-027) | Server-side kill switches for every AI task profile | Accepted |
 | [028](#adr-028) | A scored golden corpus in CI from M5 onward | Accepted |
@@ -734,24 +734,54 @@ get wrong.
 
 <a id="adr-025"></a>
 
-## ADR-025 — Three languages deep, not ten shallow
+## ADR-025 — Language tiers: production analysis, and validation
 
-**Status:** Accepted — 2026-07-13
+**Status:** Accepted — 2026-07-13. **Amended 2026-07-19** to define two tiers rather than a single list.
 
-**Decision.** **TypeScript/JavaScript, Python, Go** at launch. Each with: a tree-sitter grammar, linter +
-type-checker adapters, a Semgrep ruleset, a test-runner adapter, and a golden corpus.
+**Decision.** Two named tiers, with different promises.
 
-**Why.** Each language is not a checkbox — it is five integrations and an evidence corpus. Ten languages at
-50% quality is worse than three at 95%, because a developer evaluates us on *their* language and leaves
-forever if we are bad at it. TS/JS is the largest market, Python is the AI-adjacent market, Go has the
-cleanest tooling story (a single official toolchain, fast tests) which makes it the cheapest third.
+**Tier A — production analysis languages: TypeScript/JavaScript, Python, Go.** Each with a tree-sitter
+grammar, linter + type-checker adapters, a Semgrep ruleset, a test-runner adapter, and a golden corpus.
+These are the languages we claim to *analyze*.
+
+**Tier B — validation languages: HTML, CSS, JSON.** Deterministic validators only — parsing, syntax
+validity, and structural errors. Specifically:
+
+- **HTML** — malformed tags, invalid nesting, duplicate attributes.
+- **CSS** — malformed declarations, unmatched braces, syntax validity.
+- **JSON** — syntax validity with line/column diagnostics.
+
+Tier B participates fully in analyze → explain → repair → verify → apply. It carries **no style rules,
+no formatting rules, and no opinionated diagnostics**, and no semantic reasoning in beta.
+
+**Why the amendment.** The original decision was framed as "which languages exist", and that framing
+forced a false choice: either drop HTML/CSS/JSON entirely, or dilute the quality bar to admit them. The
+real distinction was never presence versus absence — it is *what we promise*. A JSON file with a
+trailing comma is a defect we can prove exactly, at an exact line and column, with no analyzer to
+integrate and no risk of a false positive. Refusing to report it was never a quality decision; it was a
+category error.
+
+Tiering keeps the original reasoning intact where it applies. Ten languages at 50% *analysis* quality is
+still worse than three at 95%, and Tier B does not attempt analysis. It attempts validation, which is a
+smaller claim that can be met completely.
+
+**Why this is stated on the site.** The tiers are advertised as written: "Production languages:
+JavaScript, TypeScript, Python, Go. Validation languages: HTML, CSS, JSON." A developer who opens a CSS
+file and gets a brace error, having been told to expect exactly that, is served. One who was promised
+analysis and gets a brace error is misled — which is the failure the original ADR was written to
+prevent, and which tiering prevents more precisely than exclusion did.
 
 **Alternatives considered.** *Ten languages via tree-sitter only, no linter adapters.* This gets us
 "supports 10 languages" on the pricing page and violates ADR-002 in nine of them. Rejected — it is
-precisely the shortcut that turns us into a chat wrapper.
+precisely the shortcut that turns us into a chat wrapper. *Dropping HTML/CSS/JSON.* Rejected on the
+amendment: it discards defects we can prove, to protect a boundary that was drawn in the wrong place.
+*Promoting HTML/CSS/JSON to Tier A.* Rejected — they would need type-checker and Semgrep integrations
+that do not meaningfully exist for them, so the claim could not be honoured.
 
 **Trade-offs accepted.** Java, C#, Rust, PHP, Ruby users bounce. We tell them honestly on the site, with a
-"vote for your language" capture — which is free market research.
+"vote for your language" capture — which is free market research. Tier B users get less than Tier A
+users, and the interface must not blur that: a Tier B finding is a validation error and should read as
+one.
 
 ---
 
