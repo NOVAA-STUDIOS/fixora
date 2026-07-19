@@ -58,7 +58,7 @@ describe('VerdictBanner', () => {
     // The reassurance is only true before Apply. Showing it on a verified patch would be a different
     // lie in the opposite direction.
     render(<VerdictBanner report={report({ verdict: 'verified' })} />);
-    const text = screen.getByRole('status').textContent ?? '';
+    const text = screen.getByRole('status').textContent;
     expect(text).toContain('Verified patch');
     expect(text).not.toContain('NOT been modified');
   });
