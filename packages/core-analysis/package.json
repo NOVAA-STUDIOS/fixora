@@ -23,7 +23,8 @@
   "dependencies": {
     "@fixora/shared-types": "workspace:*",
     "tree-sitter-wasms": "0.1.12",
-    "web-tree-sitter": "0.25.10"
+    "web-tree-sitter": "0.25.10",
+    "eslint": "10.7.0"
   },
   "devDependencies": {
     "@fixora/eslint-config": "workspace:*",
