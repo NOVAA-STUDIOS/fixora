@@ -41,11 +41,23 @@ describe('detectCapabilities', () => {
     expect(caps.root).toBe(workspace);
   });
 
-  it('does not report a node tool the workspace has not installed', async () => {
-    // No eslint, no typescript installed in this workspace.
+  it('falls back to the bundled tool when the workspace has none, and says so', async () => {
+    // No eslint, no typescript installed in this workspace. Before the hybrid engine this meant no
+    // analyzers ran at all and a plain JavaScript folder reported zero findings — which is the whole
+    // reason tier 2 exists. The tool is now present, and flagged as ours rather than theirs.
     const caps = await detectCapabilities(workspace, versionRunner('x'));
-    expect(caps.tools.has('eslint')).toBe(false);
-    expect(caps.tools.has('tsc')).toBe(false);
+    expect(caps.tools.has('eslint')).toBe(true);
+    expect(caps.bundled?.has('eslint')).toBe(true);
+  });
+
+  it("prefers the workspace's own tool over the bundled one", async () => {
+    // The ADR-007 guarantee: a repo with its own eslint is never analyzed by ours. This is the
+    // assertion that must never be relaxed — a fallback that shadows the user's config would
+    // contradict their CI, which is exactly what the original decision forbids.
+    stubNodeTool('eslint', 'eslint');
+    const caps = await detectCapabilities(workspace, versionRunner('v9.14.0'));
+    expect(caps.tools.has('eslint')).toBe(true);
+    expect(caps.bundled?.has('eslint')).toBe(false);
   });
 
   it('still reports the tool as present when the version probe fails', async () => {

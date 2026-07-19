@@ -165,6 +165,9 @@ importers:
       '@fixora/shared-types':
         specifier: workspace:*
         version: link:../shared-types
+      eslint:
+        specifier: 10.7.0
+        version: 10.7.0(jiti@2.7.0)
       tree-sitter-wasms:
         specifier: 0.1.12
         version: 0.1.12

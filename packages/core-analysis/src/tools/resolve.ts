@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { createRequire } from 'node:module';
+import { delimiter, dirname, join } from 'node:path';
 
 /**
  * Locating the workspace's own tools, cross-platform, without a shell. Two kinds:
@@ -24,7 +25,47 @@ export function resolveNodeTool(
   pkg: string,
   binName: string = pkg,
 ): ResolvedTool | null {
-  const pkgJsonPath = join(workspaceRoot, 'node_modules', pkg, 'package.json');
+  // Run through the same Node that hosts the engine — no reliance on `node` being on PATH.
+  return readBinFrom(join(workspaceRoot, 'node_modules', pkg, 'package.json'), binName);
+}
+
+/**
+ * Resolve a Node tool from **Fixora's own** install rather than the workspace's — tier 2 of the
+ * hybrid engine.
+ *
+ * ADR-007 says we run the user's tools, never a bundled copy that would argue with their CI. That
+ * rationale is about *contradiction*: a repo pinned to ESLint 8 with its own rules must not be
+ * second-guessed by a different ESLint shipping different opinions. It says nothing about a folder
+ * that has no ESLint at all — there is no CI there to contradict, and the alternative is what the
+ * engine did before this existed: analyze a plain JavaScript folder and report nothing.
+ *
+ * So the order is strict and the fallback is *only* reached when tier 1 finds nothing. A workspace
+ * with its own tool never sees this path.
+ */
+export function resolveBundledNodeTool(
+  pkg: string,
+  binName: string = pkg,
+  resolver: (specifier: string) => string = defaultResolve,
+): ResolvedTool | null {
+  let pkgJsonPath: string;
+  try {
+    pkgJsonPath = resolver(`${pkg}/package.json`);
+  } catch {
+    // Not installed alongside the engine. Callers treat this exactly like an absent workspace tool.
+    return null;
+  }
+  return readBinFrom(pkgJsonPath, binName);
+}
+
+function defaultResolve(specifier: string): string {
+  // `createRequire` against this module: under pnpm's isolated linker the bundled tool is a real
+  // dependency of core-analysis, so it resolves inside the package's own nested node_modules — which
+  // is also what packaging unpacks from the asar.
+  return createRequire(import.meta.url).resolve(specifier);
+}
+
+/** Shared by both tiers: read a package manifest and turn its `bin` entry into a runnable command. */
+function readBinFrom(pkgJsonPath: string, binName: string): ResolvedTool | null {
   if (!existsSync(pkgJsonPath)) return null;
   let manifest: unknown;
   try {
@@ -40,9 +81,8 @@ export function resolveNodeTool(
     if (typeof value === 'string') rel = value;
   }
   if (rel === undefined) return null;
-  const binPath = join(workspaceRoot, 'node_modules', pkg, rel);
+  const binPath = join(dirname(pkgJsonPath), rel);
   if (!existsSync(binPath)) return null;
-  // Run through the same Node that hosts the engine — no reliance on `node` being on PATH.
   return { command: process.execPath, args: [binPath] };
 }
 

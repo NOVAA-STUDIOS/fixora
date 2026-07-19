@@ -4,8 +4,9 @@ import type { Category } from '@fixora/shared-types';
 
 import type { Analyzer } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
-import { resolveNodeTool } from '../tools/resolve.js';
+import { resolveBundledNodeTool, resolveNodeTool } from '../tools/resolve.js';
 
+import { writeFallbackEslintConfig } from './fallback-eslint-config.js';
 import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
@@ -41,7 +42,10 @@ function toRelPosix(root: string, absPath: string): string {
 
 export function createEslintAnalyzer(deps: AdapterDeps = {}): Analyzer {
   const runner = deps.runner ?? runTool;
-  const resolveTool = deps.resolveTool ?? ((root: string) => resolveNodeTool(root, 'eslint'));
+  const resolveTool =
+    deps.resolveTool ??
+    // Tier 1 then tier 2 — the same order capabilities used to decide the tool was present at all.
+    ((root: string) => resolveNodeTool(root, 'eslint') ?? resolveBundledNodeTool('eslint'));
 
   return {
     id: 'eslint',
@@ -58,11 +62,18 @@ export function createEslintAnalyzer(deps: AdapterDeps = {}): Analyzer {
       const tool = resolveTool(context.root);
       if (tool === null) return;
 
+      // Tier 2: our ESLint against a workspace that, by definition, has no config for it. Point it at
+      // our own rule set and stop it walking up to some unrelated config outside the project.
+      const isBundled = context.capabilities.bundled?.has('eslint') === true;
+      const configArgs = isBundled
+        ? ['--no-config-lookup', '--config', writeFallbackEslintConfig()]
+        : [];
+
       let run;
       try {
         run = await runner({
           command: tool.command,
-          args: [...tool.args, '--format', 'json', '.'],
+          args: [...tool.args, ...configArgs, '--format', 'json', '.'],
           cwd: context.root,
           signal,
         });

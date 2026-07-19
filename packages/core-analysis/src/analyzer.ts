@@ -30,6 +30,15 @@ export interface WorkspaceCapabilities {
   readonly root: string;
   readonly tools: ReadonlySet<string>;
   readonly versions: ReadonlyMap<string, string>;
+  /**
+   * Tools that came from Fixora's own install because the workspace had none (tier 2). A tool in
+   * `tools` but also here is a fallback; a tool in `tools` alone is the user's own.
+   *
+   * Analyzers need the distinction because a bundled tool runs against a workspace that, by
+   * definition, has no configuration for it — so it must supply its own, and its findings should be
+   * attributed honestly rather than presented as "your linter says".
+   */
+  readonly bundled?: ReadonlySet<string>;
 }
 
 /**

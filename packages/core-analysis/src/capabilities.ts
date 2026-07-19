@@ -1,6 +1,11 @@
 import type { WorkspaceCapabilities } from './analyzer.js';
 import { runTool, type ToolRunner } from './process/run-tool.js';
-import { resolveNodeTool, resolvePathTool, type ResolvedTool } from './tools/resolve.js';
+import {
+  resolveBundledNodeTool,
+  resolveNodeTool,
+  resolvePathTool,
+  type ResolvedTool,
+} from './tools/resolve.js';
 
 /**
  * What tools does *this* workspace have (TDD §5.2, ADR-007)? We run the user's own eslint, tsc,
@@ -12,14 +17,23 @@ import { resolveNodeTool, resolvePathTool, type ResolvedTool } from './tools/res
 interface ToolSpec {
   id: string;
   resolve: (root: string) => ResolvedTool | null;
+  /** Fixora's own copy, used only when `resolve` finds nothing. Absent = no fallback exists. */
+  fallback?: () => ResolvedTool | null;
   versionArgs: readonly string[];
 }
 
 const TOOL_SPECS: readonly ToolSpec[] = [
-  { id: 'eslint', resolve: (r) => resolveNodeTool(r, 'eslint'), versionArgs: ['--version'] },
+  {
+    id: 'eslint',
+    resolve: (r) => resolveNodeTool(r, 'eslint'),
+    // Tier 2: only consulted when the workspace has none of its own.
+    fallback: () => resolveBundledNodeTool('eslint'),
+    versionArgs: ['--version'],
+  },
   {
     id: 'tsc',
     resolve: (r) => resolveNodeTool(r, 'typescript', 'tsc'),
+    fallback: () => resolveBundledNodeTool('typescript', 'tsc'),
     versionArgs: ['--version'],
   },
   { id: 'ruff', resolve: () => resolvePathTool('ruff'), versionArgs: ['--version'] },
@@ -35,10 +49,17 @@ export async function detectCapabilities(
 ): Promise<WorkspaceCapabilities> {
   const tools = new Set<string>();
   const versions = new Map<string, string>();
+  const bundled = new Set<string>();
 
   await Promise.all(
     TOOL_SPECS.map(async (spec) => {
-      const resolved = spec.resolve(root);
+      // Tier 1 then tier 2, in that order and never the reverse: a workspace with its own tool must
+      // never be analyzed by ours.
+      let resolved = spec.resolve(root);
+      if (resolved === null && spec.fallback !== undefined) {
+        resolved = spec.fallback();
+        if (resolved !== null) bundled.add(spec.id);
+      }
       if (resolved === null) return;
       tools.add(spec.id);
       try {
@@ -57,5 +78,5 @@ export async function detectCapabilities(
     }),
   );
 
-  return { root, tools, versions };
+  return { root, tools, versions, bundled };
 }
