@@ -84,8 +84,8 @@ a syntax error.
 | `broken-react/Counter.tsx` | missing effect deps | **Linter** | react-hooks/exhaustive-deps |
 | `broken-js/total.js` | off-by-one index | **Tier 3 AI** | none — see §9 |
 | `broken-python/stats.py` | off-by-one index | **Tier 3 AI** | none — see §9 |
-| `python-ruff/undefined_name.py` | typo'd identifier | **Linter** | F821 *(unverified)* |
-| `python-ruff/mutable_default.py` | mutable default arg | **Linter** | B006 *(unverified)* |
+| `python-ruff/undefined_name.py` | typo'd identifier | **Linter** | F821 ✅ |
+| `python-ruff/mutable_default.py` | mutable default arg | **Linter** | B006 ✅ |
 
 Owners are: Compiler, Type Checker, Linter, Validator, Tier 3 AI.
 
