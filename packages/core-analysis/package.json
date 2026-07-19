@@ -24,7 +24,10 @@
     "@fixora/shared-types": "workspace:*",
     "tree-sitter-wasms": "0.1.12",
     "web-tree-sitter": "0.25.10",
-    "eslint": "10.7.0"
+    "eslint": "9.39.5",
+    "typescript-eslint": "8.46.0",
+    "eslint-plugin-react-hooks": "7.0.1",
+    "typescript": "6.0.3"
   },
   "devDependencies": {
     "@fixora/eslint-config": "workspace:*",
