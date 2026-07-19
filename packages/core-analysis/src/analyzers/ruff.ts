@@ -4,7 +4,7 @@ import type { Category } from '@fixora/shared-types';
 
 import type { Analyzer } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
-import { resolvePathTool } from '../tools/resolve.js';
+import { resolveBundledBinary, resolvePathTool } from '../tools/resolve.js';
 
 import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
 
@@ -39,9 +39,30 @@ function toRelPosix(root: string, absPath: string): string {
   return relative(root, absPath).split(sep).join('/');
 }
 
+/** Where `scripts/vendor-ruff.mjs` places the verified binary, relative to the package root. */
+export const RUFF_VENDOR_PATH = process.platform === 'win32' ? 'vendor/ruff/ruff.exe' : 'vendor/ruff/ruff';
+
+/**
+ * The rules the bundled tier selects, per Engineering Spec Section 11: every rule must flag a defect,
+ * not a preference.
+ *
+ * `F` is pyflakes — undefined names, unused imports and variables, f-strings with no placeholders.
+ * Provably wrong, never intentional. The `B` rules are hand-picked from flake8-bugbear rather than
+ * enabled wholesale, because some bugbear rules are opinionated: B006 (mutable default argument) and
+ * B012 are real bugs, B008 and friends are judgement calls.
+ *
+ * Deliberately absent: `E`/`W` (pycodestyle — line length, whitespace, indentation) and `I` (isort —
+ * import order). Ruff's default selection includes `E`, so it must be replaced rather than extended,
+ * which is why this is `--select` and not `--extend-select`.
+ */
+export const FALLBACK_RUFF_RULES = 'F,B006,B012,B018,B020';
+
 export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
   const runner = deps.runner ?? runTool;
-  const resolveTool = deps.resolveTool ?? (() => resolvePathTool('ruff'));
+  const resolveTool =
+    deps.resolveTool ??
+    // Tier 1 then tier 2 — the workspace's own ruff always wins (ADR-007).
+    (() => resolvePathTool('ruff') ?? resolveBundledBinary(RUFF_VENDOR_PATH));
 
   return {
     id: 'ruff',
@@ -52,6 +73,7 @@ export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
 
     async *run(context, signal) {
       if (!context.files.some((f) => f.language === 'python')) return;
+      const isBundled = context.capabilities.bundled?.has('ruff') === true;
       const tool = resolveTool(context.root);
       if (tool === null) return;
 
@@ -59,7 +81,22 @@ export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
       try {
         run = await runner({
           command: tool.command,
-          args: [...tool.args, 'check', '--output-format', 'json', '.'],
+          // A bundled run has no ruff.toml to obey, so it names its own rule set and refuses to
+          // pick up any config it happens to find above the workspace. Tier 1 keeps deferring to the
+          // project's own configuration entirely.
+          args: isBundled
+            ? [
+                ...tool.args,
+                'check',
+                '--no-cache',
+                '--isolated',
+                '--select',
+                FALLBACK_RUFF_RULES,
+                '--output-format',
+                'json',
+                '.',
+              ]
+            : [...tool.args, 'check', '--output-format', 'json', '.'],
           cwd: context.root,
           signal,
         });

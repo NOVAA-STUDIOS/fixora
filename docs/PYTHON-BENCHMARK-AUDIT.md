@@ -34,8 +34,8 @@ a misclassified benchmark. That is precisely what this audit exists to prevent.
 | Sample | Defect | Detectable by | Rule |
 |---|---|---|---|
 | `broken-python/stats.py` | off-by-one loop bound → IndexError | **Tier 3** | none |
-| `python-ruff/undefined_name.py` | typo'd identifier `totl` | **Ruff** | F821 |
-| `python-ruff/mutable_default.py` | mutable default argument | **Ruff** | B006 |
+| `python-ruff/undefined_name.py` | typo'd identifier `totl` | **Ruff** | F821 ✅ verified |
+| `python-ruff/mutable_default.py` | mutable default argument | **Ruff** | B006 ✅ verified |
 
 There is no "Compiler" row: Python has no compiler tier in Fixora. `mypy` exists as a tier-1 analyzer
 for workspaces that have it, but it is not bundled, so an unconfigured Python folder has Ruff and
@@ -69,7 +69,17 @@ recognise and no deterministic analyzer can prove.
 
 ## Status
 
-The expected rules above (F821, B006) are **NOT VERIFIED** — Ruff is not yet installed or bundled, so
-these are classifications from the rule definitions rather than observed output. First implementation
-step is to run the vendored Ruff against these two files and confirm the rule ids before treating any
-of this as a passing benchmark.
+**VERIFIED 2026-07-19** against the vendored Ruff 0.15.22, run with the analyzer's own rule selection
+(`--select F,B006,B012,B018,B020 --isolated --no-cache`):
+
+```
+mutable_default.py L7:24 [B006] Do not use mutable data structures for argument defaults
+undefined_name.py  L6:5  [F841] Local variable `total` is assigned to but never used
+undefined_name.py  L7:12 [F821] Undefined name `totl`
+```
+
+Both predicted rules fired at the predicted locations. The extra F841 is a true positive rather than
+noise: the typo means the correctly-spelled `total` genuinely is never read.
+
+Detection is confirmed. The remaining gate items for Python — explain, repair, verify, apply,
+re-analyze through the real application — are **NOT VERIFIED**.

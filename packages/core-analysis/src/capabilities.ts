@@ -1,6 +1,8 @@
 import type { WorkspaceCapabilities } from './analyzer.js';
 import { runTool, type ToolRunner } from './process/run-tool.js';
+import { RUFF_VENDOR_PATH } from './analyzers/ruff.js';
 import {
+  resolveBundledBinary,
   resolveBundledNodeTool,
   resolveNodeTool,
   resolvePathTool,
@@ -36,7 +38,13 @@ const TOOL_SPECS: readonly ToolSpec[] = [
     fallback: () => resolveBundledNodeTool('typescript', 'tsc'),
     versionArgs: ['--version'],
   },
-  { id: 'ruff', resolve: () => resolvePathTool('ruff'), versionArgs: ['--version'] },
+  {
+    id: 'ruff',
+    resolve: () => resolvePathTool('ruff'),
+    // Tier 2 for Python: the vendored binary, verified at build time (Engineering Spec Section 10).
+    fallback: () => resolveBundledBinary(RUFF_VENDOR_PATH),
+    versionArgs: ['--version'],
+  },
   { id: 'mypy', resolve: () => resolvePathTool('mypy'), versionArgs: ['--version'] },
   { id: 'go', resolve: () => resolvePathTool('go'), versionArgs: ['version'] },
   { id: 'semgrep', resolve: () => resolvePathTool('semgrep'), versionArgs: ['--version'] },

@@ -15,10 +15,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/vendor-ruff.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
-    "test": "vitest run"
+    "test": "vitest run",
+    "vendor:ruff": "node scripts/vendor-ruff.mjs"
   },
   "dependencies": {
     "@fixora/shared-types": "workspace:*",
