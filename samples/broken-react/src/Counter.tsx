@@ -5,7 +5,7 @@ export function Counter({ start }: { start: number }) {
 
   // No dependency array: this runs after every render and resets the count,
   // so the button can never increment past `start`.
-  useEffect(() => {
+   useEffect(() => {
     setCount(start);
   });
 
