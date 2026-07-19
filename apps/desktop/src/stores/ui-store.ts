@@ -64,6 +64,13 @@ type UiState = {
    * is the behaviour every editor has trained people to expect.
    */
   autoSave: boolean;
+  /**
+   * Reopen the last project on launch. **Off by default**: every launch starts on the Home screen
+   * with a clean session, so a returning user is never dropped back into stale problems, a stale
+   * assistant conversation, or a half-finished repair from a previous run. Opting in restores the
+   * folder; it never restores analysis or repair state, which are always recomputed.
+   */
+  reopenLastProject: boolean;
 
   setTheme: (theme: ThemeName) => void;
   toggleTheme: () => void;
@@ -75,6 +82,7 @@ type UiState = {
   setPanelLayout: (layout: PanelLayout) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
   setAutoSave: (enabled: boolean) => void;
+  setReopenLastProject: (enabled: boolean) => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -87,6 +95,7 @@ export const useUiStore = create<UiState>()(
       panelLayout: {},
       telemetryEnabled: false,
       autoSave: false,
+      reopenLastProject: false,
 
       setTheme: (theme) => {
         set({ theme });
@@ -118,6 +127,9 @@ export const useUiStore = create<UiState>()(
       setAutoSave: (autoSave) => {
         set({ autoSave });
       },
+      setReopenLastProject: (reopenLastProject) => {
+        set({ reopenLastProject });
+      },
     }),
     {
       name: 'fixora.ui',
@@ -129,6 +141,7 @@ export const useUiStore = create<UiState>()(
         panelLayout: s.panelLayout,
         telemetryEnabled: s.telemetryEnabled,
         autoSave: s.autoSave,
+        reopenLastProject: s.reopenLastProject,
       }),
       // Rehydration is the trust boundary for persisted state (see `oneOf` above). Every value
       // read back from localStorage is validated against the current known-good set before it

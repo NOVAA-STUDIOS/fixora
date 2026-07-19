@@ -1,6 +1,8 @@
 import type { DirEntryInfo, WorkspaceInfo } from '@fixora/shared-types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useUiStore } from '../../stores/ui-store.js';
+
 import { useWorkspaceStore } from './workspace-store.js';
 
 /**
@@ -43,6 +45,8 @@ function installBridge(): void {
         return Promise.resolve(ok({ workspace }));
       case 'fs:listDir':
         return Promise.resolve(ok({ entries: tree[req.relPath ?? ''] ?? [] }));
+      case 'workspace:close':
+        return Promise.resolve(ok({}));
       default:
         throw new Error(`unexpected channel ${channel}`);
     }
@@ -59,6 +63,9 @@ function relPaths(): string[] {
 
 describe('useWorkspaceStore tree', () => {
   beforeEach(() => {
+    // These exercise the tree, and use hydrateCurrent only to populate it. Startup policy is
+    // covered by its own tests above, so opt in here rather than reworking every case around it.
+    useUiStore.setState({ reopenLastProject: true });
     tree = {
       '': [dir('src', 'src'), file('README.md', 'README.md', 'markdown')],
       src: [dir('editor', 'src/editor'), file('index.ts', 'src/index.ts', 'typescript')],
@@ -74,7 +81,23 @@ describe('useWorkspaceStore tree', () => {
     });
   });
 
-  it('hydrateCurrent adopts the restored workspace and loads its root', async () => {
+  it('starts on an empty Home screen by default, restoring nothing', async () => {
+    // Fresh session is the default: a launch must not drop the user back into last session's
+    // project, because everything derived from it — problems, assistant history, a half-finished
+    // repair — would be stale. Opting in is a deliberate setting, not the out-of-box behaviour.
+    //
+    // hydrateCurrent also calls workspace:close so MAIN forgets the root, not just the renderer —
+    // leaving it set would give an empty tree while analysis still pointed at the old project. That
+    // call is exercised here (the bridge stub would throw on an unexpected channel) rather than
+    // asserted directly, since the stub is scoped inside the module mock.
+    useUiStore.setState({ reopenLastProject: false });
+    await useWorkspaceStore.getState().hydrateCurrent();
+    expect(useWorkspaceStore.getState().workspace).toBeNull();
+    expect(relPaths()).toEqual([]);
+  });
+
+  it('hydrateCurrent adopts the restored workspace when the user has opted in', async () => {
+    useUiStore.setState({ reopenLastProject: true });
     await useWorkspaceStore.getState().hydrateCurrent();
     expect(useWorkspaceStore.getState().workspace).toEqual(workspace);
     expect(relPaths()).toEqual(['src', 'README.md']);

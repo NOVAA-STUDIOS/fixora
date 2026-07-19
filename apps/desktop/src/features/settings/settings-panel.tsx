@@ -44,6 +44,7 @@ export function SettingsPanel(): React.JSX.Element {
       <div className="flex flex-col gap-6 p-4">
         <AppearanceSettings />
         <EditorSettings />
+      <StartupSettings />
         <AiSettings />
         <LicenseSettings />
         <PrivacySettings />
@@ -348,6 +349,33 @@ function EditorSettings(): React.JSX.Element {
           checked={autoSave}
           onCheckedChange={setAutoSave}
           aria-label="Auto save"
+        />
+      </div>
+    </Group>
+  );
+}
+
+function StartupSettings(): React.JSX.Element {
+  const reopenLastProject = useUiStore((s) => s.reopenLastProject);
+  const setReopenLastProject = useUiStore((s) => s.setReopenLastProject);
+  const switchId = useId();
+
+  return (
+    <Group title="Startup">
+      <div className="flex items-start justify-between gap-4">
+        <label htmlFor={switchId} className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-sm text-fg">Reopen last project on startup</span>
+          <span className="max-w-md text-xs text-fg-muted">
+            Off by default. Fixora opens on the Home screen with a clean session — no problems,
+            assistant history, or unfinished repair carried over from last time. Turning this on
+            reopens the folder; analysis always runs fresh.
+          </span>
+        </label>
+        <Switch
+          id={switchId}
+          checked={reopenLastProject}
+          onCheckedChange={setReopenLastProject}
+          aria-label="Reopen last project on startup"
         />
       </div>
     </Group>
