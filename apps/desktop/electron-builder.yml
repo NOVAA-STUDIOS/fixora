@@ -31,6 +31,8 @@ files:
 # where the grammar + core `.wasm` files actually live under pnpm's isolated linker.
 asarUnpack:
   - out/main/analysis-worker.mjs
+  # Recursive, so this also covers vendor/ruff/ruff.exe — a native executable cannot be spawned from
+  # inside an asar, the same constraint that governs the tree-sitter WASM below it.
   - node_modules/@fixora/core-analysis/**
 
 nodeGypRebuild: false

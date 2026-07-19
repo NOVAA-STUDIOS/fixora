@@ -20,3 +20,9 @@ electronegativity-report.sarif
 
 # electron-builder packaging output
 apps/desktop/release/
+
+# Vendored third-party binaries. Acquired at BUILD time by scripts/vendor-ruff.mjs with its SHA256
+# verified against a checksum committed in that script — the script and the pin are the source of
+# truth, not an 11 MB blob in git history. PROVENANCE.json is written beside the binary so a built
+# tree can be audited without re-downloading.
+packages/core-analysis/vendor/

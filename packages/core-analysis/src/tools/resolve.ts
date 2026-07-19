@@ -86,6 +86,33 @@ function readBinFrom(pkgJsonPath: string, binName: string): ResolvedTool | null 
   return { command: process.execPath, args: [binPath] };
 }
 
+/**
+ * Resolve a native binary vendored into this package — tier 2 for tools that are not npm packages.
+ *
+ * Ruff is the first: it ships as a platform-specific executable from Astral's GitHub releases, not
+ * from npm, so `resolveBundledNodeTool` (which reads a package manifest's `bin`) does not apply. The
+ * binary is placed under `vendor/` at build time by `scripts/vendor-ruff.mjs`, after its SHA256 has
+ * been verified against a checksum committed in that script.
+ *
+ * Once packaged this path lands inside `app.asar.unpacked` — a native executable cannot be spawned
+ * from inside an asar, which is the same constraint that already governs the tree-sitter WASM.
+ */
+export function resolveBundledBinary(
+  relativePath: string,
+  resolver: (specifier: string) => string = defaultResolve,
+): ResolvedTool | null {
+  let packageJson: string;
+  try {
+    packageJson = resolver('@fixora/core-analysis/package.json');
+  } catch {
+    return null;
+  }
+  const binary = join(dirname(packageJson), relativePath);
+  // Absent means the vendor step has not run. Callers treat that exactly like a missing tool rather
+  // than failing: a developer who has not vendored still gets tier 1.
+  return existsSync(binary) ? { command: binary, args: [] } : null;
+}
+
 /** A `which`: the absolute path of an executable on PATH, honouring PATHEXT on Windows. */
 export function which(name: string): string | null {
   const pathVar = process.env['PATH'] ?? '';
