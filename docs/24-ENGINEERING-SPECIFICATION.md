@@ -5,7 +5,7 @@ The project's engineering constitution. Updated after every completed milestone.
 Where this document and an ADR disagree, the ADR wins and this document is wrong — ADRs record
 decisions, this records the current state produced by them.
 
-**Last updated:** 2026-07-19, after the hybrid analysis engine and the rejected-patch UX.
+**Last updated:** 2026-07-19, after Ruff vendoring.
 
 ---
 
@@ -16,7 +16,7 @@ decisions, this records the current state produced by them.
 | TypeScript | eslint, tsc | eslint, tsc | planned | **Proven end-to-end** |
 | React (TSX) | eslint + react-hooks | eslint + react-hooks | planned | Analysis + rejection proven |
 | JavaScript | eslint | eslint, tsc (checkJs) | planned | Analysis proven; see §9 |
-| Python | ruff, mypy | ruff *(not implemented)* | planned | **Not started** |
+| Python | ruff, mypy | **ruff (vendored 0.15.22)** | planned | **Detection complete, repair acceptance pending** |
 | Go | go vet | none planned | planned | Tier 1 only |
 | HTML | none | *(not implemented)* | — | **Not started** |
 | CSS | none | *(not implemented)* | — | **Not started** |
@@ -197,6 +197,12 @@ in an analyzer the user never asked to run.
 
 ---
 
+### Interim status vocabulary
+
+A language sitting between "not started" and "complete" is recorded as **Detection Complete, Repair
+Acceptance Pending**. It exists so partial progress is never rounded up: detection passing is not the
+gate, and a language is complete only when all nine items in §12 pass.
+
 ## 12. Release gates
 
 A language is complete only when it passes **all** of: analyze, explain, repair, verify, apply,
@@ -217,7 +223,12 @@ re-analyzed.
 
 In order. Do not start the next before the current one reaches production quality.
 
-1. **Python (Ruff)** — secure vendoring per §10, then confirm F821/B006 against the two samples.
+1. **Python** — vendoring and detection are done; F821/B006/F841 confirmed against the vendored
+   binary. **Blocked on manual acceptance** (`PYTHON-ACCEPTANCE.md`), which needs the real
+   application. Status is *Detection Complete, Repair Acceptance Pending* — deliberately not
+   "complete", because the repair half has never run. Highest risk there: Python is the first
+   indentation-sensitive language through `spliceLines`, and that path has only been exercised
+   against TypeScript.
 2. **HTML, CSS, JSON validators** — including the unexplained crash: `"path" argument must be of type
    string` on those three languages.
 3. **Benchmark expansion** to the §12 targets.
