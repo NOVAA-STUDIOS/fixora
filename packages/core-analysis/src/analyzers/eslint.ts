@@ -65,9 +65,14 @@ export function createEslintAnalyzer(deps: AdapterDeps = {}): Analyzer {
       // Tier 2: our ESLint against a workspace that, by definition, has no config for it. Point it at
       // our own rule set and stop it walking up to some unrelated config outside the project.
       const isBundled = context.capabilities.bundled?.has('eslint') === true;
-      const configArgs = isBundled
-        ? ['--no-config-lookup', '--config', writeFallbackEslintConfig()]
-        : [];
+      let configArgs: string[] = [];
+      if (isBundled) {
+        const config = writeFallbackEslintConfig();
+        // No config means our plugins are missing; running anyway would report parse errors as if
+        // they were the user's bugs.
+        if (config === null) return;
+        configArgs = ['--no-config-lookup', '--config', config];
+      }
 
       let run;
       try {

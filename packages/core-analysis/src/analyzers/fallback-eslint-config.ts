@@ -1,6 +1,8 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 /**
  * The rule set Fixora brings to a workspace that has none.
@@ -20,7 +22,16 @@ import { join } from 'node:path';
 
 /** Rules chosen so that a report is always a real defect. Comments say why each one is here. */
 const FALLBACK_CONFIG = `
+import reactHooks from '__REACT_HOOKS__';
+import tseslint from '__TSESLINT__';
+
 export default [
+  // Typed-syntax parsing for .ts/.tsx. Without this, ESLint's default parser cannot read a type
+  // annotation and every TypeScript file fails with a parse error rather than being analyzed.
+  {
+    files: ['**/*.{ts,mts,cts,tsx}'],
+    languageOptions: { parser: tseslint.parser },
+  },
   {
     files: ['**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
     languageOptions: {
@@ -64,6 +75,17 @@ export default [
       'no-irregular-whitespace': 'warn',
     },
   },
+  // React Hooks. The rules of hooks are not style: calling a hook conditionally, or leaving a
+  // dependency out, produces a component that is wrong at runtime in ways that are very hard to see
+  // by reading. exhaustive-deps is the one that catches a useEffect with no dependency array.
+  {
+    files: ['**/*.{jsx,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+    },
+  },
 ];
 `;
 
@@ -73,9 +95,28 @@ export default [
  * Created fresh per run in the OS temp directory: the analyzed workspace is never written to, which
  * matters because the user did not ask us to put files in their project.
  */
-export function writeFallbackEslintConfig(): string {
+export function writeFallbackEslintConfig(): string | null {
+  // The config lives in a temp directory, which has no node_modules — so bare specifiers in it would
+  // not resolve. Rewrite them to absolute file: URLs pointing at OUR copies, resolved from this
+  // module. That is also what makes the plugins work once packaged, where they sit inside
+  // app.asar.unpacked rather than anywhere ESLint would think to look.
+  const require = createRequire(import.meta.url);
+  let reactHooks: string;
+  let tseslint: string;
+  try {
+    reactHooks = pathToFileURL(require.resolve('eslint-plugin-react-hooks')).href;
+    tseslint = pathToFileURL(require.resolve('typescript-eslint')).href;
+  } catch {
+    // Missing plugins mean the fallback would produce parse errors instead of findings, which is
+    // worse than not running: refuse rather than report noise as if it were analysis.
+    return null;
+  }
+
   const dir = mkdtempSync(join(tmpdir(), 'fixora-eslint-'));
   const file = join(dir, 'eslint.config.mjs');
-  writeFileSync(file, FALLBACK_CONFIG);
+  writeFileSync(
+    file,
+    FALLBACK_CONFIG.replace('__REACT_HOOKS__', reactHooks).replace('__TSESLINT__', tseslint),
+  );
   return file;
 }
