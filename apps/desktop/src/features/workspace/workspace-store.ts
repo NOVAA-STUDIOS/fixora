@@ -2,6 +2,7 @@ import type { DirEntryInfo, WorkspaceInfo } from '@fixora/shared-types';
 import { create } from 'zustand';
 
 import { invoke } from '../../lib/bridge.js';
+import { useUiStore } from '../../stores/ui-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 
 /**
@@ -100,6 +101,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     onStage?.('workspace');
     // No workspace to restore is not a failure — it is a first run, or a project the user closed.
     if (current.value.workspace === null) return;
+
+    // Fresh session. Unless the user has explicitly asked for it, a launch starts on the Home
+    // screen with nothing open: no stale problems, no half-finished repair, no assistant history
+    // from a previous run. Main is told to forget the root as well — leaving it set would give the
+    // renderer an empty tree while analysis still pointed at the old project, which is worse than
+    // either restoring or not.
+    if (!useUiStore.getState().reopenLastProject) {
+      await invoke('workspace:close', {});
+      return;
+    }
 
     const root = await invoke('fs:listDir', { relPath: '' });
     if (!root.ok) throw new Error(root.error.message);
