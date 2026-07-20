@@ -1,3 +1,4 @@
+export { UserFacingError, isUserFacingError } from './user-facing-error.js';
 export {
   channels,
   eventChannels,

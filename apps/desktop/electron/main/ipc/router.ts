@@ -10,6 +10,7 @@ import {
   type RequestOf,
   type ResponseOf,
   type Result,
+  isUserFacingError,
 } from '@fixora/shared-types';
 import { BrowserWindow, ipcMain } from 'electron';
 
@@ -126,13 +127,33 @@ export function mountRouter(): void {
       try {
         response = await handler(parsedRequest.data, { requestId, window });
       } catch (error) {
-        // The renderer gets a code and a next step. It does not get our stack trace: a stack
-        // carries absolute paths, and absolute paths are user data (Security §9).
+        // MAIN gets everything. The log is on the user's own machine and is the only record of what
+        // actually happened; logging just `error.name` made "Something went wrong" unfalsifiable
+        // from both sides at once — the user could not see the cause and neither could the log.
         console.error('[ipc] handler threw', {
           channel,
           requestId,
-          error: error instanceof Error ? error.name : 'unknown',
+          name: error instanceof Error ? error.name : 'unknown',
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
         });
+
+        // A handler that anticipated this condition wrote a sentence for it. Passing that through
+        // is not a weakening of the redaction: UserFacingError is an assertion by its thrower that
+        // the message is human-facing and path-free. Everything else is still fully redacted below.
+        if (isUserFacingError(error)) {
+          return err(
+            fail(
+              'IPC_HANDLER_FAILED',
+              requestId,
+              error.message,
+              error.options.action ?? { type: 'none', label: 'Dismiss' },
+            ),
+          );
+        }
+
+        // The renderer gets a code and a next step. It does not get our stack trace: a stack
+        // carries absolute paths, and absolute paths are user data (Security §9).
         return err(
           fail(
             'IPC_HANDLER_FAILED',
