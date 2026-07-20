@@ -1,5 +1,8 @@
+import type { AppInfo } from '@fixora/shared-types';
 import { cn } from '@fixora/ui';
+import { useEffect, useState } from 'react';
 
+import { invoke } from '../../lib/bridge.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { cachedModelPaths } from '../editor/models.js';
@@ -23,6 +26,21 @@ import { useWorkspaceStore } from '../workspace/workspace-store.js';
  * snapshot — a diagnostics panel showing stale data would be worse than none.
  */
 export function WorkspaceDiagnostics(): React.JSX.Element {
+  // Build identity, first, because it is the question that has to be settled before any other
+  // answer on this panel means anything. A stale binary reports stale everything — and a packaged
+  // Fixora.exe sitting next to a fresh `out/` is indistinguishable from a fixed bug that did not
+  // work, until you can read the commit the running process was built from.
+  const [app, setApp] = useState<AppInfo | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void invoke('system:getAppInfo', {}).then((r) => {
+      if (!cancelled && r.ok) setApp(r.value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const workspace = useWorkspaceStore((s) => s.workspace);
   const nodes = useWorkspaceStore((s) => s.nodes);
   const selectedFile = useWorkspaceStore((s) => s.selectedFile);
@@ -86,6 +104,19 @@ export function WorkspaceDiagnostics(): React.JSX.Element {
                 : `${String(orphanFindings.length)} finding(s) reference paths not in this workspace`}
             </span>
           </div>
+
+          <Group title="Build identity">
+            <Row label="Version" value={app?.version ?? '…'} />
+            <Row label="Commit" value={app?.commit ?? '…'} mono />
+            <Row
+              label="Packaged"
+              value={
+                app === null ? '…' : app.isPackaged ? 'yes (installed build)' : 'no (dev / out)'
+              }
+            />
+            <Row label="Electron" value={app?.electronVersion ?? '…'} />
+            <Row label="Platform" value={app === null ? '…' : `${app.platform} ${app.arch}`} />
+          </Group>
 
           <Group title="Active workspace">
             <Row label="Workspace ID" value={workspace?.id ?? '(none open)'} mono />
