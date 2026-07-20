@@ -121,13 +121,23 @@ if (!gotTheLock) {
       });
       registerLicenseHandlers({ license });
 
-      // Reopen the last workspace (if its folder still exists), like an IDE restoring your project.
-      // Off the critical path — a failure here never blocks launch.
-      try {
-        workspaceService.restoreLast();
-      } catch {
-        // nothing to restore, or the folder is gone — start on the "open folder" screen.
-      }
+      // NOT restored here.
+      //
+      // This used to call `workspaceService.restoreLast()` unconditionally, which silently opened
+      // the most recent workspace on every launch — indexing it and making it the target of every
+      // workspace-scoped query — regardless of the user's "Reopen last project on startup"
+      // preference. That preference defaults to OFF and is the entire point of ADR-tracked
+      // behaviour "fresh session by default: launch on Home, restore nothing". Main never read it:
+      // `grep -rn reopenLastProject apps/desktop/electron/` returned nothing.
+      //
+      // The consequence was worse than a wrong default. A user who had explicitly opted out still
+      // had their last project opened and analyzed, and anything asking "what are the findings?"
+      // before opening a project got that project's findings — which reads as findings attributed
+      // to the wrong workspace even though storage and retrieval are correctly scoped.
+      //
+      // Restore is the renderer's decision now: it owns the preference (ui-store) and asks for the
+      // workspace through `workspace:open`, which authorizes it as a known recent. Main starts with
+      // no workspace open, which is what "restore nothing" has always claimed to mean.
       // Fail fast, at startup, if any declared channel has no handler — before a window
       // exists to send it a request (Standards §2).
       assertEveryChannelIsHandled();

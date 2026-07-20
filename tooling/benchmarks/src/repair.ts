@@ -39,9 +39,15 @@ export async function measureRepairs(): Promise<RepairMeasurement> {
     };
   }
 
-  // The key exists, but the execution path is not connected yet. Saying so precisely is the point:
-  // "not measured because unwired" and "not measured because no key" are different states, and a
-  // reader who has just supplied a key needs to know which one they are in.
+  // A key is present. Guardrails, stated where they are enforced rather than in a doc:
+  //   - read from the environment ONLY; never from a profile, never from disk
+  //   - never written anywhere, never echoed, never logged (not even a prefix)
+  //   - absent variable disables measurement entirely, which is the default state
+  // The value is deliberately not touched below beyond this presence check.
+  //
+  // The execution path is not connected yet. Saying so precisely is the point: "not measured
+  // because unwired" and "not measured because no key" are different states, and a reader who has
+  // just supplied a key needs to know which one they are in.
   return {
     measured: false,
     reason:
