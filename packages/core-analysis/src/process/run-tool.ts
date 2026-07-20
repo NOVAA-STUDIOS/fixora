@@ -26,6 +26,8 @@ export interface RunToolOptions {
   cwd: string;
   /** Fed to the tool's stdin then closed (e.g. `eslint --stdin`). */
   input?: string;
+  /** Extra environment merged over the parent's, from `ResolvedTool.env`. */
+  env?: Readonly<Record<string, string>> | undefined;
   signal: AbortSignal;
   /** Hard ceiling; the process is killed past it. Default 30s. */
   timeoutMs?: number;
@@ -36,7 +38,7 @@ export type ToolRunner = (options: RunToolOptions) => Promise<ToolRun>;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export const runTool: ToolRunner = (options) => {
-  const { command, args, cwd, input, signal, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+  const { command, args, cwd, input, env, signal, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
 
   return new Promise<ToolRun>((resolve, reject) => {
     if (signal.aborted) {
@@ -46,6 +48,8 @@ export const runTool: ToolRunner = (options) => {
 
     const child = spawn(command, [...args], {
       cwd,
+      // Merged, not replaced: a tool still needs PATH, SystemRoot, HOME and the rest to run at all.
+      ...(env === undefined ? {} : { env: { ...process.env, ...env } }),
       // Never a shell: arguments are passed as an array so nothing in a path or filename is ever
       // interpreted by a shell (command-injection defence — the workspace is not fully trusted input).
       shell: false,

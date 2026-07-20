@@ -3,8 +3,8 @@ import { relative, sep } from 'node:path';
 import type { Analyzer } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
 import { resolveBundledNodeTool, resolveNodeTool } from '../tools/resolve.js';
-import { FALLBACK_TSC_FLAGS } from './fallback-tsc-flags.js';
 
+import { FALLBACK_TSC_FLAGS } from './fallback-tsc-flags.js';
 import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
@@ -74,6 +74,7 @@ export function createTscAnalyzer(deps: AdapterDeps = {}): Analyzer {
       try {
         run = await runner({
           command: tool.command,
+          env: tool.env,
           // Tier 2 has no tsconfig to obey, so it names its own narrow, high-confidence flags.
           // Tier 1 keeps deferring to the project's tsconfig — that is the ADR-007 guarantee.
           args: isBundled

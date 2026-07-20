@@ -48,6 +48,7 @@ export function createGoVetAnalyzer(deps: AdapterDeps = {}): Analyzer {
       try {
         run = await runner({
           command: tool.command,
+          env: tool.env,
           args: [...tool.args, 'vet', '-json', './...'],
           cwd: context.root,
           signal,
