@@ -1,5 +1,5 @@
 import type { Finding, Severity, TaskProfile } from '@fixora/shared-types';
-import { AlertIcon, Button, CheckIcon, VirtualList, cn } from '@fixora/ui';
+import { AlertIcon, Button, CheckIcon, FolderIcon, VirtualList, cn } from '@fixora/ui';
 import { useEffect } from 'react';
 
 import { useFindingRowEstimate } from '../../hooks/use-density-metrics.js';
@@ -20,13 +20,15 @@ import { useFindingsStore } from './findings-store.js';
 const SEVERITY_ORDER: Severity[] = ['error', 'warning', 'info'];
 const SEVERITY_STYLE: Record<Severity, string> = {
   error: 'text-danger-text',
-  warning: 'text-warning-text',
+  warning: 'text-warn-text',
   info: 'text-fg-muted',
 };
-const SEVERITY_BADGE: Record<Severity, string> = {
-  error: 'bg-danger-bg text-danger-text',
-  warning: 'bg-warning-bg text-warning-text',
-  info: 'bg-hover text-fg-muted',
+/** The severity dot. Colour is the only thing carrying severity in a row now, so it is a fill,
+ *  not a tint — a 8px dot in a background-tint colour is invisible against the row. */
+const SEVERITY_DOT: Record<Severity, string> = {
+  error: 'bg-danger',
+  warning: 'bg-warn',
+  info: 'bg-border-strong',
 };
 
 export function FindingsPanel(): React.JSX.Element {
@@ -60,7 +62,9 @@ export function FindingsPanel(): React.JSX.Element {
       className="flex h-full min-w-0 flex-col border-r border-border-subtle bg-canvas"
     >
       <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
-        <span className="truncate text-xs font-semibold text-fg">Problems</span>
+        <h2 className="truncate text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+          Problems
+        </h2>
         {status === 'running' ? (
           <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void cancel()}>
             Cancel
@@ -189,7 +193,9 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
         // The row is measured, so it sizes to its own content and the list makes room for it — no
         // h-full to fill a fixed slot, and no overflow-hidden, which would have clipped exactly the
         // content the measurement exists to accommodate. min-w-0 keeps it shrinking with the pane.
-        'flex min-w-0 flex-col gap-1.5 border-b border-border-subtle px-3 py-2',
+        'group/row flex min-w-0 flex-col gap-1.5 border-b border-border-subtle px-3 py-2',
+        'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+        !isSelected && 'hover:bg-hover',
         // The selected row is what the details pane is describing — say so, with a bar rather than a
         // fill, so the severity colours stay the loudest thing in the list.
         isSelected && 'bg-hover shadow-[inset_2px_0_0_0_var(--fx-color-accent)]',
@@ -205,33 +211,52 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
         aria-current={isSelected}
         // The clamped message is still readable in full on hover, without opening the details pane.
         title={`${finding.message}\n${finding.location.file}:${String(finding.location.startLine)} — click for details`}
-        className="flex w-full flex-col items-start gap-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
+        className="flex w-full min-w-0 flex-col items-start gap-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
       >
-        <span className="flex w-full items-start gap-1.5">
-          <AlertIcon className={cn('mt-0.5 size-3.5 shrink-0', SEVERITY_STYLE[finding.severity])} />
-          {/* Clamped to two lines so every row is the same height. The full message — and the rule
-              id in full — are in the details panel one click away. */}
-          <span className="line-clamp-2 text-xs leading-snug text-fg">{finding.message}</span>
-        </span>
-        <span className="flex w-full min-w-0 items-center gap-1.5 pl-5">
+        <span className="flex w-full min-w-0 items-start gap-2">
+          {/*
+            A severity dot, not a repeated alert glyph plus a repeated word. The old row spent an
+            icon AND a text badge saying the same thing ("⚠ … Warning"), which is two pieces of
+            furniture for one bit of information — in a 220px column that is most of the first line.
+            Colour carries it, and the badge's job moves to the label a screen reader reads.
+          */}
           <span
-            className={cn(
-              'shrink-0 rounded px-1 py-px text-[10px] font-medium capitalize',
-              SEVERITY_BADGE[finding.severity],
-            )}
-          >
-            {finding.severity}
+            aria-hidden="true"
+            className={cn('mt-[5px] size-2 shrink-0 rounded-full', SEVERITY_DOT[finding.severity])}
+          />
+          <span className="sr-only">{finding.severity}: </span>
+          <span className="line-clamp-2 min-w-0 text-xs leading-snug font-medium text-fg">
+            {finding.message}
           </span>
-          <span className="min-w-0 truncate text-[11px] text-fg-muted">
-            {basename(finding.location.file)}:{finding.location.startLine} · {finding.source} ·{' '}
-            {finding.ruleId}
+        </span>
+        {/* The location is the thing you actually navigate by, so it leads — and it is monospace,
+            because file:line is code, and proportional digits in a scanning column are noise. */}
+        <span className="flex w-full min-w-0 items-center gap-1.5 pl-4">
+          <span className="min-w-0 truncate font-mono text-[11px] text-fg-secondary">
+            {basename(finding.location.file)}:{finding.location.startLine}
           </span>
+          <span aria-hidden="true" className="shrink-0 text-border-strong">
+            ·
+          </span>
+          <span className="min-w-0 truncate text-[11px] text-fg-muted">{finding.ruleId}</span>
         </span>
       </button>
 
-      {/* flex-wrap: Explain/Repair/Test/Ignore do not fit on one line in a 220px-minimum pane, and
-          before the row was measured they could not wrap without being clipped. Now they can. */}
-      <div className="flex flex-wrap items-center gap-1 pl-5">
+      {/*
+        Actions appear on hover, on keyboard focus, and on the selected row — never on all of them
+        at once. Three buttons in every row of a long list is three buttons' worth of visual weight
+        competing with the finding text itself, and rendering them permanently in a muted colour so
+        they stop shouting just makes them look disabled instead (which is exactly how they read).
+        Revealing them is the pattern Linear uses for row actions and VS Code for tree actions.
+      */}
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-1 pl-4',
+          'transition-opacity duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+          'opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100',
+          isSelected && 'opacity-100',
+        )}
+      >
         {aiConfigured ? (
           AI_ACTIONS.map((action) => (
             <button
@@ -239,7 +264,7 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
               type="button"
               disabled={aiBusy}
               onClick={() => void runAi(action.profile, finding.id)}
-              className="shrink-0 rounded border border-border-subtle px-2 py-0.5 text-[11px] text-fg-secondary hover:bg-hover hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+              className="shrink-0 rounded-md border border-border-strong bg-raised px-2 py-0.5 text-[11px] font-medium text-fg-secondary transition-colors duration-(--fx-motion-duration-fast) hover:border-accent-border hover:bg-hover hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
             >
               {action.label}
             </button>
@@ -294,6 +319,7 @@ function EmptyState({
   if (!hasWorkspace) {
     return (
       <Centered
+        icon={<FolderIcon className="size-5 text-fg-muted" />}
         title="No folder open"
         body="Open a project, then run analysis to find problems."
         action={
@@ -312,6 +338,7 @@ function EmptyState({
   if (summary === null) {
     return (
       <Centered
+        icon={<AlertIcon className="size-5 text-fg-muted" />}
         title="Ready to analyze"
         body="Run analysis to find problems using your own ESLint, TypeScript, and more."
         action={
@@ -349,30 +376,51 @@ function EmptyState({
     );
   }
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-      <CheckIcon className="size-8 text-success-text" />
-      <p className="text-sm font-medium text-fg">No problems found</p>
-      <p className="max-w-xs text-xs text-fg-muted">
-        Your code passed every check Fixora ran. Re-run after you make changes.
-      </p>
-    </div>
+    <Centered
+      icon={<CheckIcon className="size-5 text-success-text" />}
+      tone="success"
+      title="No problems found"
+      body="Your code passed every check Fixora ran. Re-run after you make changes."
+    />
   );
 }
 
+/**
+ * The shared empty state. Every one of these used to be two lines of centred text floating in a
+ * void — technically informative, visually indistinguishable from a panel that had failed to load.
+ * An icon in a tinted plate gives the block a centre of gravity and tells you at a glance which
+ * kind of empty this is: a success (nothing wrong), or a prompt (something for you to do).
+ */
 function Centered({
   title,
   body,
   action,
+  icon,
+  tone = 'neutral',
 }: {
   title: string;
   body: string;
   action?: React.ReactNode;
+  icon?: React.ReactNode;
+  tone?: 'neutral' | 'success';
 }): React.JSX.Element {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-      <p className="text-sm font-medium text-fg">{title}</p>
-      <p className="max-w-xs text-xs text-fg-muted">{body}</p>
-      {action !== undefined && <div className="mt-1">{action}</div>}
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+      {icon !== undefined && (
+        <span
+          className={cn(
+            'flex size-10 items-center justify-center rounded-full',
+            tone === 'success' ? 'bg-success-subtle' : 'bg-inset',
+          )}
+        >
+          {icon}
+        </span>
+      )}
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-medium text-fg">{title}</p>
+        <p className="max-w-xs text-xs leading-relaxed text-fg-muted">{body}</p>
+      </div>
+      {action !== undefined && <div className="mt-0.5">{action}</div>}
     </div>
   );
 }

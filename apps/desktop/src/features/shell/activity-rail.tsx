@@ -42,17 +42,24 @@ export function ActivityRail(): React.JSX.Element {
               setActiveView(view);
             }}
             className={cn(
-              'relative flex flex-col items-center gap-1 px-1 py-2 text-[10px] font-medium',
+              'relative flex flex-col items-center gap-1.5 px-1 py-2.5 text-[10px] font-medium',
+              // Every other interactive surface in the app animates its hover; the rail — the most
+              // frequently clicked thing in the window — snapped between states instantly.
+              'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
               active ? 'text-accent-text' : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
           >
-            {active && (
-              <span
-                aria-hidden="true"
-                className="absolute inset-y-1 left-0 w-0.5 rounded-r bg-accent"
-              />
-            )}
+            {/* The active marker animates in from the edge rather than appearing fully formed, so
+                switching views reads as movement between two places instead of a repaint. */}
+            <span
+              aria-hidden="true"
+              className={cn(
+                'absolute inset-y-1 left-0 w-0.5 rounded-r bg-accent',
+                'origin-left transition-transform duration-(--fx-motion-duration-normal) ease-(--ease-entrance)',
+                active ? 'scale-x-100' : 'scale-x-0',
+              )}
+            />
             <Icon className="size-5 shrink-0" />
             <span className="w-full truncate text-center leading-none">{label}</span>
           </button>

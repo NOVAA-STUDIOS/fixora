@@ -34,24 +34,26 @@ const LICENSE_REASON_MESSAGE: Record<string, string> = {
  */
 export function SettingsPanel(): React.JSX.Element {
   return (
-    <section
-      aria-label="Settings"
-      className="flex h-full min-w-0 flex-col border-r border-border-subtle bg-canvas"
-    >
-      <header className="flex h-8 shrink-0 items-center border-b border-border-subtle px-3">
-        <span className="text-xs font-semibold text-fg">Settings</span>
+    // flex-1 + min-w-0: this is now a top-level child of the shell's flex row, and a flex item sizes
+    // to its content by default — without this the whole settings page shrank to its column width
+    // and sat against the activity rail with dead space beside it.
+    <section aria-label="Settings" className="flex h-full min-w-0 flex-1 flex-col bg-canvas">
+      <header className="flex h-11 shrink-0 items-center border-b border-border-subtle px-6">
+        <h2 className="text-sm font-semibold text-fg">Settings</h2>
       </header>
-      {/* The scroll lives on the content, not on the section: with `overflow-y-auto` on the section
-          the header was part of the scrolled content and slid out of view, unlike every other panel
-          in the app, whose header is pinned. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden p-4">
-        <AppearanceSettings />
-        <EditorSettings />
-        <StartupSettings />
-        <AiSettings />
-        <LicenseSettings />
-        <PrivacySettings />
-        <Keybindings />
+      {/* The scroll lives on the content, not on the section, so the header stays pinned. The inner
+          column is capped at a reading width and centred: settings copy is prose, and prose set the
+          full width of a 1440px window is as hard to read as prose set 180px wide. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-8">
+          <AppearanceSettings />
+          <EditorSettings />
+          <StartupSettings />
+          <AiSettings />
+          <LicenseSettings />
+          <PrivacySettings />
+          <Keybindings />
+        </div>
       </div>
     </section>
   );
@@ -67,7 +69,11 @@ function AppearanceSettings(): React.JSX.Element {
 
   return (
     <Group title="Appearance">
-      <Field label="Theme" htmlFor={themeId}>
+      <Field
+        label="Theme"
+        htmlFor={themeId}
+        description="Fixora follows this for its own chrome and the editor."
+      >
         <Select
           value={theme}
           onValueChange={(v) => {
@@ -83,7 +89,11 @@ function AppearanceSettings(): React.JSX.Element {
           </SelectContent>
         </Select>
       </Field>
-      <Field label="Density" htmlFor={densityId}>
+      <Field
+        label="Density"
+        htmlFor={densityId}
+        description="Compact tightens row heights and controls throughout the app."
+      >
         <Select
           value={density}
           onValueChange={(v) => {
@@ -150,7 +160,7 @@ function AiSettings(): React.JSX.Element {
 
   return (
     <Group title="AI (bring your own key)">
-      <p className="max-w-md text-xs text-fg-muted">
+      <p className="text-xs leading-relaxed text-fg-muted">
         Fixora uses <span className="text-fg-secondary">your</span> provider key, stored encrypted
         in your OS keychain and never sent anywhere but the provider you choose. Get an OpenRouter
         key at openrouter.ai. Your code never passes through Fixora&rsquo;s servers.
@@ -179,7 +189,11 @@ function AiSettings(): React.JSX.Element {
         </div>
       )}
 
-      <Field label="Model" htmlFor={modelId}>
+      <Field
+        label="Model"
+        htmlFor={modelId}
+        description="Free models are listed first, so trying the beta costs nothing."
+      >
         <Select
           value={model}
           onValueChange={(v) => {
@@ -205,7 +219,7 @@ function AiSettings(): React.JSX.Element {
       </Field>
 
       {models?.notice !== null && models?.notice !== undefined && (
-        <p className="text-xs text-warning-text">{models.notice}</p>
+        <p className="text-xs text-warn-text">{models.notice}</p>
       )}
 
       {configured ? (
@@ -300,7 +314,7 @@ function LicenseSettings(): React.JSX.Element {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <p className="max-w-md text-xs text-fg-muted">
+          <p className="text-xs leading-relaxed text-fg-muted">
             Fixora is free with your own key. A one-time{' '}
             <span className="text-fg-secondary">Supporter</span> license funds development and locks
             in early-supporter benefits. Purchase at{' '}
@@ -342,23 +356,13 @@ function EditorSettings(): React.JSX.Element {
 
   return (
     <Group title="Editor">
-      <div className="flex items-start justify-between gap-4">
-        <label htmlFor={switchId} className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-sm text-fg">Auto save</span>
-          <span className="max-w-md text-xs text-fg-muted">
-            Off by default. When on, an edited file is written about a second after you stop typing.
-            Fixora only ever writes files inside the open project, and a verified repair is still
-            applied through its own reviewed flow.
-          </span>
-        </label>
-        <Switch
-          className="shrink-0"
-          id={switchId}
-          checked={autoSave}
-          onCheckedChange={setAutoSave}
-          aria-label="Auto save"
-        />
-      </div>
+      <ToggleField
+        label="Auto save"
+        htmlFor={switchId}
+        description="Off by default. When on, an edited file is written about a second after you stop typing. Fixora only ever writes files inside the open project, and a verified repair is still applied through its own reviewed flow."
+        checked={autoSave}
+        onCheckedChange={setAutoSave}
+      />
     </Group>
   );
 }
@@ -370,23 +374,13 @@ function StartupSettings(): React.JSX.Element {
 
   return (
     <Group title="Startup">
-      <div className="flex items-start justify-between gap-4">
-        <label htmlFor={switchId} className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-sm text-fg">Reopen last project on startup</span>
-          <span className="max-w-md text-xs text-fg-muted">
-            Off by default. Fixora opens on the Home screen with a clean session — no problems,
-            assistant history, or unfinished repair carried over from last time. Turning this on
-            reopens the folder; analysis always runs fresh.
-          </span>
-        </label>
-        <Switch
-          className="shrink-0"
-          id={switchId}
-          checked={reopenLastProject}
-          onCheckedChange={setReopenLastProject}
-          aria-label="Reopen last project on startup"
-        />
-      </div>
+      <ToggleField
+        label="Reopen last project on startup"
+        htmlFor={switchId}
+        description="Off by default. Fixora opens on the Home screen with a clean session — no problems, assistant history, or unfinished repair carried over from last time. Turning this on reopens the folder; analysis always runs fresh."
+        checked={reopenLastProject}
+        onCheckedChange={setReopenLastProject}
+      />
     </Group>
   );
 }
@@ -398,22 +392,15 @@ function PrivacySettings(): React.JSX.Element {
 
   return (
     <Group title="Privacy">
-      <div className="flex items-start justify-between gap-4">
-        <label htmlFor={switchId} className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-sm text-fg">Anonymous usage telemetry</span>
-          <span className="max-w-md text-xs text-fg-muted">
-            Off by default. If enabled, Fixora sends anonymous, event-level counts (like &ldquo;a
-            fix was applied&rdquo;) — never your code, file names, or repository identity.
-          </span>
-        </label>
-        <Switch
-          className="shrink-0"
-          id={switchId}
-          checked={telemetryEnabled}
-          onCheckedChange={setTelemetryEnabled}
-          aria-label="Anonymous usage telemetry"
-        />
-      </div>
+      <ToggleField
+        label="Anonymous usage telemetry"
+        htmlFor={switchId}
+        description={
+          'Off by default. If enabled, Fixora sends anonymous, event-level counts (like “a fix was applied”) — never your code, file names, or repository identity.'
+        }
+        checked={telemetryEnabled}
+        onCheckedChange={setTelemetryEnabled}
+      />
     </Group>
   );
 }
@@ -424,9 +411,12 @@ function Keybindings(): React.JSX.Element {
 
   return (
     <Group title="Keyboard shortcuts">
-      <ul className="flex flex-col divide-y divide-border-subtle">
+      <ul className="flex flex-col divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle bg-inset">
         {commands.map((command) => (
-          <li key={command.id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+          <li
+            key={command.id}
+            className="flex items-center justify-between gap-3 px-3 py-2 text-sm transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover"
+          >
             <span className="min-w-0 truncate text-fg-secondary">{command.title}</span>
             {command.keybinding !== undefined && (
               <Kbd className="shrink-0">{formatBinding(command.keybinding)}</Kbd>
@@ -438,6 +428,12 @@ function Keybindings(): React.JSX.Element {
   );
 }
 
+/**
+ * A settings section. The heading is a real heading now — sentence case at the body size, with a
+ * rule under it — rather than a 12px uppercase micro-label. Uppercase tracking-wide text is a
+ * *label* style; using it for every section heading left the page with no typographic hierarchy at
+ * all, because the headings were smaller and quieter than the settings they introduced.
+ */
 function Group({
   title,
   children,
@@ -446,33 +442,78 @@ function Group({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">{title}</h3>
+    <section className="flex flex-col gap-4">
+      <h3 className="border-b border-border-subtle pb-2 text-sm font-semibold text-fg">{title}</h3>
       {children}
+    </section>
+  );
+}
+
+/**
+ * A labelled setting: label and explanation on the left, control on the right.
+ *
+ * The old layout stacked them, because the panel was 220px wide and a control beside a label
+ * clipped. Now that settings owns the workbench there is room for the arrangement every desktop
+ * settings screen uses — the eye scans the left column for the setting it wants and the right
+ * column for its current value, instead of reading a single ribbon top to bottom.
+ */
+function Field({
+  label,
+  htmlFor,
+  description,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  description?: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <label htmlFor={htmlFor} className="text-sm font-medium text-fg">
+          {label}
+        </label>
+        {description !== undefined && (
+          <p className="text-xs leading-relaxed text-fg-muted">{description}</p>
+        )}
+      </div>
+      <div className="w-full shrink-0 sm:w-56">{children}</div>
     </div>
   );
 }
 
 /**
- * A labelled setting. Stacked (label above control) rather than label-left/control-right: this panel
- * is a resizable side pane, and a fixed-width control beside a label is exactly what clipped and
- * produced a horizontal scrollbar at narrow widths. Stacked + full-width controls never overflow.
+ * A boolean setting. Identical skeleton to `Field` so a toggle row and a select row share one
+ * baseline grid — the three switch sections previously each hand-rolled their own flex layout and
+ * drifted apart in gap and alignment.
  */
-function Field({
+function ToggleField({
   label,
   htmlFor,
-  children,
+  description,
+  checked,
+  onCheckedChange,
 }: {
   label: string;
   htmlFor: string;
-  children: React.ReactNode;
+  description: string;
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
 }): React.JSX.Element {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <label htmlFor={htmlFor} className="text-sm text-fg">
-        {label}
+    <div className="flex items-start justify-between gap-8">
+      <label htmlFor={htmlFor} className="flex min-w-0 cursor-pointer flex-col gap-0.5">
+        <span className="text-sm font-medium text-fg">{label}</span>
+        <span className="text-xs leading-relaxed text-fg-muted">{description}</span>
       </label>
-      {children}
+      <Switch
+        className="mt-0.5 shrink-0"
+        id={htmlFor}
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        aria-label={label}
+      />
     </div>
   );
 }

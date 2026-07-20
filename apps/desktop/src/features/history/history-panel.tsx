@@ -32,8 +32,10 @@ export function HistoryPanel(): React.JSX.Element {
       aria-label="Repair history"
       className="flex h-full min-w-0 flex-col border-r border-border-subtle bg-canvas"
     >
-      <header className="flex h-8 shrink-0 items-center border-b border-border-subtle px-3">
-        <span className="text-xs font-semibold text-fg">Repair history</span>
+      <header className="flex h-9 shrink-0 items-center border-b border-border-subtle px-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+          Repair history
+        </h2>
       </header>
 
       {entries.length === 0 ? (

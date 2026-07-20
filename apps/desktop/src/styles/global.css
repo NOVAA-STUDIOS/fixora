@@ -62,6 +62,39 @@
     overscroll-behavior: none;
     user-select: none;
   }
+
+  /*
+   * Scrollbars. The platform default is a 17px light-grey trough with arrow buttons — on a dark
+   * app-shell it reads as a piece of a different program bolted to the side of ours, and it is the
+   * single loudest "this is a web page in a window" tell in the whole UI. Every editor-class app
+   * (VS Code, Cursor, Linear, Arc) draws its own: a thin, trackless, low-contrast thumb that gains
+   * contrast on hover. Scoped to the app chrome — Monaco draws its own and must not be touched.
+   */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--fx-color-border-strong) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    /* Inset via a transparent border so the thumb reads as 6px but keeps a 10px hit target. */
+    background-color: var(--fx-color-border-strong);
+    border: 2px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--fx-color-text-muted);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 /*

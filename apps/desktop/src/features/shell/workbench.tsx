@@ -9,14 +9,15 @@ import { FindingsPanel } from '../findings/findings-panel.js';
 import { HistoryPanel } from '../history/history-panel.js';
 import { SettingsPanel } from '../settings/settings-panel.js';
 import { WorkspacePanel } from '../workspace/workspace-panel.js';
+import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
+import { HomeScreen } from './home-screen.js';
 import { PrimaryPlaceholder } from './placeholder-views.js';
 
 function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
   if (view === 'workspace') return <WorkspacePanel />;
   if (view === 'findings') return <FindingsPanel />;
   if (view === 'history') return <HistoryPanel />;
-  if (view === 'settings') return <SettingsPanel />;
   return <PrimaryPlaceholder />;
 }
 
@@ -30,6 +31,7 @@ export function Workbench(): React.JSX.Element {
   const savedLayout = useUiStore((s) => s.panelLayout);
   const setPanelLayout = useUiStore((s) => s.setPanelLayout);
   const activeView = useUiStore((s) => s.activeView);
+  const hasWorkspace = useWorkspaceStore((s) => s.workspace !== null);
 
   const onLayoutChanged = useCallback(
     (layout: Record<string, number>) => {
@@ -37,6 +39,29 @@ export function Workbench(): React.JSX.Element {
     },
     [setPanelLayout],
   );
+
+  // With no project open there is nothing for three panes to show, and each used to render its own
+  // "nothing here" state — three empty columns as the product's first impression. One Home surface
+  // replaces all of it, and the panes come back the moment there is a project to put in them.
+  if (!hasWorkspace && activeView !== 'settings') {
+    return (
+      <ErrorBoundary label="The home screen">
+        <HomeScreen />
+      </ErrorBoundary>
+    );
+  }
+
+  // Settings is a form, not a tree: label-above-control fields, paragraphs of explanatory copy, and
+  // a keybinding table. In the 220px primary pane every one of those wrapped to a ribbon — the auto
+  // save description alone ran to ten lines. It gets the full workbench and a reading-width column,
+  // which is what VS Code, Linear and Raycast all do with settings for the same reason.
+  if (activeView === 'settings') {
+    return (
+      <ErrorBoundary label="Settings">
+        <SettingsPanel />
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <PanelGroupRoot
