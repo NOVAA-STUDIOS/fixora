@@ -106,3 +106,22 @@ export function disposeModel(relPath: string): void {
   cache.delete(relPath);
   baselines.delete(relPath);
 }
+
+/**
+ * Dispose every cached model. Called when the workspace changes.
+ *
+ * The cache is keyed by workspace-RELATIVE path, so `src/index.ts` in project A and `src/index.ts`
+ * in project B are the same key. Without this, switching projects showed the previous project's
+ * file contents under the new project's paths — the editor equivalent of attributing one project's
+ * data to another, and invisible because the path looked right.
+ */
+export function disposeAllModels(): void {
+  for (const model of cache.values()) model.dispose();
+  cache.clear();
+  baselines.clear();
+}
+
+/** The paths currently cached. Read by the workspace diagnostics panel; debugging only. */
+export function cachedModelPaths(): string[] {
+  return [...cache.keys()].sort();
+}

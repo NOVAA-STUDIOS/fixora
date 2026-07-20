@@ -2,8 +2,12 @@ import type { DirEntryInfo, WorkspaceInfo } from '@fixora/shared-types';
 import { create } from 'zustand';
 
 import { invoke } from '../../lib/bridge.js';
+import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
+import { useEditorStore } from '../editor/editor-store.js';
+import { disposeAllModels } from '../editor/models.js';
 import { useFindingsStore } from '../findings/findings-store.js';
+import { useHistoryStore } from '../history/history-store.js';
 
 /**
  * The file-tree state (TanStack Query owns wire *results*, but the tree is a stateful,
@@ -79,6 +83,37 @@ type WorkspaceState = {
 
 let revealToken = 0;
 
+/**
+ * Everything scoped to a workspace, cleared in one place.
+ *
+ * This existed only inside `close()`, and only for findings. `openPath` — the way users actually
+ * switch projects, by clicking a recent — cleared nothing at all, so the previous project's
+ * findings, editor tabs, Monaco models and AI proposal all survived into the next one. The findings
+ * were correctly stored and correctly queried; they were simply still on screen, under a different
+ * project's name. That is the leak the database tests could never have caught, because it is not in
+ * the database.
+ *
+ * Every transition calls this, so adding a new workspace-scoped store means adding one line here
+ * rather than remembering two call sites.
+ */
+function resetWorkspaceScopedState(): void {
+  useFindingsStore.setState({
+    findings: [],
+    summary: null,
+    status: 'idle',
+    selectedId: null,
+    ignoredIds: [],
+    error: null,
+  });
+  // Tabs name paths that belong to the old project; the models behind them hold its text.
+  useEditorStore.getState().closeAll();
+  disposeAllModels();
+  // A proposal is a patch against a specific file in a specific project. Applying one after a
+  // switch would write the old project's fix into the new project's file.
+  useAiStore.getState().dismiss();
+  useHistoryStore.setState({ entries: [], loaded: false });
+}
+
 function entryToNode(entry: DirEntryInfo, depth: number): TreeNode {
   return { ...entry, depth, expanded: false, loading: false };
 }
@@ -146,6 +181,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       set({ opening: false, error: opened.error.message });
       return;
     }
+    // AFTER the open succeeds, so a failed switch leaves the current project intact.
+    resetWorkspaceScopedState();
     const root = await invoke('fs:listDir', { relPath: '' });
     set({
       workspace: opened.value.workspace,
@@ -219,16 +256,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   close: async () => {
     await invoke('workspace:close', {});
-    // Findings belong to the folder that produced them — leaving them on screen would attribute one
-    // project's problems to the next one opened.
-    useFindingsStore.setState({
-      findings: [],
-      summary: null,
-      status: 'idle',
-      selectedId: null,
-      ignoredIds: [],
-      error: null,
-    });
+    resetWorkspaceScopedState();
     set({ workspace: null, nodes: [], selectedFile: null, revealTarget: null, error: null });
   },
 

@@ -76,6 +76,18 @@ export function useAppCommands(): Command[] {
         },
       },
       {
+        // Palette-only, and named so it reads as a tool rather than a feature. There is no rail
+        // item for it: a debugging surface in the main navigation stops being a debugging surface.
+        id: 'debug.workspaceDiagnostics',
+        title: 'Debug: Workspace diagnostics',
+        group: 'Go to',
+        keywords: ['diagnostics', 'workspace', 'debug', 'attribution', 'isolation', 'cache'],
+        run: () => {
+          setActiveView('diagnostics');
+          setPaletteOpen(false);
+        },
+      },
+      {
         id: 'view.workspace',
         title: 'Go to Files',
         group: 'Go to',

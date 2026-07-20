@@ -13,6 +13,7 @@ import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { HomeScreen } from './home-screen.js';
 import { PrimaryPlaceholder } from './placeholder-views.js';
+import { WorkspaceDiagnostics } from './workspace-diagnostics.js';
 
 /**
  * Default proportions, per view.
@@ -64,7 +65,7 @@ export function Workbench(): React.JSX.Element {
   // With no project open there is nothing for three panes to show, and each used to render its own
   // "nothing here" state — three empty columns as the product's first impression. One Home surface
   // replaces all of it, and the panes come back the moment there is a project to put in them.
-  if (!hasWorkspace && activeView !== 'settings') {
+  if (!hasWorkspace && activeView !== 'settings' && activeView !== 'diagnostics') {
     return (
       <ErrorBoundary label="The home screen">
         <HomeScreen />
@@ -76,6 +77,15 @@ export function Workbench(): React.JSX.Element {
   // a keybinding table. In the 220px primary pane every one of those wrapped to a ribbon — the auto
   // save description alone ran to ten lines. It gets the full workbench and a reading-width column,
   // which is what VS Code, Linear and Raycast all do with settings for the same reason.
+  // Full-width, like settings: it is a debugging document, not a side panel.
+  if (activeView === 'diagnostics') {
+    return (
+      <ErrorBoundary label="Workspace diagnostics">
+        <WorkspaceDiagnostics />
+      </ErrorBoundary>
+    );
+  }
+
   if (activeView === 'settings') {
     return (
       <ErrorBoundary label="Settings">

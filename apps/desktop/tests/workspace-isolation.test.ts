@@ -1,7 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Finding } from '@fixora/shared-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { openDatabase } from '../electron/main/db/database.js';
@@ -30,14 +31,8 @@ describe('workspace isolation', () => {
   let findings: ReturnType<typeof createFindingsRepository>;
   let history: ReturnType<typeof createRepairHistoryRepository>;
 
-  const finding = (ws: string, rel: string, rule: string) => ({
-    workspaceId: ws,
-    findingId: `${ws}:${rel}:${rule}`,
-    relPath: rel,
-    ruleId: rule,
-    severity: 'error' as const,
-    source: 'tsc',
-    startLine: 1,
+  /** A Finding for `rel` in `ws`. Only `.data` is stored; the wrapper keeps call sites readable. */
+  const finding = (ws: string, rel: string, rule: string): { data: Finding } => ({
     data: {
       id: `${ws}:${rel}:${rule}`,
       source: 'tsc',
@@ -132,7 +127,7 @@ describe('workspace isolation', () => {
       relPath: rel,
       symbolName: null,
       ruleId: 'R',
-      source: 'tsc',
+      source: 'tsc' as const,
       verdict: 'verified' as const,
       rationale: 'r',
       originalCode: 'a',

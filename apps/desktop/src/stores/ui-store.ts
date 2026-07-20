@@ -14,7 +14,7 @@ import { persist } from 'zustand/middleware';
  * storage swap, not a redesign.
  */
 
-export type ActivityView = 'workspace' | 'findings' | 'history' | 'settings';
+export type ActivityView = 'workspace' | 'findings' | 'history' | 'settings' | 'diagnostics';
 
 /** One view's pane proportions, keyed by panel id. */
 export type PaneSizes = Record<string, number>;
@@ -23,7 +23,15 @@ export type PanelLayout = Record<string, PaneSizes>;
 
 const THEMES: readonly ThemeName[] = ['dark', 'light'];
 const DENSITIES: readonly DensityName[] = ['comfortable', 'compact'];
-const VIEWS: readonly ActivityView[] = ['workspace', 'findings', 'history', 'settings'];
+// `diagnostics` is deliberately absent from the activity rail — it is reachable from the
+// command palette only. A debugging surface in the main navigation stops being one.
+const VIEWS: readonly ActivityView[] = [
+  'workspace',
+  'findings',
+  'history',
+  'settings',
+  'diagnostics',
+];
 
 /**
  * Coerce a rehydrated persisted value back to a valid one. localStorage survives across app
