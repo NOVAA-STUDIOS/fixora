@@ -138,7 +138,7 @@ export function EditorArea(): React.JSX.Element {
       {saveError !== null && (
         <p
           role="alert"
-          className="shrink-0 border-b border-border-subtle bg-danger-bg px-3 py-1 text-xs text-danger-text [overflow-wrap:anywhere]"
+          className="shrink-0 border-b border-border-subtle bg-danger-subtle px-3 py-1 text-xs text-danger-text [overflow-wrap:anywhere]"
         >
           {saveError}
         </p>

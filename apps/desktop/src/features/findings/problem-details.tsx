@@ -210,7 +210,7 @@ const AI_ACTIONS: readonly { profile: TaskProfile; label: string }[] = [
 const RISK_STYLE: Record<RiskLevel, string> = {
   critical: 'text-danger-text',
   high: 'text-danger-text',
-  moderate: 'text-warning-text',
+  moderate: 'text-warn-text',
   low: 'text-fg-secondary',
 };
 
@@ -240,11 +240,11 @@ function Section({
 }
 
 const BADGE_TONE = {
-  error: 'bg-danger-bg text-danger-text',
-  warning: 'bg-warning-bg text-warning-text',
+  error: 'bg-danger-subtle text-danger-text',
+  warning: 'bg-warn-subtle text-warn-text',
   info: 'bg-hover text-fg-muted',
   neutral: 'bg-hover text-fg-secondary',
-  success: 'bg-success-bg text-success-text',
+  success: 'bg-success-subtle text-success-text',
 } as const;
 
 function Badge({

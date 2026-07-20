@@ -29,12 +29,12 @@ export function WorkspacePanel(): React.JSX.Element {
       >
         <header className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border-subtle px-2">
           <FolderIcon className="size-4 shrink-0 text-fg-muted" />
-          <span
-            className="min-w-0 flex-1 truncate text-xs font-semibold text-fg"
+          <h2
+            className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wider text-fg-secondary"
             title={workspace.rootPath}
           >
             {workspace.name}
-          </span>
+          </h2>
           <OpenMenu />
         </header>
         <div className="min-h-0 min-w-0 flex-1">

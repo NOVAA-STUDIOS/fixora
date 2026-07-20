@@ -65,8 +65,8 @@ export function AiPanel(): React.JSX.Element {
       aria-label="Assistant"
       className="flex h-full min-h-0 min-w-0 flex-col border-l border-border-subtle bg-canvas"
     >
-      <header className="flex h-8 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
-        <span className="flex min-w-0 items-center gap-2 truncate text-xs font-semibold capitalize text-fg">
+      <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
+        <h2 className="flex min-w-0 items-center gap-2 truncate text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
           {status === 'idle'
             ? selected !== null
               ? 'Problem details'
@@ -74,7 +74,7 @@ export function AiPanel(): React.JSX.Element {
             : (profile ?? 'AI')}
           {status === 'running' && <span className="text-fg-muted">running…</span>}
           {repair !== null && <VerdictBadge verdict={repair.verification.verdict} />}
-        </span>
+        </h2>
         {status === 'running' ? (
           <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void cancel()}>
             Cancel

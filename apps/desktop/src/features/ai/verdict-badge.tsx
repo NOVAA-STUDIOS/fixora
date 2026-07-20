@@ -6,9 +6,9 @@ import { cn } from '@fixora/ui';
  * the history list so a verdict looks the same wherever it appears.
  */
 const VERDICT_STYLE: Record<Verdict, { label: string; className: string }> = {
-  verified: { label: 'Verified', className: 'bg-success-bg text-success-text' },
-  regression: { label: 'Regression', className: 'bg-danger-bg text-danger-text' },
-  unresolved: { label: 'Unresolved', className: 'bg-warning-bg text-fg-secondary' },
+  verified: { label: 'Verified', className: 'bg-success-subtle text-success-text' },
+  regression: { label: 'Regression', className: 'bg-danger-subtle text-danger-text' },
+  unresolved: { label: 'Unresolved', className: 'bg-warn-subtle text-fg-secondary' },
   skipped: { label: 'Not verified', className: 'bg-hover text-fg-muted' },
 };
 

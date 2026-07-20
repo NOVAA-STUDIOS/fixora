@@ -42,10 +42,10 @@ export function VerdictBanner({ report }: { report: VerificationReport }): React
       className={[
         'shrink-0 border-b border-border-subtle px-3 py-2 text-xs',
         rejected
-          ? 'bg-danger-bg text-danger-text'
+          ? 'bg-danger-subtle text-danger-text'
           : verified
-            ? 'bg-success-bg text-success-text'
-            : 'bg-warning-bg text-fg-secondary',
+            ? 'bg-success-subtle text-success-text'
+            : 'bg-warn-subtle text-fg-secondary',
       ].join(' ')}
     >
       {/* The same badge the history list uses, so one verdict looks identical wherever it appears. */}
@@ -61,4 +61,3 @@ export function VerdictBanner({ report }: { report: VerificationReport }): React
     </div>
   );
 }
-

@@ -1,5 +1,3 @@
-import { Button } from '@fixora/ui';
-
 import { useUiStore } from '../../stores/ui-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
@@ -46,26 +44,56 @@ export function StatusBar(): React.JSX.Element {
           </>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-5 px-2 text-xs"
+      {/*
+        These read as two words of status text, not as controls — nothing about "comfortable dark"
+        in the corner suggests it is clickable, so the density and theme toggles were effectively
+        undiscoverable. Capitalised, given a hover surface that fills the bar's height (the VS Code
+        status-bar-item pattern), and titled with what clicking does.
+      */}
+      <div className="flex h-full shrink-0 items-center">
+        <StatusButton
           onClick={toggleDensity}
-          aria-label={`Density: ${density}. Switch density.`}
+          title={`Density: ${density}. Click to switch.`}
+          ariaLabel={`Density: ${density}. Switch density.`}
         >
           {density}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-5 px-2 text-xs"
+        </StatusButton>
+        <StatusButton
           onClick={toggleTheme}
-          aria-label={`Theme: ${theme}. Switch theme.`}
+          title={`Theme: ${theme}. Click to switch.`}
+          ariaLabel={`Theme: ${theme}. Switch theme.`}
         >
           {theme}
-        </Button>
+        </StatusButton>
       </div>
     </footer>
+  );
+}
+
+/**
+ * A status-bar control. Full-height hover target with no rounding, so it reads as part of the bar
+ * rather than as a pill floating in it — the same affordance VS Code gives its status items.
+ */
+function StatusButton({
+  onClick,
+  title,
+  ariaLabel,
+  children,
+}: {
+  onClick: () => void;
+  title: string;
+  ariaLabel: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={ariaLabel}
+      className="flex h-full items-center px-2.5 text-xs capitalize text-fg-muted transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance) hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
+    >
+      {children}
+    </button>
   );
 }
