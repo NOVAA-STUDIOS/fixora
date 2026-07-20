@@ -119,3 +119,82 @@ describe('the router rejects IPC from anything but the top frame', () => {
     expect(result.error?.code).toBe('IPC_CONTRACT_VIOLATION');
   });
 });
+
+/**
+ * Regression: a generic error must never hide a cause the handler explained.
+ *
+ * The bug this guards: every thrown error became "Something went wrong handling that action.", and
+ * the log recorded only `error.name`. A handler could write a precise sentence about a missing key
+ * or a timeout and have it discarded — leaving the failure undiagnosable from the UI AND from the
+ * log at the same time.
+ *
+ * Both halves are asserted, because they protect different things: authored errors must survive,
+ * and unexpected errors must still be redacted (a stack carries absolute paths — Security §9).
+ */
+/**
+ * Regression: a generic error must never hide a cause the handler explained.
+ *
+ * The bug this guards: every thrown error became "Something went wrong handling that action.", and
+ * the log recorded only `error.name`. A handler could write a precise sentence about a missing key
+ * or a timeout and have it discarded — leaving the failure undiagnosable from the UI AND from the
+ * log at the same time.
+ *
+ * Both halves are asserted, because they protect different things: authored errors must survive,
+ * and unexpected errors must still be redacted (a stack carries absolute paths — Security §9).
+ */
+describe('handler errors: authored vs unexpected', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** Mount the router with a handler that throws `error`, and invoke it. */
+  async function throwing(error: unknown): Promise<{ message: string; actionType: string }> {
+    vi.resetModules();
+    const electron = await import('electron');
+    const { registerHandler, mountRouter } = await import('../electron/main/ipc/router.js');
+    registerHandler('system:getAppInfo', () => {
+      throw error;
+    });
+    mountRouter();
+    const call = vi
+      .mocked(electron.ipcMain)
+      .handle.mock.calls.find((c) => c[0] === 'system:getAppInfo');
+    if (call === undefined) throw new Error('router did not register the channel');
+    const listen = call[1] as unknown as IpcListener;
+    const result = (await listen({ senderFrame: { parent: null } }, envelope)) as {
+      ok: boolean;
+      error: { message: string; action: { type: string } };
+    };
+    expect(result.ok).toBe(false);
+    return { message: result.error.message, actionType: result.error.action.type };
+  }
+
+  it('passes an authored UserFacingError through verbatim', async () => {
+    const { UserFacingError } = await import('@fixora/shared-types');
+    const out = await throwing(
+      new UserFacingError('Add your provider key in Settings → AI.', {
+        code: 'no_key',
+        action: { type: 'open_settings', label: 'Open Settings' },
+      }),
+    );
+    expect(out.message).toBe('Add your provider key in Settings → AI.');
+    expect(out.message).not.toContain('Something went wrong');
+    expect(out.actionType).toBe('open_settings');
+  });
+
+  it('still redacts an unexpected throw', async () => {
+    // A real crash: the message can contain an absolute path, which must not reach the renderer.
+    const out = await throwing(new Error('ENOENT: no such file C:/Users/someone/secret/x.ts'));
+    expect(out.message).toBe('Something went wrong handling that action.');
+    expect(out.message).not.toContain('Users');
+  });
+
+  it('does not mistake a plain error merely NAMED UserFacingError for an authored one', async () => {
+    // The guard is structural, not name-only: an accidental or hostile `name` must not smuggle a
+    // raw message — and its paths — to the renderer.
+    const impostor = new Error('C:/Users/someone/leaked.ts');
+    impostor.name = 'UserFacingError';
+    const out = await throwing(impostor);
+    expect(out.message).toBe('Something went wrong handling that action.');
+  });
+});
