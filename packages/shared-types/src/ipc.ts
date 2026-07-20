@@ -31,6 +31,8 @@ import { DirEntrySchema, FileContentSchema, WorkspaceSchema } from './workspace.
 export const AppInfoSchema = z.object({
   name: z.string(),
   version: z.string(),
+  /** Short git SHA the build came from, or 'unknown' when built without a git checkout. */
+  commit: z.string(),
   platform: z.enum(['win32', 'darwin', 'linux']),
   arch: z.string(),
   electronVersion: z.string(),

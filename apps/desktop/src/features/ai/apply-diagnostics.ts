@@ -103,3 +103,101 @@ export function rootCauseOf(attempt: ApplyAttempt): string {
   }
   return `Refused by main: ${attempt.response.reason} — ${attempt.response.message}`;
 }
+
+/**
+ * What a user should DO about a failure, and what to call the button that does it.
+ *
+ * Every failure state gets one, because a reason without a remedy is just bad news. The `kind`
+ * drives the button the banner renders; `explanation` is the sentence above it. Deliberately
+ * written for someone who did not write the app: "stale-range" is a code, not an explanation.
+ */
+export type RemedyKind = 'retry-repair' | 'refresh-editor' | 'show-verification' | 'dismiss';
+
+export type Remedy = {
+  kind: RemedyKind;
+  /** The button label. A verb, naming what happens. */
+  label: string;
+  /** One sentence, plain English, no internal vocabulary. */
+  reason: string;
+  /** The follow-up sentence: why this happened, or what the button will do. */
+  detail: string;
+};
+
+/** The failure classes a user can actually be in, collapsed from gate + transport + main. */
+export function remedyFor(attempt: ApplyAttempt | null, gate: ApplyGate): Remedy | null {
+  // Gate refusals: the patch itself is the problem, so the answer is always a new patch.
+  if (!gate.enabled) {
+    switch (gate.reason) {
+      case 'regression':
+        return {
+          kind: 'show-verification',
+          label: 'See what broke',
+          reason: 'This repair would introduce a new problem.',
+          detail: gate.explanation,
+        };
+      case 'empty-patch':
+        return {
+          kind: 'retry-repair',
+          label: 'Generate new repair',
+          reason: 'The model returned an empty repair.',
+          detail:
+            'There is nothing to write to the file. Generating a new repair usually resolves it.',
+        };
+      case 'no-proposal':
+        return {
+          kind: 'dismiss',
+          label: 'Close',
+          reason: 'There is no repair to apply.',
+          detail: 'Pick a finding in Problems and run Repair to generate one.',
+        };
+    }
+  }
+
+  if (attempt === null) return null;
+
+  if (attempt.transportError !== null) {
+    return {
+      kind: 'retry-repair',
+      label: 'Try again',
+      reason: 'Fixora could not complete the apply.',
+      detail: `The request to the app's main process failed: ${attempt.transportError}`,
+    };
+  }
+
+  const response = attempt.response;
+  if (response === null || response.applied) return null;
+
+  switch (response.reason) {
+    case 'stale-range':
+      return {
+        kind: 'retry-repair',
+        label: 'Run repair again',
+        reason: 'The file has changed since this repair was generated.',
+        detail:
+          'Applying it now would overwrite edits that are not in this preview. Running the repair again rebuilds it against the current file.',
+      };
+    case 'range-out-of-bounds':
+      return {
+        kind: 'refresh-editor',
+        label: 'Reload file',
+        reason: 'This repair points at lines that no longer exist.',
+        detail:
+          'The file is shorter than it was when the repair was generated. Reloading it and running the repair again will target the right place.',
+      };
+    case 'no-workspace':
+      return {
+        kind: 'dismiss',
+        label: 'Close',
+        reason: 'No project is open.',
+        detail: 'Open the project this repair belongs to, then run the repair again.',
+      };
+    case 'write-failed':
+      return {
+        kind: 'retry-repair',
+        label: 'Try again',
+        reason: 'Fixora could not write to the file.',
+        detail:
+          'The file may be read-only, open in another program, or outside the project. Check the file, then try again.',
+      };
+  }
+}

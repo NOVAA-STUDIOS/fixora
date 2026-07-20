@@ -14,6 +14,7 @@ export function registerSystemHandlers(deps: { workspace: WorkspaceService }): v
     return {
       name: app.getName(),
       version: app.getVersion(),
+      commit: typeof __FIXORA_COMMIT__ === 'string' ? __FIXORA_COMMIT__ : 'unknown',
       platform: process.platform as AppInfo['platform'],
       arch: process.arch,
       electronVersion: process.versions.electron,
