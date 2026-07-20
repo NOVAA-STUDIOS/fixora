@@ -106,6 +106,51 @@ export function SettingsIcon(props: IconProps): React.JSX.Element {
 }
 
 /** Windows-style title-bar controls. Drawn at 10px in a 24px box to match the OS metrics. */
+export function TrashIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6M14 11v6" />
+    </Icon>
+  );
+}
+
+export function CopyIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+    </Icon>
+  );
+}
+
+export function ExternalIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M15 3h6v6" />
+      <path d="M10 14 21 3" />
+      <path d="M20 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6" />
+    </Icon>
+  );
+}
+
+export function RefreshIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </Icon>
+  );
+}
+
+export function CloseIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </Icon>
+  );
+}
+
 export function WinMinimizeIcon(props: IconProps): React.JSX.Element {
   return (
     <Icon strokeWidth={1.5} {...props}>

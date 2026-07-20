@@ -16,7 +16,10 @@ import { persist } from 'zustand/middleware';
 
 export type ActivityView = 'workspace' | 'findings' | 'history' | 'settings';
 
-export type PanelLayout = Record<string, number>;
+/** One view's pane proportions, keyed by panel id. */
+export type PaneSizes = Record<string, number>;
+/** Pane proportions per activity view — a tree and a problems list want different widths. */
+export type PanelLayout = Record<string, PaneSizes>;
 
 const THEMES: readonly ThemeName[] = ['dark', 'light'];
 const DENSITIES: readonly DensityName[] = ['comfortable', 'compact'];
@@ -38,8 +41,15 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
 function sanitizeLayout(value: unknown): PanelLayout {
   if (typeof value !== 'object' || value === null) return {};
   const out: PanelLayout = {};
-  for (const [key, size] of Object.entries(value)) {
-    if (typeof size === 'number' && Number.isFinite(size)) out[key] = size;
+  for (const [view, sizes] of Object.entries(value)) {
+    // A pre-existing store held a flat {panelId: number}; anything not shaped like the per-view
+    // map is dropped rather than migrated, because a stale layout is worth exactly one relayout.
+    if (typeof sizes !== 'object' || sizes === null) continue;
+    const paneSizes: PaneSizes = {};
+    for (const [pane, size] of Object.entries(sizes as Record<string, unknown>)) {
+      if (typeof size === 'number' && Number.isFinite(size)) paneSizes[pane] = size;
+    }
+    if (Object.keys(paneSizes).length > 0) out[view] = paneSizes;
   }
   return out;
 }
@@ -79,7 +89,7 @@ type UiState = {
   setActiveView: (view: ActivityView) => void;
   setPaletteOpen: (open: boolean) => void;
   togglePalette: () => void;
-  setPanelLayout: (layout: PanelLayout) => void;
+  setPanelLayout: (view: string, sizes: PaneSizes) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
   setAutoSave: (enabled: boolean) => void;
   setReopenLastProject: (enabled: boolean) => void;
@@ -118,8 +128,8 @@ export const useUiStore = create<UiState>()(
       togglePalette: () => {
         set((s) => ({ paletteOpen: !s.paletteOpen }));
       },
-      setPanelLayout: (panelLayout) => {
-        set({ panelLayout });
+      setPanelLayout: (view, sizes) => {
+        set((s) => ({ panelLayout: { ...s.panelLayout, [view]: sizes } }));
       },
       setTelemetryEnabled: (telemetryEnabled) => {
         set({ telemetryEnabled });

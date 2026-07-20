@@ -14,6 +14,27 @@ import { useWorkspaceStore } from '../workspace/workspace-store.js';
 import { HomeScreen } from './home-screen.js';
 import { PrimaryPlaceholder } from './placeholder-views.js';
 
+/**
+ * Default proportions, per view.
+ *
+ * One width could never serve every view, and pretending otherwise was the layout's real problem.
+ * A file tree is a column of short names — VS Code gives it about 15–18% and it is *right*, because
+ * every extra pixel there is a pixel stolen from code. A problems list is the opposite: each row
+ * carries a message, a path, a rule id and a row of actions, and at the tree's width it truncated
+ * all four. The old single 22% was the average of those two needs and served neither.
+ *
+ * So the split follows the view. The editor keeps the majority in every case — it is what the user
+ * came to look at — and the assistant is sized to hold a diff without dominating.
+ */
+const DEFAULT_LAYOUT: Record<string, Record<string, number>> = {
+  // Files: a narrow explorer, VS Code proportions, and the widest possible editor.
+  workspace: { primary: 17, editor: 59, ai: 24 },
+  // Problems: the list is the thing being worked, so it earns real width.
+  findings: { primary: 28, editor: 46, ai: 26 },
+  // History rows carry a verdict, a rationale and a file — wider than a tree, narrower than problems.
+  history: { primary: 25, editor: 50, ai: 25 },
+};
+
 function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
   if (view === 'workspace') return <WorkspacePanel />;
   if (view === 'findings') return <FindingsPanel />;
@@ -35,9 +56,9 @@ export function Workbench(): React.JSX.Element {
 
   const onLayoutChanged = useCallback(
     (layout: Record<string, number>) => {
-      setPanelLayout(layout);
+      setPanelLayout(activeView, layout);
     },
-    [setPanelLayout],
+    [setPanelLayout, activeView],
   );
 
   // With no project open there is nothing for three panes to show, and each used to render its own
@@ -65,8 +86,10 @@ export function Workbench(): React.JSX.Element {
 
   return (
     <PanelGroupRoot
+      // Keyed by view so the group remounts and picks up that view's default proportions.
+      key={activeView}
       orientation="horizontal"
-      defaultLayout={Object.keys(savedLayout).length > 0 ? savedLayout : undefined}
+      defaultLayout={savedLayout[activeView] ?? DEFAULT_LAYOUT[activeView]}
       onLayoutChanged={onLayoutChanged}
       className="min-h-0 flex-1"
     >
@@ -77,7 +100,7 @@ export function Workbench(): React.JSX.Element {
         select). The floors sum to 780px + the 64px rail, which still fits the window's 940px
         minWidth, so the layout can never become over-constrained.
       */}
-      <ResizablePanel id="primary" minSize={220} defaultSize="22" className="min-w-0">
+      <ResizablePanel id="primary" minSize={200} defaultSize="20" className="min-w-0">
         {/* Per-pane, so a malformed finding or an unreadable file costs the user one panel rather
             than the whole window. The root boundary in main.tsx is the backstop behind these. */}
         <ErrorBoundary label="The side panel">
@@ -85,13 +108,13 @@ export function Workbench(): React.JSX.Element {
         </ErrorBoundary>
       </ResizablePanel>
       <ResizeHandle aria-label="Resize primary panel" />
-      <ResizablePanel id="editor" minSize={320} defaultSize="52" className="min-w-0">
+      <ResizablePanel id="editor" minSize={340} defaultSize="56" className="min-w-0">
         <ErrorBoundary label="The editor">
           <EditorArea />
         </ErrorBoundary>
       </ResizablePanel>
       <ResizeHandle aria-label="Resize AI panel" />
-      <ResizablePanel id="ai" minSize={240} defaultSize="26" className="min-w-0">
+      <ResizablePanel id="ai" minSize={260} defaultSize="24" className="min-w-0">
         <ErrorBoundary label="The assistant panel">
           <AiPanel />
         </ErrorBoundary>

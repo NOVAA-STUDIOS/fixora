@@ -1,4 +1,4 @@
-import { WinCloseIcon, cn } from '@fixora/ui';
+import { ConfirmDialog, WinCloseIcon, cn } from '@fixora/ui';
 import { useEffect, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
@@ -25,6 +25,11 @@ export function EditorArea(): React.JSX.Element {
   const save = useEditorStore((s) => s.save);
 
   // A file selected in the tree opens a tab here. This is the one cross-slice link, made explicit.
+  // The tab awaiting a close-without-saving decision, or null. Held here rather than resolved with
+  // `window.confirm`, which paints an OS alert box in the middle of a designed product and blocks
+  // the renderer thread while it is up.
+  const [confirmClose, setConfirmClose] = useState<string | null>(null);
+
   const selectedFile = useWorkspaceStore((s) => s.selectedFile);
   const openFile = useEditorStore((s) => s.openFile);
   const treeNodes = useWorkspaceStore((s) => s.nodes);
@@ -103,10 +108,8 @@ export function EditorArea(): React.JSX.Element {
                   aria-label={`Close ${tab.name}`}
                   onClick={() => {
                     // Never discard unsaved work silently.
-                    if (
-                      isDirty &&
-                      !window.confirm(`${tab.name} has unsaved changes. Close without saving?`)
-                    ) {
+                    if (isDirty) {
+                      setConfirmClose(tab.relPath);
                       return;
                     }
                     disposeModel(tab.relPath);
@@ -151,6 +154,22 @@ export function EditorArea(): React.JSX.Element {
       <div className="min-h-0 flex-1">
         {activeTab !== null && <ActiveFile key={activeTab} relPath={activeTab} />}
       </div>
+
+      <ConfirmDialog
+        open={confirmClose !== null}
+        onOpenChange={(o) => {
+          if (!o) setConfirmClose(null);
+        }}
+        title="Close without saving?"
+        description={`${confirmClose ?? ''} has unsaved changes. Closing this tab discards them.`}
+        confirmLabel="Discard changes"
+        onConfirm={() => {
+          if (confirmClose === null) return;
+          disposeModel(confirmClose);
+          closeTab(confirmClose);
+          setConfirmClose(null);
+        }}
+      />
     </section>
   );
 }

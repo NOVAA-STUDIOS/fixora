@@ -21,6 +21,7 @@
 /** Renderer → main request/response channels (invoke). */
 export const channels = [
   'system:getAppInfo',
+  'system:revealInFolder',
   'window:minimize',
   'window:toggleMaximize',
   'window:close',
@@ -28,6 +29,8 @@ export const channels = [
   'workspace:pickFolder',
   'workspace:open',
   'workspace:recent',
+  'workspace:removeRecent',
+  'workspace:clearRecent',
   'workspace:current',
   'workspace:close',
   'fs:listDir',
@@ -46,6 +49,8 @@ export const channels = [
   'ai:cancel',
   'ai:applyRepair',
   'ai:history',
+  'ai:historyRemove',
+  'ai:historyClear',
   'license:get',
   'license:activate',
   'license:deactivate',

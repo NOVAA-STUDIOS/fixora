@@ -104,7 +104,7 @@ if (!gotTheLock) {
         publicKey: licensePublicKey(),
       });
 
-      registerSystemHandlers();
+      registerSystemHandlers({ workspace: workspaceService });
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerAnalysisHandlers(analysisService);

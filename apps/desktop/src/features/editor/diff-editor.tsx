@@ -49,8 +49,13 @@ export function DiffEditor({
       useInlineViewWhenSpaceIsLimited: true,
       renderSideBySideInlineBreakpoint: SIDE_BY_SIDE_MIN_WIDTH,
       ignoreTrimWhitespace: false,
-      fontSize: 13,
+      // 13px was the app-chrome size applied to code in a pane where code is the content.
+      // The diff is the artifact under review; it gets the editor's reading size, not a caption's.
+      fontSize: 13.5,
+      lineHeight: 20,
       minimap: { enabled: false },
+      renderOverviewRuler: false,
+      scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false },
       scrollBeyondLastLine: false,
       // Without this the diff's own horizontal scrollbar is the only way to read a long line, and
       // in a narrow pane that means every line.

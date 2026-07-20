@@ -3,6 +3,17 @@ export { cn } from './lib/cn.js';
 export { Button, buttonVariants, type ButtonProps } from './components/button.js';
 export { Input, type InputProps } from './components/input.js';
 export { Kbd } from './components/kbd.js';
+export { ConfirmDialog } from './components/confirm-dialog.js';
+export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from './components/popover.js';
+export {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from './components/context-menu.js';
 export { Badge, badgeVariants, type BadgeProps } from './components/badge.js';
 export { Skeleton } from './components/skeleton.js';
 export {
@@ -12,6 +23,11 @@ export {
   FileIcon,
   SearchIcon,
   FolderIcon,
+  TrashIcon,
+  CopyIcon,
+  ExternalIcon,
+  RefreshIcon,
+  CloseIcon,
   AlertIcon,
   ClockIcon,
   SettingsIcon,

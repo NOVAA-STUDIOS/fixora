@@ -94,6 +94,11 @@ export function createWorkspaceRepository(driver: SqliteDriver, now: () => numbe
     remove(id: string): void {
       driver.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
     },
+
+    /** Forget every recent. Rows only — a workspace row is a bookmark, never the folder itself. */
+    removeAll(): void {
+      driver.prepare('DELETE FROM workspaces').run();
+    },
   };
 }
 
@@ -344,6 +349,10 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
         .prepare('SELECT * FROM repairs WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?')
         .all(workspaceId, limit)
         .map(toHistoryEntry);
+    },
+
+    remove(id: string): void {
+      driver.prepare('DELETE FROM repairs WHERE id = ?').run(id);
     },
 
     clearWorkspace(workspaceId: string): void {

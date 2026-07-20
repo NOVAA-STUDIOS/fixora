@@ -70,6 +70,14 @@ export const contracts = {
 
   // Workspace + filesystem. `relPath` is workspace-relative; main pairs it with the root it owns
   // and runs it through the path guard, so the renderer cannot reach outside the workspace.
+  // Hand a path to the OS file manager. The renderer supplies it, so main only honours paths it
+  // already knows as recents — the same authorization rule as opening a folder. Anything else and
+  // a hostile renderer could use the app to pop Explorer windows anywhere on the disk.
+  'system:revealInFolder': {
+    request: z.object({ path: z.string().min(1) }),
+    response: z.object({ revealed: z.boolean() }),
+  },
+
   'workspace:pickFolder': {
     request: empty,
     // null when the user cancels the native dialog.
@@ -80,6 +88,17 @@ export const contracts = {
     response: z.object({ workspace: WorkspaceSchema }),
   },
   'workspace:recent': {
+    request: empty,
+    response: z.object({ workspaces: z.array(WorkspaceSchema) }),
+  },
+  // Removing a recent is a *list* operation and nothing more: it forgets the entry, it never
+  // touches a single byte on disk. The renderer supplies an id, not a path, so this cannot be
+  // aimed at an arbitrary folder even if the renderer is hostile.
+  'workspace:removeRecent': {
+    request: z.object({ id: z.string().min(1) }),
+    response: z.object({ workspaces: z.array(WorkspaceSchema) }),
+  },
+  'workspace:clearRecent': {
     request: empty,
     response: z.object({ workspaces: z.array(WorkspaceSchema) }),
   },
@@ -145,6 +164,17 @@ export const contracts = {
   'ai:applyRepair': { request: ApplyRepairRequestSchema, response: z.void() },
   // The local repair audit trail for the open workspace, newest first.
   'ai:history': {
+    request: empty,
+    response: z.object({ entries: z.array(RepairHistoryEntrySchema) }),
+  },
+
+  // History entries are a local audit trail, so the user owns them and may delete them. Deleting
+  // an entry removes the record of a repair; it never reverts or alters the file the repair touched.
+  'ai:historyRemove': {
+    request: z.object({ id: z.string().min(1) }),
+    response: z.object({ entries: z.array(RepairHistoryEntrySchema) }),
+  },
+  'ai:historyClear': {
     request: empty,
     response: z.object({ entries: z.array(RepairHistoryEntrySchema) }),
   },
