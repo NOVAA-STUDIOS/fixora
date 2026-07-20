@@ -3,6 +3,7 @@ import { Button, cn } from '@fixora/ui';
 
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
+import { useCapability } from '../ai/use-capability.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import {
@@ -42,6 +43,13 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
   const aiConfigured = useAiStore((s) => s.config?.configured ?? false);
   const aiBusy = useAiStore((s) => s.status === 'running');
   const setActiveView = useUiStore((s) => s.setActiveView);
+  const setModel = useAiStore((s) => s.setModel);
+  // One lookup per profile, read from provider metadata via the config.
+  const capabilities = {
+    explain: useCapability('explain'),
+    repair: useCapability('repair'),
+    test: useCapability('test'),
+  };
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto">
@@ -161,20 +169,47 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
         )}
       </div>
 
+      {/* An incapable model is explained here, once, rather than in three tooltips. */}
+      {aiConfigured && !capabilities.repair.enabled && (
+        <div className="sticky bottom-[52px] flex flex-col gap-2 border-t border-border-subtle bg-warn-subtle/30 px-3 py-2.5">
+          <p className="text-[11px] leading-relaxed text-fg-secondary [overflow-wrap:anywhere]">
+            <span className="font-semibold text-fg">Repair is unavailable on this model.</span>{' '}
+            {capabilities.repair.reason}
+          </p>
+          {capabilities.repair.suggestion !== null && (
+            <Button
+              variant="primary"
+              size="sm"
+              className="self-start"
+              onClick={() => void setModel(capabilities.repair.suggestion?.id ?? '')}
+            >
+              Switch to {capabilities.repair.suggestion.name}
+              {capabilities.repair.suggestion.free ? ' (free)' : ''}
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Actions pinned to the bottom: understand first, then act. */}
       <div className="sticky bottom-0 mt-auto flex flex-wrap items-center gap-1.5 border-t border-border-subtle bg-canvas p-3">
         {aiConfigured ? (
-          AI_ACTIONS.map((action) => (
-            <Button
-              key={action.profile}
-              variant={action.profile === 'repair' ? 'primary' : 'ghost'}
-              size="sm"
-              disabled={aiBusy}
-              onClick={() => void runAi(action.profile, finding.id)}
-            >
-              {action.label}
-            </Button>
-          ))
+          AI_ACTIONS.map((action) => {
+            const cap = capabilities[action.profile];
+            return (
+              <Button
+                key={action.profile}
+                variant={action.profile === 'repair' ? 'primary' : 'ghost'}
+                size="sm"
+                // Disabled BEFORE it is pressed, not after it fails. `title` carries the reason so
+                // a disabled control is never silent about why.
+                disabled={aiBusy || !cap.enabled}
+                title={cap.enabled ? undefined : cap.reason}
+                onClick={() => void runAi(action.profile, finding.id)}
+              >
+                {action.label}
+              </Button>
+            );
+          })
         ) : (
           <Button
             variant="primary"

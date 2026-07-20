@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 
+import { capabilitiesFor, suggestCapableModel } from '@fixora/core-ai';
 import { UserFacingError, type ApplyOutcome, type StaleRangeCheck } from '@fixora/shared-types';
 
 import type { AiService } from '../../ai/ai-service.js';
-import type { KeyStore } from '../../ai/key-store.js';
+import type { KeyStore, StoredAiConfig } from '../../ai/key-store.js';
 import type { ModelCatalogueService } from '../../ai/model-catalogue.js';
 import type { RepairHistoryRepository } from '../../db/repositories.js';
 import { readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
@@ -39,6 +40,43 @@ export function registerAiHandlers(deps: {
    * `UserFacingError` is the mechanism for exactly this: an authored message the router passes
    * through intact, while still redacting everything unexpected.
    */
+
+  /**
+   * Join what is stored with what the provider says the model can do.
+   *
+   * Every config-returning channel goes through this, which is what makes requirement 7 true by
+   * construction: changing the model re-reads capabilities in the same round-trip, so the UI cannot
+   * show Repair as available for a model that was just switched away from a capable one.
+   */
+  async function enrich(config: StoredAiConfig, migratedFrom: string | null = null) {
+    try {
+      const catalogue = await deps.catalogue.list(false);
+      const resolved = catalogue.models.find((m) => m.id === config.model) ?? null;
+      const capabilities = capabilitiesFor(resolved);
+      const suggestion =
+        resolved !== null && !resolved.structuredOutput
+          ? suggestCapableModel(catalogue.models, config.model)
+          : null;
+      return {
+        ...config,
+        migratedFrom,
+        capabilities: {
+          structuredOutput: capabilities.structuredOutput,
+          contextLength: capabilities.contextLength,
+          profiles: capabilities.profiles,
+        },
+        suggestedModel:
+          suggestion === null
+            ? null
+            : { id: suggestion.id, name: suggestion.name, free: suggestion.free },
+      };
+    } catch {
+      // Catalogue unreachable. Unknown capability is reported as unknown, never as capable — the
+      // whole failure being fixed is a button that looks available and is not.
+      return { ...config, migratedFrom, capabilities: null, suggestedModel: null };
+    }
+  }
+
   registerHandler('ai:getConfig', async () => {
     let config;
     try {
@@ -59,7 +97,29 @@ export function registerAiHandlers(deps: {
         // Persist it, so the migration happens once rather than on every read.
         deps.keyStore.setModel(model);
       }
-      return { ...config, model, migratedFrom };
+      // Capabilities travel WITH the config, so the UI can disable an impossible action before the
+      // user takes it rather than after. Read from the catalogue, never inferred from the model id.
+      const catalogue = await deps.catalogue.list(false);
+      const resolved = catalogue.models.find((m) => m.id === model) ?? null;
+      const capabilities = capabilitiesFor(resolved);
+      const suggestion =
+        resolved !== null && !resolved.structuredOutput
+          ? suggestCapableModel(catalogue.models, model)
+          : null;
+      return {
+        ...config,
+        model,
+        migratedFrom,
+        capabilities: {
+          structuredOutput: capabilities.structuredOutput,
+          contextLength: capabilities.contextLength,
+          profiles: capabilities.profiles,
+        },
+        suggestedModel:
+          suggestion === null
+            ? null
+            : { id: suggestion.id, name: suggestion.name, free: suggestion.free },
+      };
     } catch (error) {
       // The catalogue is a *convenience* — it exists to migrate retired model ids. Failing the whole
       // config read because it was unreachable turns "you are offline" into "the app is broken", so
@@ -67,7 +127,14 @@ export function registerAiHandlers(deps: {
       console.error('[ai:getConfig] catalogue resolve failed; returning stored model unresolved', {
         message: error instanceof Error ? error.message : String(error),
       });
-      return { ...config, migratedFrom: null };
+      return {
+        ...config,
+        migratedFrom: null,
+        // Unknown, so reported as unknown. Optimistically enabling Repair here is the exact bug
+        // being fixed — the user would press it and it would fail.
+        capabilities: null,
+        suggestedModel: null,
+      };
     }
   });
 
@@ -86,11 +153,11 @@ export function registerAiHandlers(deps: {
     }
   });
 
-  registerHandler('ai:setKey', ({ key, model }) => deps.keyStore.setKey(key, model));
+  registerHandler('ai:setKey', async ({ key, model }) => enrich(deps.keyStore.setKey(key, model)));
 
-  registerHandler('ai:clearKey', () => deps.keyStore.clearKey());
+  registerHandler('ai:clearKey', async () => enrich(deps.keyStore.clearKey()));
 
-  registerHandler('ai:setModel', ({ model }) => deps.keyStore.setModel(model));
+  registerHandler('ai:setModel', async ({ model }) => enrich(deps.keyStore.setModel(model)));
 
   /**
    * `ai:run` must never throw.

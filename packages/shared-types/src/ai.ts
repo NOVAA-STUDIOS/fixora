@@ -47,6 +47,33 @@ export const AiConfigSchema = z.object({
    * swapping the model out from under someone.
    */
   migratedFrom: z.string().nullable().default(null),
+  /**
+   * What the selected model can actually do, read from the provider's metadata.
+   *
+   * Carried on the config so the UI can disable an impossible action BEFORE the user takes it. The
+   * failure this replaces: Repair looked available on every model, and incompatibility was
+   * discovered only by pressing it and watching it fail.
+   */
+  capabilities: z
+    .object({
+      structuredOutput: z.boolean(),
+      contextLength: z.number().nullable(),
+      profiles: z.record(
+        z.string(),
+        z.object({
+          supported: z.boolean(),
+          reason: z.string().optional(),
+          basis: z.string(),
+        }),
+      ),
+    })
+    .nullable()
+    .default(null),
+  /** A capable model to switch to, when the current one cannot do what the user wants. */
+  suggestedModel: z
+    .object({ id: z.string(), name: z.string(), free: z.boolean() })
+    .nullable()
+    .default(null),
 });
 export type AiConfig = z.infer<typeof AiConfigSchema>;
 
@@ -56,6 +83,9 @@ export const AiModelOptionSchema = z.object({
   name: z.string(),
   free: z.boolean(),
   codeCapable: z.boolean(),
+  /** Provider-reported: can this model honour a JSON schema? Drives the Repair badge. */
+  structuredOutput: z.boolean().default(false),
+  contextLength: z.number().nullable().default(null),
 });
 export type AiModelOption = z.infer<typeof AiModelOptionSchema>;
 

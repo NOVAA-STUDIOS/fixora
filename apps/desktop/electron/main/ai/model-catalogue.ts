@@ -1,7 +1,6 @@
 import {
   NO_FREE_MODELS_MESSAGE,
   fetchModelCatalogue,
-  isModelAvailable,
   pickDefaultModel,
   type CatalogueModel,
   type FetchLike,
@@ -91,6 +90,8 @@ export function createModelCatalogue(fetchImpl?: FetchLike): ModelCatalogueServi
           name: m.name,
           free: m.free,
           codeCapable: m.codeCapable,
+          structuredOutput: m.structuredOutput,
+          contextLength: m.contextLength,
         })),
         source,
         notice: hasFree ? null : NO_FREE_MODELS_MESSAGE,
@@ -102,7 +103,21 @@ export function createModelCatalogue(fetchImpl?: FetchLike): ModelCatalogueServi
       // Could not check: never migrate on a failed fetch.
       if (models === null) return { model: stored, migratedFrom: null };
 
-      if (stored !== '' && isModelAvailable(models, stored)) {
+      const current = models.find((m) => m.id === stored);
+      if (stored !== '' && current !== undefined) {
+        // Available AND capable: nothing to do.
+        if (current.structuredOutput) return { model: stored, migratedFrom: null };
+
+        // Available but incapable. Repair and Test cannot work on this model — not "work badly",
+        // cannot work — so a user left here has a permanently broken core feature and no way to
+        // learn why. Migrating is the same decision already made for retired ids: the id is valid,
+        // it just cannot do the job. Only ever migrate to something MEASURED capable.
+        const replacement = pickDefaultModel(models);
+        const capable = replacement === null ? undefined : models.find((m) => m.id === replacement);
+        if (capable?.structuredOutput === true) {
+          return { model: capable.id, migratedFrom: stored };
+        }
+        // Nothing capable to move to. Stay put rather than swap one broken model for another.
         return { model: stored, migratedFrom: null };
       }
 

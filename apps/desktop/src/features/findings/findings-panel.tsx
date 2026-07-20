@@ -6,6 +6,7 @@ import { useFindingRowEstimate } from '../../hooks/use-density-metrics.js';
 import { basename } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
+import { useCapability } from '../ai/use-capability.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { useFindingsStore } from './findings-store.js';
@@ -186,6 +187,11 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
   const aiConfigured = useAiStore((s) => s.config?.configured ?? false);
   const aiBusy = useAiStore((s) => s.status === 'running');
   const setActiveView = useUiStore((s) => s.setActiveView);
+  const capabilities = {
+    explain: useCapability('explain'),
+    repair: useCapability('repair'),
+    test: useCapability('test'),
+  };
 
   return (
     <div
@@ -262,7 +268,13 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
             <button
               key={action.profile}
               type="button"
-              disabled={aiBusy}
+              // Gated on provider-reported capability, so an impossible action is never offered.
+              disabled={aiBusy || !capabilities[action.profile].enabled}
+              title={
+                capabilities[action.profile].enabled
+                  ? undefined
+                  : capabilities[action.profile].reason
+              }
               onClick={() => void runAi(action.profile, finding.id)}
               className="shrink-0 rounded-md border border-border-strong bg-raised px-2 py-0.5 text-[11px] font-medium text-fg-secondary transition-colors duration-(--fx-motion-duration-fast) hover:border-accent-border hover:bg-hover hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
             >

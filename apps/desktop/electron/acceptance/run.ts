@@ -24,12 +24,9 @@ import type { Finding } from '@fixora/shared-types';
 import { app, safeStorage } from 'electron';
 
 import { createAiService } from '../main/ai/ai-service.js';
-import type { KeyStore } from '../main/ai/key-store.js';
+import type { KeyStore, StoredAiConfig } from '../main/ai/key-store.js';
 import { createAnalysisHost, type AnalysisTargetRef } from '../main/analysis/analysis-host.js';
-import type {
-  FindingsRepository,
-  RepairHistoryRepository,
-} from '../main/db/repositories.js';
+import type { FindingsRepository, RepairHistoryRepository } from '../main/db/repositories.js';
 import type { WorkspaceService } from '../main/services/workspace-service.js';
 import { sliceLines, spliceLines } from '../main/verification/patch.js';
 import { createVerificationService } from '../main/verification/verification-service.js';
@@ -252,11 +249,31 @@ async function main(): Promise<number> {
       // ---- 2. the real service: provider call + overlay verification ----
       const keyStore: KeyStore = {
         getKey: () => apiKey,
-        getConfig: () => ({ configured: true, model, keyHint: null, migratedFrom: null }),
+        getConfig: (): StoredAiConfig => ({
+          configured: true,
+          model,
+          keyHint: null,
+          migratedFrom: null,
+        }),
         hasKey: () => true,
-        setKey: () => ({ configured: true, model, keyHint: null, migratedFrom: null }),
-        clearKey: () => ({ configured: false, model, keyHint: null, migratedFrom: null }),
-        setModel: () => ({ configured: true, model, keyHint: null, migratedFrom: null }),
+        setKey: (): StoredAiConfig => ({
+          configured: true,
+          model,
+          keyHint: null,
+          migratedFrom: null,
+        }),
+        clearKey: (): StoredAiConfig => ({
+          configured: false,
+          model,
+          keyHint: null,
+          migratedFrom: null,
+        }),
+        setModel: (): StoredAiConfig => ({
+          configured: true,
+          model,
+          keyHint: null,
+          migratedFrom: null,
+        }),
       };
       const findings = {
         getByFindingId: () => finding,
@@ -274,10 +291,7 @@ async function main(): Promise<number> {
 
       // No providerFactory: the default is the real OpenRouter adapter.
       const ai = createAiService({ keyStore, findings, workspace, verification, history });
-      const response = await ai.run(
-        { profile: 'repair', findingId: finding.id } as never,
-        null,
-      );
+      const response = await ai.run({ profile: 'repair', findingId: finding.id } as never, null);
 
       const proposal = (response as { proposal?: Record<string, unknown> }).proposal;
       const report = proposal?.['verification'] as { verdict?: string; ran?: string[] } | undefined;
@@ -329,7 +343,9 @@ main().then(
     app.exit(code);
   },
   (error: unknown) => {
-    log(`FATAL ${error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error)}`);
+    log(
+      `FATAL ${error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error)}`,
+    );
     app.exit(1);
   },
 );

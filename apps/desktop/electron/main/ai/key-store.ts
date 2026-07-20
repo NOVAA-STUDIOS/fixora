@@ -3,6 +3,9 @@ import { join } from 'node:path';
 
 import { UserFacingError, type AiConfig, UNRESOLVED_MODEL } from '@fixora/shared-types';
 
+/** The persisted half of AiConfig — everything the keychain actually owns. */
+export type StoredAiConfig = Omit<AiConfig, 'capabilities' | 'suggestedModel'>;
+
 import type { SecretCipher } from './cipher.js';
 
 /**
@@ -27,10 +30,15 @@ function hintFor(key: string): string {
 }
 
 export interface KeyStore {
-  getConfig(): AiConfig;
-  setKey(key: string, model?: string): AiConfig;
-  clearKey(): AiConfig;
-  setModel(model: string): AiConfig;
+  /**
+   * What is STORED. Capabilities are deliberately absent: they are a property of the provider's
+   * catalogue, not of the keychain, and this store must not pretend to know them. `ai:getConfig`
+   * joins the two.
+   */
+  getConfig(): StoredAiConfig;
+  setKey(key: string, model?: string): StoredAiConfig;
+  clearKey(): StoredAiConfig;
+  setModel(model: string): StoredAiConfig;
   hasKey(): boolean;
   /** Main-process only. Never expose this across IPC. */
   getKey(): string | null;
@@ -68,7 +76,7 @@ export function createKeyStore(options: KeyStoreOptions): KeyStore {
     writeFileSync(file, JSON.stringify(state), { encoding: 'utf8', mode: 0o600 });
   }
 
-  function config(): AiConfig {
+  function config(): StoredAiConfig {
     return {
       configured: state.keyEnc !== null,
       model: state.model,
