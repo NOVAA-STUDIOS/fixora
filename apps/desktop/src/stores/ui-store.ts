@@ -171,6 +171,10 @@ export const useUiStore = create<UiState>()(
           // Same discipline: anything that is not explicitly `true` means "do not write the user's
           // files without being asked".
           autoSave: p.autoSave === true,
+          // Was missing entirely, so the persisted value was dropped on every rehydration and the
+          // toggle silently reset to off each launch. Same fail-closed rule: only an explicit true
+          // opts in to reopening a project.
+          reopenLastProject: p.reopenLastProject === true,
         };
       },
     },

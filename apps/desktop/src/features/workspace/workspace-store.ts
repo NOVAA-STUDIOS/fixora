@@ -99,14 +99,25 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const current = await invoke('workspace:current', {});
     if (!current.ok) throw new Error(current.error.message);
     onStage?.('workspace');
-    // No workspace to restore is not a failure — it is a first run, or a project the user closed.
-    if (current.value.workspace === null) return;
 
-    // Fresh session. Unless the user has explicitly asked for it, a launch starts on the Home
-    // screen with nothing open: no stale problems, no half-finished repair, no assistant history
-    // from a previous run. Main is told to forget the root as well — leaving it set would give the
-    // renderer an empty tree while analysis still pointed at the old project, which is worse than
-    // either restoring or not.
+    // Restore is decided HERE, not in main.
+    //
+    // It used to work the other way round: main called restoreLast() on every launch and the
+    // renderer closed the workspace again if the user had opted out. That left a real window in
+    // which the last project was open, indexed and answering workspace-scoped queries — for a user
+    // who had explicitly asked for a fresh session. It also made "which workspace is current?"
+    // depend on when you asked, which is how findings appear to be attributed to the wrong project
+    // even though storage and retrieval are correctly scoped (proven: see workspace-isolation
+    // tests). Main now opens nothing at startup, so there is no window.
+    if (current.value.workspace === null) {
+      // Opt-in restore. `reopenLast` goes through workspace:open, which authorizes the path as a
+      // known recent — the same guard as any other open, not a bypass.
+      if (useUiStore.getState().reopenLastProject) await get().reopenLast();
+      return;
+    }
+
+    // A workspace is already open (the user opened one before this ran, or a previous session left
+    // one). Honour the preference exactly as before.
     if (!useUiStore.getState().reopenLastProject) {
       await invoke('workspace:close', {});
       return;
