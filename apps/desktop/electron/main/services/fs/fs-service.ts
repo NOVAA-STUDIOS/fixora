@@ -1,8 +1,9 @@
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
 import { UserFacingError } from '@fixora/shared-types';
 
+import { fsTry } from './fs-errors.js';
 import { type IgnoreMatcher } from './ignore-rules.js';
 import { detectLanguage } from './language.js';
 import { assertInsideWorkspace } from './path-guard.js';
@@ -41,7 +42,9 @@ const MAX_TEXT_BYTES = 8 * 1024 * 1024;
  */
 export function listDirectory(root: string, relPath: string, ignore: IgnoreMatcher): DirEntry[] {
   const absolute = assertInsideWorkspace(join(root, relPath), root);
-  const entries = readdirSync(absolute, { withFileTypes: true });
+  const entries = fsTry('list', relPath === '' ? 'this folder' : relPath, () =>
+    readdirSync(absolute, { withFileTypes: true }),
+  );
 
   const result: DirEntry[] = [];
   for (const entry of entries) {
@@ -80,21 +83,24 @@ export function readTextFile(root: string, relPath: string): FileContent {
   }
 
   const absolute = assertInsideWorkspace(join(root, relPath), root);
-  const stat = statSync(absolute);
-  if (stat.isDirectory()) {
+  // lstat, not stat: a symlink must be identified as one BEFORE its target is followed. A broken
+  // link then reports itself as broken rather than as a missing file.
+  const stat = fsTry('read', normalized, () => lstatSync(absolute));
+  const target = stat.isSymbolicLink() ? fsTry('read', normalized, () => statSync(absolute)) : stat;
+  if (target.isDirectory()) {
     throw new UserFacingError('That path is a folder, not a file, so it cannot be opened.', {
       code: 'is_a_directory',
       stage: 'fs',
     });
   }
-  if (stat.size > MAX_TEXT_BYTES) {
-    throw new FileTooLargeError(normalized, stat.size);
+  if (target.size > MAX_TEXT_BYTES) {
+    throw new FileTooLargeError(normalized, target.size);
   }
 
   return {
     relPath: normalized,
     language: detectLanguage(relPath),
-    content: readFileSync(absolute, 'utf8'),
+    content: fsTry('read', normalized, () => readFileSync(absolute, 'utf8')),
   };
 }
 
@@ -110,14 +116,38 @@ export function writeTextFile(root: string, relPath: string, content: string): v
     throw new SecretFileError(normalized);
   }
   const absolute = assertInsideWorkspace(join(root, relPath), root);
-  const stat = statSync(absolute);
+  const stat = fsTry('write to', normalized, () => lstatSync(absolute));
+
+  /*
+   * Symlinks: fs-service and analysis MUST agree, and they did not.
+   *
+   * `analysis-service.ts` skips symlinks when walking (`entry.isSymbolicLink()` -> continue), so a
+   * symlinked file is never analyzed. But this function used `statSync`, which FOLLOWS the link —
+   * so the same file was readable and WRITABLE through the fs channels while being invisible to
+   * analysis. A repair could be written through a link into a file the analyzer never examined,
+   * which is the worst asymmetry available to a tool that verifies before it writes.
+   *
+   * Resolved toward the stricter side: writing THROUGH a link is refused. Reading stays allowed —
+   * harmless, and useful for viewing — but a write now follows the analyzer's view of the project.
+   * The path guard already resolves the real path, so this is about intent rather than escape: even
+   * a link pointing safely inside the workspace targets a file analysis never checked.
+   */
+  if (stat.isSymbolicLink()) {
+    throw new UserFacingError(
+      `${normalized} is a symbolic link. Fixora does not write through links, because analysis ` +
+        'skips them — the file behind this link was never checked. Open the real file and repair it there.',
+      { code: 'fs_symlink_write', action: { type: 'none', label: 'Dismiss' }, stage: 'fs' },
+    );
+  }
   if (stat.isDirectory()) {
     throw new UserFacingError('That path is a folder, so Fixora will not write over it.', {
       code: 'is_a_directory',
       stage: 'fs',
     });
   }
-  writeFileSync(absolute, content, 'utf8');
+  fsTry('write to', normalized, () => {
+    writeFileSync(absolute, content, 'utf8');
+  });
 }
 
 export class SecretFileError extends Error {
