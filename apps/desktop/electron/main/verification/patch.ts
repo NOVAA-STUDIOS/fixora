@@ -75,12 +75,28 @@ export function computeVerdict(input: VerdictInput): VerificationReport {
     note = 'The fix did not resolve the finding.';
   }
 
+  // The evidence behind the verdict. A `regression` is a claim about signature-set arithmetic, and
+  // without the sets themselves that claim is unfalsifiable by the person it affects most.
+  const diagnostics = {
+    targetSignature: targetSig,
+    originalSignatures: [...originalSigs].sort(),
+    patchedSignatures: [...patchedSet].sort(),
+    newSignatures: [...newSigs].sort(),
+    // Recorded so it is visible that severity is *carried* but never *consulted*: no branch in this
+    // function reads it. If a regression report ever correlates with severity, this is the proof it
+    // did not come from here.
+    targetSeverity: input.target.severity,
+    originalSources: [...new Set(input.originalFindings.map((f) => f.source))].sort(),
+    patchedSources: [...new Set(input.patchedFindings.map((f) => f.source))].sort(),
+  };
+
   return {
     verdict,
     targetResolved,
     newFindingCount,
     syntaxOk: input.syntaxOk,
     ran,
+    diagnostics,
     ...(note !== undefined ? { note } : {}),
   };
 }

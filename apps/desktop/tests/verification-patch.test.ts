@@ -168,12 +168,25 @@ describe('computeVerdict is independent of severity', () => {
     }
   });
 
-  it('produces byte-identical reports for an error and a warning in the same scenario', () => {
-    // The strongest form of the assertion: not just the verdict, the whole report. Severity must
-    // not leak into targetResolved, newFindingCount, syntaxOk, the tool list or the note.
+  it('differs between an error and a warning in exactly one place: the recorded label', () => {
+    // The strongest form of the assertion. The report is compared whole, not just the verdict, so
+    // severity cannot leak into targetResolved, newFindingCount, syntaxOk, the tool list, the note
+    // or the signature sets.
+    //
+    // `diagnostics.targetSeverity` is the single permitted difference, and it exists precisely so
+    // this claim is checkable at runtime: it records what the severity WAS without letting it
+    // participate in the decision. Strip it and the two reports must be indistinguishable.
     const asError = scenario('error', 'clean');
     const asWarning = scenario('warning', 'clean');
-    expect(asWarning).toEqual(asError);
+
+    expect(asError.diagnostics?.targetSeverity).toBe('error');
+    expect(asWarning.diagnostics?.targetSeverity).toBe('warning');
+
+    const withoutRecordedSeverity = (r: typeof asError): unknown => ({
+      ...r,
+      diagnostics: { ...r.diagnostics, targetSeverity: '<recorded-only>' },
+    });
+    expect(withoutRecordedSeverity(asWarning)).toEqual(withoutRecordedSeverity(asError));
   });
 });
 

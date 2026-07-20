@@ -7,6 +7,11 @@ import type {
 } from '@fixora/shared-types';
 import { create } from 'zustand';
 
+import {
+  evaluateApplyGate,
+  rootCauseOf,
+  type ApplyAttempt,
+} from '../features/ai/apply-diagnostics.js';
 import { refreshModelText } from '../features/editor/models.js';
 import { useHistoryStore } from '../features/history/history-store.js';
 import { invoke, subscribe } from '../lib/bridge.js';
@@ -40,6 +45,8 @@ type AiState = {
   proposal: AiProposal | null;
   blocked: readonly GateMatchInfo[] | null;
   errorMessage: string | null;
+  /** The last apply attempt, in full. Rendered by the diagnostics panel; never persisted. */
+  lastApplyAttempt: ApplyAttempt | null;
 
   run: (profile: TaskProfile, findingId: string) => Promise<void>;
   cancel: () => Promise<void>;
@@ -52,6 +59,7 @@ type AiState = {
 export const useAiStore = create<AiState>((set, get) => ({
   config: null,
   models: null,
+  lastApplyAttempt: null,
 
   loadModels: async (refresh = false) => {
     const result = await invoke('ai:listModels', refresh ? { refresh: true } : {});
@@ -126,18 +134,75 @@ export const useAiStore = create<AiState>((set, get) => ({
   },
 
   applyRepair: async () => {
-    const { proposal } = get();
+    const { proposal, activeFindingId } = get();
     if (proposal?.profile !== 'repair') return false;
-    const result = await invoke('ai:applyRepair', {
+
+    const gate = evaluateApplyGate(proposal);
+    const request = {
       file: proposal.target.file,
       startLine: proposal.target.startLine,
       endLine: proposal.target.endLine,
       code: proposal.repairedCode,
       expectedOriginal: proposal.originalCode,
       historyId: proposal.historyId,
+    };
+    const startedAt = Date.now();
+    const attempt: ApplyAttempt = {
+      at: startedAt,
+      // From the verification diagnostics, which is where main records it. The claim under
+      // investigation is that this value changes the outcome, so it is captured on every attempt.
+      findingSeverity: (proposal.verification.diagnostics?.targetSeverity ??
+        'unknown') as ApplyAttempt['findingSeverity'],
+      findingId: activeFindingId,
+      gate,
+      request,
+      response: null,
+      transportError: null,
+      durationMs: null,
+    };
+
+    // Record a gate refusal as an attempt too. Otherwise a disabled-button case leaves no trace and
+    // is indistinguishable from "the click did nothing".
+    if (!gate.enabled) {
+      const blocked: ApplyAttempt = { ...attempt, durationMs: 0 };
+      set({ lastApplyAttempt: blocked });
+      console.error('[apply] blocked', { gate, rootCause: rootCauseOf(blocked) });
+      return false;
+    }
+
+    const result = await invoke('ai:applyRepair', request);
+    const settled: ApplyAttempt = {
+      ...attempt,
+      durationMs: Date.now() - startedAt,
+      response: result.ok ? result.value : null,
+      transportError: result.ok ? null : result.error.message,
+    };
+    set({ lastApplyAttempt: settled });
+    console.error('[apply] outcome', {
+      severity: settled.findingSeverity,
+      verdict: proposal.verification.verdict,
+      newFindingCount: proposal.verification.newFindingCount,
+      verificationDiagnostics: proposal.verification.diagnostics,
+      gate: gate.reason,
+      request: {
+        ...request,
+        code: `<${String(request.code.length)} chars>`,
+        expectedOriginal: `<${String(request.expectedOriginal.length)} chars>`,
+      },
+      response: settled.response,
+      transportError: settled.transportError,
+      rootCause: rootCauseOf(settled),
     });
+
     if (!result.ok) {
-      set({ status: 'error', errorMessage: result.error.message });
+      // The preview is NOT torn down on failure. Setting status to 'error' unmounted the whole
+      // repair result, so the user lost the proposal they were about to apply — the failure and the
+      // thing that failed both disappeared, which is why this read as "Apply does nothing".
+      set({ errorMessage: result.error.message });
+      return false;
+    }
+    if (!result.value.applied) {
+      set({ errorMessage: result.value.message });
       return false;
     }
     // Reflect the applied repair everywhere the user can see it: the open buffer (so the editor shows
