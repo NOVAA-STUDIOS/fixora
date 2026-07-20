@@ -29,12 +29,23 @@ export function ResizeHandle({ className, ...props }: SeparatorProps): React.JSX
   return (
     <Separator
       className={cn(
-        // A thin line that brightens on hover/drag/focus. The focus ring is essential — the
-        // separator is keyboard-reachable and a keyboard user must see where they are. State is
-        // exposed by the library via the `data-separator` attribute set while dragging.
-        'relative bg-border-subtle outline-none',
+        // The library sizes the separator with `flex-basis: auto` and renders no children, so
+        // WITHOUT an explicit width/height it collapses to 0px — invisible, and impossible to grab
+        // with a mouse. It must own its own thickness. `aria-orientation` is the *separator's* axis
+        // (vertical in a horizontal group), which is what decides which dimension to pin.
+        'relative shrink-0 bg-border-subtle outline-none',
+        'aria-[orientation=vertical]:w-px aria-[orientation=vertical]:cursor-col-resize',
+        'aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:cursor-row-resize',
+        // A 1px line is honest visually and hostile to a mouse, so the grab area is widened to 9px
+        // with an invisible overlay — the same trick VS Code uses. Without it, hitting the divider
+        // is a pixel-hunt, which is most of what "feels unpolished" means when resizing panes.
+        'after:absolute after:z-10 after:content-[""]',
+        'aria-[orientation=vertical]:after:inset-y-0 aria-[orientation=vertical]:after:-inset-x-1',
+        'aria-[orientation=horizontal]:after:inset-x-0 aria-[orientation=horizontal]:after:-inset-y-1',
         'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
-        'hover:bg-accent-border data-[separator]:bg-accent',
+        // `data-separator` is present in EVERY state (including idle), so a bare `data-[separator]:`
+        // attribute selector painted the divider accent permanently. Match the drag state by value.
+        'hover:bg-accent-border data-[separator=active]:bg-accent',
         'focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline',
         className,
       )}

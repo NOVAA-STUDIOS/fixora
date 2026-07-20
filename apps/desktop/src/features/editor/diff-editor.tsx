@@ -15,6 +15,9 @@ import { themeForAppearance } from './monaco-theme.js';
  * Read-only on both sides for M2 (there is nothing to edit yet), same CSP-safe Monaco setup as the
  * code editor (no `unsafe-eval`, local workers), same token theme.
  */
+/** Below this pane width the diff renders inline instead of as two columns. */
+const SIDE_BY_SIDE_MIN_WIDTH = 720;
+
 export function DiffEditor({
   original,
   modified,
@@ -38,9 +41,20 @@ export function DiffEditor({
       theme: themeForAppearance(useUiStore.getState().theme),
       automaticLayout: true,
       renderSideBySide: true,
+      // The repair preview lives in the AI pane, which is 26% of the window by default and can be
+      // dragged to 240px. Two code columns plus a gutter do not fit in that: side-by-side at this
+      // width gives each side ~100px, which is a column of ellipses, not a diff. So fall back to
+      // the inline view when the pane is narrow — the same thing VS Code does, and the reason its
+      // diffs stay readable in a sidebar. Above the breakpoint the side-by-side view is restored.
+      useInlineViewWhenSpaceIsLimited: true,
+      renderSideBySideInlineBreakpoint: SIDE_BY_SIDE_MIN_WIDTH,
       ignoreTrimWhitespace: false,
       fontSize: 13,
       minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      // Without this the diff's own horizontal scrollbar is the only way to read a long line, and
+      // in a narrow pane that means every line.
+      wordWrap: 'on',
     });
     editorRef.current = editor;
     return () => {
@@ -69,5 +83,7 @@ export function DiffEditor({
     setupMonaco().editor.setTheme(themeForAppearance(theme));
   }, [theme]);
 
-  return <div ref={container} className="h-full w-full" />;
+  // min-w-0 + overflow-hidden: Monaco measures its container, so a container allowed to be sized by
+  // its content would let the editor argue with the pane it lives in during a drag.
+  return <div ref={container} className="h-full w-full min-w-0 overflow-hidden" />;
 }

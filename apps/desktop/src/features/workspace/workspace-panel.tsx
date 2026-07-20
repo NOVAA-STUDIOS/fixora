@@ -37,7 +37,7 @@ export function WorkspacePanel(): React.JSX.Element {
           </span>
           <OpenMenu />
         </header>
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 min-w-0 flex-1">
           <FileTree />
         </div>
       </section>
@@ -58,7 +58,12 @@ export function WorkspacePanel(): React.JSX.Element {
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <Button variant="primary" onClick={() => void pickAndOpen()} disabled={opening}>
+        <Button
+          variant="primary"
+          className="shrink-0"
+          onClick={() => void pickAndOpen()}
+          disabled={opening}
+        >
           {opening ? 'Opening…' : 'Open folder'}
         </Button>
         {/* Only offered when there is actually something to reopen — a button that does nothing is
@@ -66,7 +71,14 @@ export function WorkspacePanel(): React.JSX.Element {
         <RecentWorkspaces
           render={(recent) =>
             recent.length === 0 ? null : (
-              <Button variant="ghost" onClick={() => void reopenLast()} disabled={opening}>
+              <Button
+                variant="ghost"
+                // The label carries a project name of unknown length, so it is capped and truncated
+                // rather than allowed to set the width of the empty state.
+                className="max-w-full min-w-0 truncate"
+                onClick={() => void reopenLast()}
+                disabled={opening}
+              >
                 Reopen {recent[0]?.name ?? 'last project'}
               </Button>
             )
@@ -88,7 +100,7 @@ export function WorkspacePanel(): React.JSX.Element {
                   key={w.id}
                   variant="ghost"
                   size="sm"
-                  className="justify-start truncate"
+                  className="w-full min-w-0 justify-start truncate"
                   title={w.rootPath}
                   onClick={() => void openPath(w.rootPath)}
                 >
@@ -169,7 +181,9 @@ function OpenMenu(): React.JSX.Element {
           />
           <div
             role="menu"
-            className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+            // max-w clamps the menu to the pane at its 220px minimum, where a fixed 224px popup
+            // would otherwise hang over the editor's left edge.
+            className="absolute right-0 top-full z-20 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
           >
             <button
               type="button"

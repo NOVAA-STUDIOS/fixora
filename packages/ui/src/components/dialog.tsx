@@ -33,7 +33,14 @@ export const DialogContent = forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'fixed left-1/2 top-1/2 z-(--fx-z-dialog) w-full max-w-lg -translate-x-1/2 -translate-y-1/2',
+          // Bounded by the window, not only by its own max-width. The app's minimum window is
+          // 940×600 and the user may be at 150% scaling on top of that, so a dialog sized purely by
+          // its content runs off the edges — where, being `fixed`, it cannot be scrolled back into
+          // view. The clamp is on `w-` rather than `max-w-` deliberately: consumers override
+          // `max-w-*` (the palette sets `max-w-xl`), and tailwind-merge would drop a viewport cap
+          // expressed in the same group, silently taking the guard with it.
+          'fixed left-1/2 top-1/2 z-(--fx-z-dialog) w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2',
+          'max-h-[calc(100dvh-4rem)] overflow-y-auto',
           'rounded-lg bg-raised text-fg border border-border-subtle p-6 shadow-lg',
           'focus:outline-none',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',

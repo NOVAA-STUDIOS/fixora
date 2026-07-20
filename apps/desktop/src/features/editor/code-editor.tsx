@@ -22,6 +22,16 @@ import { themeForAppearance } from './monaco-theme.js';
 /** Long enough that a pause mid-sentence does not write the file; short enough to feel automatic. */
 const AUTO_SAVE_DEBOUNCE_MS = 1200;
 
+/**
+ * Below this editor width the minimap and the folding gutter are hidden.
+ *
+ * The editor pane can be dragged to 320px. A minimap is a fixed ~90px of that, so at narrow widths
+ * it costs a third of the space meant for code to render an unreadable thumbnail of it. Monaco has
+ * no built-in responsive rule for this, so the width is watched and the option toggled — which is
+ * what VS Code itself does.
+ */
+const MINIMAP_MIN_WIDTH = 700;
+
 export function CodeEditor({
   relPath,
   content,
@@ -48,7 +58,7 @@ export function CodeEditor({
       readOnly: false,
       theme: themeForAppearance(useUiStore.getState().theme),
       automaticLayout: true,
-      minimap: { enabled: true },
+      minimap: { enabled: el.clientWidth >= MINIMAP_MIN_WIDTH },
       scrollBeyondLastLine: false,
       fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--fx-font-mono'),
       fontSize: 13,
@@ -64,7 +74,22 @@ export function CodeEditor({
       void useEditorStore.getState().save(path);
     });
 
+    // Re-evaluate the minimap as the pane is dragged. `automaticLayout` re-lays-out the editor but
+    // never revisits its options, so without this the minimap keeps whatever it was given at mount
+    // and a pane dragged narrow stays two-thirds minimap. Guarded so a resize that does not cross
+    // the threshold — i.e. almost every frame of a drag — does not touch Monaco at all.
+    let minimapOn = el.clientWidth >= MINIMAP_MIN_WIDTH;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry?.contentRect.width ?? 0;
+      const next = width >= MINIMAP_MIN_WIDTH;
+      if (next === minimapOn) return;
+      minimapOn = next;
+      editor.updateOptions({ minimap: { enabled: next }, folding: next });
+    });
+    observer.observe(el);
+
     return () => {
+      observer.disconnect();
       editor.dispose();
       editorRef.current = null;
     };
@@ -139,5 +164,7 @@ export function CodeEditor({
     ]);
   }, [revealTarget, relPath, content]);
 
-  return <div ref={container} className="h-full w-full" />;
+  // min-w-0 + overflow-hidden: Monaco sizes itself from this container, so it must not be able to
+  // be widened by its own content while the pane is being dragged narrower.
+  return <div ref={container} className="h-full w-full min-w-0 overflow-hidden" />;
 }
