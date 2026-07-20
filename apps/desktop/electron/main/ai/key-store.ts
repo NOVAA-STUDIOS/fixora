@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { type AiConfig, UNRESOLVED_MODEL } from '@fixora/shared-types';
+import { UserFacingError, type AiConfig, UNRESOLVED_MODEL } from '@fixora/shared-types';
 
 import type { SecretCipher } from './cipher.js';
 
@@ -84,7 +84,14 @@ export function createKeyStore(options: KeyStoreOptions): KeyStore {
       if (!cipher.isAvailable()) {
         // No OS keychain (rare: some Linux setups). We refuse to persist plaintext — the honest
         // failure is "encryption unavailable", surfaced as unconfigured, not a silent plaintext write.
-        throw new Error('OS encryption is unavailable; cannot store the key securely.');
+        throw new UserFacingError(
+          'Your OS keychain is unavailable, so Fixora will not store the key — it refuses to save a provider key in plain text.',
+          {
+            code: 'keychain_unavailable',
+            action: { type: 'retry', label: 'Try again' },
+            stage: 'keystore',
+          },
+        );
       }
       state.keyEnc = cipher.encrypt(key);
       state.hint = hintFor(key);
