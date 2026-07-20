@@ -11,3 +11,8 @@ CHANGELOG.md
 # whole value is that they are stable and citable. `docs/adr/` is additionally generated, and
 # reformatting it would break the drift gate against the register.
 docs/
+
+# The golden dataset is deliberately malformed source; formatting it would repair the defects
+# the benchmarks exist to measure. Results are generated.
+tooling/benchmarks/golden
+tooling/benchmarks/results

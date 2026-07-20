@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Fixora — the workspace you open when the code is already broken.",
+  "description": "Fixora \u00e2\u20ac\u201d the workspace you open when the code is already broken.",
   "packageManager": "pnpm@11.12.0",
   "engines": {
     "node": ">=22.12.0"
@@ -24,7 +24,8 @@
     "gate:adr": "tsx tooling/scripts/sync-adrs.ts --check",
     "gate:website": "node tooling/scripts/check-website.mjs",
     "adr:sync": "tsx tooling/scripts/sync-adrs.ts",
-    "ci": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm gate:contrast && pnpm gate:boundaries && pnpm gate:adr && pnpm gate:electron && pnpm gate:secrets && pnpm gate:audit"
+    "ci": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm gate:contrast && pnpm gate:boundaries && pnpm gate:accuracy && pnpm gate:adr && pnpm gate:electron && pnpm gate:secrets && pnpm gate:audit",
+    "gate:accuracy": "pnpm --filter @fixora/benchmarks bench:check"
   },
   "devDependencies": {
     "@doyensec/electronegativity": "1.10.3",

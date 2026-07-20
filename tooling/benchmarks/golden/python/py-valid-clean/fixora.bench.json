@@ -1,0 +1,10 @@
+{
+  "id": "py-valid-clean",
+  "language": "python",
+  "support": "supported",
+  "kind": "valid",
+  "description": "Correct, annotated Python must produce no findings.",
+  "requiresTools": ["ruff"],
+  "ignoreRules": [],
+  "expected": []
+}

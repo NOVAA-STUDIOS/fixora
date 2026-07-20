@@ -1,0 +1,26 @@
+{
+  "id": "py-undefined-name",
+  "language": "python",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "An undefined name must be reported by Ruff as F821.",
+  "requiresTools": [
+    "ruff"
+  ],
+  "ignoreRules": [],
+  "expected": [
+    {
+      "file": "main.py",
+      "line": 2,
+      "ruleId": "F821",
+      "severity": "error",
+      "analyzer": "ruff",
+      "repairAvailable": false,
+      "note": "F821 undefined-name. Ruff offers no autofix \u00e2\u20ac\u201d it cannot know the intended name."
+    }
+  ],
+  "knownDefect": {
+    "reason": "packages/core-analysis/src/analyzers/ruff.ts:121 hardcodes severity:'warning' for EVERY Ruff rule. F821 (undefined name) is a guaranteed NameError at runtime and must be an error; reported as a warning it is indistinguishable from a style nit, and the Problems severity filter cannot separate them. The expectation deliberately states the correct severity so this stays visible. Fixing it means a severity mapping over the Ruff rule set \u2014 a design decision, not a patch.",
+    "owner": "core-analysis"
+  }
+}
