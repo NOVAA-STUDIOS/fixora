@@ -222,7 +222,6 @@ function RepairResult({
 }): React.JSX.Element {
   const applyRepair = useAiStore((s) => s.applyRepair);
   const dismiss = useAiStore((s) => s.dismiss);
-  const errorMessage = useAiStore((s) => s.errorMessage);
   const report = proposal.verification;
   const gate = evaluateApplyGate(proposal);
 
@@ -264,22 +263,6 @@ function RepairResult({
         the secondary actions group left. It gets its own surface and real padding, because a row of
         buttons crammed against a diff reads as part of the diff.
       */}
-      {/* The reason is on the surface too, not only in a tooltip: a user reporting "Apply is
-          disabled" should be able to read why without hovering and without opening diagnostics. */}
-      {!gate.enabled && (
-        <p className="shrink-0 border-t border-border-subtle bg-danger-subtle/30 px-3 py-1.5 text-[11px] text-danger-text [overflow-wrap:anywhere]">
-          <span className="font-semibold">Apply disabled ({gate.reason}):</span> {gate.explanation}
-        </p>
-      )}
-      {errorMessage !== null && (
-        <p
-          role="alert"
-          className="shrink-0 border-t border-border-subtle bg-danger-subtle/30 px-3 py-1.5 text-[11px] text-danger-text [overflow-wrap:anywhere]"
-        >
-          <span className="font-semibold">Apply failed:</span> {errorMessage}
-        </p>
-      )}
-
       <div className="flex shrink-0 flex-wrap items-center gap-2 bg-inset px-3 py-2.5">
         {/* Was "Reject", which read as a verdict rather than an action — and sat inches from a
             "Rejected patch" badge that means something else entirely. */}

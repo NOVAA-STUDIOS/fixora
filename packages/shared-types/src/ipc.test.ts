@@ -87,6 +87,7 @@ describe('the IPC contract registry', () => {
     const parsed = contracts['system:getAppInfo'].response.safeParse({
       name: 'Fixora',
       version: '0.1.0',
+      commit: 'abc1234',
       platform: 'win32',
       arch: 'x64',
       electronVersion: '43.1.0',

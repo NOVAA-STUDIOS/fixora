@@ -20,6 +20,7 @@ async function freshRouter() {
 const appInfo: AppInfo = {
   name: 'Fixora',
   version: '0.0.0',
+  commit: 'abc1234',
   platform: 'win32',
   arch: 'x64',
   electronVersion: '0',

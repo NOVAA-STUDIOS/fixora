@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -68,8 +69,27 @@ const BUNDLED = [
   // it in (it is pure JS in v4+). `ignore` is CJS and can stay external.
   'chokidar',
 ];
+/**
+ * The commit the binary was built from, baked in at build time.
+ *
+ * A bug report that says "0.9.0-beta.1" narrows the problem to a release; one that names the commit
+ * narrows it to a diff. Resolved with `git rev-parse`, and falls back to 'unknown' rather than
+ * failing the build — a source tarball with no .git is a legitimate way to build this.
+ */
+function gitCommit(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
 export default defineConfig({
   main: {
+    define: { __FIXORA_COMMIT__: JSON.stringify(gitCommit()) },
     plugins: [copyAnalysisWorker],
     build: {
       externalizeDeps: { exclude: BUNDLED },

@@ -1,7 +1,12 @@
 import type { AiProposal, Verdict } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
-import { evaluateApplyGate, rootCauseOf, type ApplyAttempt } from './apply-diagnostics.js';
+import {
+  evaluateApplyGate,
+  remedyFor,
+  rootCauseOf,
+  type ApplyAttempt,
+} from './apply-diagnostics.js';
 
 type Repair = Extract<AiProposal, { profile: 'repair' }>;
 
@@ -167,5 +172,120 @@ describe('rootCauseOf', () => {
       },
     });
     expect(cause).toBe('Applied successfully.');
+  });
+});
+
+/**
+ * Every failure must offer a way forward.
+ *
+ * The panel renders `remedy.label` as a button and `remedy.reason` as the headline, so a missing
+ * or empty remedy is a dead end on screen: a user told what went wrong and given nothing to do.
+ * These assert coverage across every failure the system can produce, and that the language stays
+ * out of the codebase's own vocabulary.
+ */
+describe('remedyFor', () => {
+  const enabledGate = evaluateApplyGate(proposal({ verdict: 'verified' }));
+  const attempt = (over: Partial<ApplyAttempt>): ApplyAttempt => ({
+    at: 0,
+    findingSeverity: 'warning',
+    findingId: 'f1',
+    gate: enabledGate,
+    request: {
+      file: 'a.ts',
+      startLine: 1,
+      endLine: 2,
+      code: 'x',
+      expectedOriginal: 'y',
+      historyId: 'h',
+    },
+    response: null,
+    transportError: null,
+    durationMs: 1,
+    ...over,
+  });
+
+  it('offers a remedy for every main-process refusal', () => {
+    const reasons = ['stale-range', 'range-out-of-bounds', 'no-workspace', 'write-failed'] as const;
+    for (const reason of reasons) {
+      const r = remedyFor(
+        attempt({ response: { applied: false, reason, message: 'm', staleRangeCheck: null } }),
+        enabledGate,
+      );
+      expect(r, reason).not.toBeNull();
+      expect(r?.label.length, reason).toBeGreaterThan(0);
+      expect(r?.reason.length, reason).toBeGreaterThan(0);
+      expect(r?.detail.length, reason).toBeGreaterThan(0);
+    }
+  });
+
+  it('offers a remedy for every gate refusal', () => {
+    for (const p of [
+      proposal({ verdict: 'regression', newFindingCount: 1 }),
+      proposal({ verdict: 'verified', code: '' }),
+    ]) {
+      const gate = evaluateApplyGate(p);
+      const r = remedyFor(null, gate);
+      expect(r).not.toBeNull();
+      expect(r?.label.length).toBeGreaterThan(0);
+    }
+    expect(remedyFor(null, evaluateApplyGate(null))).not.toBeNull();
+  });
+
+  it('offers a remedy when the IPC itself fails', () => {
+    const r = remedyFor(attempt({ transportError: 'EPIPE' }), enabledGate);
+    expect(r?.kind).toBe('retry-repair');
+    expect(r?.detail).toContain('EPIPE');
+  });
+
+  it('sends a stale range to "run repair again", not to a dead end', () => {
+    const r = remedyFor(
+      attempt({
+        response: { applied: false, reason: 'stale-range', message: 'm', staleRangeCheck: null },
+      }),
+      enabledGate,
+    );
+    expect(r?.kind).toBe('retry-repair');
+    expect(r?.reason).toBe('The file has changed since this repair was generated.');
+  });
+
+  it('offers nothing when the apply succeeded — no banner on a success', () => {
+    const r = remedyFor(
+      attempt({
+        response: {
+          applied: true,
+          bytesWritten: 10,
+          staleRangeCheck: {
+            passed: true,
+            startLine: 1,
+            endLine: 2,
+            fileLineCount: 5,
+            expectedLength: 1,
+            actualLength: 1,
+            expectedHash: 'a',
+            actualHash: 'a',
+            firstDifferingLine: null,
+            expectedExcerpt: '',
+            actualExcerpt: '',
+          },
+        },
+      }),
+      enabledGate,
+    );
+    expect(r).toBeNull();
+    expect(remedyFor(null, enabledGate)).toBeNull();
+  });
+
+  it('speaks plain English — no internal identifiers in user-facing copy', () => {
+    // "stale-range" is a code. If it reaches the headline, the tiering has failed.
+    const jargon = ['stale-range', 'range-out-of-bounds', 'IPC', 'sha1', 'verdict', 'signature'];
+    const r = remedyFor(
+      attempt({
+        response: { applied: false, reason: 'stale-range', message: 'm', staleRangeCheck: null },
+      }),
+      enabledGate,
+    );
+    for (const term of jargon) {
+      expect(r?.reason.toLowerCase(), term).not.toContain(term.toLowerCase());
+    }
   });
 });
