@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, posix } from 'node:path';
 
+import { UserFacingError } from '@fixora/shared-types';
+
 import type { FileIndexRepository, Workspace, WorkspaceRepository } from '../db/repositories.js';
 
 import { loadIgnoreRules, type IgnoreMatcher } from './fs/ignore-rules.js';
@@ -62,7 +64,13 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
     open(rootPath: string): { workspace: Workspace } {
       const stat = statSync(rootPath); // throws if the path does not exist
       if (!stat.isDirectory()) {
-        throw new Error('A workspace must be a folder.');
+        throw new UserFacingError(
+          'That path is not a folder, so it cannot be opened as a project.',
+          {
+            code: 'not_a_folder',
+            stage: 'workspace',
+          },
+        );
       }
       const name = basename(rootPath) || rootPath;
       const record = deps.workspaces.upsertByRootPath(rootPath, name);
@@ -92,7 +100,16 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
 
     /** The root path, asserted present — for handlers that only run when a workspace is open. */
     requireRoot(): OpenWorkspace {
-      if (current === null) throw new Error('No workspace is open.');
+      if (current === null) {
+        // Authored, not generic. Every analysis and fs channel funnels through here, so this one
+        // line was the single largest producer of "Something went wrong handling that action." —
+        // a condition the user can act on, reported as an unexplained failure.
+        throw new UserFacingError('No project is open. Open a folder first, then run analysis.', {
+          code: 'no_workspace',
+          action: { type: 'none', label: 'Dismiss' },
+          stage: 'workspace',
+        });
+      }
       return current;
     },
 

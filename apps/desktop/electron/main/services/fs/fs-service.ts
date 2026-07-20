@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
+import { UserFacingError } from '@fixora/shared-types';
+
 import { type IgnoreMatcher } from './ignore-rules.js';
 import { detectLanguage } from './language.js';
 import { assertInsideWorkspace } from './path-guard.js';
@@ -80,7 +82,10 @@ export function readTextFile(root: string, relPath: string): FileContent {
   const absolute = assertInsideWorkspace(join(root, relPath), root);
   const stat = statSync(absolute);
   if (stat.isDirectory()) {
-    throw new Error('Refusing to read a directory as a file.');
+    throw new UserFacingError('That path is a folder, not a file, so it cannot be opened.', {
+      code: 'is_a_directory',
+      stage: 'fs',
+    });
   }
   if (stat.size > MAX_TEXT_BYTES) {
     throw new FileTooLargeError(normalized, stat.size);
@@ -107,7 +112,10 @@ export function writeTextFile(root: string, relPath: string, content: string): v
   const absolute = assertInsideWorkspace(join(root, relPath), root);
   const stat = statSync(absolute);
   if (stat.isDirectory()) {
-    throw new Error('Refusing to write over a directory.');
+    throw new UserFacingError('That path is a folder, so Fixora will not write over it.', {
+      code: 'is_a_directory',
+      stage: 'fs',
+    });
   }
   writeFileSync(absolute, content, 'utf8');
 }

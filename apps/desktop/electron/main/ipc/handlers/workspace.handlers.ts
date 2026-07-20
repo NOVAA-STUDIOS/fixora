@@ -1,4 +1,9 @@
-import type { DirEntryInfo, FileContentInfo, WorkspaceInfo } from '@fixora/shared-types';
+import {
+  UserFacingError,
+  type DirEntryInfo,
+  type FileContentInfo,
+  type WorkspaceInfo,
+} from '@fixora/shared-types';
 import { BrowserWindow, dialog } from 'electron';
 
 import { listDirectory, readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
@@ -54,7 +59,16 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     if (!service.isUserAuthorized(path)) {
       // A path the user never picked and that is not a known recent — refuse rather than turn a
       // renderer-fabricated path into the trusted FS root (invariant I1: the renderer is hostile).
-      throw new Error('Refused to open a folder that was not chosen through the folder picker.');
+      // Authored so the refusal explains itself. The security decision is unchanged — the path is
+      // still refused; only the reporting improves.
+      throw new UserFacingError(
+        'Fixora only opens folders you pick yourself or have opened before. Use Open folder to choose it.',
+        {
+          code: 'unauthorized_path',
+          action: { type: 'none', label: 'Dismiss' },
+          stage: 'workspace',
+        },
+      );
     }
     const { workspace } = service.open(path);
     const open = service.requireRoot();
