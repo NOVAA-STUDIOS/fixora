@@ -1,0 +1,22 @@
+{
+  "id": "py-mutable-default",
+  "language": "python",
+  "support": "supported",
+  "kind": "real-world",
+  "description": "A mutable default argument must be reported by Ruff as B006.",
+  "requiresTools": [
+    "ruff"
+  ],
+  "ignoreRules": [],
+  "expected": [
+    {
+      "file": "main.py",
+      "line": 1,
+      "ruleId": "B006",
+      "severity": "warning",
+      "analyzer": "ruff",
+      "repairAvailable": true,
+      "note": "flake8-bugbear B006. repairAvailable corrected from false to true on 2026-07-20: measured against Ruff 0.15.22, which DOES advertise a fix for this rule. The original expectation was a benchmark authoring mistake, not a Fixora defect."
+    }
+  ]
+}

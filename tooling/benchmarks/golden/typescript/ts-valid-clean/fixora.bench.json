@@ -1,0 +1,12 @@
+{
+  "id": "ts-valid-clean",
+  "language": "typescript",
+  "support": "supported",
+  "kind": "valid",
+  "description": "Correct, fully typed TypeScript must produce no findings at all.",
+  "requiresTools": [
+    "tsc"
+  ],
+  "ignoreRules": [],
+  "expected": []
+}

@@ -1,0 +1,223 @@
+{
+  "ranAt": "2026-07-20T09:13:12.067Z",
+  "capabilities": {
+    "tools": [
+      "eslint",
+      "ruff",
+      "tsc"
+    ],
+    "versions": {
+      "eslint": "v9.39.5",
+      "ruff": "ruff 0.15.22",
+      "tsc": "Version 6.0.3"
+    }
+  },
+  "overall": {
+    "counts": {
+      "truePositives": 2,
+      "attributeMismatches": 1,
+      "falsePositives": 0,
+      "falseNegatives": 1,
+      "ignored": 0
+    },
+    "metrics": {
+      "precision": 1,
+      "recall": 0.6666666666666666,
+      "f1": 0.8,
+      "accuracy": 0.6666666666666666,
+      "falsePositiveRate": 0,
+      "falseNegativeRate": 0.3333333333333333,
+      "attributeErrorRate": 0.5
+    }
+  },
+  "byLanguage": [
+    {
+      "name": "python",
+      "counts": {
+        "truePositives": 2,
+        "attributeMismatches": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0.5
+      },
+      "cases": 3
+    },
+    {
+      "name": "typescript",
+      "counts": {
+        "truePositives": 0,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": null,
+        "recall": 0,
+        "f1": null,
+        "accuracy": 0,
+        "falsePositiveRate": null,
+        "falseNegativeRate": 1,
+        "attributeErrorRate": null
+      },
+      "cases": 2
+    }
+  ],
+  "byAnalyzer": [
+    {
+      "name": "ruff",
+      "counts": {
+        "truePositives": 2,
+        "attributeMismatches": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0.5
+      },
+      "cases": 2
+    },
+    {
+      "name": "tsc",
+      "counts": {
+        "truePositives": 0,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": null,
+        "recall": 0,
+        "f1": null,
+        "accuracy": 0,
+        "falsePositiveRate": null,
+        "falseNegativeRate": 1,
+        "attributeErrorRate": null
+      },
+      "cases": 1
+    }
+  ],
+  "byRule": [
+    {
+      "name": "B006",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "F821",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 1
+      },
+      "cases": 1
+    },
+    {
+      "name": "TS2304",
+      "counts": {
+        "truePositives": 0,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": null,
+        "recall": 0,
+        "f1": null,
+        "accuracy": 0,
+        "falsePositiveRate": null,
+        "falseNegativeRate": 1,
+        "attributeErrorRate": null
+      },
+      "cases": 1
+    }
+  ],
+  "unsupported": [
+    {
+      "language": "css",
+      "cases": 1,
+      "reason": "languageForPath() in packages/core-analysis/src/language.ts maps only ts/tsx/mts/cts/js/jsx/mjs/cjs/py/pyi/go. It returns null for this extension, so no analyzer is ever selected and the file is never read. ADR-025 accepts this language as Tier B (validation-only) but no validator is implemented. This case exists so the gap is counted, not forgotten — and so that the day a validator lands, its output is measured against a written expectation instead of being trusted."
+    },
+    {
+      "language": "html",
+      "cases": 1,
+      "reason": "languageForPath() in packages/core-analysis/src/language.ts maps only ts/tsx/mts/cts/js/jsx/mjs/cjs/py/pyi/go. It returns null for this extension, so no analyzer is ever selected and the file is never read. ADR-025 accepts this language as Tier B (validation-only) but no validator is implemented. This case exists so the gap is counted, not forgotten — and so that the day a validator lands, its output is measured against a written expectation instead of being trusted."
+    },
+    {
+      "language": "json",
+      "cases": 1,
+      "reason": "languageForPath() in packages/core-analysis/src/language.ts maps only ts/tsx/mts/cts/js/jsx/mjs/cjs/py/pyi/go. It returns null for this extension, so no analyzer is ever selected and the file is never read. ADR-025 accepts this language as Tier B (validation-only) but no validator is implemented. This case exists so the gap is counted, not forgotten — and so that the day a validator lands, its output is measured against a written expectation instead of being trusted."
+    }
+  ],
+  "knownDefects": [
+    {
+      "id": "py-undefined-name",
+      "language": "python",
+      "reason": "packages/core-analysis/src/analyzers/ruff.ts:121 hardcodes severity:'warning' for EVERY Ruff rule. F821 (undefined name) is a guaranteed NameError at runtime and must be an error; reported as a warning it is indistinguishable from a style nit, and the Problems severity filter cannot separate them. The expectation deliberately states the correct severity so this stays visible. Fixing it means a severity mapping over the Ruff rule set — a design decision, not a patch.",
+      "owner": "core-analysis"
+    },
+    {
+      "id": "ts-undefined-name",
+      "language": "typescript",
+      "reason": "PROVEN FALSE NEGATIVE. Running `npx tsc --noEmit` inside this exact benchmark project reports `src/a.ts(2,19): error TS2304: Cannot find name 'nmae'.` — Fixora's tsc analyzer does not surface it. detectCapabilities reports tsc present (Version 6.0.3, tier 1, not bundled), so the tool is found and something between invocation and finding-emission drops the diagnostic. This is the single highest-priority accuracy defect found by M6: a type error in the flagship language, visible to the tool, invisible to the user.",
+      "owner": "core-analysis/analyzers/tsc"
+    }
+  ],
+  "skipped": [],
+  "benchmarks": {
+    "passed": 3,
+    "failed": 0,
+    "knownDefects": 2,
+    "skipped": 0,
+    "unsupported": 3,
+    "total": 8
+  },
+  "repair": {
+    "measured": false,
+    "reason": "No provider key found in `FIXORA_BENCH_OPENROUTER_KEY`, so no repair was generated and no repair metric is reported. Repair success, verification success and regression rate all require real model calls — an estimate here would be indistinguishable from a measurement to anyone reading the report, which is why the harness reports nothing instead. Set the variable and re-run to populate these figures; no code changes are needed."
+  }
+}

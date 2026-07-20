@@ -1,0 +1,9 @@
+{
+  "extends": "@fixora/tsconfig/node.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts"],
+  "// exclude": "golden/ is the dataset: deliberately-broken source that the runner analyzes. Type-checking it would report the very defects it exists to contain.",
+  "exclude": ["golden", "results"]
+}

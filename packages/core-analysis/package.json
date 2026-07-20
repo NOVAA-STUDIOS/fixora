@@ -1,7 +1,7 @@
 {
   "name": "@fixora/core-analysis",
   "version": "0.1.0",
-  "description": "The deterministic analysis engine — the moat (ADR-002), zero AI. Pure TS: tree-sitter + the workspace's own tooling in, a unified Finding model out. No Electron, no React (TDD §2).",
+  "description": "The deterministic analysis engine \u00e2\u20ac\u201d the moat (ADR-002), zero AI. Pure TS: tree-sitter + the workspace's own tooling in, a unified Finding model out. No Electron, no React (TDD \u00c2\u00a72).",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -9,10 +9,12 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "vendor"
   ],
   "scripts": {
     "build": "node scripts/vendor-ruff.mjs && tsc -p tsconfig.build.json",

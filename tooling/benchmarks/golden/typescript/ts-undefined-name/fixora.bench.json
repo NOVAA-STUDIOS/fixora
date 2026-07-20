@@ -1,0 +1,26 @@
+{
+  "id": "ts-undefined-name",
+  "language": "typescript",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "A misspelled identifier must be reported by the type-checker as TS2304.",
+  "requiresTools": [
+    "tsc"
+  ],
+  "ignoreRules": [],
+  "expected": [
+    {
+      "file": "src/a.ts",
+      "line": 2,
+      "ruleId": "TS2304",
+      "severity": "error",
+      "analyzer": "tsc",
+      "repairAvailable": false,
+      "note": "tsc reports 'Cannot find name' for an undefined identifier. No autofix exists for it."
+    }
+  ],
+  "knownDefect": {
+    "reason": "PROVEN FALSE NEGATIVE. Running `npx tsc --noEmit` inside this exact benchmark project reports `src/a.ts(2,19): error TS2304: Cannot find name 'nmae'.` \u2014 Fixora's tsc analyzer does not surface it. detectCapabilities reports tsc present (Version 6.0.3, tier 1, not bundled), so the tool is found and something between invocation and finding-emission drops the diagnostic. This is the single highest-priority accuracy defect found by M6: a type error in the flagship language, visible to the tool, invisible to the user.",
+    "owner": "core-analysis/analyzers/tsc"
+  }
+}
