@@ -26,7 +26,7 @@ export function HomeScreen(): React.JSX.Element {
   const togglePalette = useUiStore((s) => s.togglePalette);
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto bg-canvas">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto rounded-lg border border-border-subtle bg-raised">
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-10 px-8 py-12">
         <header className="flex flex-col items-center gap-4 text-center">
           <FixoraMark className="size-14 drop-shadow-lg" title="Fixora" />

@@ -25,7 +25,7 @@ export function WorkspacePanel(): React.JSX.Element {
     return (
       <section
         aria-label="Workspace"
-        className="flex h-full min-w-0 flex-col border-r border-border-subtle bg-canvas"
+        className="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
       >
         <header className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border-subtle px-2">
           <FolderIcon className="size-4 shrink-0 text-fg-muted" />
@@ -47,7 +47,7 @@ export function WorkspacePanel(): React.JSX.Element {
   return (
     <section
       aria-label="Workspace"
-      className="flex h-full min-w-0 flex-col items-center justify-center gap-4 border-r border-border-subtle bg-canvas p-6 text-center"
+      className="flex h-full min-w-0 flex-col items-center justify-center gap-4 overflow-hidden rounded-lg border border-border-subtle bg-raised p-6 text-center"
     >
       <div className="flex flex-col items-center gap-1">
         <FolderIcon className="size-8 text-fg-muted" />

@@ -29,7 +29,7 @@ export function StatusBar(): React.JSX.Element {
   return (
     <footer
       role="status"
-      className="flex h-6 shrink-0 items-center justify-between gap-3 border-t border-border-subtle bg-canvas px-3 text-xs text-fg-muted select-none"
+      className="flex h-6 shrink-0 items-center justify-between gap-3 px-3 text-xs text-fg-muted select-none"
     >
       <div className="flex min-w-0 items-center gap-2">
         <span className="truncate" title={workspace?.rootPath ?? undefined}>

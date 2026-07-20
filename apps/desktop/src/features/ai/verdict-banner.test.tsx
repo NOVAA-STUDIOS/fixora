@@ -43,7 +43,9 @@ describe('VerdictBanner', () => {
     // The reason, so the badge is never unexplained.
     expect(screen.getByRole('status').textContent).toContain('does not parse');
     // The sentence the user most needs and is least likely to assume.
-    expect(screen.getByRole('status').textContent).toContain('Your source code has NOT been modified');
+    expect(screen.getByRole('status').textContent).toContain(
+      'Your source code has NOT been modified',
+    );
   });
 
   it('never uses the word "verified" for a patch that was not verified', () => {

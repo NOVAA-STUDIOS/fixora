@@ -38,7 +38,7 @@ export function EditorArea(): React.JSX.Element {
     return (
       <section
         aria-label="Editor"
-        className="flex h-full flex-col items-center justify-center gap-2 bg-inset p-6 text-center"
+        className="flex h-full flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-border-subtle bg-canvas p-6 text-center"
       >
         <p className="text-sm font-medium text-fg">No file open</p>
         <p className="max-w-sm text-xs text-fg-muted">
@@ -51,12 +51,15 @@ export function EditorArea(): React.JSX.Element {
   }
 
   return (
-    <section aria-label="Editor" className="flex h-full flex-col bg-inset">
+    <section
+      aria-label="Editor"
+      className="flex h-full flex-col overflow-hidden rounded-lg border border-border-subtle bg-canvas"
+    >
       {/* The strip is a scroller (the tabs) plus a pinned trailing island (Save). They used to be
           one flex row, which meant Save rode `ml-auto` *inside* the scrollable content: as soon as
           enough files were open to overflow, the only Save button scrolled off the right edge and
           could not be reached without scrolling the tabs away first. */}
-      <div className="flex h-8 shrink-0 items-stretch border-b border-border-subtle bg-canvas">
+      <div className="flex h-9 shrink-0 items-stretch border-b border-border-subtle bg-raised">
         <div
           role="tablist"
           aria-label="Open files"
@@ -71,7 +74,9 @@ export function EditorArea(): React.JSX.Element {
                   // shrink-0: the strip scrolls horizontally, so tabs must keep their width rather
                   // than compressing every open file into an unreadable sliver as more are opened.
                   'group flex shrink-0 items-center gap-1 border-r border-border-subtle pl-3 pr-1 text-xs',
-                  tab.relPath === activeTab ? 'bg-inset text-fg' : 'text-fg-muted hover:text-fg',
+                  tab.relPath === activeTab
+                    ? 'bg-canvas text-fg'
+                    : 'text-fg-muted hover:bg-hover hover:text-fg',
                 )}
               >
                 <button

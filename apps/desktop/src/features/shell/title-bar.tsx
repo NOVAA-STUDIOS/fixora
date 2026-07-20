@@ -17,7 +17,7 @@ export function TitleBar(): React.JSX.Element {
   return (
     <header
       // The whole bar is draggable; interactive children opt out with `no-drag-region` below.
-      className="drag-region flex h-9 shrink-0 items-center justify-between border-b border-border-subtle bg-canvas pl-3 select-none"
+      className="drag-region flex h-10 shrink-0 items-center justify-between pl-3 select-none"
     >
       <div className="flex items-center gap-2 text-sm font-semibold tracking-tight text-fg">
         <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
@@ -62,8 +62,8 @@ function TitleBarButton({
       onClick={onClick}
       className={
         danger
-          ? 'h-9 w-12 rounded-none text-fg-muted hover:bg-danger hover:text-on-danger'
-          : 'h-9 w-12 rounded-none text-fg-muted'
+          ? 'h-10 w-12 rounded-none text-fg-muted hover:bg-danger hover:text-on-danger'
+          : 'h-10 w-12 rounded-none text-fg-muted hover:bg-hover hover:text-fg'
       }
     >
       {children}
