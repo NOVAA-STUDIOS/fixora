@@ -5,6 +5,7 @@ import {
   AiModelListSchema,
   AiRunRequestSchema,
   AiRunResponseSchema,
+  ApplyOutcomeSchema,
   ApplyRepairRequestSchema,
   RepairHistoryEntrySchema,
 } from './ai.js';
@@ -175,7 +176,9 @@ export const contracts = {
   'ai:cancel': { request: empty, response: z.void() },
   // Apply a verified repair to the file on disk (path-guarded in main). The renderer sends the target
   // range + the repaired code; main splices and writes. Returns void — the editor + analysis refresh.
-  'ai:applyRepair': { request: ApplyRepairRequestSchema, response: z.void() },
+  // Returns a structured outcome rather than throwing: a stale range is an expected condition the
+  // user can act on, and a thrown error would be redacted to a generic string by the router.
+  'ai:applyRepair': { request: ApplyRepairRequestSchema, response: ApplyOutcomeSchema },
   // The local repair audit trail for the open workspace, newest first.
   'ai:history': {
     request: empty,

@@ -78,19 +78,28 @@ describe('ai:applyRepair red-team (the renderer is hostile)', () => {
   it('refuses a stale apply when the file changed since the proposal', async () => {
     writeFileSync(join(dir, 'src', 'a.ts'), 'const a = 1;\nconst b = 2;\n');
     const { handler } = await applyHandler();
-    expect(() =>
-      handler(
-        {
-          file: 'src/a.ts',
-          startLine: 1,
-          endLine: 1,
-          code: 'const a = 999;',
-          expectedOriginal: 'const a = OLD;', // does not match the current line 1
-        },
-        ctx,
-      ),
-    ).toThrow(/changed/i);
-    // The file is left exactly as it was.
+
+    // The refusal is a *value* now, not a throw: the router redacts thrown messages, so an expected
+    // and actionable condition has to travel as contract data or the user is told nothing useful.
+    // The security property under test is unchanged and still asserted below — no write happens.
+    const outcome = await handler(
+      {
+        file: 'src/a.ts',
+        startLine: 1,
+        endLine: 1,
+        code: 'const a = 999;',
+        expectedOriginal: 'const a = OLD;', // does not match the current line 1
+      },
+      ctx,
+    );
+
+    expect(outcome.applied).toBe(false);
+    expect(outcome.applied === false && outcome.reason).toBe('stale-range');
+    expect(outcome.applied === false && outcome.message).toMatch(/changed/i);
+    // The evidence behind the refusal is reported, not merely asserted.
+    expect(outcome.staleRangeCheck?.passed).toBe(false);
+    expect(outcome.staleRangeCheck?.expectedHash).not.toBe(outcome.staleRangeCheck?.actualHash);
+    // THE INVARIANT, unchanged: the file is left exactly as it was.
     expect(readFileSync(join(dir, 'src', 'a.ts'), 'utf8')).toBe('const a = 1;\nconst b = 2;\n');
   });
 

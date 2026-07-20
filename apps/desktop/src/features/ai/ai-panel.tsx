@@ -9,6 +9,8 @@ import { DiffEditor } from '../editor/diff-editor.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { ProblemDetails } from '../findings/problem-details.js';
 
+import { evaluateApplyGate } from './apply-diagnostics.js';
+import { RepairDiagnosticsPanel } from './repair-diagnostics-panel.js';
 import { VerdictBadge } from './verdict-badge.js';
 import { VerdictBanner } from './verdict-banner.js';
 
@@ -220,7 +222,9 @@ function RepairResult({
 }): React.JSX.Element {
   const applyRepair = useAiStore((s) => s.applyRepair);
   const dismiss = useAiStore((s) => s.dismiss);
+  const errorMessage = useAiStore((s) => s.errorMessage);
   const report = proposal.verification;
+  const gate = evaluateApplyGate(proposal);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -260,6 +264,22 @@ function RepairResult({
         the secondary actions group left. It gets its own surface and real padding, because a row of
         buttons crammed against a diff reads as part of the diff.
       */}
+      {/* The reason is on the surface too, not only in a tooltip: a user reporting "Apply is
+          disabled" should be able to read why without hovering and without opening diagnostics. */}
+      {!gate.enabled && (
+        <p className="shrink-0 border-t border-border-subtle bg-danger-subtle/30 px-3 py-1.5 text-[11px] text-danger-text [overflow-wrap:anywhere]">
+          <span className="font-semibold">Apply disabled ({gate.reason}):</span> {gate.explanation}
+        </p>
+      )}
+      {errorMessage !== null && (
+        <p
+          role="alert"
+          className="shrink-0 border-t border-border-subtle bg-danger-subtle/30 px-3 py-1.5 text-[11px] text-danger-text [overflow-wrap:anywhere]"
+        >
+          <span className="font-semibold">Apply failed:</span> {errorMessage}
+        </p>
+      )}
+
       <div className="flex shrink-0 flex-wrap items-center gap-2 bg-inset px-3 py-2.5">
         {/* Was "Reject", which read as a verdict rather than an action — and sat inches from a
             "Rejected patch" badge that means something else entirely. */}
@@ -281,17 +301,17 @@ function RepairResult({
           variant="primary"
           size="sm"
           className="ml-auto shrink-0"
-          disabled={report.verdict === 'regression'}
-          title={
-            report.verdict === 'regression'
-              ? 'This fix introduces a new problem and cannot be applied.'
-              : undefined
-          }
+          disabled={!gate.enabled}
+          // The exact reason, always — not a generic sentence, and never silence. A disabled
+          // control that cannot say why is indistinguishable from a broken one.
+          title={gate.enabled ? gate.explanation : `Apply is disabled: ${gate.explanation}`}
           onClick={() => void applyRepair()}
         >
           Apply
         </Button>
       </div>
+
+      <RepairDiagnosticsPanel proposal={proposal} />
     </div>
   );
 }

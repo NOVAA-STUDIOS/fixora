@@ -117,7 +117,37 @@ export type Verdict = z.infer<typeof VerdictSchema>;
  * read "verified against eslint, tsc, syntax" rather than overclaiming. `newFindingCount` is the number
  * of problems the patched file has that the original did not.
  */
+/**
+ * Why a verdict came out the way it did, in full.
+ *
+ * The report says *what* was decided; this says *how*. Without it a `regression` verdict is an
+ * assertion the user has to take on faith — they can see "introduces 2 new problems" but not which
+ * two, or why the comparison thought they were new. Signature comparison is the whole mechanism, so
+ * the signatures are the evidence.
+ *
+ * Optional because it is diagnostic, not contractual: a report without it is still a valid report.
+ */
+export const VerificationDiagnosticsSchema = z.object({
+  /** The signature of the finding being repaired. */
+  targetSignature: z.string(),
+  /** Signatures present in the file before the patch (the baseline). */
+  originalSignatures: z.array(z.string()),
+  /** Signatures present in the patched overlay. */
+  patchedSignatures: z.array(z.string()),
+  /** In the patched set, absent from the baseline, and not the target — these force `regression`. */
+  newSignatures: z.array(z.string()),
+  /** The severity of the finding being repaired. Recorded to prove it never enters the decision. */
+  targetSeverity: z.string(),
+  /** Analyzers that produced the baseline vs the patched set — a mismatch here explains phantom
+   *  regressions, where the overlay ran a different toolset than the workspace analysis did. */
+  originalSources: z.array(z.string()),
+  patchedSources: z.array(z.string()),
+});
+export type VerificationDiagnostics = z.infer<typeof VerificationDiagnosticsSchema>;
+
 export const VerificationReportSchema = z.object({
+  /** Present whenever verification actually ran. See VerificationDiagnosticsSchema. */
+  diagnostics: VerificationDiagnosticsSchema.optional(),
   verdict: VerdictSchema,
   targetResolved: z.boolean(),
   newFindingCount: z.number().int().nonnegative(),
@@ -167,6 +197,65 @@ export const ApplyRepairRequestSchema = z.object({
   historyId: z.string().optional(),
 });
 export type ApplyRepairRequest = z.infer<typeof ApplyRepairRequestSchema>;
+
+/**
+ * The outcome of an apply attempt — as a *value*, not an exception.
+ *
+ * `ai:applyRepair` used to throw when the target range no longer matched, which is an expected,
+ * user-actionable condition rather than a bug. The router redacts thrown errors on purpose
+ * ("the message is redacted before it crosses the boundary"), so the one sentence that explained
+ * the failure — "the file changed since this repair was proposed" — was replaced with "Something
+ * went wrong handling that action" before it reached the UI. The redaction is right; using an
+ * exception for a normal outcome was not.
+ *
+ * So the outcome is contract data now: schema-validated, never redacted, and carrying the evidence
+ * needed to tell the three failure modes apart without guessing.
+ */
+export const ApplyFailureReasonSchema = z.enum([
+  /** The file on disk no longer matches what the repair was computed against. */
+  'stale-range',
+  /** The requested line range does not exist in the current file (file shrank, or bad range). */
+  'range-out-of-bounds',
+  /** No workspace is open, so there is nothing to write to. */
+  'no-workspace',
+  /** The write itself failed (permissions, disk, path guard). */
+  'write-failed',
+]);
+export type ApplyFailureReason = z.infer<typeof ApplyFailureReasonSchema>;
+
+/** What the stale-range guard actually compared. Lengths and hashes, plus a bounded excerpt. */
+export const StaleRangeCheckSchema = z.object({
+  passed: z.boolean(),
+  startLine: z.number().int(),
+  endLine: z.number().int(),
+  fileLineCount: z.number().int(),
+  expectedLength: z.number().int(),
+  actualLength: z.number().int(),
+  expectedHash: z.string(),
+  actualHash: z.string(),
+  /** First line number where the two differ, 1-based within the range. Null when identical. */
+  firstDifferingLine: z.number().int().nullable(),
+  /** Bounded excerpts around the first difference — the user's own code, on the user's own screen. */
+  expectedExcerpt: z.string(),
+  actualExcerpt: z.string(),
+});
+export type StaleRangeCheck = z.infer<typeof StaleRangeCheckSchema>;
+
+export const ApplyOutcomeSchema = z.discriminatedUnion('applied', [
+  z.object({
+    applied: z.literal(true),
+    staleRangeCheck: StaleRangeCheckSchema,
+    bytesWritten: z.number().int(),
+  }),
+  z.object({
+    applied: z.literal(false),
+    reason: ApplyFailureReasonSchema,
+    /** Plain English, names the next step, and is never redacted because it is not an exception. */
+    message: z.string().min(1),
+    staleRangeCheck: StaleRangeCheckSchema.nullable(),
+  }),
+]);
+export type ApplyOutcome = z.infer<typeof ApplyOutcomeSchema>;
 
 /** One recorded repair in the local, private audit trail (Beta Phase E). */
 export const RepairHistoryEntrySchema = z.object({
