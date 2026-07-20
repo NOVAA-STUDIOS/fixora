@@ -29,8 +29,8 @@ describe('ResizeHandle', () => {
     const handle = renderHandle('horizontal');
     // A horizontal group is divided by a *vertical* separator, so width is the axis that matters.
     expect(handle).toHaveAttribute('aria-orientation', 'vertical');
-    expect(handle.className).toContain('aria-[orientation=vertical]:w-px');
-    expect(handle.className).toContain('aria-[orientation=horizontal]:h-px');
+    expect(handle.className).toContain('aria-[orientation=vertical]:w-1');
+    expect(handle.className).toContain('aria-[orientation=horizontal]:h-1');
   });
 
   it('widens the pointer target beyond the 1px line', () => {

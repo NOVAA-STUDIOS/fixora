@@ -63,7 +63,7 @@ export function AiPanel(): React.JSX.Element {
   return (
     <section
       aria-label="Assistant"
-      className="flex h-full min-h-0 min-w-0 flex-col border-l border-border-subtle bg-canvas"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
     >
       <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
         <h2 className="flex min-w-0 items-center gap-2 truncate text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">

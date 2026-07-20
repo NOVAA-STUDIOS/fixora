@@ -37,7 +37,10 @@ export function SettingsPanel(): React.JSX.Element {
     // flex-1 + min-w-0: this is now a top-level child of the shell's flex row, and a flex item sizes
     // to its content by default — without this the whole settings page shrank to its column width
     // and sat against the activity rail with dead space beside it.
-    <section aria-label="Settings" className="flex h-full min-w-0 flex-1 flex-col bg-canvas">
+    <section
+      aria-label="Settings"
+      className="flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
+    >
       <header className="flex h-11 shrink-0 items-center border-b border-border-subtle px-6">
         <h2 className="text-sm font-semibold text-fg">Settings</h2>
       </header>

@@ -59,7 +59,7 @@ export function FindingsPanel(): React.JSX.Element {
   return (
     <section
       aria-label="Problems"
-      className="flex h-full min-w-0 flex-col border-r border-border-subtle bg-canvas"
+      className="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
     >
       <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
         <h2 className="truncate text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">

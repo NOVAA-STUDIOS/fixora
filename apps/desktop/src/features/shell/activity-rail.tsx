@@ -26,10 +26,7 @@ export function ActivityRail(): React.JSX.Element {
   const setActiveView = useUiStore((s) => s.setActiveView);
 
   return (
-    <nav
-      aria-label="Primary"
-      className="flex w-16 shrink-0 flex-col items-stretch gap-0.5 border-r border-border-subtle bg-canvas py-2"
-    >
+    <nav aria-label="Primary" className="flex w-16 shrink-0 flex-col items-stretch gap-0.5 py-1">
       {items.map(({ view, label, Icon }) => {
         const active = view === activeView;
         return (
@@ -42,24 +39,19 @@ export function ActivityRail(): React.JSX.Element {
               setActiveView(view);
             }}
             className={cn(
-              'relative flex flex-col items-center gap-1.5 px-1 py-2.5 text-[10px] font-medium',
+              // A rounded target inset from the rail edges, rather than a full-bleed strip. The rail
+              // sits on the chrome layer now, so an item that lights up edge-to-edge reads as a
+              // background change; a pill reads as a thing you pressed.
+              'relative mx-1.5 flex flex-col items-center gap-1.5 rounded-lg px-1 py-2.5 text-[10px] font-medium',
               // Every other interactive surface in the app animates its hover; the rail — the most
               // frequently clicked thing in the window — snapped between states instantly.
               'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
-              active ? 'text-accent-text' : 'text-fg-muted hover:bg-hover hover:text-fg',
+              active
+                ? 'bg-accent-subtle text-accent-text'
+                : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
           >
-            {/* The active marker animates in from the edge rather than appearing fully formed, so
-                switching views reads as movement between two places instead of a repaint. */}
-            <span
-              aria-hidden="true"
-              className={cn(
-                'absolute inset-y-1 left-0 w-0.5 rounded-r bg-accent',
-                'origin-left transition-transform duration-(--fx-motion-duration-normal) ease-(--ease-entrance)',
-                active ? 'scale-x-100' : 'scale-x-0',
-              )}
-            />
             <Icon className="size-5 shrink-0" />
             <span className="w-full truncate text-center leading-none">{label}</span>
           </button>

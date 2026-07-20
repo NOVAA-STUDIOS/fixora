@@ -33,9 +33,12 @@ export function ResizeHandle({ className, ...props }: SeparatorProps): React.JSX
         // WITHOUT an explicit width/height it collapses to 0px — invisible, and impossible to grab
         // with a mouse. It must own its own thickness. `aria-orientation` is the *separator's* axis
         // (vertical in a horizontal group), which is what decides which dimension to pin.
-        'relative shrink-0 bg-border-subtle outline-none',
-        'aria-[orientation=vertical]:w-px aria-[orientation=vertical]:cursor-col-resize',
-        'aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:cursor-row-resize',
+        // Transparent by default: the panes are separate cards with a gutter between them, so the
+        // seam is already legible and a permanent line drawn down it just adds a third edge beside
+        // the two card borders. The handle earns its ink only while you are aiming at it.
+        'relative shrink-0 rounded-full bg-transparent outline-none',
+        'aria-[orientation=vertical]:w-1 aria-[orientation=vertical]:cursor-col-resize',
+        'aria-[orientation=horizontal]:h-1 aria-[orientation=horizontal]:cursor-row-resize',
         // A 1px line is honest visually and hostile to a mouse, so the grab area is widened to 9px
         // with an invisible overlay — the same trick VS Code uses. Without it, hitting the divider
         // is a pixel-hunt, which is most of what "feels unpolished" means when resizing panes.
@@ -45,7 +48,7 @@ export function ResizeHandle({ className, ...props }: SeparatorProps): React.JSX
         'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
         // `data-separator` is present in EVERY state (including idle), so a bare `data-[separator]:`
         // attribute selector painted the divider accent permanently. Match the drag state by value.
-        'hover:bg-accent-border data-[separator=active]:bg-accent',
+        'hover:bg-border-strong data-[separator=active]:bg-accent',
         'focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline',
         className,
       )}

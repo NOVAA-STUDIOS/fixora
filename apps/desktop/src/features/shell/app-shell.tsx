@@ -21,9 +21,20 @@ export function AppShell(): React.JSX.Element {
 
   return (
     <CommandProvider commands={commands}>
-      <div className="flex h-screen flex-col overflow-hidden bg-canvas text-fg">
+      {/*
+        The shell is the *chrome*, and it sits on the darkest surface in the palette. The panes
+        inside it are raised surfaces floating on that base with a gutter between them.
+
+        Before this, every surface in the app was the same near-black and the only thing separating
+        a pane from its neighbour was a 1px hairline — which is why the window read as one flat sheet
+        with lines drawn on it. Depth is what makes an interface look built rather than drawn: the
+        chrome recedes, the content comes forward, and the eye gets a z-order to read the layout by
+        without a single label. It is the difference between VS Code's classic look and what Linear,
+        Arc and current Cursor do, and it costs nothing at runtime.
+      */}
+      <div className="flex h-screen flex-col overflow-hidden bg-inset text-fg">
         <TitleBar />
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 gap-1.5 px-1.5 pb-1.5">
           <ActivityRail />
           <Workbench />
         </div>

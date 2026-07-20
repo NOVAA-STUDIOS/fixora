@@ -16,7 +16,10 @@ function themeFrom(base: 'vs' | 'vs-dark', c: SemanticColors): monaco.editor.ISt
     inherit: true,
     rules: [],
     colors: {
-      'editor.background': c.bg.inset,
+      // Matches the editor card's surface (`bg-canvas`), not the shell base. Monaco painting a
+      // different near-black than its own container is the kind of 2px mismatch that reads as
+      // cheap without anyone being able to say why.
+      'editor.background': c.bg.canvas,
       'editor.foreground': c.text.primary,
       'editorLineNumber.foreground': c.text.muted,
       'editorLineNumber.activeForeground': c.text.secondary,
@@ -24,6 +27,7 @@ function themeFrom(base: 'vs' | 'vs-dark', c: SemanticColors): monaco.editor.ISt
       'editor.selectionBackground': c.accent.subtle,
       'editor.lineHighlightBackground': c.bg.hover,
       'editorIndentGuide.background1': c.border.subtle,
+      'editorGutter.background': c.bg.canvas,
       'editorWidget.background': c.bg.overlay,
       'editorWidget.border': c.border.subtle,
       focusBorder: c.accent.solid,
