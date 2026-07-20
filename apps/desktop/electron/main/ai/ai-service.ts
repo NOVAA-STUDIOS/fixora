@@ -1,3 +1,6 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import {
   buildContext,
   createOpenRouterProvider,
@@ -12,7 +15,7 @@ import {
   type ProviderRequest,
 } from '@fixora/core-ai';
 import type { AiRunRequest, AiRunResponse, Language } from '@fixora/shared-types';
-import type { BrowserWindow } from 'electron';
+import { app, type BrowserWindow } from 'electron';
 
 import type { FindingsRepository, RepairHistoryRepository } from '../db/repositories.js';
 import { emitToWindow } from '../ipc/emit.js';
@@ -75,6 +78,17 @@ interface Target {
 }
 
 const SCHEMA_ERROR = Symbol('schema_error');
+
+/**
+ * The last parse failure, so run() can report the real reason instead of a generic sentence.
+ * Set by finalize(), read once by run().
+ */
+type ParseFailureInfo = {
+  reason: string;
+  detail: string;
+  recovery: readonly string[];
+  text: string;
+};
 
 export function createAiService(deps: AiServiceDeps): AiService {
   const makeProvider =
@@ -222,6 +236,9 @@ export function createAiService(deps: AiServiceDeps): AiService {
 
       const provider = makeProvider(key);
       const wantsStructured = profileWantsStructuredOutput(request.profile);
+      // A ref rather than a `let`: finalize() assigns it from inside a closure, and TypeScript's
+      // control-flow analysis cannot see that, so it narrows a plain `let` to `null` at every read.
+      const lastFailure: { current: ParseFailureInfo | null } = { current: null };
 
       // Turn a raw completion into a response. `repair` verifies on an overlay before returning; a
       // schema violation returns the SCHEMA_ERROR sentinel so run() can re-ask exactly once.
@@ -231,7 +248,15 @@ export function createAiService(deps: AiServiceDeps): AiService {
         }
         if (request.profile === 'test') {
           const parsed = parseTestOutput(text);
-          if (!parsed.ok) return SCHEMA_ERROR;
+          if (!parsed.ok) {
+            lastFailure.current = {
+              reason: parsed.reason,
+              detail: parsed.detail,
+              recovery: parsed.recovery,
+              text: parsed.text,
+            };
+            return SCHEMA_ERROR;
+          }
           return {
             status: 'ok',
             proposal: {
@@ -243,7 +268,23 @@ export function createAiService(deps: AiServiceDeps): AiService {
           };
         }
         const parsed = parseRepairOutput(text);
-        if (!parsed.ok) return SCHEMA_ERROR;
+        if (!parsed.ok) {
+          lastFailure.current = {
+            reason: parsed.reason,
+            detail: parsed.detail,
+            recovery: parsed.recovery,
+            text: parsed.text,
+          };
+          return SCHEMA_ERROR;
+        }
+        // Recovery is reported, never silent — that is the whole justification for unwrapping.
+        if (parsed.recovery.length > 0 && parsed.recovery[0] !== 'none') {
+          console.error('[ai] recovered model output', {
+            profile: request.profile,
+            model: prepared.request.model,
+            recovery: parsed.recovery,
+          });
+        }
         const { report, originalCode } = await deps.verification.verify({
           finding,
           repairedCode: parsed.value.repairedCode,
@@ -323,12 +364,32 @@ export function createAiService(deps: AiServiceDeps): AiService {
           if (stream.ok) response = await finalize(stream.text);
         }
         if (response === SCHEMA_ERROR) {
-          if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error' });
-          return {
-            status: 'error',
-            code: 'schema_error',
-            message: 'The model returned an invalid response.',
+          const failure: ParseFailureInfo = lastFailure.current ?? {
+            reason: 'unknown',
+            detail: 'The response could not be parsed and no reason was recorded.',
+            recovery: [],
+            text: '',
           };
+          // The raw response, on disk, whenever parsing fails. Without it "the model returned
+          // something invalid" is unfalsifiable — nobody can see what it actually returned.
+          const debugPath = writeParseFailureDump({
+            model: prepared.request.model,
+            profile: request.profile,
+            failure,
+          });
+          console.error('[ai] parse failed', {
+            model: prepared.request.model,
+            profile: request.profile,
+            reason: failure.reason,
+            recovery: failure.recovery,
+            textLength: failure.text.length,
+            dump: debugPath,
+          });
+          const message =
+            failure.detail +
+            (debugPath === null ? '' : ` The raw response was saved to ${debugPath}.`);
+          if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message });
+          return { status: 'error', code: 'schema_error', message };
         }
 
         if (window !== null) {
@@ -343,4 +404,45 @@ export function createAiService(deps: AiServiceDeps): AiService {
       }
     },
   };
+}
+
+/**
+ * Write the unparseable response to disk and return its path.
+ *
+ * A parse failure is the one error where the evidence is destroyed by default: the text existed only
+ * in memory, so "the model returned something invalid" could never be checked by the person it
+ * happened to. The dump makes it checkable. Best-effort by design — a failed write must not replace
+ * the real error with a filesystem error.
+ */
+function writeParseFailureDump(input: {
+  model: string;
+  profile: string;
+  failure: { reason: string; detail: string; recovery: readonly string[]; text: string };
+}): string | null {
+  try {
+    const dir = join(app.getPath('userData'), 'debug', 'ai-parse-failures');
+    mkdirSync(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const file = join(dir, `${stamp}-${input.profile}.json`);
+    writeFileSync(
+      file,
+      `${JSON.stringify(
+        {
+          at: new Date().toISOString(),
+          model: input.model,
+          profile: input.profile,
+          reason: input.failure.reason,
+          detail: input.failure.detail,
+          recoveryAttempted: input.failure.recovery,
+          rawResponse: input.failure.text,
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+    return file;
+  } catch {
+    return null;
+  }
 }

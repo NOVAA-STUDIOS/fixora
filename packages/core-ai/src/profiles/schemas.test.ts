@@ -15,27 +15,35 @@ describe('schema-constrained output parsing', () => {
   });
 
   it('rejects non-JSON with a typed reason (never best-effort)', () => {
+    // The reason is specific now — a prose answer is distinguishable from a truncated one — but the
+    // guarantee this test protects is unchanged: no content is invented to fill a gap.
     const result = parseRepairOutput('here is your fix: return `hi`;');
-    expect(result).toEqual({ ok: false, reason: 'not-json' });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.reason).toBe('no-json-object');
   });
 
   it('rejects JSON that is missing a required field', () => {
     const result = parseRepairOutput(JSON.stringify({ repairedCode: 'x', rationale: 'y' }));
-    expect(result).toEqual({ ok: false, reason: 'schema-mismatch' });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.reason).toBe('schema-mismatch');
+    // Names the field, so the UI never has to say "invalid response".
+    expect(!result.ok && result.detail).toContain('confidence');
   });
 
   it('rejects extra keys (strict) — a model cannot smuggle unexpected fields', () => {
     const result = parseRepairOutput(
       JSON.stringify({ repairedCode: 'x', rationale: 'y', confidence: 0.5, extra: 'nope' }),
     );
-    expect(result).toEqual({ ok: false, reason: 'schema-mismatch' });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.reason).toBe('schema-mismatch');
   });
 
   it('rejects confidence outside 0..1', () => {
     const result = parseRepairOutput(
       JSON.stringify({ repairedCode: 'x', rationale: 'y', confidence: 2 }),
     );
-    expect(result).toEqual({ ok: false, reason: 'schema-mismatch' });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.reason).toBe('schema-mismatch');
   });
 
   it('accepts a well-formed test output', () => {

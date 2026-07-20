@@ -3,6 +3,8 @@ import type { z } from 'zod';
 
 import type { ResponseSchema } from '../provider/types.js';
 
+import { extractJson, type RecoveryStep } from './extract.js';
+
 /**
  * Schema-constrained output (AI-Pipeline §3). The model is asked for JSON matching a schema via the
  * provider's native mechanism — we do **not** scrape markdown fences with a regex, which is silent,
@@ -47,21 +49,63 @@ export const TEST_JSON_SCHEMA: ResponseSchema = {
   },
 };
 
+/**
+ * Why a parse failed, precisely enough to act on.
+ *
+ * The old union was `'not-json' | 'schema-mismatch'`, which the UI rendered as "The model returned
+ * an invalid response." for every case. That single sentence covered a truncated reply, a prose
+ * answer, a fenced object and a missing field — four different problems with four different fixes,
+ * and the user could not tell which they had.
+ */
+export type ParseFailure =
+  'empty' | 'no-json-object' | 'truncated' | 'malformed-json' | 'schema-mismatch';
+
 export type ParseResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly reason: 'not-json' | 'schema-mismatch' };
+  | {
+      readonly ok: true;
+      readonly value: T;
+      /** Which unwrapping steps fired. `['none']` means the model returned clean JSON. */
+      readonly recovery: readonly RecoveryStep[];
+    }
+  | {
+      readonly ok: false;
+      readonly reason: ParseFailure;
+      /** One sentence a human can act on. Never "invalid response". */
+      readonly detail: string;
+      /** Which fields the schema rejected, when that is the reason. */
+      readonly issues?: readonly string[];
+      /** What we tried to parse, after recovery. Written to the debug file on failure. */
+      readonly text: string;
+      readonly recovery: readonly RecoveryStep[];
+    };
 
 function parseWith<T>(schema: z.ZodType<T>, raw: string): ParseResult<T> {
-  let json: unknown;
-  try {
-    json = JSON.parse(raw);
-  } catch {
-    return { ok: false, reason: 'not-json' };
+  const extracted = extractJson(raw);
+  if (!extracted.ok) {
+    return {
+      ok: false,
+      reason: extracted.reason,
+      detail: extracted.detail,
+      text: extracted.text,
+      recovery: [],
+    };
   }
-  const result = schema.safeParse(json);
-  return result.success
-    ? { ok: true, value: result.data }
-    : { ok: false, reason: 'schema-mismatch' };
+
+  const result = schema.safeParse(extracted.json);
+  if (result.success) return { ok: true, value: result.data, recovery: extracted.recovery };
+
+  // Name the fields. "missing repairedCode" is actionable; "schema-mismatch" is not.
+  const issues = result.error.issues.map(
+    (i) => `${i.path.length === 0 ? '(root)' : i.path.join('.')}: ${i.message}`,
+  );
+  return {
+    ok: false,
+    reason: 'schema-mismatch',
+    detail: `The response was valid JSON but did not match the required shape — ${issues.join('; ')}`,
+    issues,
+    text: extracted.text,
+    recovery: extracted.recovery,
+  };
 }
 
 export function parseRepairOutput(raw: string): ParseResult<z.infer<typeof RepairOutputSchema>> {
