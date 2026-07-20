@@ -2,6 +2,7 @@ import type { Finding, Severity, TaskProfile } from '@fixora/shared-types';
 import { AlertIcon, Button, CheckIcon, VirtualList, cn } from '@fixora/ui';
 import { useEffect } from 'react';
 
+import { useFindingRowEstimate } from '../../hooks/use-density-metrics.js';
 import { basename } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
@@ -15,9 +16,6 @@ import { useFindingsStore } from './findings-store.js';
  * rule, severity, and the actions a first-timer needs — Explain, Repair, Test — right there, no hover
  * required. Zero AI in the findings themselves; this is the moat with the LLM switched off.
  */
-
-/** Fixed row height. Must match what FindingRow can actually occupy — see the VirtualList note. */
-const ROW_HEIGHT = 96;
 
 const SEVERITY_ORDER: Severity[] = ['error', 'warning', 'info'];
 const SEVERITY_STYLE: Record<Severity, string> = {
@@ -46,6 +44,7 @@ export function FindingsPanel(): React.JSX.Element {
   const selectedId = useFindingsStore((s) => s.selectedId);
 
   const workspace = useWorkspaceStore((s) => s.workspace);
+  const rowEstimate = useFindingRowEstimate();
 
   useEffect(() => listen(), [listen]);
   useEffect(() => {
@@ -63,13 +62,14 @@ export function FindingsPanel(): React.JSX.Element {
       <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
         <span className="truncate text-xs font-semibold text-fg">Problems</span>
         {status === 'running' ? (
-          <Button variant="ghost" size="sm" onClick={() => void cancel()}>
+          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void cancel()}>
             Cancel
           </Button>
         ) : (
           <Button
             variant="ghost"
             size="sm"
+            className="shrink-0"
             onClick={() => void run()}
             disabled={workspace === null}
           >
@@ -121,10 +121,12 @@ export function FindingsPanel(): React.JSX.Element {
         <VirtualList
           items={visible}
           label="Problems"
-          // The list positions rows at a fixed stride, so a row must never be taller than this or
-          // rows overlap. FindingRow is built to fit: the message is clamped to two lines and the
-          // full text lives in the details panel, which is where a long message belongs anyway.
-          estimateRowHeight={ROW_HEIGHT}
+          // Measured, not assumed. A finding row wraps text and carries a row of action buttons, so
+          // its real height moves with density and with OS text scaling — a fixed 96px stride was a
+          // guess tuned for comfortable/100%, and at compact it left gaps while at 150% it cut the
+          // Ignore button in half. `dynamicRowHeight` makes the row tell the list how tall it is.
+          estimateRowHeight={rowEstimate}
+          dynamicRowHeight
           isSelected={(f) => f.id === selectedId}
           getKey={(f) => f.id}
           className="min-h-0 flex-1"
@@ -184,9 +186,10 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
   return (
     <div
       className={cn(
-        // h-full + overflow-hidden: the row owns exactly its slot in the virtual list and can never
-        // spill onto the row below, whatever the message length or the user's font scaling.
-        'flex h-full flex-col justify-center gap-1.5 overflow-hidden border-b border-border-subtle px-3 py-2',
+        // The row is measured, so it sizes to its own content and the list makes room for it — no
+        // h-full to fill a fixed slot, and no overflow-hidden, which would have clipped exactly the
+        // content the measurement exists to accommodate. min-w-0 keeps it shrinking with the pane.
+        'flex min-w-0 flex-col gap-1.5 border-b border-border-subtle px-3 py-2',
         // The selected row is what the details pane is describing — say so, with a bar rather than a
         // fill, so the severity colours stay the loudest thing in the list.
         isSelected && 'bg-hover shadow-[inset_2px_0_0_0_var(--fx-color-accent)]',
@@ -226,7 +229,9 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
         </span>
       </button>
 
-      <div className="flex items-center gap-1 pl-5">
+      {/* flex-wrap: Explain/Repair/Test/Ignore do not fit on one line in a 220px-minimum pane, and
+          before the row was measured they could not wrap without being clipped. Now they can. */}
+      <div className="flex flex-wrap items-center gap-1 pl-5">
         {aiConfigured ? (
           AI_ACTIONS.map((action) => (
             <button
@@ -234,7 +239,7 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
               type="button"
               disabled={aiBusy}
               onClick={() => void runAi(action.profile, finding.id)}
-              className="rounded border border-border-subtle px-2 py-0.5 text-[11px] text-fg-secondary hover:bg-hover hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+              className="shrink-0 rounded border border-border-subtle px-2 py-0.5 text-[11px] text-fg-secondary hover:bg-hover hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
             >
               {action.label}
             </button>
@@ -256,7 +261,7 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
             ignore(finding.id);
           }}
           title="Hide this finding for now"
-          className="ml-auto rounded px-2 py-0.5 text-[11px] text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+          className="ml-auto shrink-0 rounded px-2 py-0.5 text-[11px] text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
         >
           Ignore
         </button>

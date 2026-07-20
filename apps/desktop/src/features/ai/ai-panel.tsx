@@ -63,10 +63,10 @@ export function AiPanel(): React.JSX.Element {
   return (
     <section
       aria-label="Assistant"
-      className="flex h-full min-h-0 flex-col border-l border-border-subtle bg-canvas"
+      className="flex h-full min-h-0 min-w-0 flex-col border-l border-border-subtle bg-canvas"
     >
-      <header className="flex h-8 shrink-0 items-center justify-between border-b border-border-subtle px-3">
-        <span className="flex items-center gap-2 text-xs font-semibold capitalize text-fg">
+      <header className="flex h-8 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
+        <span className="flex min-w-0 items-center gap-2 truncate text-xs font-semibold capitalize text-fg">
           {status === 'idle'
             ? selected !== null
               ? 'Problem details'
@@ -76,12 +76,12 @@ export function AiPanel(): React.JSX.Element {
           {repair !== null && <VerdictBadge verdict={repair.verification.verdict} />}
         </span>
         {status === 'running' ? (
-          <Button variant="ghost" size="sm" onClick={() => void cancel()}>
+          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void cancel()}>
             Cancel
           </Button>
         ) : (
           status !== 'idle' && (
-            <Button variant="ghost" size="sm" onClick={dismiss}>
+            <Button variant="ghost" size="sm" className="shrink-0" onClick={dismiss}>
               Dismiss
             </Button>
           )
@@ -119,12 +119,20 @@ export function AiPanel(): React.JSX.Element {
             <p className="text-danger-text [overflow-wrap:anywhere]">{errorMessage}</p>
           )}
 
+          {/* overflow-wrap:anywhere as well as pre-wrap: pre-wrap breaks at whitespace, and model
+              prose routinely contains things with none — a bare URL, a long import path, a minified
+              identifier. Without it one such token forces the whole assistant pane to scroll
+              sideways, which at this pane's width is most of the time. */}
           {(profile === 'explain' || status === 'running') && streamText.length > 0 && (
-            <pre className="whitespace-pre-wrap font-sans">{streamText}</pre>
+            <pre className="whitespace-pre-wrap font-sans [overflow-wrap:anywhere]">
+              {streamText}
+            </pre>
           )}
 
           {status === 'done' && proposal?.profile === 'explain' && (
-            <pre className="whitespace-pre-wrap font-sans">{proposal.explanation}</pre>
+            <pre className="whitespace-pre-wrap font-sans [overflow-wrap:anywhere]">
+              {proposal.explanation}
+            </pre>
           )}
 
           {status === 'done' && proposal?.profile === 'test' && (
@@ -207,7 +215,7 @@ function RepairResult({
     <div className="flex min-h-0 flex-1 flex-col">
       <VerdictBanner report={report} />
 
-      <div className="shrink-0 border-b border-border-subtle px-3 py-2 text-xs text-fg-secondary">
+      <div className="shrink-0 border-b border-border-subtle px-3 py-2 text-xs text-fg-secondary [overflow-wrap:anywhere]">
         <p>{proposal.rationale}</p>
         <p className="mt-1 text-fg-muted">
           Confidence {Math.round(proposal.confidence * 100)}% · checked with {report.ran.join(', ')}
@@ -222,21 +230,25 @@ function RepairResult({
         />
       </div>
 
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-3 py-2">
+      {/* flex-wrap: three buttons do not fit across the AI pane at its 240px minimum, and Apply is
+          the last one — the one that would have been pushed off the edge. */}
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border-subtle px-3 py-2">
         {/* Was "Reject", which read as a verdict rather than an action — and sat inches from a
             "Rejected patch" badge that means something else entirely. */}
-        <Button variant="ghost" size="sm" onClick={dismiss}>
+        <Button variant="ghost" size="sm" className="shrink-0" onClick={dismiss}>
           Dismiss
         </Button>
         <Button
           variant="ghost"
           size="sm"
+          className="shrink-0"
           onClick={() => void navigator.clipboard.writeText(proposal.repairedCode)}
         >
           Copy
         </Button>
         <Button
           size="sm"
+          className="shrink-0"
           disabled={report.verdict === 'regression'}
           title={
             report.verdict === 'regression'

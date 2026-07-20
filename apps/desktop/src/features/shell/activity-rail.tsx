@@ -53,8 +53,8 @@ export function ActivityRail(): React.JSX.Element {
                 className="absolute inset-y-1 left-0 w-0.5 rounded-r bg-accent"
               />
             )}
-            <Icon className="size-5" />
-            <span className="leading-none">{label}</span>
+            <Icon className="size-5 shrink-0" />
+            <span className="w-full truncate text-center leading-none">{label}</span>
           </button>
         );
       })}

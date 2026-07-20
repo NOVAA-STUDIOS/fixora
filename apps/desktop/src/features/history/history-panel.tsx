@@ -30,7 +30,7 @@ export function HistoryPanel(): React.JSX.Element {
   return (
     <section
       aria-label="Repair history"
-      className="flex h-full flex-col border-r border-border-subtle bg-canvas"
+      className="flex h-full min-w-0 flex-col border-r border-border-subtle bg-canvas"
     >
       <header className="flex h-8 shrink-0 items-center border-b border-border-subtle px-3">
         <span className="text-xs font-semibold text-fg">Repair history</span>
@@ -74,19 +74,21 @@ export function HistoryPanel(): React.JSX.Element {
 function HistoryRow({ entry }: { entry: RepairHistoryEntry }): React.JSX.Element {
   const selectFile = useWorkspaceStore((s) => s.selectFile);
   return (
-    <li className="border-b border-border-subtle">
+    <li className="min-w-0 border-b border-border-subtle">
       <button
         type="button"
         onClick={() => {
           selectFile(entry.file);
         }}
         title={entry.rationale}
-        className="flex w-full flex-col items-start gap-1 px-3 py-2 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
+        className="flex w-full min-w-0 flex-col items-stretch gap-1 px-3 py-2 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
       >
-        <span className="flex w-full items-center gap-2">
+        {/* flex-wrap so the badge row degrades to two lines in a narrow pane rather than pushing the
+            timestamp out of the panel. */}
+        <span className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <VerdictBadge verdict={entry.verdict} />
           {entry.applied && (
-            <span className="flex items-center gap-0.5 text-[10px] text-success-text">
+            <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-success-text">
               <CheckIcon className="size-3" /> applied
             </span>
           )}
@@ -94,8 +96,11 @@ function HistoryRow({ entry }: { entry: RepairHistoryEntry }): React.JSX.Element
             {new Date(entry.createdAt).toLocaleString()}
           </span>
         </span>
-        <span className="truncate text-xs text-fg">{entry.rationale}</span>
-        <span className={cn('text-[11px] text-fg-muted')}>
+        {/* `truncate` needs a width to truncate *to*. Under the previous `items-start` these spans
+            sized to their content, so a long rationale or a long rule id simply ran past the panel
+            edge and scrolled the whole list sideways. items-stretch + min-w-0 gives them the pane. */}
+        <span className="block min-w-0 truncate text-xs text-fg">{entry.rationale}</span>
+        <span className={cn('block min-w-0 truncate text-[11px] text-fg-muted')}>
           {basename(entry.file)}
           {entry.symbolName !== null && ` · ${entry.symbolName}`} · {entry.source} ({entry.ruleId})
         </span>

@@ -52,64 +52,73 @@ export function EditorArea(): React.JSX.Element {
 
   return (
     <section aria-label="Editor" className="flex h-full flex-col bg-inset">
-      <div
-        role="tablist"
-        aria-label="Open files"
-        className="flex h-8 shrink-0 items-stretch overflow-x-auto border-b border-border-subtle bg-canvas"
-      >
-        {tabs.map((tab) => {
-          const isDirty = dirty.includes(tab.relPath);
-          return (
-            <div
-              key={tab.relPath}
-              className={cn(
-                'group flex items-center gap-1 border-r border-border-subtle pl-3 pr-1 text-xs',
-                tab.relPath === activeTab ? 'bg-inset text-fg' : 'text-fg-muted hover:text-fg',
-              )}
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab.relPath === activeTab}
-                onClick={() => {
-                  setActive(tab.relPath);
-                }}
-                className="flex max-w-40 items-center gap-1.5 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
-                title={isDirty ? `${tab.relPath} — unsaved changes` : tab.relPath}
-              >
-                <span className="truncate">{tab.name}</span>
-                {isDirty && (
-                  <span
-                    aria-label="Unsaved changes"
-                    title="Unsaved changes — Ctrl+S to save"
-                    className="size-1.5 shrink-0 rounded-full bg-accent"
-                  />
+      {/* The strip is a scroller (the tabs) plus a pinned trailing island (Save). They used to be
+          one flex row, which meant Save rode `ml-auto` *inside* the scrollable content: as soon as
+          enough files were open to overflow, the only Save button scrolled off the right edge and
+          could not be reached without scrolling the tabs away first. */}
+      <div className="flex h-8 shrink-0 items-stretch border-b border-border-subtle bg-canvas">
+        <div
+          role="tablist"
+          aria-label="Open files"
+          className="flex min-w-0 flex-1 items-stretch overflow-x-auto"
+        >
+          {tabs.map((tab) => {
+            const isDirty = dirty.includes(tab.relPath);
+            return (
+              <div
+                key={tab.relPath}
+                className={cn(
+                  // shrink-0: the strip scrolls horizontally, so tabs must keep their width rather
+                  // than compressing every open file into an unreadable sliver as more are opened.
+                  'group flex shrink-0 items-center gap-1 border-r border-border-subtle pl-3 pr-1 text-xs',
+                  tab.relPath === activeTab ? 'bg-inset text-fg' : 'text-fg-muted hover:text-fg',
                 )}
-              </button>
-              <button
-                type="button"
-                aria-label={`Close ${tab.name}`}
-                onClick={() => {
-                  // Never discard unsaved work silently.
-                  if (
-                    isDirty &&
-                    !window.confirm(`${tab.name} has unsaved changes. Close without saving?`)
-                  ) {
-                    return;
-                  }
-                  disposeModel(tab.relPath);
-                  closeTab(tab.relPath);
-                }}
-                className="rounded-sm p-0.5 text-fg-muted opacity-0 hover:bg-hover hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
               >
-                <WinCloseIcon className="size-3.5" />
-              </button>
-            </div>
-          );
-        })}
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab.relPath === activeTab}
+                  onClick={() => {
+                    setActive(tab.relPath);
+                  }}
+                  className="flex min-w-0 max-w-40 items-center gap-1.5 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
+                  title={isDirty ? `${tab.relPath} — unsaved changes` : tab.relPath}
+                >
+                  <span className="min-w-0 truncate">{tab.name}</span>
+                  {isDirty && (
+                    <span
+                      aria-label="Unsaved changes"
+                      title="Unsaved changes — Ctrl+S to save"
+                      className="size-1.5 shrink-0 rounded-full bg-accent"
+                    />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Close ${tab.name}`}
+                  onClick={() => {
+                    // Never discard unsaved work silently.
+                    if (
+                      isDirty &&
+                      !window.confirm(`${tab.name} has unsaved changes. Close without saving?`)
+                    ) {
+                      return;
+                    }
+                    disposeModel(tab.relPath);
+                    closeTab(tab.relPath);
+                  }}
+                  className="rounded-sm p-0.5 text-fg-muted opacity-0 hover:bg-hover hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+                >
+                  <WinCloseIcon className="size-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
         {/* An explicit Save, because Ctrl+S is muscle memory for some people and invisible to
-            others. Disabled when there is nothing to save, so it also reports the file's state. */}
-        <div className="ml-auto flex shrink-0 items-center gap-2 pr-2 pl-3">
+            others. Disabled when there is nothing to save, so it also reports the file's state.
+            Outside the scroller, so it stays put however many files are open. */}
+        <div className="flex shrink-0 items-center gap-2 border-l border-border-subtle pr-2 pl-3">
           {saving !== null && <span className="text-[11px] text-fg-muted">Saving…</span>}
           <button
             type="button"

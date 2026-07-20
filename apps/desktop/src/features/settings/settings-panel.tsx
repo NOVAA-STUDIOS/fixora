@@ -36,15 +36,18 @@ export function SettingsPanel(): React.JSX.Element {
   return (
     <section
       aria-label="Settings"
-      className="flex h-full min-w-0 flex-col overflow-y-auto overflow-x-hidden border-r border-border-subtle bg-canvas"
+      className="flex h-full min-w-0 flex-col border-r border-border-subtle bg-canvas"
     >
       <header className="flex h-8 shrink-0 items-center border-b border-border-subtle px-3">
         <span className="text-xs font-semibold text-fg">Settings</span>
       </header>
-      <div className="flex flex-col gap-6 p-4">
+      {/* The scroll lives on the content, not on the section: with `overflow-y-auto` on the section
+          the header was part of the scrolled content and slid out of view, unlike every other panel
+          in the app, whose header is pinned. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden p-4">
         <AppearanceSettings />
         <EditorSettings />
-      <StartupSettings />
+        <StartupSettings />
         <AiSettings />
         <LicenseSettings />
         <PrivacySettings />
@@ -160,7 +163,7 @@ function AiSettings(): React.JSX.Element {
           role="status"
           className="flex items-start justify-between gap-3 rounded border border-border-subtle bg-inset px-3 py-2"
         >
-          <p className="text-xs leading-relaxed text-fg-secondary">
+          <p className="min-w-0 text-xs leading-relaxed text-fg-secondary [overflow-wrap:anywhere]">
             <span className="font-medium text-fg">Model changed.</span>{' '}
             <span className="font-mono">{config.migratedFrom}</span> is no longer offered by
             OpenRouter, so Fixora switched you to <span className="font-mono">{model}</span>. Pick a
@@ -207,10 +210,10 @@ function AiSettings(): React.JSX.Element {
 
       {configured ? (
         <div className="flex items-center justify-between gap-4">
-          <span className="text-sm text-fg">
+          <span className="min-w-0 truncate text-sm text-fg">
             Key configured <span className="text-fg-muted">({config?.keyHint ?? '••••'})</span>
           </span>
-          <Button variant="ghost" size="sm" onClick={() => void clearKey()}>
+          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void clearKey()}>
             Remove key
           </Button>
         </div>
@@ -229,10 +232,13 @@ function AiSettings(): React.JSX.Element {
               onChange={(e) => {
                 setDraftKey(e.target.value);
               }}
-              className="flex-1"
+              // min-w-0: an input is a flex item with an intrinsic minimum width, so `flex-1` alone
+              // will not let it shrink and it pushes the button out of a narrow pane instead.
+              className="min-w-0 flex-1"
             />
             <Button
               size="sm"
+              className="shrink-0"
               onClick={() => void save()}
               disabled={saving || draftKey.trim().length === 0}
             >
@@ -284,11 +290,11 @@ function LicenseSettings(): React.JSX.Element {
     <Group title="License">
       {pro ? (
         <div className="flex items-center justify-between gap-4">
-          <span className="text-sm text-fg">
+          <span className="min-w-0 text-sm text-fg [overflow-wrap:anywhere]">
             Fixora Pro — thank you for supporting Fixora
             {status?.licensedTo !== null && status !== null ? ` (${status.licensedTo})` : ''}.
           </span>
-          <Button variant="ghost" size="sm" onClick={() => void deactivate()}>
+          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void deactivate()}>
             Remove
           </Button>
         </div>
@@ -311,10 +317,11 @@ function LicenseSettings(): React.JSX.Element {
               onChange={(e) => {
                 setDraft(e.target.value);
               }}
-              className="flex-1"
+              className="min-w-0 flex-1"
             />
             <Button
               size="sm"
+              className="shrink-0"
               onClick={() => void activateNow()}
               disabled={busy || draft.trim().length === 0}
             >
@@ -336,7 +343,7 @@ function EditorSettings(): React.JSX.Element {
   return (
     <Group title="Editor">
       <div className="flex items-start justify-between gap-4">
-        <label htmlFor={switchId} className="flex flex-col gap-0.5">
+        <label htmlFor={switchId} className="flex min-w-0 flex-col gap-0.5">
           <span className="text-sm text-fg">Auto save</span>
           <span className="max-w-md text-xs text-fg-muted">
             Off by default. When on, an edited file is written about a second after you stop typing.
@@ -345,6 +352,7 @@ function EditorSettings(): React.JSX.Element {
           </span>
         </label>
         <Switch
+          className="shrink-0"
           id={switchId}
           checked={autoSave}
           onCheckedChange={setAutoSave}
@@ -372,6 +380,7 @@ function StartupSettings(): React.JSX.Element {
           </span>
         </label>
         <Switch
+          className="shrink-0"
           id={switchId}
           checked={reopenLastProject}
           onCheckedChange={setReopenLastProject}
@@ -390,7 +399,7 @@ function PrivacySettings(): React.JSX.Element {
   return (
     <Group title="Privacy">
       <div className="flex items-start justify-between gap-4">
-        <label htmlFor={switchId} className="flex flex-col gap-0.5">
+        <label htmlFor={switchId} className="flex min-w-0 flex-col gap-0.5">
           <span className="text-sm text-fg">Anonymous usage telemetry</span>
           <span className="max-w-md text-xs text-fg-muted">
             Off by default. If enabled, Fixora sends anonymous, event-level counts (like &ldquo;a
@@ -398,6 +407,7 @@ function PrivacySettings(): React.JSX.Element {
           </span>
         </label>
         <Switch
+          className="shrink-0"
           id={switchId}
           checked={telemetryEnabled}
           onCheckedChange={setTelemetryEnabled}
@@ -416,9 +426,11 @@ function Keybindings(): React.JSX.Element {
     <Group title="Keyboard shortcuts">
       <ul className="flex flex-col divide-y divide-border-subtle">
         {commands.map((command) => (
-          <li key={command.id} className="flex items-center justify-between py-1.5 text-sm">
-            <span className="text-fg-secondary">{command.title}</span>
-            {command.keybinding !== undefined && <Kbd>{formatBinding(command.keybinding)}</Kbd>}
+          <li key={command.id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+            <span className="min-w-0 truncate text-fg-secondary">{command.title}</span>
+            {command.keybinding !== undefined && (
+              <Kbd className="shrink-0">{formatBinding(command.keybinding)}</Kbd>
+            )}
           </li>
         ))}
       </ul>

@@ -102,7 +102,7 @@ export function SplashScreen({
             <div className="motion-safe:animate-[fx-splash-sweep_1.4s_ease-in-out_infinite] h-full w-1/3 rounded-full bg-accent" />
           </div>
           {/* aria-live so the sequence is announced rather than silently swapped under a reader. */}
-          <p aria-live="polite" className="text-xs text-fg-muted">
+          <p aria-live="polite" className="max-w-xs px-6 text-center text-xs text-fg-muted">
             {message}
           </p>
         </div>
