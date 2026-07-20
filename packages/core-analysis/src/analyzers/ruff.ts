@@ -40,7 +40,8 @@ function toRelPosix(root: string, absPath: string): string {
 }
 
 /** Where `scripts/vendor-ruff.mjs` places the verified binary, relative to the package root. */
-export const RUFF_VENDOR_PATH = process.platform === 'win32' ? 'vendor/ruff/ruff.exe' : 'vendor/ruff/ruff';
+export const RUFF_VENDOR_PATH =
+  process.platform === 'win32' ? 'vendor/ruff/ruff.exe' : 'vendor/ruff/ruff';
 
 /**
  * The rules the bundled tier selects, per Engineering Spec Section 11: every rule must flag a defect,
@@ -81,6 +82,7 @@ export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
       try {
         run = await runner({
           command: tool.command,
+          env: tool.env,
           // A bundled run has no ruff.toml to obey, so it names its own rule set and refuses to
           // pick up any config it happens to find above the workspace. Tier 1 keeps deferring to the
           // project's own configuration entirely.

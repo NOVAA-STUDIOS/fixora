@@ -17,6 +17,28 @@ import { delimiter, dirname, join } from 'node:path';
 export interface ResolvedTool {
   command: string;
   args: readonly string[];
+  /** Extra environment the child needs. Merged over the parent's env by the runner. */
+  env?: Readonly<Record<string, string>> | undefined;
+}
+
+/**
+ * Running a Node script through `process.execPath` assumes that executable *is* Node. Inside
+ * Electron it is not: `process.execPath` is `electron.exe`, and `electron.exe script.js` boots a
+ * full Electron app rather than a Node process. The script still runs — ESLint even writes correct
+ * JSON to stdout — but the Electron event loop has no reason to end, so the child never exits and
+ * is only reclaimed by the runner's 30s SIGKILL. Analysis therefore returned the RIGHT findings
+ * roughly 31 seconds late, which reads as "the analyzer found nothing" to anyone who stops waiting.
+ *
+ * `ELECTRON_RUN_AS_NODE=1` is Electron's supported switch for exactly this: the binary behaves as
+ * plain Node and exits when the script does. Measured on the sample that exposed it: 9.9s -> 3.0s
+ * from a shell, and 30s-until-killed -> ~1.2s from inside the analysis utility process, with
+ * byte-identical output.
+ *
+ * Set only when the host really is Electron, so a plain-Node host (tests, the benchmark CLI) spawns
+ * exactly as before.
+ */
+function nodeChildEnv(): Readonly<Record<string, string>> | undefined {
+  return process.versions['electron'] === undefined ? undefined : { ELECTRON_RUN_AS_NODE: '1' };
 }
 
 /** Resolve a Node package's executable to `node <bin.js>`, from the workspace's own install. */
@@ -83,7 +105,7 @@ function readBinFrom(pkgJsonPath: string, binName: string): ResolvedTool | null 
   if (rel === undefined) return null;
   const binPath = join(dirname(pkgJsonPath), rel);
   if (!existsSync(binPath)) return null;
-  return { command: process.execPath, args: [binPath] };
+  return { command: process.execPath, args: [binPath], env: nodeChildEnv() };
 }
 
 /**

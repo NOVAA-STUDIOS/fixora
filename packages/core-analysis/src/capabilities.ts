@@ -1,6 +1,6 @@
 import type { WorkspaceCapabilities } from './analyzer.js';
-import { runTool, type ToolRunner } from './process/run-tool.js';
 import { RUFF_VENDOR_PATH } from './analyzers/ruff.js';
+import { runTool, type ToolRunner } from './process/run-tool.js';
 import {
   resolveBundledBinary,
   resolveBundledNodeTool,
@@ -74,6 +74,7 @@ export async function detectCapabilities(
         const run = await runner({
           command: resolved.command,
           args: [...resolved.args, ...spec.versionArgs],
+          env: resolved.env,
           cwd: root,
           signal: new AbortController().signal,
           timeoutMs: 5000,

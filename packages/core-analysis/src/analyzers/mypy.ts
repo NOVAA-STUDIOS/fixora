@@ -41,6 +41,7 @@ export function createMypyAnalyzer(deps: AdapterDeps = {}): Analyzer {
       try {
         run = await runner({
           command: tool.command,
+          env: tool.env,
           args: [
             ...tool.args,
             '--no-error-summary',

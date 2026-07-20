@@ -78,6 +78,7 @@ export function createEslintAnalyzer(deps: AdapterDeps = {}): Analyzer {
       try {
         run = await runner({
           command: tool.command,
+          env: tool.env,
           args: [...tool.args, ...configArgs, '--format', 'json', '.'],
           cwd: context.root,
           signal,

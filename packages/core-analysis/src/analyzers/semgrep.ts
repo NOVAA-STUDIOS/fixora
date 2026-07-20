@@ -89,6 +89,7 @@ export function createSemgrepAnalyzer(deps: AdapterDeps = {}): Analyzer {
       try {
         run = await runner({
           command: tool.command,
+          env: tool.env,
           args: [...tool.args, 'scan', '--json', '--quiet', '--config', config, '.'],
           cwd: context.root,
           signal,
