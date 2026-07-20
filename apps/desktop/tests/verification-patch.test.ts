@@ -112,7 +112,6 @@ describe('computeVerdict (ADR-003)', () => {
   });
 });
 
-
 /**
  * Severity parity.
  *
