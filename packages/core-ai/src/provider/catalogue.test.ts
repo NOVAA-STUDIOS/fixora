@@ -145,3 +145,64 @@ describe('isModelAvailable', () => {
     expect(isModelAvailable(catalogue, 'vendor/thing')).toBe(false);
   });
 });
+
+/**
+ * Capability detection, measured from provider metadata.
+ *
+ * The bug these guard against: Fixora's default model list contained three models, and on
+ * 2026-07-20 the live catalogue reported that ALL THREE were incapable of structured output (one
+ * had been retired entirely). Fixora asked every one of them for schema-constrained JSON, none
+ * could honour it, and every repair failed. Nothing in the code checked — capability was assumed.
+ */
+describe('structured-output capability', () => {
+  const raw = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: 'x/y:free',
+    name: 'Y',
+    pricing: { prompt: '0', completion: '0' },
+    supported_parameters: ['structured_outputs', 'response_format'],
+    context_length: 128000,
+    ...over,
+  });
+
+  it('reads structured output from supported_parameters', () => {
+    expect(toCatalogueModel(raw())?.structuredOutput).toBe(true);
+  });
+
+  it('fails CLOSED when the provider does not list the capability', () => {
+    expect(toCatalogueModel(raw({ supported_parameters: ['temperature'] }))?.structuredOutput).toBe(
+      false,
+    );
+  });
+
+  it('fails CLOSED when supported_parameters is absent or malformed', () => {
+    // "We do not know" must never be read as "yes" — that assumption is the whole bug.
+    expect(toCatalogueModel(raw({ supported_parameters: undefined }))?.structuredOutput).toBe(
+      false,
+    );
+    expect(toCatalogueModel(raw({ supported_parameters: 'nope' }))?.structuredOutput).toBe(false);
+    expect(toCatalogueModel(raw({ supported_parameters: null }))?.structuredOutput).toBe(false);
+  });
+
+  it('records the context window, and null when unstated', () => {
+    expect(toCatalogueModel(raw())?.contextLength).toBe(128000);
+    expect(toCatalogueModel(raw({ context_length: undefined }))?.contextLength).toBeNull();
+  });
+
+  it('prefers a capable general model over an incapable code model', () => {
+    // The exact inversion that shipped: a "code" model that cannot return parseable output is
+    // useless for repair, which is the product.
+    const chosen = pickDefaultModel([
+      toCatalogueModel(raw({ id: 'a/code:free', name: 'Coder', supported_parameters: [] }))!,
+      toCatalogueModel(raw({ id: 'b/general:free', name: 'General' }))!,
+    ]);
+    expect(chosen).toBe('b/general:free');
+  });
+
+  it('still returns something when nothing free is capable, rather than refusing', () => {
+    // Degraded, not dead: the recovery path gives an incapable model a real chance of working.
+    const chosen = pickDefaultModel([
+      toCatalogueModel(raw({ id: 'a/code:free', name: 'Coder', supported_parameters: [] }))!,
+    ]);
+    expect(chosen).toBe('a/code:free');
+  });
+});

@@ -23,6 +23,16 @@ export interface CatalogueModel {
   readonly free: boolean;
   /** The model presents itself as code/programming oriented (name or description). */
   readonly codeCapable: boolean;
+  /**
+   * Whether the provider says this model can honour a JSON-schema `response_format`.
+   *
+   * Read from OpenRouter's own `supported_parameters`, never guessed. This is the field whose
+   * absence caused every repair to fail: Fixora asked all 338 models for schema-constrained output,
+   * but only 264 support it — and only 5 of the 14 free models do.
+   */
+  readonly structuredOutput: boolean;
+  /** Provider-reported context window in tokens, or null when the provider does not say. */
+  readonly contextLength: number | null;
 }
 
 /**
@@ -32,9 +42,15 @@ export interface CatalogueModel {
  * then any free model at all.
  */
 export const PREFERRED_FREE_CODE_MODELS: readonly string[] = [
-  'cohere/command-a-mini-code:free',
-  'cohere/north-mini-code:free',
-  'poolside/laguna-xs-2.1:free',
+  // Measured against the live catalogue on 2026-07-20: every one of these reports
+  // `structured_outputs` in its supported_parameters. The previous list did not — all three entries
+  // were incapable of schema-constrained output (one had been retired entirely), which made repair
+  // fail 100% of the time for any user who accepted the default.
+  'openai/gpt-oss-20b:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'nvidia/nemotron-nano-9b-v2:free',
+  'tencent/hy3:free',
 ];
 
 interface RawModel {
@@ -42,6 +58,9 @@ interface RawModel {
   name?: unknown;
   description?: unknown;
   pricing?: { prompt?: unknown; completion?: unknown } | null;
+  /** OpenRouter's per-model capability list. The authority on what a model can actually do. */
+  supported_parameters?: unknown;
+  context_length?: unknown;
 }
 
 /** "0", "0.0", 0 all mean free; anything unparseable is treated as paid (fail closed on cost). */
@@ -73,6 +92,17 @@ export function toCatalogueModel(raw: RawModel | null | undefined): CatalogueMod
     name,
     free,
     codeCapable: CODE_HINT.test(name) || CODE_HINT.test(description) || CODE_HINT.test(raw.id),
+    // Fail CLOSED on capability: an absent or malformed supported_parameters means "we do not know",
+    // and treating unknown as capable is precisely the assumption that broke repair. A model wrongly
+    // marked incapable loses schema enforcement and still works via recovery; a model wrongly marked
+    // capable produces output nothing can parse.
+    structuredOutput:
+      Array.isArray(raw.supported_parameters) &&
+      raw.supported_parameters.includes('structured_outputs'),
+    contextLength:
+      typeof raw.context_length === 'number' && Number.isFinite(raw.context_length)
+        ? raw.context_length
+        : null,
   };
 }
 
@@ -113,6 +143,17 @@ export function pickDefaultModel(catalogue: readonly CatalogueModel[]): string |
   for (const preferred of PREFERRED_FREE_CODE_MODELS) {
     if (isModelAvailable(catalogue, preferred)) return preferred;
   }
+  // Structured output before code-orientation. A "code" model that cannot honour the response
+  // schema fails every repair, which is worse than a general model that can: repair is the product,
+  // and a model that cannot produce parseable output cannot do it at all. This ordering is the one
+  // that was inverted — the old list preferred code-branded models and never checked capability.
+  const freeCapableCode = catalogue.find((m) => m.free && m.structuredOutput && m.codeCapable);
+  if (freeCapableCode !== undefined) return freeCapableCode.id;
+  const freeCapable = catalogue.find((m) => m.free && m.structuredOutput);
+  if (freeCapable !== undefined) return freeCapable.id;
+  // Nothing free can do structured output. Fall back to the old behaviour rather than refusing —
+  // the recovery path in profiles/extract.ts gives these models a real chance of working — but this
+  // is a degraded selection and the caller should say so.
   const freeCode = catalogue.find((m) => m.free && m.codeCapable);
   if (freeCode !== undefined) return freeCode.id;
   const anyFree = catalogue.find((m) => m.free);
