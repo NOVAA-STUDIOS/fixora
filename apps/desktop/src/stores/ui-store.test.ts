@@ -46,7 +46,11 @@ describe('ui-store rehydration is a trust boundary', () => {
     // Layout is now per-view: {view: {pane: size}}. Non-numeric pane sizes are dropped, and a
     // view whose sizes are all junk is dropped with them (as is a flat pre-per-view layout).
     const s = await loadStoreWith({
-      panelLayout: { workspace: { a: 20, b: 'wide', c: NaN, d: 30 }, findings: 'nope', history: {} },
+      panelLayout: {
+        workspace: { a: 20, b: 'wide', c: NaN, d: 30 },
+        findings: 'nope',
+        history: {},
+      },
     });
     expect(s.panelLayout).toEqual({ workspace: { a: 20, d: 30 } });
   });

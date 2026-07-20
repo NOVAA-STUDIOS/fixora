@@ -5,6 +5,7 @@ import { useAppCommands } from '../commands/use-app-commands.js';
 import { ActivityRail } from './activity-rail.js';
 import { StatusBar } from './status-bar.js';
 import { TitleBar } from './title-bar.js';
+import { Toaster } from './toaster.js';
 import { Workbench } from './workbench.js';
 
 /**
@@ -41,6 +42,7 @@ export function AppShell(): React.JSX.Element {
         <StatusBar />
       </div>
       <CommandPalette />
+      <Toaster />
     </CommandProvider>
   );
 }

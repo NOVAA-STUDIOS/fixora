@@ -1,5 +1,5 @@
 import { type AppInfo } from '@fixora/shared-types';
-import { app, shell } from 'electron';
+import { app, clipboard, shell } from 'electron';
 
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { registerHandler } from '../router.js';
@@ -19,6 +19,14 @@ export function registerSystemHandlers(deps: { workspace: WorkspaceService }): v
       electronVersion: process.versions.electron,
       isPackaged: app.isPackaged,
     };
+  });
+
+  registerHandler('system:copyToClipboard', ({ text }) => {
+    // Refuse empty writes rather than silently clearing the user's clipboard: "Copy" that wipes what
+    // you had is worse than "Copy" that tells you there was nothing to copy.
+    if (text.length === 0) return { copied: false };
+    clipboard.writeText(text);
+    return { copied: true };
   });
 
   registerHandler('system:revealInFolder', ({ path }) => {

@@ -19,6 +19,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
+import { copyToClipboard } from '../../lib/clipboard.js';
 import { basename } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
@@ -258,7 +259,7 @@ function HistoryRow({
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={() => {
-            void navigator.clipboard.writeText(entry.repairedCode);
+            void copyToClipboard(entry.repairedCode, { label: 'Repaired code copied' });
           }}
         >
           <CopyIcon className="size-4 text-fg-muted" />
