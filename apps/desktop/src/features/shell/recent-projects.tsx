@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
+import { copyToClipboard } from '../../lib/clipboard.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 /**
@@ -175,7 +176,8 @@ function RecentCard({
   const [copied, setCopied] = useState(false);
 
   const copyPath = (): void => {
-    void navigator.clipboard.writeText(workspace.rootPath).then(() => {
+    void copyToClipboard(workspace.rootPath, { label: 'Path copied' }).then((ok) => {
+      if (!ok) return;
       setCopied(true);
       window.setTimeout(() => {
         setCopied(false);

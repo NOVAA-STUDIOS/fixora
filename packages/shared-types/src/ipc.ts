@@ -78,6 +78,20 @@ export const contracts = {
     response: z.object({ revealed: z.boolean() }),
   },
 
+  /**
+   * Write text to the system clipboard, from MAIN.
+   *
+   * The renderer cannot do this itself and must not be given the ability to: the session denies every
+   * web permission by default (`setPermissionCheckHandler(() => false)`), which is the correct posture
+   * for a window that renders other people's source code — and it means `navigator.clipboard.writeText`
+   * rejects. Relaxing the permission to fix Copy would trade a real security property for a button.
+   * Main owns the clipboard instead, so the renderer asks rather than reaches.
+   */
+  'system:copyToClipboard': {
+    request: z.object({ text: z.string() }),
+    response: z.object({ copied: z.boolean() }),
+  },
+
   'workspace:pickFolder': {
     request: empty,
     // null when the user cancels the native dialog.

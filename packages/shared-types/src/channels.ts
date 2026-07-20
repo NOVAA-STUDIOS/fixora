@@ -22,6 +22,7 @@
 export const channels = [
   'system:getAppInfo',
   'system:revealInFolder',
+  'system:copyToClipboard',
   'window:minimize',
   'window:toggleMaximize',
   'window:close',

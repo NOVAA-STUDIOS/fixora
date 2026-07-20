@@ -2,6 +2,7 @@ import type { AiProposal } from '@fixora/shared-types';
 import { Button } from '@fixora/ui';
 import { useEffect } from 'react';
 
+import { copyToClipboard } from '../../lib/clipboard.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { DiffEditor } from '../editor/diff-editor.js';
@@ -269,7 +270,10 @@ function RepairResult({
           variant="ghost"
           size="sm"
           className="shrink-0"
-          onClick={() => void navigator.clipboard.writeText(proposal.repairedCode)}
+          // Disabled when there is genuinely nothing to copy, so the button's state matches what
+          // pressing it would do — rather than looking live and silently failing.
+          disabled={proposal.repairedCode.length === 0}
+          onClick={() => void copyToClipboard(proposal.repairedCode, { label: 'Repair copied' })}
         >
           Copy
         </Button>
