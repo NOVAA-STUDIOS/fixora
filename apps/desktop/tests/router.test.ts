@@ -161,7 +161,7 @@ describe('handler errors: authored vs unexpected', () => {
       .handle.mock.calls.find((c) => c[0] === 'system:getAppInfo');
     if (call === undefined) throw new Error('router did not register the channel');
     const listen = call[1] as unknown as IpcListener;
-    const result = (await listen({ senderFrame: { parent: null } }, envelope)) as {
+    const result = (await listen({ senderFrame: { parent: null } }, envelope)) as unknown as {
       ok: boolean;
       error: { message: string; action: { type: string } };
     };
