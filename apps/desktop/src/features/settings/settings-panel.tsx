@@ -210,6 +210,54 @@ function AiSettings(): React.JSX.Element {
         />
       </Field>
 
+      {/* What the selected model can actually do, read from provider metadata. Shown here so a user
+          learns a limitation while CHOOSING a model, not after pressing Repair on a finding. */}
+      {config?.capabilities !== null && config?.capabilities !== undefined && (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <CapabilityBadge
+              label="Analyze"
+              supported
+              reason="Deterministic — no model required."
+            />
+            <CapabilityBadge
+              label="Explain"
+              supported={config.capabilities.profiles['explain']?.supported ?? true}
+              reason={config.capabilities.profiles['explain']?.reason ?? ''}
+            />
+            <CapabilityBadge
+              label="Repair"
+              supported={config.capabilities.profiles['repair']?.supported ?? false}
+              reason={config.capabilities.profiles['repair']?.reason ?? ''}
+            />
+            <CapabilityBadge
+              label="Test"
+              supported={config.capabilities.profiles['test']?.supported ?? false}
+              reason={config.capabilities.profiles['test']?.reason ?? ''}
+            />
+          </div>
+          {config.capabilities.profiles['repair']?.supported === false && (
+            <div className="flex flex-col gap-2 rounded-md border border-warn-border bg-warn-subtle/30 px-3 py-2.5">
+              <p className="text-xs leading-relaxed text-fg-secondary">
+                <span className="font-semibold text-fg">Repair will not work on this model.</span>{' '}
+                {config.capabilities.profiles['repair'].reason}
+              </p>
+              {config.suggestedModel !== null && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="self-start"
+                  onClick={() => void setModel(config.suggestedModel?.id ?? '')}
+                >
+                  Switch to {config.suggestedModel.name}
+                  {config.suggestedModel.free ? ' (free)' : ''}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {models?.notice !== null && models?.notice !== undefined && (
         <p className="text-xs text-warn-text">{models.notice}</p>
       )}
@@ -507,5 +555,33 @@ function ToggleField({
         aria-label={label}
       />
     </div>
+  );
+}
+
+/**
+ * One capability, stated plainly. Green means the provider says the model supports it; the muted
+ * state is not a failure, it is a fact about the model — so it reads as information, not an alarm.
+ */
+function CapabilityBadge({
+  label,
+  supported,
+  reason,
+}: {
+  label: string;
+  supported: boolean;
+  reason: string;
+}): React.JSX.Element {
+  return (
+    <span
+      title={supported ? `${label}: supported` : reason}
+      className={
+        supported
+          ? 'flex items-center gap-1 rounded-full bg-success-subtle px-2 py-0.5 text-[10px] font-medium text-success-text'
+          : 'flex items-center gap-1 rounded-full bg-inset px-2 py-0.5 text-[10px] font-medium text-fg-muted ring-1 ring-border-subtle ring-inset'
+      }
+    >
+      <span aria-hidden="true">{supported ? '✓' : '✗'}</span>
+      {label}
+    </span>
   );
 }

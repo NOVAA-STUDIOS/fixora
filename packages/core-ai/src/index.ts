@@ -69,3 +69,9 @@ export {
   type ParseResult,
 } from './profiles/schemas.js';
 export { prepareRequest, type PreparedRequest } from './pipeline/prepare.js';
+export {
+  capabilitiesFor,
+  suggestCapableModel,
+  type ModelCapabilities,
+  type ProfileSupport,
+} from './provider/capabilities.js';
