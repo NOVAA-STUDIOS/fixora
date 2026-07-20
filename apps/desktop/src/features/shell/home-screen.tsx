@@ -1,10 +1,9 @@
-import type { WorkspaceInfo } from '@fixora/shared-types';
-import { Button, FixoraMark, FolderIcon, Kbd, cn } from '@fixora/ui';
-import { useEffect, useState } from 'react';
+import { Button, FixoraMark, FolderIcon, Kbd } from '@fixora/ui';
 
-import { invoke } from '../../lib/bridge.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
+
+import { RecentProjects } from './recent-projects.js';
 
 /**
  * The Home screen: what Fixora shows when no project is open.
@@ -78,104 +77,4 @@ export function HomeScreen(): React.JSX.Element {
       </div>
     </div>
   );
-}
-
-/**
- * Recent projects as identifiable rows. A folder called `src` or `app` is ambiguous on its own —
- * the path is what tells you *which* one, and the timestamp is what tells you it is the one you
- * were in yesterday. That is the difference between a list you scan and a list you guess at.
- */
-function RecentProjects(): React.JSX.Element | null {
-  const openPath = useWorkspaceStore((s) => s.openPath);
-  const opening = useWorkspaceStore((s) => s.opening);
-  const [recent, setRecent] = useState<WorkspaceInfo[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void invoke('workspace:recent', {}).then((result) => {
-      if (cancelled) return;
-      setRecent(result.ok ? result.value.workspaces : []);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Skeletons rather than a blank gap: the section keeps its height, so the primary action above
-  // does not jump upward the moment the list resolves.
-  if (recent === null) {
-    return (
-      <section className="flex flex-col gap-2" aria-busy="true" aria-label="Recent projects">
-        <SectionLabel>Recent</SectionLabel>
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-14 animate-pulse rounded-lg border border-border-subtle bg-inset"
-            />
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  if (recent.length === 0) return null;
-
-  return (
-    <section className="flex flex-col gap-2" aria-label="Recent projects">
-      <SectionLabel>Recent</SectionLabel>
-      <div className="grid gap-1.5 sm:grid-cols-2">
-        {recent.slice(0, 6).map((w) => (
-          <button
-            key={w.id}
-            type="button"
-            disabled={opening}
-            onClick={() => void openPath(w.rootPath)}
-            title={w.rootPath}
-            className={cn(
-              'group flex min-w-0 items-center gap-3 rounded-lg border border-border-subtle bg-inset px-3 py-2.5 text-left',
-              'transition-[background-color,border-color,transform] duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
-              'hover:border-accent-border hover:bg-hover disabled:opacity-50',
-              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline',
-            )}
-          >
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-raised text-fg-muted transition-colors duration-(--fx-motion-duration-fast) group-hover:text-accent-text">
-              <FolderIcon className="size-4" />
-            </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-sm font-medium text-fg">{w.name}</span>
-              {/* dir: the path reads right-to-left here — the tail is the identifying part. */}
-              <span dir="rtl" className="truncate text-left text-xs text-fg-muted">
-                {w.rootPath}
-              </span>
-            </span>
-            <span className="ml-auto shrink-0 text-[11px] text-fg-muted tabular-nums">
-              {relativeTime(w.lastOpenedAt)}
-            </span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return (
-    <h2 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-muted">
-      {children}
-    </h2>
-  );
-}
-
-/** "2h", "3d" — short enough to sit in a row without competing with the project name. */
-function relativeTime(ms: number): string {
-  const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000));
-  if (seconds < 60) return 'just now';
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${String(minutes)}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${String(hours)}h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 30) return `${String(days)}d ago`;
-  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

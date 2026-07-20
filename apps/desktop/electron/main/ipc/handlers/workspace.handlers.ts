@@ -74,6 +74,16 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     workspaces: service.recent().map(toInfo),
   }));
 
+  registerHandler('workspace:removeRecent', ({ id }) => {
+    service.removeRecent(id);
+    return { workspaces: service.recent().map(toInfo) };
+  });
+
+  registerHandler('workspace:clearRecent', () => {
+    service.clearRecent();
+    return { workspaces: service.recent().map(toInfo) };
+  });
+
   registerHandler('workspace:current', (_req, { window }) => {
     const current = service.getCurrent();
     // The restore-on-launch path opens the workspace before any window exists; start the watcher

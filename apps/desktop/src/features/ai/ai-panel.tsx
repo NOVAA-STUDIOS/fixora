@@ -202,6 +202,16 @@ function IdleGuide({ configured }: { configured: boolean }): React.JSX.Element {
   );
 }
 
+/** A labelled fact. Reads as a value, not as prose, which is what confidence and tool names are. */
+function Chip({ label, value }: { label: string; value: string }): React.JSX.Element {
+  return (
+    <span className="flex items-center gap-1 rounded-md bg-inset px-1.5 py-0.5 text-[10px] ring-1 ring-border-subtle ring-inset">
+      <span className="uppercase tracking-wide text-fg-muted">{label}</span>
+      <span className="font-medium text-fg-secondary">{value}</span>
+    </span>
+  );
+}
+
 function RepairResult({
   proposal,
 }: {
@@ -215,14 +225,28 @@ function RepairResult({
     <div className="flex min-h-0 flex-1 flex-col">
       <VerdictBanner report={report} />
 
-      <div className="shrink-0 border-b border-border-subtle px-3 py-2 text-xs text-fg-secondary [overflow-wrap:anywhere]">
-        <p>{proposal.rationale}</p>
-        <p className="mt-1 text-fg-muted">
-          Confidence {Math.round(proposal.confidence * 100)}% · checked with {report.ran.join(', ')}
+      {/*
+        The explanation. Previously two undifferentiated grey lines: the model's reasoning and the
+        verification metadata set in the same size and colour, so neither was scannable. Now the
+        rationale is body text at readable leading, and the metadata is a row of discrete chips —
+        confidence and the tools that ran are *facts*, and facts read better as labelled values than
+        as a comma-separated sentence.
+      */}
+      <div className="flex shrink-0 flex-col gap-2 border-b border-border-subtle px-3 py-2.5">
+        <p className="text-xs leading-relaxed text-fg-secondary [overflow-wrap:anywhere]">
+          {proposal.rationale}
         </p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Chip label="Confidence" value={`${String(Math.round(proposal.confidence * 100))}%`} />
+          {report.ran.map((tool) => (
+            <Chip key={tool} label="Checked" value={tool} />
+          ))}
+        </div>
       </div>
 
-      <div className="min-h-0 flex-1">
+      {/* The diff gets every pixel left over. It is the artifact under review; everything above it
+          is context for reading it. */}
+      <div className="min-h-0 flex-1 border-b border-border-subtle">
         <DiffEditor
           original={proposal.originalCode}
           modified={proposal.repairedCode}
@@ -230,9 +254,12 @@ function RepairResult({
         />
       </div>
 
-      {/* flex-wrap: three buttons do not fit across the AI pane at its 240px minimum, and Apply is
-          the last one — the one that would have been pushed off the edge. */}
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border-subtle px-3 py-2">
+      {/*
+        The action bar. Apply is the primary and sits alone on the right where the eye finishes;
+        the secondary actions group left. It gets its own surface and real padding, because a row of
+        buttons crammed against a diff reads as part of the diff.
+      */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 bg-inset px-3 py-2.5">
         {/* Was "Reject", which read as a verdict rather than an action — and sat inches from a
             "Rejected patch" badge that means something else entirely. */}
         <Button variant="ghost" size="sm" className="shrink-0" onClick={dismiss}>
@@ -247,8 +274,9 @@ function RepairResult({
           Copy
         </Button>
         <Button
+          variant="primary"
           size="sm"
-          className="shrink-0"
+          className="ml-auto shrink-0"
           disabled={report.verdict === 'regression'}
           title={
             report.verdict === 'regression'

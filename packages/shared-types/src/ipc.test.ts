@@ -17,6 +17,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
     // That should be a visible line in a diff, which is what this assertion makes it.
     expect(channels).toEqual([
       'system:getAppInfo',
+      'system:revealInFolder',
       'window:minimize',
       'window:toggleMaximize',
       'window:close',
@@ -24,6 +25,8 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'workspace:pickFolder',
       'workspace:open',
       'workspace:recent',
+      'workspace:removeRecent',
+      'workspace:clearRecent',
       'workspace:current',
       'workspace:close',
       'fs:listDir',
@@ -42,6 +45,8 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'ai:cancel',
       'ai:applyRepair',
       'ai:history',
+      'ai:historyRemove',
+      'ai:historyClear',
       'license:get',
       'license:activate',
       'license:deactivate',

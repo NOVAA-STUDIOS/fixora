@@ -17,6 +17,8 @@ import { useUiStore } from '../../stores/ui-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
 
+import { ModelPicker } from './model-picker.js';
+
 const PURCHASE_URL = 'https://fixora.dev/pro';
 
 const LICENSE_REASON_MESSAGE: Record<string, string> = {
@@ -197,28 +199,15 @@ function AiSettings(): React.JSX.Element {
         htmlFor={modelId}
         description="Free models are listed first, so trying the beta costs nothing."
       >
-        <Select
+        <ModelPicker
+          id={modelId}
           value={model}
-          onValueChange={(v) => {
+          options={modelOptions}
+          loading={models === null}
+          onChange={(v) => {
             void setModel(v);
           }}
-        >
-          <SelectTrigger id={modelId} className="w-full">
-            <SelectValue
-              placeholder={modelOptions.length === 0 ? 'Loading models…' : 'Select a model'}
-            />
-          </SelectTrigger>
-          <SelectContent>
-            {/* Free first: the beta should not cost anyone credits to try. Paid models stay
-                available below — switching to Claude, GPT or Gemini is always the user's call. */}
-            {modelOptions.map((m) => (
-              // title: the full id stays reachable on hover once the label truncates.
-              <SelectItem key={m.id} value={m.id} title={m.id}>
-                {m.free ? `${m.name} · free` : m.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
       </Field>
 
       {models?.notice !== null && models?.notice !== undefined && (

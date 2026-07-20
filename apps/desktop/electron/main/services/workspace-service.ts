@@ -101,6 +101,23 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
     },
 
     /**
+     * Forget one recent, or all of them. This is a bookmark list: removing an entry deletes a row
+     * and nothing else — the folder on disk is never touched. It also *de-authorizes* the path,
+     * because "is a known recent" is one of the two things that make a renderer-supplied path
+     * openable; a forgotten project must go back to requiring a real pick.
+     */
+    removeRecent(id: string): void {
+      const row = deps.workspaces.recent(1000).find((w) => w.id === id);
+      if (row !== undefined) pickedThisSession.delete(row.rootPath);
+      deps.workspaces.remove(id);
+    },
+
+    clearRecent(): void {
+      pickedThisSession.clear();
+      deps.workspaces.removeAll();
+    },
+
+    /**
      * Re-open the most recent workspace whose folder still exists (like an IDE reopening your last
      * project). A recent whose folder was deleted or moved is skipped, not an error. Returns the
      * reopened workspace, or null if there is nothing to restore.

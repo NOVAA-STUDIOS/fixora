@@ -40,24 +40,39 @@ export function VerdictBanner({ report }: { report: VerificationReport }): React
       // screen-reader user must not have to hunt for it.
       role="status"
       className={[
-        'shrink-0 border-b border-border-subtle px-3 py-2 text-xs',
+        // A left accent rail instead of a full-bleed tinted block. The old banner filled the pane
+        // with colour and ran to four lines, which pushed the diff — the thing the user is actually
+        // here to read — below the fold in a pane that is 260px wide to begin with. The verdict has
+        // to be unmissable, not large: colour on the edge, one line of label, one line of reason.
+        'flex shrink-0 items-start gap-2.5 border-b border-l-2 border-border-subtle px-3 py-2 text-xs',
         rejected
-          ? 'bg-danger-subtle text-danger-text'
+          ? 'border-l-danger bg-danger-subtle/40'
           : verified
-            ? 'bg-success-subtle text-success-text'
-            : 'bg-warn-subtle text-fg-secondary',
+            ? 'border-l-success bg-success-subtle/40'
+            : 'border-l-warn bg-warn-subtle/40',
       ].join(' ')}
     >
       {/* The same badge the history list uses, so one verdict looks identical wherever it appears. */}
-      <p className="flex items-center gap-1.5 font-medium">
-        <VerdictBadge verdict={report.verdict} />
-        {label}
-      </p>
-      <p className="mt-0.5 [overflow-wrap:anywhere]">{reason}</p>
-      {!verified && (
-        // The sentence the user most needs and is least likely to assume.
-        <p className="mt-1 font-medium">Your source code has NOT been modified.</p>
-      )}
+      <VerdictBadge verdict={report.verdict} />
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <p
+          className={[
+            'font-semibold',
+            rejected ? 'text-danger-text' : verified ? 'text-success-text' : 'text-fg',
+          ].join(' ')}
+        >
+          {label}
+        </p>
+        <p className="leading-relaxed text-fg-secondary [overflow-wrap:anywhere]">{reason}</p>
+        {!verified && (
+          // The sentence the user most needs and is least likely to assume. The emphasis on NOT is
+          // deliberate and stays: this is the line that separates "Fixora refused a bad patch" from
+          // "Fixora damaged my file", and softening it for visual tidiness would trade the clarity
+          // of a safety statement for a slightly calmer-looking banner. Weight is what changed —
+          // medium-weight body copy rather than a bold third paragraph.
+          <p className="font-medium text-fg">Your source code has NOT been modified.</p>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { WorkspaceInfo } from '@fixora/shared-types';
-import { Button, ChevronDownIcon, FolderIcon, WinCloseIcon, cn } from '@fixora/ui';
+import { Button, ChevronDownIcon, ConfirmDialog, FolderIcon, WinCloseIcon, cn } from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
@@ -124,18 +124,13 @@ function OpenMenu(): React.JSX.Element {
   const closeAllTabs = useEditorStore((s) => s.closeAll);
   const dirtyCount = useEditorStore((s) => s.dirty.length);
   const [open, setOpen] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   // Closing throws away every open tab, so unsaved work gets one clear chance to survive.
   const closeWorkspace = async (): Promise<void> => {
-    if (
-      dirtyCount > 0 &&
-      !window.confirm(
-        dirtyCount === 1
-          ? '1 file has unsaved changes. Close this project without saving?'
-          : `${String(dirtyCount)} files have unsaved changes. Close this project without saving?`,
-      )
-    ) {
+    if (dirtyCount > 0) {
+      setConfirmClose(true);
       return;
     }
     closeAllTabs();
@@ -243,6 +238,22 @@ function OpenMenu(): React.JSX.Element {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={confirmClose}
+        onOpenChange={setConfirmClose}
+        title="Close project without saving?"
+        description={
+          dirtyCount === 1
+            ? '1 file has unsaved changes. Closing this project discards them.'
+            : `${String(dirtyCount)} files have unsaved changes. Closing this project discards them.`
+        }
+        confirmLabel="Discard and close"
+        onConfirm={() => {
+          closeAllTabs();
+          void close();
+        }}
+      />
     </div>
   );
 }

@@ -25,10 +25,10 @@ describe('ui-store rehydration is a trust boundary', () => {
       theme: 'light',
       density: 'compact',
       activeView: 'findings',
-      panelLayout: { primary: 30 },
+      panelLayout: { workspace: { primary: 30 } },
     });
     expect([s.theme, s.density, s.activeView]).toEqual(['light', 'compact', 'findings']);
-    expect(s.panelLayout).toEqual({ primary: 30 });
+    expect(s.panelLayout).toEqual({ workspace: { primary: 30 } });
   });
 
   it('coerces a stale activeView (renamed view) to the default rather than crashing', async () => {
@@ -43,8 +43,12 @@ describe('ui-store rehydration is a trust boundary', () => {
   });
 
   it('drops non-numeric / corrupt panel layout entries', async () => {
-    const s = await loadStoreWith({ panelLayout: { a: 20, b: 'wide', c: NaN, d: 30 } });
-    expect(s.panelLayout).toEqual({ a: 20, d: 30 });
+    // Layout is now per-view: {view: {pane: size}}. Non-numeric pane sizes are dropped, and a
+    // view whose sizes are all junk is dropped with them (as is a flat pre-per-view layout).
+    const s = await loadStoreWith({
+      panelLayout: { workspace: { a: 20, b: 'wide', c: NaN, d: 30 }, findings: 'nope', history: {} },
+    });
+    expect(s.panelLayout).toEqual({ workspace: { a: 20, d: 30 } });
   });
 
   it('survives a completely corrupt payload', async () => {

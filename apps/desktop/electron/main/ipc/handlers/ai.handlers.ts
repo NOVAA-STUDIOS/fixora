@@ -72,4 +72,20 @@ export function registerAiHandlers(deps: {
     if (workspace === null) return { entries: [] };
     return { entries: deps.history.list(workspace.id) };
   });
+
+  // Deleting history removes the *record* of a repair. It never reverts the change the repair made
+  // — that already lives in the file, and undoing it is the editor's job, not the audit log's.
+  registerHandler('ai:historyRemove', ({ id }) => {
+    const workspace = deps.workspace.getCurrent();
+    if (workspace === null) return { entries: [] };
+    deps.history.remove(id);
+    return { entries: deps.history.list(workspace.id) };
+  });
+
+  registerHandler('ai:historyClear', () => {
+    const workspace = deps.workspace.getCurrent();
+    if (workspace === null) return { entries: [] };
+    deps.history.clearWorkspace(workspace.id);
+    return { entries: deps.history.list(workspace.id) };
+  });
 }
