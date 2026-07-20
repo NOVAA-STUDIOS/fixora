@@ -296,7 +296,18 @@ export const AiRunResponseSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('blocked'), matches: z.array(GateMatchInfoSchema) }),
   z.object({
     status: z.literal('error'),
-    code: z.enum(['no_key', 'provider_error', 'schema_error', 'not_found', 'cancelled']),
+    // `internal_error` is Fixora's own fault, and it exists so an unexpected throw inside the
+    // run can still travel as a typed VALUE. Without it the only way out was an exception,
+    // which the router redacts to "Something went wrong handling that action." — the cause
+    // reached neither the user nor the log.
+    code: z.enum([
+      'no_key',
+      'provider_error',
+      'schema_error',
+      'not_found',
+      'cancelled',
+      'internal_error',
+    ]),
     message: z.string(),
   }),
 ]);

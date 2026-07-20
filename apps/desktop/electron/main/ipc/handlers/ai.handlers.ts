@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { ApplyOutcome, StaleRangeCheck } from '@fixora/shared-types';
+import { UserFacingError, type ApplyOutcome, type StaleRangeCheck } from '@fixora/shared-types';
 
 import type { AiService } from '../../ai/ai-service.js';
 import type { KeyStore } from '../../ai/key-store.js';
@@ -9,6 +9,7 @@ import type { RepairHistoryRepository } from '../../db/repositories.js';
 import { readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { sliceLines, spliceLines } from '../../verification/patch.js';
+import { emitToWindow } from '../emit.js';
 import { registerHandler } from '../router.js';
 
 /**
@@ -28,17 +29,62 @@ export function registerAiHandlers(deps: {
   // Resolving here is what makes a retired model self-heal: every config read checks the stored id
   // against the live catalogue, migrates it if it is gone, and reports what it moved away from so the
   // UI can explain itself. A failed fetch resolves to unchanged — we never migrate on a guess.
+  /**
+   * Called on every mount of the assistant panel and of Settings, and it does real I/O: keychain
+   * decryption plus a network fetch of the model catalogue. Its response type has no error variant,
+   * so a failure can only leave as an exception — which the router redacts. That made a network
+   * blip or a keychain problem indistinguishable from any other fault, reported as "Something went
+   * wrong handling that action." on the screen where you go to repair code.
+   *
+   * `UserFacingError` is the mechanism for exactly this: an authored message the router passes
+   * through intact, while still redacting everything unexpected.
+   */
   registerHandler('ai:getConfig', async () => {
-    const config = deps.keyStore.getConfig();
-    const { model, migratedFrom } = await deps.catalogue.resolve(config.model);
-    if (model !== config.model) {
-      // Persist it, so the migration happens once rather than on every read.
-      deps.keyStore.setModel(model);
+    let config;
+    try {
+      config = deps.keyStore.getConfig();
+    } catch {
+      throw new UserFacingError(
+        'Fixora could not read your saved provider key from the OS keychain. Re-adding the key in Settings → AI usually fixes it.',
+        {
+          code: 'keystore_unreadable',
+          action: { type: 'open_settings', label: 'Open Settings' },
+          stage: 'keystore',
+        },
+      );
     }
-    return { ...config, model, migratedFrom };
+    try {
+      const { model, migratedFrom } = await deps.catalogue.resolve(config.model);
+      if (model !== config.model) {
+        // Persist it, so the migration happens once rather than on every read.
+        deps.keyStore.setModel(model);
+      }
+      return { ...config, model, migratedFrom };
+    } catch (error) {
+      // The catalogue is a *convenience* — it exists to migrate retired model ids. Failing the whole
+      // config read because it was unreachable turns "you are offline" into "the app is broken", so
+      // the stored model is returned unresolved instead.
+      console.error('[ai:getConfig] catalogue resolve failed; returning stored model unresolved', {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return { ...config, migratedFrom: null };
+    }
   });
 
-  registerHandler('ai:listModels', ({ refresh }) => deps.catalogue.list(refresh ?? false));
+  registerHandler('ai:listModels', async ({ refresh }) => {
+    try {
+      return await deps.catalogue.list(refresh ?? false);
+    } catch (error) {
+      throw new UserFacingError(
+        `Fixora could not reach OpenRouter to list models: ${error instanceof Error ? error.message : String(error)}`,
+        {
+          code: 'catalogue_unreachable',
+          action: { type: 'retry', label: 'Try again' },
+          stage: 'catalogue',
+        },
+      );
+    }
+  });
 
   registerHandler('ai:setKey', ({ key, model }) => deps.keyStore.setKey(key, model));
 
@@ -46,7 +92,57 @@ export function registerAiHandlers(deps: {
 
   registerHandler('ai:setModel', ({ model }) => deps.keyStore.setModel(model));
 
-  registerHandler('ai:run', (request, { window }) => deps.aiService.run(request, window));
+  /**
+   * `ai:run` must never throw.
+   *
+   * It used to call straight through to the service, so ANY exception anywhere in the pipeline —
+   * provider adapter, verification overlay, a bug of ours — reached the router, which redacts a
+   * thrown error to "Something went wrong handling that action.". That single sentence was the
+   * entire failure report for the product's core feature: no cause in the UI, and (until this
+   * sprint) no message in the log either.
+   *
+   * The response type already has an `error` variant. Using it means the real cause travels as
+   * contract data, validated by zod, never redacted — the same correction applied to
+   * `ai:applyRepair`. The catch is deliberately broad because its job is to guarantee the property
+   * "this handler returns a value", not to anticipate specific faults.
+   */
+  registerHandler('ai:run', async (request, { window, requestId }) => {
+    const started = Date.now();
+    console.error('[ai:run] entered', {
+      requestId,
+      profile: request.profile,
+      findingId: request.findingId,
+    });
+    try {
+      const response = await deps.aiService.run(request, window);
+      console.error('[ai:run] exited', {
+        requestId,
+        status: response.status,
+        ...(response.status === 'error' ? { code: response.code, message: response.message } : {}),
+        ms: Date.now() - started,
+      });
+      return response;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[ai:run] THREW', {
+        requestId,
+        profile: request.profile,
+        name: error instanceof Error ? error.name : 'unknown',
+        message,
+        stack: error instanceof Error ? error.stack : undefined,
+        ms: Date.now() - started,
+      });
+      // Clear the renderer's "running" state, or the UI spins forever on a crash.
+      if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message });
+      return {
+        status: 'error' as const,
+        code: 'internal_error' as const,
+        // The real message, not a placeholder. This is Fixora's own error text on the user's own
+        // machine; withholding it is what made the failure undiagnosable.
+        message: `Fixora hit an internal error while running this ${request.profile}: ${message}`,
+      };
+    }
+  });
 
   registerHandler('ai:cancel', () => {
     deps.aiService.cancel();
