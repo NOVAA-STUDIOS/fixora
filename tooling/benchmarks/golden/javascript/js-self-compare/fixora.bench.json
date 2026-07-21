@@ -1,0 +1,21 @@
+{
+  "id": "js-self-compare",
+  "language": "javascript",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "x === x is always true \u2014 no-self-compare, a likely typo.",
+  "requiresTools": [
+    "eslint"
+  ],
+  "expected": [
+    {
+      "file": "index.js",
+      "line": 2,
+      "ruleId": "no-self-compare",
+      "severity": "error",
+      "analyzer": "eslint",
+      "repairAvailable": false
+    }
+  ],
+  "ignoreRules": []
+}

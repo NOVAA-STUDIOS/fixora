@@ -1,0 +1,21 @@
+{
+  "id": "py-redefinition",
+  "language": "python",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "A function redefined shadows the first \u2014 F811.",
+  "requiresTools": [
+    "ruff"
+  ],
+  "expected": [
+    {
+      "file": "main.py",
+      "line": 5,
+      "ruleId": "F811",
+      "severity": "warning",
+      "analyzer": "ruff",
+      "repairAvailable": false
+    }
+  ],
+  "ignoreRules": []
+}

@@ -1,0 +1,10 @@
+{
+  "id": "react-valid-clean",
+  "language": "react",
+  "support": "supported",
+  "kind": "valid",
+  "description": "A correct React component \u2014 precision guard.",
+  "requiresTools": [],
+  "expected": [],
+  "ignoreRules": []
+}

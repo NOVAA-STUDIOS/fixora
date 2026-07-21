@@ -1,0 +1,21 @@
+{
+  "id": "py-unused-import",
+  "language": "python",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "An unused import is dead weight \u2014 F401, with a safe autofix.",
+  "requiresTools": [
+    "ruff"
+  ],
+  "expected": [
+    {
+      "file": "main.py",
+      "line": 1,
+      "ruleId": "F401",
+      "severity": "warning",
+      "analyzer": "ruff",
+      "repairAvailable": true
+    }
+  ],
+  "ignoreRules": []
+}

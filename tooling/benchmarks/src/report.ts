@@ -245,6 +245,35 @@ export function renderReport(dashboard: Dashboard, suite: SuiteResult): string {
   lines.push(...groupTable('Per analyzer', dashboard.byAnalyzer));
   lines.push(...groupTable('Per rule', dashboard.byRule));
 
+  // Performance (M6 §4). Measured wall-clock over the scored cases actually run this session — a real
+  // number for this machine, not a target. Repair/apply timings live in the Repair section, which is
+  // honest about needing a provider key.
+  const timed = suite.cases.filter(
+    (x) => x.status === 'pass' || x.status === 'fail' || x.status === 'known-defect',
+  );
+  const totalMs = timed.reduce((sum, x) => sum + x.durationMs, 0);
+  const totalFiles = timed.reduce((sum, x) => sum + x.analyzedFileCount, 0);
+  lines.push('### Performance', '');
+  if (timed.length === 0) {
+    lines.push('_No scored cases were run._', '');
+  } else {
+    lines.push(
+      row(['Metric', 'Value']),
+      row(['---', '---:']),
+      row(['Average analysis time / case', `${(totalMs / timed.length).toFixed(1)} ms`]),
+      row([
+        'Average analysis time / file',
+        totalFiles === 0 ? 'n/a' : `${(totalMs / totalFiles).toFixed(1)} ms`,
+      ]),
+      row(['Total analysis time', `${(totalMs / 1000).toFixed(2)} s`]),
+      row(['Scored cases run', `${String(timed.length)} (${String(totalFiles)} files)`]),
+      '',
+      '_Wall-clock on this machine, this run. Small cases, so per-case time is dominated by process_',
+      '_startup (spawning eslint/tsc/ruff), not analysis of the file — read it as an order of magnitude._',
+      '',
+    );
+  }
+
   // The gap, stated as a gap. Never a score.
   lines.push('### Unsupported languages', '');
   if (dashboard.unsupported.length === 0) {

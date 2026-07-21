@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "bench": "tsx src/cli.ts",
-    "bench:check": "tsx src/cli.ts --check"
+    "bench:check": "tsx src/cli.ts --check",
+    "capture": "tsx src/capture.ts"
   },
   "dependencies": {
     "@fixora/core-analysis": "workspace:*",

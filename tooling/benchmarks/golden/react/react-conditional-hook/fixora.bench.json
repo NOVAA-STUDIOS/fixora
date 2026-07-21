@@ -1,0 +1,22 @@
+{
+  "id": "react-conditional-hook",
+  "language": "react",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "A hook called conditionally \u2014 react-hooks/rules-of-hooks.",
+  "requiresTools": [
+    "eslint"
+  ],
+  "expected": [
+    {
+      "file": "src/Bad.tsx",
+      "line": 5,
+      "ruleId": "react-hooks/rules-of-hooks",
+      "severity": "error",
+      "analyzer": "eslint",
+      "repairAvailable": false,
+      "note": "useState called inside an if \u2014 hooks must run unconditionally."
+    }
+  ],
+  "ignoreRules": []
+}

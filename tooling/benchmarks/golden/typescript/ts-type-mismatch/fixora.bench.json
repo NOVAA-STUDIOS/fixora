@@ -1,0 +1,22 @@
+{
+  "id": "ts-type-mismatch",
+  "language": "typescript",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "Assigning a string to a number \u2014 TS2322.",
+  "requiresTools": [
+    "tsc"
+  ],
+  "expected": [
+    {
+      "file": "src/a.ts",
+      "line": 1,
+      "ruleId": "TS2322",
+      "severity": "error",
+      "analyzer": "tsc",
+      "repairAvailable": false,
+      "note": "Assigning a string literal to a number-typed const."
+    }
+  ],
+  "ignoreRules": []
+}

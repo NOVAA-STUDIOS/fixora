@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-07-21T16:35:11.314Z",
+  "ranAt": "2026-07-21T16:59:15.556Z",
   "capabilities": {
     "tools": [
       "eslint",
@@ -14,7 +14,7 @@
   },
   "overall": {
     "counts": {
-      "truePositives": 4,
+      "truePositives": 19,
       "attributeMismatches": 0,
       "falsePositives": 0,
       "falseNegatives": 0,
@@ -32,9 +32,9 @@
   },
   "byLanguage": [
     {
-      "name": "json",
+      "name": "javascript",
       "counts": {
-        "truePositives": 1,
+        "truePositives": 5,
         "attributeMismatches": 0,
         "falsePositives": 0,
         "falseNegatives": 0,
@@ -49,10 +49,50 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 2
+      "cases": 6
+    },
+    {
+      "name": "json",
+      "counts": {
+        "truePositives": 3,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 4
     },
     {
       "name": "python",
+      "counts": {
+        "truePositives": 6,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 7
+    },
+    {
+      "name": "react",
       "counts": {
         "truePositives": 2,
         "attributeMismatches": 0,
@@ -74,7 +114,7 @@
     {
       "name": "typescript",
       "counts": {
-        "truePositives": 1,
+        "truePositives": 3,
         "attributeMismatches": 0,
         "falsePositives": 0,
         "falseNegatives": 0,
@@ -89,14 +129,14 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 2
+      "cases": 5
     }
   ],
   "byAnalyzer": [
     {
-      "name": "json",
+      "name": "eslint",
       "counts": {
-        "truePositives": 1,
+        "truePositives": 7,
         "attributeMismatches": 0,
         "falsePositives": 0,
         "falseNegatives": 0,
@@ -111,12 +151,32 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 1
+      "cases": 7
+    },
+    {
+      "name": "json",
+      "counts": {
+        "truePositives": 3,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 3
     },
     {
       "name": "ruff",
       "counts": {
-        "truePositives": 2,
+        "truePositives": 6,
         "attributeMismatches": 0,
         "falsePositives": 0,
         "falseNegatives": 0,
@@ -131,12 +191,12 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 2
+      "cases": 6
     },
     {
       "name": "tsc",
       "counts": {
-        "truePositives": 1,
+        "truePositives": 3,
         "attributeMismatches": 0,
         "falsePositives": 0,
         "falseNegatives": 0,
@@ -151,12 +211,72 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 1
+      "cases": 3
     }
   ],
   "byRule": [
     {
       "name": "B006",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "F401",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "F541",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "F811",
       "counts": {
         "truePositives": 1,
         "attributeMismatches": 0,
@@ -196,7 +316,147 @@
       "cases": 1
     },
     {
+      "name": "F841",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
       "name": "json-parse",
+      "counts": {
+        "truePositives": 3,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 3
+    },
+    {
+      "name": "no-constant-condition",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "no-dupe-keys",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "no-self-compare",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "no-unreachable",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "react-hooks/exhaustive-deps",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "react-hooks/rules-of-hooks",
       "counts": {
         "truePositives": 1,
         "attributeMismatches": 0,
@@ -234,6 +494,66 @@
         "attributeErrorRate": 0
       },
       "cases": 1
+    },
+    {
+      "name": "TS2322",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "TS2345",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
+      "name": "use-isnan",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
     }
   ],
   "unsupported": [
@@ -251,12 +571,12 @@
   "knownDefects": [],
   "skipped": [],
   "benchmarks": {
-    "passed": 7,
+    "passed": 25,
     "failed": 0,
     "knownDefects": 0,
     "skipped": 0,
     "unsupported": 2,
-    "total": 9
+    "total": 27
   },
   "repair": {
     "measured": false,
