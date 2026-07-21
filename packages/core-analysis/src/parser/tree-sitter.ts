@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import type { Language } from '@fixora/shared-types';
 import { Language as TSLanguage, type Node, Parser } from 'web-tree-sitter';
 
-import { coreWasmPath, grammarWasmPath } from './grammar-paths.js';
+import { coreWasmPath, grammarFor, grammarWasmPath, type GrammarId } from './grammar-paths.js';
 
 /**
  * The tree-sitter runtime, wrapped so the rest of the engine never touches the WASM lifecycle. The
@@ -21,15 +21,15 @@ function ensureRuntime(): Promise<void> {
   return initPromise;
 }
 
-const languageCache = new Map<Language, Promise<TSLanguage>>();
-function loadLanguage(language: Language): Promise<TSLanguage> {
-  let cached = languageCache.get(language);
+const languageCache = new Map<GrammarId, Promise<TSLanguage>>();
+function loadLanguage(grammar: GrammarId): Promise<TSLanguage> {
+  let cached = languageCache.get(grammar);
   if (cached === undefined) {
     cached = (async (): Promise<TSLanguage> => {
       await ensureRuntime();
-      return TSLanguage.load(readFileSync(grammarWasmPath(language)));
+      return TSLanguage.load(readFileSync(grammarWasmPath(grammar)));
     })();
-    languageCache.set(language, cached);
+    languageCache.set(grammar, cached);
   }
   return cached;
 }
@@ -43,9 +43,20 @@ export interface ParsedTree {
   dispose(): void;
 }
 
-/** Parse source in the given language. The caller owns the returned tree and must `dispose()` it. */
-export async function parse(language: Language, source: string): Promise<ParsedTree> {
-  const grammar = await loadLanguage(language);
+/**
+ * Parse source in the given language. The caller owns the returned tree and must `dispose()` it.
+ *
+ * Pass `filePath` whenever it is known: it is what lets a `.tsx` file be parsed with the JSX-aware
+ * grammar instead of the plain TypeScript one. Without it, a `.tsx` file parses as `typescript` and
+ * every JSX tag registers as a syntax error.
+ */
+export async function parse(
+  language: Language,
+  source: string,
+  filePath?: string,
+): Promise<ParsedTree> {
+  const grammarId = filePath === undefined ? language : grammarFor(language, filePath);
+  const grammar = await loadLanguage(grammarId);
   const parser = new Parser();
   parser.setLanguage(grammar);
   const tree = parser.parse(source);
