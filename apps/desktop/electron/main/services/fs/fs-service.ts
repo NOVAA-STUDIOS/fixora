@@ -1,5 +1,14 @@
-import { lstatSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { join, posix } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import {
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, join, posix } from 'node:path';
 
 import { UserFacingError } from '@fixora/shared-types';
 
@@ -145,8 +154,26 @@ export function writeTextFile(root: string, relPath: string, content: string): v
       stage: 'fs',
     });
   }
+  // Atomic replace: write the full new content to a sibling temp file, then rename it over the
+  // target. A repair must never partially modify a source file — a crash or a disk-full partway
+  // through a direct `writeFileSync` would leave the user's code truncated. `rename` within the same
+  // directory is atomic on NTFS and POSIX: the file is either the old bytes or all of the new bytes,
+  // never a half-written mix. If anything fails, the temp file is removed and the original is left
+  // exactly as it was (repair rollback, requirement §8).
+  const tmp = join(dirname(absolute), `.${randomBytes(6).toString('hex')}.fixora-tmp`);
   fsTry('write to', normalized, () => {
-    writeFileSync(absolute, content, 'utf8');
+    writeFileSync(tmp, content, 'utf8');
+    try {
+      renameSync(tmp, absolute);
+    } catch (error) {
+      // The rename failed, so the target is untouched. Clean up the temp before surfacing the error.
+      try {
+        rmSync(tmp, { force: true });
+      } catch {
+        // A leftover temp file is harmless (dotfile, ignored); the real error is the rename's.
+      }
+      throw error;
+    }
   });
 }
 
