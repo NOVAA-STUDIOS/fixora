@@ -60,7 +60,10 @@ async function runVerify(message) {
     let syntaxOk = true;
     try {
       const source = readFileSync(target.absPath, 'utf8');
-      const tree = await parse(target.language, source);
+      // Pass the path so a .tsx target is parsed with the JSX-aware grammar. Without it, a valid
+      // React repair parses as plain TypeScript, every JSX tag is a syntax error, and the verdict
+      // wrongly becomes "does not parse" — the bug that disabled Apply for every .tsx repair.
+      const tree = await parse(target.language, source, target.file);
       syntaxOk = !tree.root.hasError;
       tree.dispose();
     } catch {

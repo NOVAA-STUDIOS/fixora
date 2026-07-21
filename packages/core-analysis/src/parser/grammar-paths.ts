@@ -18,15 +18,36 @@ export function coreWasmPath(): string {
   return join(dirname(require.resolve('web-tree-sitter')), 'tree-sitter.wasm');
 }
 
-const GRAMMAR_FILE: Record<Language, string> = {
+/**
+ * The grammar to parse with. This is finer-grained than `Language`: TypeScript ships as TWO
+ * tree-sitter grammars — `typescript` (no JSX) and `tsx` (JSX) — and the plain one reports the WHOLE
+ * file as a syntax error the moment it meets a `<Tag>`. A `.tsx` file is `Language: 'typescript'` for
+ * tool selection (eslint/tsc treat them the same) but MUST use the tsx grammar to parse. Conflating
+ * the two is what made verification reject every valid repair in a React file as "does not parse".
+ */
+export type GrammarId = Language | 'tsx';
+
+const GRAMMAR_FILE: Record<GrammarId, string> = {
   typescript: 'tree-sitter-typescript.wasm',
+  tsx: 'tree-sitter-tsx.wasm',
   javascript: 'tree-sitter-javascript.wasm',
   python: 'tree-sitter-python.wasm',
   go: 'tree-sitter-go.wasm',
 };
 
-/** Absolute path to a language's prebuilt grammar WASM. */
-export function grammarWasmPath(language: Language): string {
+/**
+ * Choose the grammar for a file. Only `.tsx` needs special handling: the JavaScript grammar already
+ * includes JSX, so `.jsx` (Language: 'javascript') parses correctly, and every other language maps
+ * straight through. The file path is the only thing that distinguishes `.ts` from `.tsx`, since both
+ * are `Language: 'typescript'`.
+ */
+export function grammarFor(language: Language, filePath: string): GrammarId {
+  if (language === 'typescript' && /\.tsx$/i.test(filePath)) return 'tsx';
+  return language;
+}
+
+/** Absolute path to a grammar's prebuilt WASM. */
+export function grammarWasmPath(grammar: GrammarId): string {
   const outDir = join(dirname(require.resolve('tree-sitter-wasms/package.json')), 'out');
-  return join(outDir, GRAMMAR_FILE[language]);
+  return join(outDir, GRAMMAR_FILE[grammar]);
 }

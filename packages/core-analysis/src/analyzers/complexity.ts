@@ -244,7 +244,7 @@ export const complexityAnalyzer: Analyzer = {
       if (aborted()) return;
       const source = context.readSource(analysisFile.absPath);
       if (source === null) continue;
-      const parsed = await parse(analysisFile.language, source);
+      const parsed = await parse(analysisFile.language, source, analysisFile.file);
       try {
         const query = new Query(parsed.grammar, FUNCTION_QUERIES[analysisFile.language]);
         try {

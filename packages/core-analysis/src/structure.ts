@@ -26,7 +26,7 @@ export async function parseStructure(
   source: string,
   file: string,
 ): Promise<FileStructure> {
-  const parsed = await parse(language, source);
+  const parsed = await parse(language, source, file);
   try {
     const symbols = extractSymbols(parsed, language, file);
     return {
