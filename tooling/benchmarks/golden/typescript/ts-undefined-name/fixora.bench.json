@@ -16,11 +16,7 @@
       "severity": "error",
       "analyzer": "tsc",
       "repairAvailable": false,
-      "note": "tsc reports 'Cannot find name' for an undefined identifier. No autofix exists for it."
+      "note": "tsc reports 'Cannot find name' for an undefined identifier. No autofix exists for it. Fixed: tsc.ts now runs project mode (no explicit files) when a tsconfig exists, so TS6's TS5112 no longer aborts the check."
     }
-  ],
-  "knownDefect": {
-    "reason": "PROVEN FALSE NEGATIVE. Running `npx tsc --noEmit` inside this exact benchmark project reports `src/a.ts(2,19): error TS2304: Cannot find name 'nmae'.` \u2014 Fixora's tsc analyzer does not surface it. detectCapabilities reports tsc present (Version 6.0.3, tier 1, not bundled), so the tool is found and something between invocation and finding-emission drops the diagnostic. This is the single highest-priority accuracy defect found by M6: a type error in the flagship language, visible to the tool, invisible to the user.",
-    "owner": "core-analysis/analyzers/tsc"
-  }
+  ]
 }
