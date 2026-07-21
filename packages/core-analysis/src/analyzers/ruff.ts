@@ -35,6 +35,31 @@ function categoryFor(code: string): Category {
   return 'correctness';
 }
 
+/**
+ * Ruff reports every violation at one level — it has no notion of severity. But an undefined name is a
+ * guaranteed `NameError` the instant that line runs, and a syntax error means the file does not run at
+ * all; surfacing either at the same level as a stylistic nit makes the Problems severity filter
+ * useless and, worse, tells the developer a certain crash is optional. A small, conservative set of
+ * codes that are CERTAIN runtime failures or literal syntax errors is raised to `error`. Everything
+ * else stays `warning`: over-escalation erodes trust as surely as under-reporting, so when a code is
+ * not unambiguously a runtime failure it is left where it was (Goal 6 — severity honesty).
+ */
+const RUFF_ERROR_CODES = new Set<string>([
+  'E999', // syntax error — the file does not parse, so nothing in it runs
+  'F821', // undefined name — NameError the moment that line executes
+  'F822', // undefined name in `__all__`
+  'F823', // local variable referenced before assignment — UnboundLocalError
+  'F701', // `break` outside a loop — SyntaxError
+  'F702', // `continue` outside a loop — SyntaxError
+  'F704', // `yield`/`await` outside a function — SyntaxError
+  'F706', // `return` outside a function — SyntaxError
+  'F707', // `except` after a bare `except` — the handler is unreachable
+]);
+
+function severityFor(code: string): 'error' | 'warning' {
+  return RUFF_ERROR_CODES.has(code) ? 'error' : 'warning';
+}
+
 function toRelPosix(root: string, absPath: string): string {
   return relative(root, absPath).split(sep).join('/');
 }
@@ -120,7 +145,7 @@ export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
         const file = toRelPosix(context.root, message.filename);
         const raw: RawFinding = {
           ruleId: message.code,
-          severity: 'warning',
+          severity: severityFor(message.code),
           category: categoryFor(message.code),
           message: message.message,
           startLine: message.location.row,

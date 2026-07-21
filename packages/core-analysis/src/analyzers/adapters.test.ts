@@ -181,6 +181,40 @@ describe('tsc adapter', () => {
   });
 });
 
+describe('ruff adapter — severity honesty', () => {
+  // Ruff has no severity of its own. A certain runtime failure must not read as a style nit, and a
+  // style nit must not be inflated to an error. This pins both directions.
+  const ruffJson = (code: string, message: string): string =>
+    JSON.stringify([
+      {
+        code,
+        message,
+        filename: abs('main.py'),
+        location: { row: 2, column: 1 },
+        fix: null,
+      },
+    ]);
+
+  it('raises a guaranteed runtime failure (F821 undefined name) to error', async () => {
+    const ctx = context([{ file: 'main.py', language: 'python' }], ['ruff']);
+    const findings = await collect(
+      createRuffAnalyzer(outRunner(ruffJson('F821', 'Undefined name `nmae`'))),
+      ctx,
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ ruleId: 'F821', severity: 'error' });
+  });
+
+  it('leaves an ordinary lint (F401 unused import) as a warning — no over-escalation', async () => {
+    const ctx = context([{ file: 'main.py', language: 'python' }], ['ruff']);
+    const findings = await collect(
+      createRuffAnalyzer(outRunner(ruffJson('F401', '`os` imported but unused'))),
+      ctx,
+    );
+    expect(findings[0]).toMatchObject({ ruleId: 'F401', severity: 'warning' });
+  });
+});
+
 describe('go vet adapter', () => {
   it('parses -json output and uses the analyzer name as the rule', async () => {
     const report = JSON.stringify({

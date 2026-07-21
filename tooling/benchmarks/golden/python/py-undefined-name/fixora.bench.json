@@ -16,11 +16,7 @@
       "severity": "error",
       "analyzer": "ruff",
       "repairAvailable": false,
-      "note": "F821 undefined-name. Ruff offers no autofix \u00e2\u20ac\u201d it cannot know the intended name."
+      "note": "F821 undefined-name. Ruff offers no autofix \u00e2\u20ac\u201d it cannot know the intended name. severityFor() in ruff.ts raises F821 to error because it is a guaranteed NameError at runtime."
     }
-  ],
-  "knownDefect": {
-    "reason": "packages/core-analysis/src/analyzers/ruff.ts:121 hardcodes severity:'warning' for EVERY Ruff rule. F821 (undefined name) is a guaranteed NameError at runtime and must be an error; reported as a warning it is indistinguishable from a style nit, and the Problems severity filter cannot separate them. The expectation deliberately states the correct severity so this stays visible. Fixing it means a severity mapping over the Ruff rule set \u2014 a design decision, not a patch.",
-    "owner": "core-analysis"
-  }
+  ]
 }
