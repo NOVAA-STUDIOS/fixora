@@ -33,6 +33,7 @@ const GRAMMAR_FILE: Record<GrammarId, string> = {
   javascript: 'tree-sitter-javascript.wasm',
   python: 'tree-sitter-python.wasm',
   go: 'tree-sitter-go.wasm',
+  json: 'tree-sitter-json.wasm',
 };
 
 /**

@@ -1,6 +1,8 @@
-import type { Autofix, AutofixEdit, Finding, Language } from '@fixora/shared-types';
+import type { Autofix, AutofixEdit, Finding, Language, RepairStrategy } from '@fixora/shared-types';
 
 import { parse } from '../parser/tree-sitter.js';
+
+export type { RepairStrategy };
 
 /**
  * Deterministic micro-repairs — Goal 3.
@@ -16,16 +18,6 @@ import { parse } from '../parser/tree-sitter.js';
  * There is no AI in this module and no heuristic text replacement. If a finding has no tool-authored
  * autofix, `deterministicRepair` returns null and the finding is left to the AI or to the developer.
  */
-
-/**
- * How a finding can be repaired (Goal 5 classification).
- *
- *  - `safe-auto`     — the tool shipped a fix; a deterministic micro-repair can produce it, no model.
- *  - `ai-required`   — no deterministic fix, but a model could propose one (verified before Apply).
- *  - `manual`        — no fix a machine should attempt; the developer decides (e.g. TS2304, where the
- *                      intended identifier is unknowable).
- */
-export type RepairStrategy = 'safe-auto' | 'ai-required' | 'manual';
 
 /** Rules for which no machine can know the intent, so neither an autofix nor an AI guess is offered. */
 const MANUAL_ONLY_RULES = new Set<string>([

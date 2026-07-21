@@ -12,9 +12,23 @@ import { z } from 'zod';
  * *on top of* grounded findings — it is the sole source allowed a confidence below 1.
  */
 
-/** The languages Fixora analyzes deeply — three deep, not ten shallow (ADR-025). */
-export const LanguageSchema = z.enum(['typescript', 'javascript', 'python', 'go']);
+/**
+ * The languages Fixora analyzes. `typescript`/`javascript`/`python`/`go` get the full deep pipeline
+ * (tree-sitter symbols, external tools). `json` is a Tier-B validation language (ADR-025): it has a
+ * validator but no symbol/complexity analysis, so code that walks symbols must scope itself to the
+ * deep set rather than the whole enum.
+ */
+export const LanguageSchema = z.enum(['typescript', 'javascript', 'python', 'go', 'json']);
 export type Language = z.infer<typeof LanguageSchema>;
+
+/**
+ * How a finding can be repaired (M6 Goal 5). Every finding carries one:
+ *  - `safe-auto`   — a tool shipped a deterministic fix; a micro-repair can apply it, no model.
+ *  - `ai-required` — no deterministic fix, but a model could propose one (verified before Apply).
+ *  - `manual`      — no fix a machine should attempt; the intent is the author's to supply.
+ */
+export const RepairStrategySchema = z.enum(['safe-auto', 'ai-required', 'manual']);
+export type RepairStrategy = z.infer<typeof RepairStrategySchema>;
 
 /**
  * Where a finding came from. The deterministic tools (everything but `ai`) are the grounding; `ai`
@@ -29,6 +43,7 @@ export const FindingSourceSchema = z.enum([
   'go-vet',
   'semgrep',
   'complexity',
+  'json',
   'ai',
 ]);
 export type FindingSource = z.infer<typeof FindingSourceSchema>;
@@ -138,6 +153,8 @@ export const FindingSchema = z.object({
    * emitted an applicable edit. This is what a deterministic micro-repair applies — no model involved.
    */
   autofix: AutofixSchema.optional(),
+  /** How this finding can be repaired (M6 Goal 5). Set on every finding the analyzers produce. */
+  repair: RepairStrategySchema,
   /** 1.0 for deterministic tools; below 1.0 only for `source: 'ai'`. */
   confidence: z.number().min(0).max(1),
 });

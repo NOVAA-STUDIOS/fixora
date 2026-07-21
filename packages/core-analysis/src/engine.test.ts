@@ -49,6 +49,7 @@ const finding = (id: string): Finding => ({
   message: 'm',
   evidence: { snippet: 's', relatedLocations: [], toolOutput: null },
   fixable: false,
+  repair: 'manual',
   confidence: 1,
 });
 

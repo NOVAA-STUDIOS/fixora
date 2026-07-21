@@ -1,0 +1,10 @@
+{
+  "id": "json-valid-clean",
+  "language": "json",
+  "support": "supported",
+  "kind": "valid",
+  "description": "A well-formed JSON file. The validator must report nothing — this guards precision (no false positives on valid JSON).",
+  "requiresTools": [],
+  "ignoreRules": [],
+  "expected": []
+}

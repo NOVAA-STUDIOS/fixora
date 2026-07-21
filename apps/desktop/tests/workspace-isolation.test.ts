@@ -43,6 +43,7 @@ describe('workspace isolation', () => {
       message: 'm',
       evidence: { snippet: 's', relatedLocations: [], toolOutput: {} },
       fixable: false,
+      repair: 'ai-required',
       confidence: 1,
     },
   });

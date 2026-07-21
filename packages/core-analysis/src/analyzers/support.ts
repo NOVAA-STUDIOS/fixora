@@ -10,6 +10,7 @@ import type {
 import type { AnalysisContext } from '../analyzer.js';
 import { findingId } from '../finding-id.js';
 import type { ToolRunner } from '../process/run-tool.js';
+import { classifyRepair } from '../repair/micro-repair.js';
 import { enclosingSymbol } from '../symbols/symbols.js';
 import type { ResolvedTool } from '../tools/resolve.js';
 
@@ -59,7 +60,7 @@ export function createFileGrounder(
     ground(raw: RawFinding): Finding {
       const symbol = enclosingSymbol(symbols, raw.startLine);
       const snippet = lines[raw.startLine - 1] ?? '';
-      return {
+      const finding: Finding = {
         id: findingId({ source, ruleId: raw.ruleId, file, enclosingSymbol: symbol, snippet }),
         source,
         ruleId: raw.ruleId,
@@ -81,8 +82,14 @@ export function createFileGrounder(
         },
         fixable: raw.fixable,
         ...(raw.autofix !== undefined ? { autofix: raw.autofix } : {}),
+        // Placeholder; overwritten below once the finding exists (classifyRepair reads autofix+ruleId).
+        repair: 'ai-required',
         confidence: 1,
       };
+      // Every finding carries its repairability (M6 Goal 5). Derived from the tool's own autofix and
+      // the rule, so a fix a tool shipped reads as `safe-auto` and an unknowable-intent rule as `manual`.
+      finding.repair = classifyRepair(finding);
+      return finding;
     },
   };
 }

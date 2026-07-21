@@ -1,11 +1,20 @@
 {
   "id": "json-syntax-invalid",
   "language": "json",
-  "support": "unsupported",
+  "support": "supported",
   "kind": "invalid",
-  "description": "A trailing comma and an unquoted key \u2014 the defects ADR-025 lists for Tier B JSON.",
+  "description": "A trailing comma and an unquoted key — the defects ADR-025 lists for Tier B JSON. The JSON validator reports the first structural error (the unquoted `version` key on line 3).",
   "requiresTools": [],
   "ignoreRules": [],
-  "expected": [],
-  "unsupportedReason": "languageForPath() in packages/core-analysis/src/language.ts maps only ts/tsx/mts/cts/js/jsx/mjs/cjs/py/pyi/go. It returns null for this extension, so no analyzer is ever selected and the file is never read. ADR-025 accepts this language as Tier B (validation-only) but no validator is implemented. This case exists so the gap is counted, not forgotten \u2014 and so that the day a validator lands, its output is measured against a written expectation instead of being trusted."
+  "expected": [
+    {
+      "file": "config.json",
+      "line": 3,
+      "ruleId": "json-parse",
+      "severity": "error",
+      "analyzer": "json",
+      "repairAvailable": false,
+      "note": "JSON.parse rejects the unquoted property name `version`. No deterministic autofix yet, so this is classified ai-required — a model can quote the key, verified before Apply."
+    }
+  ]
 }

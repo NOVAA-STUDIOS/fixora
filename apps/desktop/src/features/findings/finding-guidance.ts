@@ -267,6 +267,8 @@ export function docsLinkFor(finding: Finding): DocsLink | null {
       return ruleId.includes('.')
         ? { href: `https://semgrep.dev/r/${encodeURI(ruleId)}`, label: `Semgrep: ${ruleId}` }
         : null;
+    case 'json':
+      return { href: 'https://www.json.org/', label: 'JSON grammar' };
     // TypeScript has no official per-error page, and complexity/ai findings are ours — nothing to
     // link that would tell the reader more than the panel already does.
     case 'tsc':
@@ -285,5 +287,6 @@ export const SOURCE_LABEL: Record<FindingSource, string> = {
   'go-vet': 'go vet',
   semgrep: 'Semgrep',
   complexity: 'Complexity',
+  json: 'JSON',
   ai: 'AI',
 };

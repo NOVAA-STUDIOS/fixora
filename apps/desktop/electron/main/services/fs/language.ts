@@ -48,12 +48,17 @@ export function detectLanguage(filename: string): string | null {
   return BY_EXTENSION[ext] ?? null;
 }
 
-/** The three launch languages get the full deterministic-analysis pipeline (ADR-025). */
+/**
+ * Languages the analysis pipeline runs on. The four launch languages get the full deterministic
+ * pipeline (tree-sitter symbols + external tools, ADR-025); `json` is Tier B — validation-only, no
+ * symbols — but still an analysis target so its validator sees the file.
+ */
 export function isDeepLanguage(language: string | null): boolean {
   return (
     language === 'typescript' ||
     language === 'javascript' ||
     language === 'python' ||
-    language === 'go'
+    language === 'go' ||
+    language === 'json'
   );
 }

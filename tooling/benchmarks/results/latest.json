@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-07-21T15:00:40.633Z",
+  "ranAt": "2026-07-21T16:35:11.314Z",
   "capabilities": {
     "tools": [
       "eslint",
@@ -14,7 +14,7 @@
   },
   "overall": {
     "counts": {
-      "truePositives": 3,
+      "truePositives": 4,
       "attributeMismatches": 0,
       "falsePositives": 0,
       "falseNegatives": 0,
@@ -31,6 +31,26 @@
     }
   },
   "byLanguage": [
+    {
+      "name": "json",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 2
+    },
     {
       "name": "python",
       "counts": {
@@ -73,6 +93,26 @@
     }
   ],
   "byAnalyzer": [
+    {
+      "name": "json",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
     {
       "name": "ruff",
       "counts": {
@@ -156,6 +196,26 @@
       "cases": 1
     },
     {
+      "name": "json-parse",
+      "counts": {
+        "truePositives": 1,
+        "attributeMismatches": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "ignored": 0
+      },
+      "metrics": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "accuracy": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "attributeErrorRate": 0
+      },
+      "cases": 1
+    },
+    {
       "name": "TS2304",
       "counts": {
         "truePositives": 1,
@@ -186,22 +246,17 @@
       "language": "html",
       "cases": 1,
       "reason": "languageForPath() in packages/core-analysis/src/language.ts maps only ts/tsx/mts/cts/js/jsx/mjs/cjs/py/pyi/go. It returns null for this extension, so no analyzer is ever selected and the file is never read. ADR-025 accepts this language as Tier B (validation-only) but no validator is implemented. This case exists so the gap is counted, not forgotten — and so that the day a validator lands, its output is measured against a written expectation instead of being trusted."
-    },
-    {
-      "language": "json",
-      "cases": 1,
-      "reason": "languageForPath() in packages/core-analysis/src/language.ts maps only ts/tsx/mts/cts/js/jsx/mjs/cjs/py/pyi/go. It returns null for this extension, so no analyzer is ever selected and the file is never read. ADR-025 accepts this language as Tier B (validation-only) but no validator is implemented. This case exists so the gap is counted, not forgotten — and so that the day a validator lands, its output is measured against a written expectation instead of being trusted."
     }
   ],
   "knownDefects": [],
   "skipped": [],
   "benchmarks": {
-    "passed": 5,
+    "passed": 7,
     "failed": 0,
     "knownDefects": 0,
     "skipped": 0,
-    "unsupported": 3,
-    "total": 8
+    "unsupported": 2,
+    "total": 9
   },
   "repair": {
     "measured": false,

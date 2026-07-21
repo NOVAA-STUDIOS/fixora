@@ -18,6 +18,7 @@ const EXTENSION_LANGUAGE: Record<string, Language> = {
   py: 'python',
   pyi: 'python',
   go: 'go',
+  json: 'json',
 };
 
 /** The analysis language for a path, or `null` if it is not one of the three we analyze. */
