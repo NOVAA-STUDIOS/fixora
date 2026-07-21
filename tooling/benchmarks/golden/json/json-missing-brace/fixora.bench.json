@@ -1,0 +1,19 @@
+{
+  "id": "json-missing-brace",
+  "language": "json",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "A missing closing brace \u2014 the file never terminates.",
+  "requiresTools": [],
+  "expected": [
+    {
+      "file": "data.json",
+      "line": 3,
+      "ruleId": "json-parse",
+      "severity": "error",
+      "analyzer": "json",
+      "repairAvailable": false
+    }
+  ],
+  "ignoreRules": []
+}

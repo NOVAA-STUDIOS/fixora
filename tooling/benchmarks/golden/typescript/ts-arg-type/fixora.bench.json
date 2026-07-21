@@ -1,0 +1,22 @@
+{
+  "id": "ts-arg-type",
+  "language": "typescript",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "Passing a string where a number is required \u2014 TS2345.",
+  "requiresTools": [
+    "tsc"
+  ],
+  "expected": [
+    {
+      "file": "src/a.ts",
+      "line": 5,
+      "ruleId": "TS2345",
+      "severity": "error",
+      "analyzer": "tsc",
+      "repairAvailable": false,
+      "note": "Calling square() with a string argument."
+    }
+  ],
+  "ignoreRules": []
+}

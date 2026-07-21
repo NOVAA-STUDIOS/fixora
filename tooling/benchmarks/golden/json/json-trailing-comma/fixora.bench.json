@@ -1,0 +1,19 @@
+{
+  "id": "json-trailing-comma",
+  "language": "json",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "A trailing comma after the last array element is invalid JSON.",
+  "requiresTools": [],
+  "expected": [
+    {
+      "file": "data.json",
+      "line": 2,
+      "ruleId": "json-parse",
+      "severity": "error",
+      "analyzer": "json",
+      "repairAvailable": false
+    }
+  ],
+  "ignoreRules": []
+}

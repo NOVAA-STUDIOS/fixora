@@ -1,0 +1,21 @@
+{
+  "id": "js-unreachable",
+  "language": "javascript",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "Code after a return is dead \u2014 no-unreachable.",
+  "requiresTools": [
+    "eslint"
+  ],
+  "expected": [
+    {
+      "file": "index.js",
+      "line": 3,
+      "ruleId": "no-unreachable",
+      "severity": "error",
+      "analyzer": "eslint",
+      "repairAvailable": false
+    }
+  ],
+  "ignoreRules": []
+}

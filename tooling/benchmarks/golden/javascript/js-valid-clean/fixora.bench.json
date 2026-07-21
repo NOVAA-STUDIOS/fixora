@@ -1,0 +1,10 @@
+{
+  "id": "js-valid-clean",
+  "language": "javascript",
+  "support": "supported",
+  "kind": "valid",
+  "description": "Idiomatic JS with nothing wrong \u2014 guards precision (no false positives).",
+  "requiresTools": [],
+  "expected": [],
+  "ignoreRules": []
+}

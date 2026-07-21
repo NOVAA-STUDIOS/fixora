@@ -1,0 +1,21 @@
+{
+  "id": "py-fstring-no-placeholder",
+  "language": "python",
+  "support": "supported",
+  "kind": "edge-case",
+  "description": "An f-string with no placeholder is a forgotten variable \u2014 F541.",
+  "requiresTools": [
+    "ruff"
+  ],
+  "expected": [
+    {
+      "file": "main.py",
+      "line": 2,
+      "ruleId": "F541",
+      "severity": "warning",
+      "analyzer": "ruff",
+      "repairAvailable": true
+    }
+  ],
+  "ignoreRules": []
+}

@@ -1,0 +1,21 @@
+{
+  "id": "js-dupe-keys",
+  "language": "javascript",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "A duplicated object key silently discards the first \u2014 no-dupe-keys.",
+  "requiresTools": [
+    "eslint"
+  ],
+  "expected": [
+    {
+      "file": "index.js",
+      "line": 3,
+      "ruleId": "no-dupe-keys",
+      "severity": "error",
+      "analyzer": "eslint",
+      "repairAvailable": false
+    }
+  ],
+  "ignoreRules": []
+}

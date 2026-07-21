@@ -1,0 +1,21 @@
+{
+  "id": "js-constant-condition",
+  "language": "javascript",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "A constant if condition is almost always a bug \u2014 no-constant-condition.",
+  "requiresTools": [
+    "eslint"
+  ],
+  "expected": [
+    {
+      "file": "index.js",
+      "line": 2,
+      "ruleId": "no-constant-condition",
+      "severity": "error",
+      "analyzer": "eslint",
+      "repairAvailable": false
+    }
+  ],
+  "ignoreRules": []
+}

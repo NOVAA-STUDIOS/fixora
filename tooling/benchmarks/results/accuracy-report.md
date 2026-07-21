@@ -1,6 +1,6 @@
 # Fixora — Analyzer Accuracy Report
 
-Generated 2026-07-21T16:35:11.314Z from a real execution of the analysis engine.
+Generated 2026-07-21T16:59:15.556Z from a real execution of the analysis engine.
 Every number below is measured. Anything not measured is marked `n/a` with a reason.
 
 ## Accuracy Dashboard
@@ -14,11 +14,11 @@ Every number below is measured. Anything not measured is marked `n/a` with a rea
 | False-positive rate | 0.0% |
 | False-negative rate | 0.0% |
 | Attribute error rate | 0.0% |
-| True positives | 4 |
+| True positives | 19 |
 | False positives | 0 |
 | False negatives | 0 |
 | Attribute mismatches | 0 |
-| Benchmarks passed | 7 / 7 scored |
+| Benchmarks passed | 25 / 25 scored |
 | Benchmarks failing (known defects) | 0 |
 | Benchmarks skipped | 0 |
 | Benchmarks unsupported | 2 |
@@ -27,26 +27,54 @@ Every number below is measured. Anything not measured is marked `n/a` with a rea
 
 | Name | Accuracy | Precision | Recall | F1 | TP | FP | FN | Cases |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| json | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 2 |
-| python | 100.0% | 100.0% | 100.0% | 100.0% | 2 | 0 | 0 | 3 |
-| typescript | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 2 |
+| javascript | 100.0% | 100.0% | 100.0% | 100.0% | 5 | 0 | 0 | 6 |
+| json | 100.0% | 100.0% | 100.0% | 100.0% | 3 | 0 | 0 | 4 |
+| python | 100.0% | 100.0% | 100.0% | 100.0% | 6 | 0 | 0 | 7 |
+| react | 100.0% | 100.0% | 100.0% | 100.0% | 2 | 0 | 0 | 3 |
+| typescript | 100.0% | 100.0% | 100.0% | 100.0% | 3 | 0 | 0 | 5 |
 
 ### Per analyzer
 
 | Name | Accuracy | Precision | Recall | F1 | TP | FP | FN | Cases |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| json | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
-| ruff | 100.0% | 100.0% | 100.0% | 100.0% | 2 | 0 | 0 | 2 |
-| tsc | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| eslint | 100.0% | 100.0% | 100.0% | 100.0% | 7 | 0 | 0 | 7 |
+| json | 100.0% | 100.0% | 100.0% | 100.0% | 3 | 0 | 0 | 3 |
+| ruff | 100.0% | 100.0% | 100.0% | 100.0% | 6 | 0 | 0 | 6 |
+| tsc | 100.0% | 100.0% | 100.0% | 100.0% | 3 | 0 | 0 | 3 |
 
 ### Per rule
 
 | Name | Accuracy | Precision | Recall | F1 | TP | FP | FN | Cases |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | B006 | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| F401 | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| F541 | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| F811 | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
 | F821 | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
-| json-parse | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| F841 | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| json-parse | 100.0% | 100.0% | 100.0% | 100.0% | 3 | 0 | 0 | 3 |
+| no-constant-condition | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| no-dupe-keys | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| no-self-compare | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| no-unreachable | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| react-hooks/exhaustive-deps | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| react-hooks/rules-of-hooks | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
 | TS2304 | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| TS2322 | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| TS2345 | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+| use-isnan | 100.0% | 100.0% | 100.0% | 100.0% | 1 | 0 | 0 | 1 |
+
+### Performance
+
+| Metric | Value |
+| --- | ---: |
+| Average analysis time / case | 3970.0 ms |
+| Average analysis time / file | 3308.3 ms |
+| Total analysis time | 99.25 s |
+| Scored cases run | 25 (30 files) |
+
+_Wall-clock on this machine, this run. Small cases, so per-case time is dominated by process_
+_startup (spawning eslint/tsc/ruff), not analysis of the file — read it as an order of magnitude._
 
 ### Unsupported languages
 
@@ -89,4 +117,4 @@ Accuracy is a property of Fixora **and** the tools it drives, so the exact versi
 
 ### Confidence
 
-Measured over **4 expected findings** across **7 scored benchmark cases**. This is a **small sample**. With 4 expected findings, a single miss moves recall by roughly 25.0 points, so the headline percentage should be read as an indication rather than a stable rate. Growing the dataset is the highest-value next step. **2 cases are unsupported** and contribute nothing to the figures above. Fixora currently has no analyzer for those languages. **Repair accuracy is unmeasured.** No provider key was available for this run.
+Measured over **19 expected findings** across **25 scored benchmark cases**. This is a **small sample**. With 19 expected findings, a single miss moves recall by roughly 5.3 points, so the headline percentage should be read as an indication rather than a stable rate. Growing the dataset is the highest-value next step. **2 cases are unsupported** and contribute nothing to the figures above. Fixora currently has no analyzer for those languages. **Repair accuracy is unmeasured.** No provider key was available for this run.

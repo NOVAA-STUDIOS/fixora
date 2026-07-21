@@ -1,0 +1,21 @@
+{
+  "id": "py-unused-var",
+  "language": "python",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "A local assigned and never used \u2014 F841.",
+  "requiresTools": [
+    "ruff"
+  ],
+  "expected": [
+    {
+      "file": "main.py",
+      "line": 2,
+      "ruleId": "F841",
+      "severity": "warning",
+      "analyzer": "ruff",
+      "repairAvailable": true
+    }
+  ],
+  "ignoreRules": []
+}

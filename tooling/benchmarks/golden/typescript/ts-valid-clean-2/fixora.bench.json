@@ -1,0 +1,10 @@
+{
+  "id": "ts-valid-clean-2",
+  "language": "typescript",
+  "support": "supported",
+  "kind": "valid",
+  "description": "A small valid TS module \u2014 precision guard.",
+  "requiresTools": [],
+  "expected": [],
+  "ignoreRules": []
+}

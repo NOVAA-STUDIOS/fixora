@@ -1,0 +1,21 @@
+{
+  "id": "js-use-isnan",
+  "language": "javascript",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "Comparing to NaN with === is always false \u2014 use-isnan.",
+  "requiresTools": [
+    "eslint"
+  ],
+  "expected": [
+    {
+      "file": "index.js",
+      "line": 2,
+      "ruleId": "use-isnan",
+      "severity": "error",
+      "analyzer": "eslint",
+      "repairAvailable": false
+    }
+  ],
+  "ignoreRules": []
+}
