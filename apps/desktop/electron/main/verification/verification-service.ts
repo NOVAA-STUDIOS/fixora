@@ -61,7 +61,22 @@ export function createVerificationService(deps: {
         input.repairedCode,
       );
 
-      const overlay = createOverlay(input.workspaceRoot);
+      // Building the overlay is scaffolding, not the repair. If it fails — a full temp disk, a
+      // permission wall, anything — verification is skipped with an honest note and the repair is
+      // still returned unverified. It must never throw out of here and become a generic internal
+      // error on a feature that otherwise worked (release-blocker hardening).
+      let overlay;
+      try {
+        overlay = createOverlay(input.workspaceRoot);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        return {
+          report: skipped(
+            `Could not build a verification workspace, so this repair was not checked automatically. ${detail}`,
+          ),
+          originalCode,
+        };
+      }
       try {
         patchOverlayFile(overlay.root, input.target.file, patched);
 

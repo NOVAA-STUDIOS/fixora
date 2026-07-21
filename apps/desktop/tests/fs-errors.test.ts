@@ -1,4 +1,13 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -220,5 +229,40 @@ describe('fs-service — real filesystem conditions', () => {
     } finally {
       chmodSync(file, 0o644);
     }
+  });
+
+  /**
+   * Atomicity (requirement §8): a repair either applies fully or not at all. The write goes to a
+   * sibling temp file and is renamed over the target, so a failure cannot leave the source truncated.
+   */
+  it('applies a repair via an atomic replace and leaves no temp files behind', () => {
+    writeTextFile(root, 'src/a.ts', 'export const a = 99;\n');
+    expect(readTextFile(root, 'src/a.ts').content).toBe('export const a = 99;\n');
+    // The temp file (.<hex>.fixora-tmp) must not survive a successful write.
+    const leftovers = readdirSync(join(root, 'src')).filter((n) => n.includes('fixora-tmp'));
+    expect(leftovers).toEqual([]);
+  });
+
+  it('leaves the original file completely intact if the write cannot be completed', () => {
+    const file = join(root, 'src', 'keep.ts');
+    const original = 'export const keep = 1;\n';
+    writeFileSync(file, original);
+    chmodSync(file, 0o444); // read-only: on Windows the rename-over fails; the original must survive
+    let threw = false;
+    try {
+      writeTextFile(root, 'src/keep.ts', 'export const keep = 2;\n');
+    } catch (e) {
+      threw = true;
+      expect(e).toBeInstanceOf(UserFacingError); // authored, never a raw crash
+    } finally {
+      chmodSync(file, 0o644);
+    }
+    // Whether the platform refused the write or allowed it, the file is never a partial mix: it is
+    // either the full original or the full replacement, and no temp file is orphaned.
+    const after = readFileSync(file, 'utf8');
+    expect([original, 'export const keep = 2;\n']).toContain(after);
+    if (threw) expect(after).toBe(original);
+    const leftovers = readdirSync(join(root, 'src')).filter((n) => n.includes('fixora-tmp'));
+    expect(leftovers).toEqual([]);
   });
 });
