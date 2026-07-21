@@ -13,6 +13,7 @@ import {
   analyzeWorkspace,
   createAnalysisContext,
   detectCapabilities,
+  formatGate,
   languageForPath,
   parse,
 } from '@fixora/core-analysis';
@@ -47,6 +48,39 @@ port.on('message', (event) => {
 });
 
 /**
+ * Locate the first syntax error in a parsed tree, as a 1-based line/column. Prunes with `hasError`
+ * so it descends only the branch that actually contains the problem, and reports the ERROR or MISSING
+ * node itself. Returns null if the tree is clean. Tolerant of tree-sitter exposing isError/isMissing
+ * as either a property or a method across versions.
+ */
+function firstSyntaxError(root) {
+  const flag = (node, name) => {
+    const v = node[name];
+    return typeof v === 'function' ? v.call(node) : v === true;
+  };
+  const visit = (node) => {
+    for (const child of node.children) {
+      if (child.type === 'ERROR' || flag(child, 'isError') || flag(child, 'isMissing')) {
+        const missing = flag(child, 'isMissing');
+        return {
+          line: child.startPosition.row + 1,
+          column: child.startPosition.column + 1,
+          text: missing ? `Missing ${child.type}` : `Unexpected syntax near '${child.type}'`,
+        };
+      }
+      const hasError = typeof child.hasError === 'function' ? child.hasError() : child.hasError;
+      if (hasError) {
+        const deeper = visit(child);
+        if (deeper !== null) return deeper;
+      }
+    }
+    return null;
+  };
+  const found = visit(root);
+  return found ?? { line: root.startPosition.row + 1, column: 1, text: 'Syntax error' };
+}
+
+/**
  * Verify a repair (ADR-003). The overlay root already has the patched file on disk; we (1) parse it to
  * confirm the fix did not break syntax, then (2) re-run the analyzers on that one file. Main compares
  * the resulting findings against the original to decide verified / regression / unresolved. Tiered and
@@ -58,6 +92,7 @@ async function runVerify(message) {
   jobs.set(jobId, controller);
   try {
     let syntaxOk = true;
+    let syntaxError = null;
     try {
       const source = readFileSync(target.absPath, 'utf8');
       // Pass the path so a .tsx target is parsed with the JSX-aware grammar. Without it, a valid
@@ -65,6 +100,9 @@ async function runVerify(message) {
       // wrongly becomes "does not parse" — the bug that disabled Apply for every .tsx repair.
       const tree = await parse(target.language, source, target.file);
       syntaxOk = !tree.root.hasError;
+      // The parser gate must say WHERE, not just whether. Walk to the first ERROR/MISSING node so the
+      // UI can show "Parser failed at line N" instead of a bare "does not parse".
+      if (!syntaxOk) syntaxError = firstSyntaxError(tree.root);
       tree.dispose();
     } catch {
       syntaxOk = false;
@@ -77,10 +115,19 @@ async function runVerify(message) {
       findings.push(finding);
     }
 
+    // The formatter gate (Goals 4 & 9), run here in the worker where core-analysis is loaded and the
+    // overlay copy lives. Skipped when the file does not parse — a formatter would only re-report the
+    // syntax error the parser gate already owns.
+    const formatter = syntaxOk
+      ? await formatGate({ root: workspaceRoot, absFile: target.absPath, language: target.language })
+      : { ran: false, ok: true };
+
     port.postMessage({
       type: 'verifyResult',
       jobId,
       syntaxOk,
+      ...(syntaxError !== null ? { syntaxError } : {}),
+      formatter,
       findings,
       aborted: controller.signal.aborted,
     });

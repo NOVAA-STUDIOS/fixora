@@ -175,6 +175,36 @@ export const VerificationDiagnosticsSchema = z.object({
 });
 export type VerificationDiagnostics = z.infer<typeof VerificationDiagnosticsSchema>;
 
+/**
+ * The formatter gate result (Goals 4 & 9). `ran: false` means no formatter was available for the
+ * language — an honestly-absent gate, not a pass. When it ran and failed, `message` is the formatter's
+ * own diagnostic, shown to the user verbatim.
+ */
+export const FormatterGateSchema = z.object({
+  ran: z.boolean(),
+  ok: z.boolean(),
+  formatter: z.string().optional(),
+  message: z.string().optional(),
+});
+export type FormatterGate = z.infer<typeof FormatterGateSchema>;
+
+/** Where the parser first choked, so the gate can say "Parser failed at line N" not just "does not parse". */
+export const SyntaxErrorSchema = z.object({
+  line: z.number().int().positive(),
+  column: z.number().int().positive(),
+  text: z.string(),
+});
+export type SyntaxErrorInfo = z.infer<typeof SyntaxErrorSchema>;
+
+/** A finding the patch introduced — the evidence behind a failed verifier gate, with its location. */
+export const NewFindingSchema = z.object({
+  source: z.string(),
+  ruleId: z.string(),
+  line: z.number().int().nonnegative(),
+  message: z.string(),
+});
+export type NewFinding = z.infer<typeof NewFindingSchema>;
+
 export const VerificationReportSchema = z.object({
   /** Present whenever verification actually ran. See VerificationDiagnosticsSchema. */
   diagnostics: VerificationDiagnosticsSchema.optional(),
@@ -182,6 +212,12 @@ export const VerificationReportSchema = z.object({
   targetResolved: z.boolean(),
   newFindingCount: z.number().int().nonnegative(),
   syntaxOk: z.boolean(),
+  /** Where the parser failed, when it did — populated only when `syntaxOk` is false. */
+  syntaxError: SyntaxErrorSchema.optional(),
+  /** The formatter gate — present once verification has run it. */
+  formatter: FormatterGateSchema.optional(),
+  /** The findings the patch introduced (the verifier gate's evidence), with locations. */
+  newFindings: z.array(NewFindingSchema).optional(),
   /** The checks that actually ran, e.g. ['syntax', 'eslint', 'tsc']. */
   ran: z.array(z.string()),
   note: z.string().optional(),

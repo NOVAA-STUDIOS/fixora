@@ -56,6 +56,23 @@ export function computeVerdict(input: VerdictInput): VerificationReport {
   const newSigs = new Set(patchedSigs.filter((s) => s !== targetSig && !originalSigs.has(s)));
   const newFindingCount = newSigs.size;
 
+  // The actual findings behind those signatures, with locations — the evidence the verifier gate
+  // shows the user ("TS2345 at line 12: ..."). Deduped by signature so the count and the list agree.
+  const seenNew = new Set<string>();
+  const newFindings = input.patchedFindings
+    .filter((f) => {
+      const sig = verificationSignature(f);
+      if (sig === targetSig || originalSigs.has(sig) || seenNew.has(sig)) return false;
+      seenNew.add(sig);
+      return true;
+    })
+    .map((f) => ({
+      source: f.source,
+      ruleId: f.ruleId,
+      line: f.location.startLine,
+      message: f.message,
+    }));
+
   const sources = new Set<string>(['syntax']);
   for (const f of [...input.originalFindings, ...input.patchedFindings]) sources.add(f.source);
   const ran = [...sources];
@@ -95,6 +112,7 @@ export function computeVerdict(input: VerdictInput): VerificationReport {
     targetResolved,
     newFindingCount,
     syntaxOk: input.syntaxOk,
+    ...(newFindings.length > 0 ? { newFindings } : {}),
     ran,
     diagnostics,
     ...(note !== undefined ? { note } : {}),

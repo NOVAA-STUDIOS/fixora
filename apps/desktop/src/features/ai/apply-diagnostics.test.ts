@@ -16,6 +16,9 @@ function proposal(over: {
   code?: string;
   newFindingCount?: number;
   syntaxOk?: boolean;
+  syntaxError?: { line: number; column: number; text: string };
+  formatter?: { ran: boolean; ok: boolean; formatter?: string; message?: string };
+  newFindings?: { source: string; ruleId: string; line: number; message: string }[];
 }): Repair {
   return {
     profile: 'repair',
@@ -30,6 +33,9 @@ function proposal(over: {
       targetResolved: over.verdict === 'verified',
       newFindingCount: over.newFindingCount ?? 0,
       syntaxOk: over.syntaxOk ?? true,
+      ...(over.syntaxError !== undefined ? { syntaxError: over.syntaxError } : {}),
+      ...(over.formatter !== undefined ? { formatter: over.formatter } : {}),
+      ...(over.newFindings !== undefined ? { newFindings: over.newFindings } : {}),
       ran: ['syntax', 'eslint'],
       diagnostics: {
         targetSignature: 'eslint:r:fn',
@@ -67,24 +73,26 @@ describe('evaluateApplyGate', () => {
     }
   });
 
-  it('disables Apply for a regression at every severity, and says why', () => {
+  it('disables Apply for a regression at every severity, via the verifier gate, and says why', () => {
     for (const severity of SEVERITIES) {
       const gate = evaluateApplyGate(
         proposal({ verdict: 'regression', severity, newFindingCount: 2 }),
       );
       expect(gate.enabled).toBe(false);
-      expect(gate.reason).toBe('regression');
+      expect(gate.reason).toBe('verifier');
       expect(gate.explanation).toContain('2');
     }
   });
 
-  it('distinguishes a broken-syntax regression from a new-problem regression', () => {
-    expect(
-      evaluateApplyGate(proposal({ verdict: 'regression', syntaxOk: false })).explanation,
-    ).toContain('parse');
-    expect(
-      evaluateApplyGate(proposal({ verdict: 'regression', newFindingCount: 1 })).explanation,
-    ).toContain('problem');
+  it('routes a broken-syntax regression to the PARSER gate and a new-problem one to the VERIFIER gate', () => {
+    const parserGate = evaluateApplyGate(proposal({ verdict: 'regression', syntaxOk: false }));
+    expect(parserGate.enabled).toBe(false);
+    expect(parserGate.reason).toBe('parser');
+    expect(parserGate.explanation.toLowerCase()).toContain('parse');
+
+    const verifierGate = evaluateApplyGate(proposal({ verdict: 'regression', newFindingCount: 1 }));
+    expect(verifierGate.reason).toBe('verifier');
+    expect(verifierGate.explanation).toContain('problem');
   });
 
   it('disables Apply for an empty patch, whatever the verdict says', () => {
@@ -104,6 +112,93 @@ describe('evaluateApplyGate', () => {
     for (const verdict of ['verified', 'regression', 'unresolved', 'skipped'] as Verdict[]) {
       expect(evaluateApplyGate(proposal({ verdict })).explanation.length).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * The three quality gates (Goals 4 & 9), evaluated Parser -> Verifier -> Formatter. Each case pins
+ * that the EXACT failing gate is named, never a generic message, and that a fully-clean patch enables
+ * Apply. This is the wiring the sprint delivers.
+ */
+describe('quality gates — parser -> verifier -> formatter', () => {
+  it('VALID patch: all gates pass -> Apply enabled', () => {
+    const gate = evaluateApplyGate(
+      proposal({ verdict: 'verified', formatter: { ran: true, ok: true, formatter: 'prettier' } }),
+    );
+    expect(gate.enabled).toBe(true);
+    expect(gate.gates.map((g) => g.status)).toEqual(['pass', 'pass', 'pass']);
+  });
+
+  it('PARSER failure -> Apply disabled, names the gate and the line', () => {
+    const gate = evaluateApplyGate(
+      proposal({
+        verdict: 'regression',
+        syntaxOk: false,
+        syntaxError: { line: 7, column: 3, text: "Missing ')'" },
+      }),
+    );
+    expect(gate.enabled).toBe(false);
+    expect(gate.reason).toBe('parser');
+    expect(gate.explanation).toContain('line 7');
+    expect(gate.explanation).not.toMatch(/something went wrong|internal error/i);
+    // Downstream gates must not run once the file does not parse.
+    expect(gate.gates.find((g) => g.name === 'verifier')?.status).toBe('not-run');
+  });
+
+  it('VERIFIER failure -> Apply disabled, lists the new finding with its line', () => {
+    const gate = evaluateApplyGate(
+      proposal({
+        verdict: 'regression',
+        newFindingCount: 1,
+        newFindings: [
+          { source: 'eslint', ruleId: 'no-undef', line: 12, message: "'x' is not defined" },
+        ],
+      }),
+    );
+    expect(gate.enabled).toBe(false);
+    expect(gate.reason).toBe('verifier');
+    expect(gate.explanation).toContain('no-undef');
+    expect(gate.explanation).toContain('line 12');
+  });
+
+  it('COMPILER failure (tsc) -> Apply disabled, headline says TypeScript diagnostics', () => {
+    const gate = evaluateApplyGate(
+      proposal({
+        verdict: 'regression',
+        newFindingCount: 1,
+        newFindings: [
+          { source: 'tsc', ruleId: 'TS2345', line: 4, message: "Argument of type 'string'..." },
+        ],
+      }),
+    );
+    expect(gate.enabled).toBe(false);
+    expect(gate.reason).toBe('verifier');
+    expect(gate.explanation).toContain('TypeScript diagnostics');
+    expect(gate.explanation).toContain('TS2345');
+  });
+
+  it('FORMATTER failure -> Apply disabled, names the formatter gate with its message', () => {
+    const gate = evaluateApplyGate(
+      proposal({
+        verdict: 'verified',
+        formatter: {
+          ran: true,
+          ok: false,
+          formatter: 'prettier',
+          message: 'a.ts: SyntaxError line 3',
+        },
+      }),
+    );
+    expect(gate.enabled).toBe(false);
+    expect(gate.reason).toBe('formatter');
+    expect(gate.explanation).toContain('Formatter failed');
+    if (!gate.enabled) expect(gate.diagnostic).toContain('line 3');
+  });
+
+  it('a not-run formatter (none installed) does NOT block a verified patch', () => {
+    const gate = evaluateApplyGate(proposal({ verdict: 'verified' })); // no formatter field
+    expect(gate.enabled).toBe(true);
+    expect(gate.gates.find((g) => g.name === 'formatter')?.status).toBe('not-run');
   });
 });
 
