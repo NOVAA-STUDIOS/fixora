@@ -24,8 +24,25 @@ export interface AnalysisJob {
   onError: (message: string) => void;
 }
 
+export interface SyntaxError {
+  line: number;
+  column: number;
+  text: string;
+}
+
+export interface FormatterGateResult {
+  ran: boolean;
+  ok: boolean;
+  formatter?: string;
+  message?: string;
+}
+
 export interface VerifyResult {
   syntaxOk: boolean;
+  /** When `syntaxOk` is false, where the parser first choked — for the "Parser failed at line N" gate. */
+  syntaxError?: SyntaxError;
+  /** The formatter gate outcome, computed in the worker against the overlay copy. */
+  formatter?: FormatterGateResult;
   findings: Finding[];
   aborted: boolean;
 }
@@ -67,6 +84,8 @@ type WorkerMessage =
       type: 'verifyResult';
       jobId: string;
       syntaxOk: boolean;
+      syntaxError?: SyntaxError;
+      formatter?: FormatterGateResult;
       findings: Finding[];
       aborted: boolean;
     }
@@ -88,10 +107,36 @@ function asWorkerMessage(value: unknown): WorkerMessage | null {
     };
   }
   if (m['type'] === 'verifyResult' && Array.isArray(m['findings'])) {
+    const se = m['syntaxError'];
+    let syntaxError: SyntaxError | undefined;
+    if (typeof se === 'object' && se !== null) {
+      const rec = se as Record<string, unknown>;
+      const text = rec['text'];
+      syntaxError = {
+        line: Number(rec['line']) || 1,
+        column: Number(rec['column']) || 1,
+        text: typeof text === 'string' ? text : 'Syntax error',
+      };
+    }
+    const fm = m['formatter'];
+    let formatter: FormatterGateResult | undefined;
+    if (typeof fm === 'object' && fm !== null) {
+      const rec = fm as Record<string, unknown>;
+      const name = rec['formatter'];
+      const msg = rec['message'];
+      formatter = {
+        ran: rec['ran'] === true,
+        ok: rec['ok'] === true,
+        ...(typeof name === 'string' ? { formatter: name } : {}),
+        ...(typeof msg === 'string' ? { message: msg } : {}),
+      };
+    }
     return {
       type: 'verifyResult',
       jobId: String(m['jobId']),
       syntaxOk: m['syntaxOk'] === true,
+      ...(syntaxError !== undefined ? { syntaxError } : {}),
+      ...(formatter !== undefined ? { formatter } : {}),
       findings: m['findings'] as Finding[],
       aborted: m['aborted'] === true,
     };

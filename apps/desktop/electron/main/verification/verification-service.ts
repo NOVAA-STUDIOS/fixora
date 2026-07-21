@@ -101,12 +101,20 @@ export function createVerificationService(deps: {
           return { report: skipped('Verification could not run for this file.'), originalCode };
         }
 
-        const report = computeVerdict({
+        const verdict = computeVerdict({
           target: input.finding,
           originalFindings: input.originalFindings,
           patchedFindings: result.findings,
           syntaxOk: result.syntaxOk,
         });
+        // The parser error location and the formatter-gate result are computed in the worker (where
+        // core-analysis is loaded and the overlay file lives) and ride back on the verify result.
+        const report = {
+          ...verdict,
+          ...(result.syntaxError !== undefined ? { syntaxError: result.syntaxError } : {}),
+          ...(result.formatter !== undefined ? { formatter: result.formatter } : {}),
+        };
+
         return { report, originalCode };
       } finally {
         overlay.dispose();

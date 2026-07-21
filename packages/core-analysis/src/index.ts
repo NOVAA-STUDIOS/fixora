@@ -30,6 +30,7 @@ export {
   type MicroRepairResult,
   type RepairStrategy,
 } from './repair/micro-repair.js';
+export { formatGate, resolveFormatter, type FormatGateResult } from './repair/format-gate.js';
 export {
   enclosingSymbol,
   extractCalls,
