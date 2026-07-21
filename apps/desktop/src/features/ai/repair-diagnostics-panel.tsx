@@ -168,8 +168,23 @@ export function RepairDiagnosticsPanel({
               value={`${gate.enabled ? 'enabled' : 'disabled'} · ${gate.reason}`}
               {...toneProp(gate.enabled ? 'ok' : 'bad')}
             />
-            <Row label="Rule" value="verdict !== 'regression' && patch is non-empty" mono wrap />
             <Row label="Severity is an input" value="no — recorded only" {...toneProp('ok')} />
+          </Group>
+
+          <Group title="Quality gates">
+            {gate.gates.length === 0 ? (
+              <Row label="—" value="No repair to gate yet" />
+            ) : (
+              gate.gates.map((g) => (
+                <Row
+                  key={g.name}
+                  label={g.name.charAt(0).toUpperCase() + g.name.slice(1)}
+                  value={`${g.status === 'pass' ? '✓ passed' : g.status === 'fail' ? '✗ failed' : '– not run'} — ${g.detail}`}
+                  wrap
+                  {...toneProp(g.status === 'pass' ? 'ok' : g.status === 'fail' ? 'bad' : undefined)}
+                />
+              ))
+            )}
           </Group>
 
           <Group title="Verification">
