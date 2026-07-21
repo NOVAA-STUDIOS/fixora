@@ -45,6 +45,8 @@ export {
 } from './workspace.js';
 export {
   AnalysisStateSchema,
+  AutofixEditSchema,
+  AutofixSchema,
   CategorySchema,
   EvidenceSchema,
   FindingSchema,
@@ -57,6 +59,8 @@ export {
   SymbolKindSchema,
   SymbolRefSchema,
   type AnalysisState,
+  type Autofix,
+  type AutofixEdit,
   type Category,
   type Evidence,
   type Finding,

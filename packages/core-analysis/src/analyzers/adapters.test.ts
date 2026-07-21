@@ -215,6 +215,39 @@ describe('ruff adapter — severity honesty', () => {
   });
 });
 
+describe('ruff adapter — autofix capture', () => {
+  const src = 'import os\nimport sys\n\nprint(sys.argv)\n';
+  const safeFix = JSON.stringify([
+    {
+      code: 'F401',
+      message: '`os` imported but unused',
+      filename: abs('main.py'),
+      location: { row: 1, column: 1 },
+      end_location: { row: 1, column: 10 },
+      fix: {
+        applicability: 'safe',
+        edits: [{ content: '', location: { row: 1, column: 1 }, end_location: { row: 2, column: 1 } }],
+      },
+    },
+  ]);
+
+  it('captures a SAFE fix as an offset autofix (row/col converted against the source)', async () => {
+    const ctx = context([{ file: 'main.py', language: 'python', source: src }], ['ruff']);
+    const findings = await collect(createRuffAnalyzer(outRunner(safeFix)), ctx);
+    expect(findings[0]?.autofix).toEqual({ source: 'ruff', edits: [{ range: [0, 10], text: '' }] });
+    // Offsets [0,10) are exactly the `import os\n` line — applying removes it.
+    expect(src.slice(0, 10)).toBe('import os\n');
+  });
+
+  it('does NOT capture an unsafe fix — those may change behaviour', async () => {
+    const unsafe = safeFix.replace('"safe"', '"unsafe"');
+    const ctx = context([{ file: 'main.py', language: 'python', source: src }], ['ruff']);
+    const findings = await collect(createRuffAnalyzer(outRunner(unsafe)), ctx);
+    expect(findings[0]?.fixable).toBe(true); // ruff still has a fix...
+    expect(findings[0]?.autofix).toBeUndefined(); // ...but it is not offered as a deterministic one
+  });
+});
+
 describe('go vet adapter', () => {
   it('parses -json output and uses the analyzer name as the rule', async () => {
     const report = JSON.stringify({

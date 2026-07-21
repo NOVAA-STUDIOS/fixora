@@ -1,6 +1,6 @@
 # Fixora — Analyzer Accuracy Report
 
-Generated 2026-07-21T14:34:25.053Z from a real execution of the analysis engine.
+Generated 2026-07-21T15:00:40.633Z from a real execution of the analysis engine.
 Every number below is measured. Anything not measured is marked `n/a` with a reason.
 
 ## Accuracy Dashboard

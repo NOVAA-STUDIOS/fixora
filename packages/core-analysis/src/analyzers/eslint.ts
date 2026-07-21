@@ -24,7 +24,10 @@ interface EslintMessage {
   column: number;
   endLine?: number;
   endColumn?: number;
-  fix?: unknown;
+  // ESLint's fix is an AST-derived edit: replace the byte range `[start, end)` with `text`. A rule
+  // only emits it when the fix is safe to apply unattended (suggestions, which need a human choice,
+  // travel in a separate `suggestions` array and are deliberately NOT treated as autofixes here).
+  fix?: { range: [number, number]; text: string };
 }
 interface EslintFileResult {
   filePath: string;
@@ -111,6 +114,14 @@ export function createEslintAnalyzer(deps: AdapterDeps = {}): Analyzer {
               ? { endLine: message.endLine, endCol: message.endColumn }
               : {}),
             fixable: message.fix !== undefined,
+            ...(message.fix !== undefined
+              ? {
+                  autofix: {
+                    source: 'eslint' as const,
+                    edits: [{ range: message.fix.range, text: message.fix.text }],
+                  },
+                }
+              : {}),
             toolOutput: message,
           };
           const list = byFile.get(file);
