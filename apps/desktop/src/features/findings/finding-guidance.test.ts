@@ -51,6 +51,7 @@ function finding(over: Partial<Finding> = {}): Finding {
     message: 'eval is evil',
     evidence: { snippet: 'eval(x)', relatedLocations: [], toolOutput: null },
     fixable: false,
+    repair: 'ai-required',
     confidence: 1,
     ...over,
   };

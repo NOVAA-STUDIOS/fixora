@@ -20,6 +20,7 @@ function finding(over: Partial<Finding>): Finding {
     message: 'Missing semicolon.',
     evidence: { snippet: '', relatedLocations: [], toolOutput: null },
     fixable: true,
+    repair: 'ai-required',
     confidence: 1,
     ...over,
   };

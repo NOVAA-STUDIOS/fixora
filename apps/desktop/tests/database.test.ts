@@ -206,6 +206,7 @@ describe('repositories', () => {
       message: 'm',
       evidence: { snippet: 's', relatedLocations: [], toolOutput: null },
       fixable: false,
+      repair: 'ai-required',
       confidence: 1,
     });
 
@@ -248,6 +249,7 @@ describe('repositories', () => {
         message: 'm',
         evidence: { snippet: 's', relatedLocations: [], toolOutput: null },
         fixable: false,
+        repair: 'ai-required',
         confidence: 1,
       },
     ]);

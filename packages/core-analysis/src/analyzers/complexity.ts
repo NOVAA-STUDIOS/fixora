@@ -6,6 +6,13 @@ import { findingId } from '../finding-id.js';
 import { parse } from '../parser/tree-sitter.js';
 
 /**
+ * The languages this analyzer measures: the tree-sitter "deep" set, excluding validation-only
+ * languages like JSON that have no functions to measure. Typing the node maps to this subset keeps a
+ * new validation language out of them by construction.
+ */
+type CodeLanguage = Exclude<Language, 'json'>;
+
+/**
  * The complexity analyzer: cyclomatic and cognitive complexity from tree-sitter, no external tool
  * (ADR-002 grounding that always works, even offline with nothing installed). It is the proof that
  * "Fixora is useful with the LLM — and every external linter — switched off": on any of the three
@@ -23,7 +30,7 @@ const COGNITIVE_WARN = 16;
 const COGNITIVE_ERROR = 31;
 
 /** Function-like nodes: the boundaries we measure, and the nested ones we do NOT fold into a parent. */
-const FUNCTION_NODES: Record<Language, ReadonlySet<string>> = {
+const FUNCTION_NODES: Record<CodeLanguage, ReadonlySet<string>> = {
   typescript: new Set([
     'function_declaration',
     'function_expression',
@@ -43,7 +50,7 @@ const FUNCTION_NODES: Record<Language, ReadonlySet<string>> = {
 };
 
 /** Nodes that add a decision point (+1 cyclomatic). `else`/`default` are excluded — they add no path. */
-const BRANCH_NODES: Record<Language, ReadonlySet<string>> = {
+const BRANCH_NODES: Record<CodeLanguage, ReadonlySet<string>> = {
   typescript: new Set([
     'if_statement',
     'for_statement',
@@ -78,7 +85,7 @@ const BRANCH_NODES: Record<Language, ReadonlySet<string>> = {
 };
 
 /** Branch nodes that also introduce a nesting level (for cognitive complexity). */
-const NESTING_NODES: Record<Language, ReadonlySet<string>> = {
+const NESTING_NODES: Record<CodeLanguage, ReadonlySet<string>> = {
   typescript: new Set([
     'if_statement',
     'for_statement',
@@ -107,7 +114,7 @@ const NESTING_NODES: Record<Language, ReadonlySet<string>> = {
   go: new Set(['if_statement', 'for_statement', 'expression_case', 'communication_case']),
 };
 
-const FUNCTION_QUERIES: Record<Language, string> = {
+const FUNCTION_QUERIES: Record<CodeLanguage, string> = {
   typescript: `
     (function_declaration name: (identifier) @name) @fn
     (method_definition name: (property_identifier) @name) @fn
@@ -139,7 +146,7 @@ interface Metrics {
 }
 
 /** Walk one function body, counting decision points; never fold a nested function into this one. */
-function measure(fnNode: Node, language: Language): Metrics {
+function measure(fnNode: Node, language: CodeLanguage): Metrics {
   const branches = BRANCH_NODES[language];
   const nesting = NESTING_NODES[language];
   const functions = FUNCTION_NODES[language];
@@ -218,6 +225,9 @@ function complexityFinding(
       toolOutput: { metric: ruleId, value, threshold },
     },
     fixable: false,
+    // High complexity is advice, not a defect with a mechanical fix: how (or whether) to refactor is
+    // the developer's judgement, so this is never auto- or AI-applied.
+    repair: 'manual',
     confidence: 1,
   };
 }
@@ -242,11 +252,15 @@ export const complexityAnalyzer: Analyzer = {
     const aborted = (): boolean => signal.aborted;
     for (const analysisFile of context.files) {
       if (aborted()) return;
+      // Validation-only languages (JSON) have no functions to measure — skip before parsing, which
+      // also narrows the language to the code set the node maps are keyed by.
+      const language = analysisFile.language;
+      if (language === 'json') continue;
       const source = context.readSource(analysisFile.absPath);
       if (source === null) continue;
-      const parsed = await parse(analysisFile.language, source, analysisFile.file);
+      const parsed = await parse(language, source, analysisFile.file);
       try {
-        const query = new Query(parsed.grammar, FUNCTION_QUERIES[analysisFile.language]);
+        const query = new Query(parsed.grammar, FUNCTION_QUERIES[language]);
         try {
           for (const match of query.matches(parsed.root)) {
             if (aborted()) return;
@@ -259,7 +273,7 @@ export const complexityAnalyzer: Analyzer = {
             if (fnNode === undefined || nameNode === undefined) continue;
 
             const symbol = toSymbol(nameNode.text, functionKind(fnNode), fnNode, analysisFile.file);
-            const { cyclomatic, cognitive } = measure(fnNode, analysisFile.language);
+            const { cyclomatic, cognitive } = measure(fnNode, language);
 
             const cycSeverity = severityFor(cyclomatic, CYCLOMATIC_WARN, CYCLOMATIC_ERROR);
             if (cycSeverity !== null) {

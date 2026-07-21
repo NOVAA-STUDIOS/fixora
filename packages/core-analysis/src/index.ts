@@ -3,6 +3,7 @@ export type { Analyzer, AnalysisContext, AnalysisFile, WorkspaceCapabilities } f
 export { createAnalysisContext, type CreateContextOptions } from './context.js';
 export { complexityAnalyzer } from './analyzers/complexity.js';
 export { createEslintAnalyzer } from './analyzers/eslint.js';
+export { createJsonAnalyzer } from './analyzers/json.js';
 export { createRuffAnalyzer } from './analyzers/ruff.js';
 export { createGoVetAnalyzer } from './analyzers/go-vet.js';
 export { createTscAnalyzer } from './analyzers/tsc.js';

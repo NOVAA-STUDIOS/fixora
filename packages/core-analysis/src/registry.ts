@@ -2,6 +2,7 @@ import type { Analyzer, WorkspaceCapabilities } from './analyzer.js';
 import { complexityAnalyzer } from './analyzers/complexity.js';
 import { createEslintAnalyzer } from './analyzers/eslint.js';
 import { createGoVetAnalyzer } from './analyzers/go-vet.js';
+import { createJsonAnalyzer } from './analyzers/json.js';
 import { createMypyAnalyzer } from './analyzers/mypy.js';
 import { createRuffAnalyzer } from './analyzers/ruff.js';
 import { createSemgrepAnalyzer } from './analyzers/semgrep.js';
@@ -21,6 +22,7 @@ export function defaultAnalyzers(): Analyzer[] {
     createMypyAnalyzer(),
     createGoVetAnalyzer(),
     createSemgrepAnalyzer(),
+    createJsonAnalyzer(),
   ];
 }
 

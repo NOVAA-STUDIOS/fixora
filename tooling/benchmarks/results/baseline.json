@@ -1,12 +1,12 @@
 {
   "overall": {
-    "truePositives": 3,
+    "truePositives": 4,
     "falsePositives": 0,
     "falseNegatives": 0
   },
   "accuracy": 1,
   "benchmarks": {
-    "passed": 5,
+    "passed": 7,
     "failed": 0
   }
 }
