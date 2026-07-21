@@ -18,13 +18,45 @@ interface RuffPoint {
   row: number;
   column: number;
 }
+interface RuffEdit {
+  content: string;
+  location: RuffPoint;
+  end_location: RuffPoint;
+}
+interface RuffFix {
+  /** Ruff's own judgement: `safe` fixes preserve behaviour; `unsafe`/`display` may not. */
+  applicability?: string;
+  edits: RuffEdit[];
+  message?: string;
+}
 interface RuffMessage {
   code: string | null;
   message: string;
   filename: string;
   location: RuffPoint;
   end_location?: RuffPoint;
-  fix?: unknown;
+  fix?: RuffFix | null;
+}
+
+/**
+ * Ruff reports edit positions as 1-based (row, column); a micro-repair needs character offsets. This
+ * converts using the file's own line starts. Columns are treated as character offsets within the line,
+ * which is exact for ASCII and the common BMP case; a fix landing past a line's end is rejected by the
+ * caller. Returns null if any position is out of range, so a fix we cannot place exactly is dropped
+ * rather than misapplied.
+ */
+function lineStarts(source: string): number[] {
+  const starts = [0];
+  for (let i = 0; i < source.length; i++) {
+    if (source[i] === '\n') starts.push(i + 1);
+  }
+  return starts;
+}
+function toOffset(starts: number[], point: RuffPoint, sourceLength: number): number | null {
+  const lineStart = starts[point.row - 1];
+  if (lineStart === undefined) return null;
+  const offset = lineStart + (point.column - 1);
+  return offset >= 0 && offset <= sourceLength ? offset : null;
 }
 
 function categoryFor(code: string): Category {
@@ -139,10 +171,43 @@ export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
         return;
       }
 
+      // Per-file source + line-start cache, so converting a fix's row/col to offsets reads each file
+      // at most once. Keyed by the absolute path Ruff reported.
+      const absByRel = new Map(context.files.map((f) => [f.file, f.absPath] as const));
+      const lineCache = new Map<string, { source: string; starts: number[] } | null>();
+      const linesFor = (rel: string): { source: string; starts: number[] } | null => {
+        if (!lineCache.has(rel)) {
+          const abs = absByRel.get(rel);
+          const source = abs === undefined ? null : context.readSource(abs);
+          lineCache.set(rel, source === null ? null : { source, starts: lineStarts(source) });
+        }
+        return lineCache.get(rel) ?? null;
+      };
+
       const byFile = new Map<string, RawFinding[]>();
       for (const message of messages) {
         if (message.code === null) continue;
         const file = toRelPosix(context.root, message.filename);
+        const fixable = message.fix !== undefined && message.fix !== null;
+        // Only a Ruff-declared SAFE fix becomes an autofix. `unsafe`/`display` fixes can change
+        // behaviour, which is exactly what a deterministic micro-repair must never do unattended —
+        // those are left for the AI path, where the change is reviewed. Positions convert to offsets
+        // against the file's own source; a fix that cannot be placed exactly is dropped, not guessed.
+        const autofix = ((): RawFinding['autofix'] => {
+          const fix = message.fix;
+          if (fix?.applicability !== 'safe') return undefined;
+          const ctxLines = linesFor(file);
+          if (ctxLines === null) return undefined;
+          const edits = [];
+          for (const edit of fix.edits) {
+            const start = toOffset(ctxLines.starts, edit.location, ctxLines.source.length);
+            const end = toOffset(ctxLines.starts, edit.end_location, ctxLines.source.length);
+            if (start === null || end === null || start > end) return undefined;
+            edits.push({ range: [start, end] as [number, number], text: edit.content });
+          }
+          return edits.length > 0 ? { source: 'ruff' as const, edits } : undefined;
+        })();
+
         const raw: RawFinding = {
           ruleId: message.code,
           severity: severityFor(message.code),
@@ -153,7 +218,8 @@ export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
           ...(message.end_location !== undefined
             ? { endLine: message.end_location.row, endCol: message.end_location.column }
             : {}),
-          fixable: message.fix !== undefined && message.fix !== null,
+          fixable,
+          ...(autofix !== undefined ? { autofix } : {}),
           toolOutput: message,
         };
         const list = byFile.get(file);

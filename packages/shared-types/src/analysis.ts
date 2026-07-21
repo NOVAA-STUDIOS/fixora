@@ -93,6 +93,29 @@ export const EvidenceSchema = z.object({
 export type Evidence = z.infer<typeof EvidenceSchema>;
 
 /**
+ * A single edit in a tool-authored autofix, as a **character-offset range** on the ORIGINAL file
+ * text: replace `[start, end)` with `text`. Offsets, not line/col, so applying an edit is an exact
+ * splice with no re-tokenisation. ESLint expresses its fixes exactly this way; the Ruff adapter
+ * converts its row/col edits to offsets before they get here, so the shape downstream is uniform.
+ *
+ * This is deliberately NOT a free-form text patch: it is the linter's own AST-based fixer output.
+ * Fixora never invents an edit by string-munging — an autofix is only ever a fix the tool authored,
+ * which is what makes a micro-repair AST-aware rather than a risky regex replacement.
+ */
+export const AutofixEditSchema = z.object({
+  range: z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()]),
+  text: z.string(),
+});
+export type AutofixEdit = z.infer<typeof AutofixEditSchema>;
+
+export const AutofixSchema = z.object({
+  /** The tool that authored this fix — recorded so its provenance is never mistaken for AI. */
+  source: FindingSourceSchema,
+  edits: z.array(AutofixEditSchema).min(1),
+});
+export type Autofix = z.infer<typeof AutofixSchema>;
+
+/**
  * The unified finding. `id` is **stable across runs** — it hashes the rule, file, enclosing symbol
  * and a *normalised* snippet, never the raw line number, so a finding keeps its identity when a
  * patch shifts lines around it. That stability is what makes the verification comparison ("did the
@@ -110,6 +133,11 @@ export const FindingSchema = z.object({
   evidence: EvidenceSchema,
   /** Does the underlying tool already have a deterministic autofix? */
   fixable: z.boolean(),
+  /**
+   * The tool-authored fix itself, when there is one. Present only when `fixable` is true and the tool
+   * emitted an applicable edit. This is what a deterministic micro-repair applies — no model involved.
+   */
+  autofix: AutofixSchema.optional(),
   /** 1.0 for deterministic tools; below 1.0 only for `source: 'ai'`. */
   confidence: z.number().min(0).max(1),
 });

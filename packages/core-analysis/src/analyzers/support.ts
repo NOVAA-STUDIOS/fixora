@@ -1,4 +1,11 @@
-import type { Category, Finding, FindingSource, Severity, SymbolRef } from '@fixora/shared-types';
+import type {
+  Autofix,
+  Category,
+  Finding,
+  FindingSource,
+  Severity,
+  SymbolRef,
+} from '@fixora/shared-types';
 
 import type { AnalysisContext } from '../analyzer.js';
 import { findingId } from '../finding-id.js';
@@ -31,6 +38,8 @@ export interface RawFinding {
   endLine?: number;
   endCol?: number;
   fixable: boolean;
+  /** The tool's own edit, when it emitted one. Carried through grounding onto the Finding. */
+  autofix?: Autofix;
   toolOutput: unknown;
 }
 
@@ -71,6 +80,7 @@ export function createFileGrounder(
           toolOutput: raw.toolOutput,
         },
         fixable: raw.fixable,
+        ...(raw.autofix !== undefined ? { autofix: raw.autofix } : {}),
         confidence: 1,
       };
     },

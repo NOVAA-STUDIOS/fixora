@@ -24,6 +24,13 @@ export { languageForPath } from './language.js';
 export { parseStructure, type FileStructure } from './structure.js';
 export { parse, type ParsedTree } from './parser/tree-sitter.js';
 export {
+  applyEdits,
+  classifyRepair,
+  deterministicRepair,
+  type MicroRepairResult,
+  type RepairStrategy,
+} from './repair/micro-repair.js';
+export {
   enclosingSymbol,
   extractCalls,
   extractImports,
