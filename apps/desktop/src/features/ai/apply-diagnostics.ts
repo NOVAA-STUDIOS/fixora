@@ -105,24 +105,23 @@ export function evaluateApplyGate(
 
   // Gate 3 — FORMATTER.
   const fmt = v.formatter;
-  const formatter: GateOutcome =
-    !fmt?.ran
+  const formatter: GateOutcome = !fmt?.ran
+    ? {
+        name: 'formatter',
+        status: 'not-run',
+        detail: 'No formatter is configured for this language.',
+      }
+    : fmt.ok
       ? {
           name: 'formatter',
-          status: 'not-run',
-          detail: 'No formatter is configured for this language.',
+          status: 'pass',
+          detail: `${fmt.formatter ?? 'The formatter'} accepted the patched file.`,
         }
-      : fmt.ok
-        ? {
-            name: 'formatter',
-            status: 'pass',
-            detail: `${fmt.formatter ?? 'The formatter'} accepted the patched file.`,
-          }
-        : {
-            name: 'formatter',
-            status: 'fail',
-            detail: `${fmt.formatter ?? 'Formatter'} could not format the patched file.`,
-          };
+      : {
+          name: 'formatter',
+          status: 'fail',
+          detail: `${fmt.formatter ?? 'Formatter'} could not format the patched file.`,
+        };
 
   const gates = [parser, verifier, formatter];
 
@@ -333,6 +332,14 @@ export function remedyFor(attempt: ApplyAttempt | null, gate: ApplyGate): Remedy
         label: 'Close',
         reason: 'No project is open.',
         detail: 'Open the project this repair belongs to, then run the repair again.',
+      };
+    case 'read-failed':
+      return {
+        kind: 'refresh-editor',
+        label: 'Re-analyze',
+        reason: 'Fixora could not read the file to apply the repair.',
+        detail:
+          'It may have been moved, renamed, locked, or had its permissions changed since analysis. Re-analyze the project and run the repair again.',
       };
     case 'write-failed':
       return {
