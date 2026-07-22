@@ -210,22 +210,23 @@ export function createAiService(deps: AiServiceDeps): AiService {
         return { status: 'error', code: 'not_found', message };
       }
 
-      // The repair target must be a syntactically COMPLETE unit, or the model is handed a partial
-      // line, returns a snippet that cannot compile, and the parser rejects the splice (the exact
-      // TS2322-in-an-object-literal failure). Preference order: the enclosing named symbol; else the
-      // enclosing top-level block the analyzer resolved from the AST; else, only as a last resort, the
-      // finding's own line. The first two are always complete units; the fallback is reached only when
-      // analysis produced no structure at all.
+      // The repair target is the smallest self-contained AST scope the analyzer resolved for this
+      // finding (Repair Context Engine v2): the least code that still parses independently and splices
+      // safely. It is preferred over the whole enclosing symbol so a one-line fix does not regenerate
+      // an entire function, and it is never a partial fragment (the TS2322-in-an-object-literal that
+      // the parser rejected). The enclosing symbol still supplies the label; the finding's bare line is
+      // a last resort, reached only when analysis produced no scope at all (e.g. the file did not
+      // parse). enclosingRange is always >= a complete statement, so the target always compiles.
       const symbol = finding.evidence.enclosingSymbol;
-      const range = finding.evidence.enclosingRange;
-      const target: Target = symbol
-        ? {
-            symbolName: symbol.name,
-            startLine: symbol.location.startLine,
-            endLine: symbol.location.endLine,
-          }
-        : range
-          ? { symbolName: null, startLine: range.startLine, endLine: range.endLine }
+      const scope = finding.evidence.enclosingRange;
+      const target: Target = scope
+        ? { symbolName: symbol?.name ?? null, startLine: scope.startLine, endLine: scope.endLine }
+        : symbol
+          ? {
+              symbolName: symbol.name,
+              startLine: symbol.location.startLine,
+              endLine: symbol.location.endLine,
+            }
           : {
               symbolName: null,
               startLine: finding.location.startLine,

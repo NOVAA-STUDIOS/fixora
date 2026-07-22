@@ -1,7 +1,8 @@
 import type { Language, SymbolRef } from '@fixora/shared-types';
 
-import type { BlockRange } from './analyzer.js';
+import type { RepairScope } from './analyzer.js';
 import { parse } from './parser/tree-sitter.js';
+import { collectScopes, smallestScopeContaining } from './repair/scope-selector.js';
 import {
   extractCalls,
   extractImports,
@@ -9,6 +10,8 @@ import {
   type CallEdge,
   type ExtractedImport,
 } from './symbols/symbols.js';
+
+export { smallestScopeContaining };
 
 /**
  * The within-file structure the rest of the engine consumes: the symbols it declares, the modules it
@@ -19,10 +22,10 @@ export interface FileStructure {
   symbols: SymbolRef[];
   imports: ExtractedImport[];
   calls: CallEdge[];
-  blocks: BlockRange[];
+  scopes: RepairScope[];
 }
 
-/** Parse `source` and extract its symbols, imports, call graph and top-level block ranges. */
+/** Parse `source` and extract its symbols, imports, call graph and repair scopes. */
 export async function parseStructure(
   language: Language,
   source: string,
@@ -31,32 +34,13 @@ export async function parseStructure(
   const parsed = await parse(language, source, file);
   try {
     const symbols = extractSymbols(parsed, language, file);
-    const blocks: BlockRange[] = [];
-    for (let i = 0; i < parsed.root.namedChildCount; i++) {
-      const child = parsed.root.namedChild(i);
-      if (child === null) continue;
-      blocks.push({
-        startLine: child.startPosition.row + 1,
-        endLine: child.endPosition.row + 1,
-      });
-    }
     return {
       symbols,
       imports: extractImports(parsed, language, file),
       calls: extractCalls(parsed, language, symbols, file),
-      blocks,
+      scopes: collectScopes(parsed.root, language),
     };
   } finally {
     parsed.dispose();
   }
-}
-
-/** The smallest top-level block containing `line`, or null if none does (e.g. a blank line). */
-export function blockContaining(blocks: readonly BlockRange[], line: number): BlockRange | null {
-  let best: BlockRange | null = null;
-  for (const b of blocks) {
-    if (line < b.startLine || line > b.endLine) continue;
-    if (best === null || b.endLine - b.startLine < best.endLine - best.startLine) best = b;
-  }
-  return best;
 }

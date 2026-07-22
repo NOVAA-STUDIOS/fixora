@@ -47,8 +47,8 @@ async function parses(source: string): Promise<boolean> {
 
 describe('enclosing-range grounding (TS2322-in-object-literal)', () => {
   it('grounds a finding with no enclosing symbol on the complete top-level declaration', async () => {
-    const { symbols, blocks } = await parseStructure('typescript', OBJECT_LITERAL, 'a.ts');
-    const grounder = createFileGrounder('tsc', 'a.ts', OBJECT_LITERAL, symbols, blocks);
+    const { symbols, scopes } = await parseStructure('typescript', OBJECT_LITERAL, 'a.ts');
+    const grounder = createFileGrounder('tsc', 'a.ts', OBJECT_LITERAL, symbols, scopes);
     // A TS2322 as tsc would report it: on the `count: "hello"` line (line 6).
     const raw: RawFinding = {
       ruleId: 'TS2322',
@@ -79,10 +79,10 @@ describe('enclosing-range grounding (TS2322-in-object-literal)', () => {
     expect(await parses(splice(OBJECT_LITERAL, 6, 6, isolatedSnippet))).toBe(false);
   });
 
-  it('leaves a finding INSIDE a named symbol grounded on the symbol, not a block', async () => {
+  it('grounds a finding INSIDE a function on the SMALLEST statement, keeping the symbol as the label', async () => {
     const withFn = `export function greet(name: string): string {\n  const n: number = name;\n  return \`\${n}\`;\n}\n`;
-    const { symbols, blocks } = await parseStructure('typescript', withFn, 'b.ts');
-    const grounder = createFileGrounder('tsc', 'b.ts', withFn, symbols, blocks);
+    const { symbols, scopes } = await parseStructure('typescript', withFn, 'b.ts');
+    const grounder = createFileGrounder('tsc', 'b.ts', withFn, symbols, scopes);
     const finding = grounder.ground({
       ruleId: 'TS2322',
       severity: 'error',
@@ -93,8 +93,10 @@ describe('enclosing-range grounding (TS2322-in-object-literal)', () => {
       fixable: false,
       toolOutput: null,
     });
+    // The enclosing symbol is still recorded (the label), but the repair scope is the single
+    // statement on line 2 — Repair Context Engine v2 targets the least code that compiles, not the
+    // whole function, for a one-line fix.
     expect(finding.evidence.enclosingSymbol?.name).toBe('greet');
-    // enclosingRange is only for the no-symbol case — the symbol already gives a complete unit.
-    expect(finding.evidence.enclosingRange).toBeUndefined();
+    expect(finding.evidence.enclosingRange).toEqual({ startLine: 2, endLine: 2 });
   });
 });
