@@ -1,0 +1,39 @@
+{
+  "id": "exhaustive-deps",
+  "language": "react",
+  "category": "broken",
+  "support": "supported",
+  "requiresTools": [
+    "eslint"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "src/C.tsx",
+        "line": 5,
+        "ruleId": "react-hooks/exhaustive-deps",
+        "severity": "warning",
+        "source": "eslint",
+        "repair": "ai-required"
+      },
+      {
+        "file": "src/C.tsx",
+        "line": 8,
+        "ruleId": "TS7026",
+        "severity": "error",
+        "source": "tsc",
+        "repair": "ai-required"
+      },
+      {
+        "file": "src/C.tsx",
+        "line": 8,
+        "ruleId": "TS7026",
+        "severity": "error",
+        "source": "tsc",
+        "repair": "ai-required"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}

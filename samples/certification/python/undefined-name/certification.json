@@ -1,0 +1,23 @@
+{
+  "id": "undefined-name",
+  "language": "python",
+  "category": "broken",
+  "support": "supported",
+  "requiresTools": [
+    "ruff"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "main.py",
+        "line": 2,
+        "ruleId": "F821",
+        "severity": "error",
+        "source": "ruff",
+        "repair": "manual"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}

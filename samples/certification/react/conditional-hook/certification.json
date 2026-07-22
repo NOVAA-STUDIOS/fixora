@@ -1,0 +1,39 @@
+{
+  "id": "conditional-hook",
+  "language": "react",
+  "category": "broken",
+  "support": "supported",
+  "requiresTools": [
+    "eslint"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "src/Bad.tsx",
+        "line": 5,
+        "ruleId": "react-hooks/rules-of-hooks",
+        "severity": "error",
+        "source": "eslint",
+        "repair": "ai-required"
+      },
+      {
+        "file": "src/Bad.tsx",
+        "line": 6,
+        "ruleId": "TS7026",
+        "severity": "error",
+        "source": "tsc",
+        "repair": "ai-required"
+      },
+      {
+        "file": "src/Bad.tsx",
+        "line": 6,
+        "ruleId": "TS7026",
+        "severity": "error",
+        "source": "tsc",
+        "repair": "ai-required"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "id": "multi-error",
+  "language": "javascript",
+  "category": "multi-error",
+  "support": "supported",
+  "requiresTools": [
+    "eslint"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "index.js",
+        "line": 3,
+        "ruleId": "no-dupe-keys",
+        "severity": "error",
+        "source": "eslint",
+        "repair": "ai-required"
+      },
+      {
+        "file": "index.js",
+        "line": 3,
+        "ruleId": "TS1117",
+        "severity": "error",
+        "source": "tsc",
+        "repair": "ai-required"
+      },
+      {
+        "file": "index.js",
+        "line": 5,
+        "ruleId": "no-self-compare",
+        "severity": "error",
+        "source": "eslint",
+        "repair": "ai-required"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}

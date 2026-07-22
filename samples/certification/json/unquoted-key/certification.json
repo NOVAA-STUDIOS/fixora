@@ -1,0 +1,21 @@
+{
+  "id": "unquoted-key",
+  "language": "json",
+  "category": "broken",
+  "support": "supported",
+  "requiresTools": [],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "config.json",
+        "line": 3,
+        "ruleId": "json-parse",
+        "severity": "error",
+        "source": "json",
+        "repair": "ai-required"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}

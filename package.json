@@ -24,8 +24,9 @@
     "gate:adr": "tsx tooling/scripts/sync-adrs.ts --check",
     "gate:website": "node tooling/scripts/check-website.mjs",
     "adr:sync": "tsx tooling/scripts/sync-adrs.ts",
-    "ci": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm gate:contrast && pnpm gate:boundaries && pnpm gate:accuracy && pnpm gate:adr && pnpm gate:electron && pnpm gate:secrets && pnpm gate:audit",
-    "gate:accuracy": "pnpm --filter @fixora/benchmarks bench:check"
+    "ci": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm gate:contrast && pnpm gate:boundaries && pnpm gate:accuracy && pnpm gate:certification && pnpm gate:adr && pnpm gate:electron && pnpm gate:secrets && pnpm gate:audit",
+    "gate:accuracy": "pnpm --filter @fixora/benchmarks bench:check",
+    "gate:certification": "pnpm --filter @fixora/certification certify:check"
   },
   "devDependencies": {
     "@doyensec/electronegativity": "1.10.3",

@@ -1,0 +1,12 @@
+{
+  "id": "malformed-nesting",
+  "language": "html",
+  "category": "broken",
+  "support": "unsupported",
+  "requiresTools": [],
+  "note": "No HTML analyzer implemented — languageForPath returns null. A gap, never scored.",
+  "expected": {
+    "findings": [],
+    "deterministicRepairable": 0
+  }
+}

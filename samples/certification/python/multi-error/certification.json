@@ -1,0 +1,31 @@
+{
+  "id": "multi-error",
+  "language": "python",
+  "category": "multi-error",
+  "support": "supported",
+  "requiresTools": [
+    "ruff"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "main.py",
+        "line": 1,
+        "ruleId": "F401",
+        "severity": "warning",
+        "source": "ruff",
+        "repair": "safe-auto"
+      },
+      {
+        "file": "main.py",
+        "line": 5,
+        "ruleId": "F841",
+        "severity": "warning",
+        "source": "ruff",
+        "repair": "ai-required"
+      }
+    ],
+    "deterministicRepairable": 1
+  }
+}

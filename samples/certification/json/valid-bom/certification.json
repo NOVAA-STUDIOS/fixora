@@ -1,0 +1,12 @@
+{
+  "id": "valid-bom",
+  "language": "json",
+  "category": "fp-guard",
+  "support": "supported",
+  "requiresTools": [],
+  "note": "",
+  "expected": {
+    "findings": [],
+    "deterministicRepairable": 0
+  }
+}

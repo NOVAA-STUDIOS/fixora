@@ -1,0 +1,12 @@
+{
+  "id": "valid-clean",
+  "language": "javascript",
+  "category": "valid",
+  "support": "supported",
+  "requiresTools": [],
+  "note": "",
+  "expected": {
+    "findings": [],
+    "deterministicRepairable": 0
+  }
+}

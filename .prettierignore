@@ -16,3 +16,9 @@ docs/
 # the benchmarks exist to measure. Results are generated.
 tooling/benchmarks/golden
 tooling/benchmarks/results
+
+# The certification samples are the same: deliberately-broken fixtures (invalid JSON, malformed
+# HTML/CSS) the runner analyzes and repairs. Formatting them would undo what they exist to test.
+# Results are generated.
+samples/certification
+tooling/certification/results
