@@ -26,6 +26,7 @@ import type { VerificationService } from '../verification/verification-service.j
 
 import type { KeyStore } from './key-store.js';
 import { projectConventions, repairNeighbours } from './repair-context.js';
+import { evaluateRepairEligibility } from './repair-eligibility.js';
 
 /**
  * The AI run orchestrator (AI-Pipeline). It is the only thing in main that talks to a provider, and it
@@ -190,6 +191,30 @@ export function createAiService(deps: AiServiceDeps): AiService {
           code: 'not_found',
           message: 'Unsupported file type for AI actions.',
         };
+      }
+
+      // Repair eligibility (P0.1 Part 2): decide, with a precise reason, whether this finding can be
+      // repaired at all — before any model call. Availability depends only on language, rule and model
+      // (Part 4), never on the workspace. Model capability is enforced downstream by the provider/
+      // schema path, so here it is not pre-judged (repairCapable: true); the language and manual-rule
+      // decisions ARE final and short-circuit with the engine's exact reason, never a generic one.
+      if (request.profile === 'repair') {
+        const eligibility = evaluateRepairEligibility({
+          language,
+          ruleId: finding.ruleId,
+          repairability: finding.repair,
+          provider: 'openrouter',
+          model: deps.keyStore.getConfig().model,
+          repairCapable: true,
+        });
+        if (!eligibility.repairable && eligibility.reason !== null) {
+          console.error('[ai:run] repair not eligible', {
+            ruleId: finding.ruleId,
+            repairability: finding.repair,
+            reason: eligibility.reason,
+          });
+          return { status: 'error', code: 'not_found', message: eligibility.reason };
+        }
       }
 
       let content: string;
