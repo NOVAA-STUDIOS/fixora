@@ -32,6 +32,16 @@ describe('applyEdits', () => {
     expect(applyEdits('const a = 1', [{ range: [11, 11], text: ';' }])).toBe('const a = 1;');
   });
 
+  it('preserves CRLF endings exactly — offset splicing never touches surrounding line endings', () => {
+    // A CRLF file; remove the unused `os` import (offsets [0,10) = "import os\r\n"... but here the
+    // edit lands mid-file). The surrounding \r\n must survive byte-for-byte.
+    const crlf = 'const a = 1;\r\nconst b = 2;\r\nconst c = 3;\r\n';
+    // Replace "2" (offset of the 2 in line 2). "const a = 1;\r\n" is 14 chars; "const b = " is 10 → 24.
+    const out = applyEdits(crlf, [{ range: [24, 25], text: '20' }]);
+    expect(out).toBe('const a = 1;\r\nconst b = 20;\r\nconst c = 3;\r\n');
+    expect(/(?<!\r)\n/.test(out ?? '')).toBe(false); // no lone LF introduced
+  });
+
   it('applies multiple edits without offsets drifting', () => {
     // Replace both quotes: 'a' -> "a", at two separate ranges.
     const out = applyEdits(`x = 'a'`, [

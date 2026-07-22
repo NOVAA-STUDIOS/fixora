@@ -103,6 +103,62 @@ describe('ai:applyRepair — filesystem failures travel as contract data', () =>
     });
   });
 
+  it('P0.3 multi-error safety: a second repair computed against the pre-change file is refused, never misapplied (req #4)', async () => {
+    // Two findings in one file. Repair A changes line 2; repair B was computed against the ORIGINAL
+    // file (its expectedOriginal is the pre-A text). After A applies, B must be refused as stale —
+    // applying it would splice B's edit over content that is no longer what B was built against.
+    writeFileSync(join(root, 'src', 'm.ts'), 'const a = 1;\nconst b = 2;\nconst c = 3;\n');
+    const handler = await applyHandler(root);
+
+    const a = handler(
+      {
+        file: 'src/m.ts',
+        startLine: 2,
+        endLine: 2,
+        code: 'const b = 20;',
+        expectedOriginal: 'const b = 2;',
+      },
+      { requestId: 'A', window: null },
+    );
+    expect(a.applied).toBe(true);
+
+    // Repair B targets the same line but its expectedOriginal is the ORIGINAL (stale) text.
+    const b = handler(
+      {
+        file: 'src/m.ts',
+        startLine: 2,
+        endLine: 2,
+        code: 'const b = 99;',
+        expectedOriginal: 'const b = 2;',
+      },
+      { requestId: 'B', window: null },
+    );
+    expect(b.applied).toBe(false);
+    if (!b.applied) expect(b.reason).toBe('stale-range');
+    // The file still holds A's change — B did not overwrite it.
+    expect(readFileSync(join(root, 'src', 'm.ts'), 'utf8')).toBe(
+      'const a = 1;\nconst b = 20;\nconst c = 3;\n',
+    );
+  });
+
+  it('P0.3 req #7: a repair whose expected original no longer matches is never applied', async () => {
+    writeFileSync(join(root, 'src', 'x.ts'), 'const a = 1;\n');
+    const handler = await applyHandler(root);
+    const outcome = handler(
+      {
+        file: 'src/x.ts',
+        startLine: 1,
+        endLine: 1,
+        code: 'const a = 2;',
+        expectedOriginal: 'const a = OLD;',
+      },
+      { requestId: 'x', window: null },
+    );
+    expect(outcome.applied).toBe(false);
+    if (!outcome.applied) expect(outcome.reason).toBe('stale-range');
+    expect(readFileSync(join(root, 'src', 'x.ts'), 'utf8')).toBe('const a = 1;\n'); // untouched
+  });
+
   it('a read-only file returns write-failed with an authored reason (or applies) — never a raw throw', () => {
     // POSIX-as-root and some Windows setups will simply allow the write; what must never happen is an
     // unhandled throw. So this asserts the shape of the refusal WHEN it refuses, and never crashes.
