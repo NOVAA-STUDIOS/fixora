@@ -13,6 +13,7 @@ function validFinding(): Finding {
     message: "'total' is assigned a value but never used.",
     evidence: { snippet: 'const total = 0;', relatedLocations: [], toolOutput: { raw: true } },
     fixable: true,
+    repair: 'ai-required',
     confidence: 1,
   };
 }

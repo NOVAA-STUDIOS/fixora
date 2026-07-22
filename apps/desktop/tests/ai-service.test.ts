@@ -1,5 +1,5 @@
 import type { AIProvider, ProviderEvent } from '@fixora/core-ai';
-import type { Finding } from '@fixora/shared-types';
+import { UserFacingError, type Finding } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
@@ -61,6 +61,7 @@ function deps(overrides: {
   fileContent?: string;
   hasKey?: boolean;
   provider: AIProvider;
+  readFile?: () => string;
 }): AiServiceDeps {
   const keyStore = {
     getKey: () => (overrides.hasKey === false ? null : 'sk-or-test'),
@@ -114,7 +115,7 @@ function deps(overrides: {
     verification,
     history,
     providerFactory: () => overrides.provider,
-    readFile: () => overrides.fileContent ?? CLEAN_FILE,
+    readFile: overrides.readFile ?? (() => overrides.fileContent ?? CLEAN_FILE),
   };
 }
 
@@ -207,5 +208,49 @@ describe('AI service (BYOK run orchestration)', () => {
     const service = createAiService(deps({ provider: scriptedProvider([bad, bad]) }));
     const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
     expect(result).toMatchObject({ status: 'error', code: 'schema_error' });
+  });
+
+  /**
+   * P0 regression: a file deleted/renamed/locked between analysis and repair. The fs layer authors a
+   * precise reason; the service must surface THAT, not the old vague "Could not read the file." and
+   * never a generic "internal error". This is the "explain exactly why it cannot be repaired" contract.
+   */
+  it('surfaces the authored fs reason when the target file cannot be read (not a generic message)', async () => {
+    const authored = new UserFacingError(
+      'src/a.ts no longer exists. It was probably moved, renamed or deleted since the project was analyzed — re-run analysis to refresh.',
+      { code: 'fs_not_found', action: { type: 'none', label: 'Dismiss' } },
+    );
+    const service = createAiService(
+      deps({
+        provider: scriptedProvider([[]]),
+        readFile: () => {
+          throw authored;
+        },
+      }),
+    );
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    expect(result.status).toBe('error');
+    if (result.status === 'error') {
+      expect(result.message).toBe(authored.message); // the precise reason, verbatim
+      expect(result.message).not.toContain('Could not read the file');
+      expect(result.message.toLowerCase()).not.toContain('internal error');
+    }
+  });
+
+  it('still gives an actionable message when a non-authored read error occurs', async () => {
+    const service = createAiService(
+      deps({
+        provider: scriptedProvider([[]]),
+        readFile: () => {
+          throw new Error('EIO: i/o error');
+        },
+      }),
+    );
+    const result = await service.run({ profile: 'explain', findingId: 'find-1' }, null);
+    expect(result.status).toBe('error');
+    if (result.status === 'error') {
+      expect(result.message).toContain('re-run analysis'); // recovery guidance
+      expect(result.message.toLowerCase()).not.toContain('internal error');
+    }
   });
 });

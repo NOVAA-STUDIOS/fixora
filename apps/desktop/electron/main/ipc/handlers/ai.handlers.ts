@@ -1,7 +1,31 @@
 import { createHash } from 'node:crypto';
 
 import { capabilitiesFor, suggestCapableModel } from '@fixora/core-ai';
-import { UserFacingError, type ApplyOutcome, type StaleRangeCheck } from '@fixora/shared-types';
+import {
+  UserFacingError,
+  isUserFacingError,
+  type ApplyOutcome,
+  type StaleRangeCheck,
+} from '@fixora/shared-types';
+
+/**
+ * The user-facing message for an unexpected throw inside `ai:run`, as a pure function so the wording
+ * is testable and can be proven to never be the forbidden bare "internal error" string (P0 Priority 1).
+ *
+ * An authored `UserFacingError` that reached this catch is already user-ready — its message is precise
+ * and carries a recovery action — so it is surfaced verbatim. Anything else is a genuine bug in
+ * Fixora: the message says so plainly, carries the real detail (never hidden), and tells the user what
+ * to do, without ever collapsing to "internal error" / "unknown error".
+ */
+export function describeRunFailure(error: unknown, profile: string): string {
+  if (isUserFacingError(error)) return error.message;
+  const detail = error instanceof Error ? error.message : String(error);
+  return (
+    `Fixora could not finish this ${profile}. This is a bug in Fixora, not a problem with your ` +
+    `project. Details: ${detail}. Re-run the ${profile}; if it keeps happening, please report it ` +
+    `with this message.`
+  );
+}
 
 import type { AiService } from '../../ai/ai-service.js';
 import type { KeyStore, StoredAiConfig } from '../../ai/key-store.js';
@@ -199,14 +223,17 @@ export function registerAiHandlers(deps: {
         stack: error instanceof Error ? error.stack : undefined,
         ms: Date.now() - started,
       });
+      // An authored error surfaces verbatim; anything else becomes an actionable, non-generic
+      // message. The user text never says "internal error"/"unknown error" and is never silent —
+      // the `internal_error` CODE remains for telemetry, but the MESSAGE explains and guides.
+      const userMessage = describeRunFailure(error, request.profile);
       // Clear the renderer's "running" state, or the UI spins forever on a crash.
-      if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message });
+      if (window !== null)
+        emitToWindow(window, 'ai:runState', { status: 'error', message: userMessage });
       return {
         status: 'error' as const,
         code: 'internal_error' as const,
-        // The real message, not a placeholder. This is Fixora's own error text on the user's own
-        // machine; withholding it is what made the failure undiagnosable.
-        message: `Fixora hit an internal error while running this ${request.profile}: ${message}`,
+        message: userMessage,
       };
     }
   });
@@ -234,7 +261,27 @@ export function registerAiHandlers(deps: {
 
       // Re-read now, and refuse if the target range no longer matches what the repair was computed
       // against — the file changed under us, and splicing a stale range would corrupt it (audit fix).
-      const current = readTextFile(workspace.rootPath, file).content;
+      // The read is guarded: a file deleted/renamed/locked/permission-denied between repair and apply
+      // is an expected, actionable condition, so it travels as an ApplyOutcome with the fs layer's
+      // precise reason — never thrown into the router's generic "Something went wrong" (P0 Priority 1).
+      let current: string;
+      try {
+        current = readTextFile(workspace.rootPath, file).content;
+      } catch (error) {
+        // Only an AUTHORED fs condition — the file legitimately vanished, is locked, or is
+        // permission-denied — becomes a friendly ApplyOutcome. A path-guard or secrets-denylist
+        // refusal (a hostile or buggy target) is NOT authored: it re-throws so the router redacts it
+        // and it stays a hard refusal, never dressed up as "the file moved". Security is unchanged.
+        if (!isUserFacingError(error)) throw error;
+        const outcome: ApplyOutcome = {
+          applied: false,
+          reason: 'read-failed',
+          message: error.message,
+          staleRangeCheck: null,
+        };
+        console.error('[apply] refused', { reason: outcome.reason, message: outcome.message });
+        return outcome;
+      }
       const actualOriginal = sliceLines(current, startLine, endLine);
       const staleRangeCheck = compareRange({
         expected: expectedOriginal,
@@ -288,7 +335,24 @@ export function registerAiHandlers(deps: {
       }
 
       const patched = spliceLines(current, startLine, endLine, code);
-      writeTextFile(workspace.rootPath, file, patched);
+      // The write is guarded for the same reason as the read: EPERM/EBUSY/symlink-refusal/read-only
+      // are actionable, so they return as an ApplyOutcome carrying the fs layer's precise reason,
+      // never a thrown error the router would flatten to "Something went wrong" (P0 Priority 1).
+      try {
+        writeTextFile(workspace.rootPath, file, patched);
+      } catch (error) {
+        // Same rule as the read: an authored fs failure (EPERM/EBUSY/read-only/symlink-refusal) is a
+        // friendly refusal; a path-guard or secrets refusal re-throws and stays hard-redacted.
+        if (!isUserFacingError(error)) throw error;
+        const outcome: ApplyOutcome = {
+          applied: false,
+          reason: 'write-failed',
+          message: error.message,
+          staleRangeCheck,
+        };
+        console.error('[apply] refused', { reason: outcome.reason, message: outcome.message });
+        return outcome;
+      }
       if (historyId !== undefined) deps.history.markApplied(historyId);
       console.error('[apply] applied', { file, bytesWritten: patched.length });
       return { applied: true, staleRangeCheck, bytesWritten: patched.length };

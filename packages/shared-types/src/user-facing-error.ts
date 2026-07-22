@@ -38,9 +38,13 @@ export class UserFacingError extends Error {
 
 /** Type guard usable across the process boundary, where `instanceof` is unreliable. */
 export function isUserFacingError(error: unknown): error is UserFacingError {
+  // Cast to an OPTIONAL shape, not to UserFacingError: across the IPC boundary this really is an
+  // unknown that merely looks like one, so `options` genuinely may be absent and the `?.` is load-
+  // bearing. Casting to the class would tell the type-checker `options` is always present and the
+  // guard would be quietly defeated.
   return (
     error instanceof Error &&
     error.name === 'UserFacingError' &&
-    typeof (error as UserFacingError).options?.code === 'string'
+    typeof (error as { options?: { code?: unknown } }).options?.code === 'string'
   );
 }

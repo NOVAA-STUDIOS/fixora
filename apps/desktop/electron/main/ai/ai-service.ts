@@ -14,6 +14,7 @@ import {
   type ProviderMessage,
   type ProviderRequest,
 } from '@fixora/core-ai';
+import { isUserFacingError } from '@fixora/shared-types';
 import type { AiRunRequest, AiRunResponse, Language } from '@fixora/shared-types';
 import { app, type BrowserWindow } from 'electron';
 
@@ -193,8 +194,20 @@ export function createAiService(deps: AiServiceDeps): AiService {
       let content: string;
       try {
         content = readFile(workspace.rootPath, finding.location.file);
-      } catch {
-        return { status: 'error', code: 'not_found', message: 'Could not read the file.' };
+      } catch (error) {
+        // The fs layer authors a precise, actionable reason — "no longer exists", "open in another
+        // program", "permission denied", "on the secrets denylist". Surface THAT verbatim, never a
+        // vague "could not read the file", so the user learns exactly why the repair cannot proceed
+        // and how to fix it (P0 Priority 1: explain exactly why, never hide behind a generic string).
+        const message = isUserFacingError(error)
+          ? error.message
+          : `Could not read ${finding.location.file}. It may have been moved, renamed, or had its permissions changed since analysis — re-run analysis and try again.`;
+        console.error('[ai:run] file read failed', {
+          file: finding.location.file,
+          authored: isUserFacingError(error),
+          message,
+        });
+        return { status: 'error', code: 'not_found', message };
       }
 
       const symbol = finding.evidence.enclosingSymbol;

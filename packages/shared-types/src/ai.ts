@@ -284,6 +284,8 @@ export const ApplyFailureReasonSchema = z.enum([
   'range-out-of-bounds',
   /** No workspace is open, so there is nothing to write to. */
   'no-workspace',
+  /** The file could not be READ before applying — deleted, renamed, locked, permission-denied. */
+  'read-failed',
   /** The write itself failed (permissions, disk, path guard). */
   'write-failed',
 ]);
