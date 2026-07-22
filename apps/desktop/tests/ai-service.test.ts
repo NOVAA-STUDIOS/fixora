@@ -62,6 +62,7 @@ function deps(overrides: {
   hasKey?: boolean;
   provider: AIProvider;
   readFile?: () => string;
+  finding?: Finding;
 }): AiServiceDeps {
   const keyStore = {
     getKey: () => (overrides.hasKey === false ? null : 'sk-or-test'),
@@ -78,8 +79,8 @@ function deps(overrides: {
   } satisfies KeyStore;
 
   const findings = {
-    getByFindingId: () => makeFinding(),
-    list: () => [makeFinding()],
+    getByFindingId: () => overrides.finding ?? makeFinding(),
+    list: () => [overrides.finding ?? makeFinding()],
   } as unknown as FindingsRepository;
 
   const workspace = {
@@ -162,6 +163,27 @@ describe('AI service (BYOK run orchestration)', () => {
     expect(result.proposal.verification.verdict).toBe('verified');
     expect(result.proposal.originalCode).toBe('ORIGINAL_SYMBOL_TEXT');
     expect(result.proposal.historyId).toBe('history-1');
+  });
+
+  it('refuses a manual-only finding BEFORE any provider call, with the precise reason (P0.1 Part 2)', async () => {
+    let called = false;
+    const provider: AIProvider = {
+      id: 'fake',
+      capabilities: { structuredOutput: true, maxContext: 100 },
+      stream() {
+        called = true;
+        return (async function* () {})();
+      },
+    };
+    const manual: Finding = { ...makeFinding(), ruleId: 'TS2304', repair: 'manual' };
+    const service = createAiService(deps({ provider, finding: manual }));
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    expect(result.status).toBe('error');
+    if (result.status === 'error') {
+      expect(result.message).toContain('TS2304');
+      expect(result.message.toLowerCase()).not.toContain('internal error');
+    }
+    expect(called).toBe(false); // eligibility short-circuits before the model
   });
 
   it('BLOCKS at the gate when the target file contains a secret — no provider call', async () => {
