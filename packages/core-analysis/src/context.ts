@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import type {
   AnalysisContext,
   AnalysisFile,
-  BlockRange,
+  RepairScope,
   WorkspaceCapabilities,
 } from './analyzer.js';
 import { parseStructure, type FileStructure } from './structure.js';
@@ -28,12 +28,12 @@ function readFromDisk(absPath: string): string | null {
   }
 }
 
-const EMPTY_STRUCTURE: FileStructure = { symbols: [], imports: [], calls: [], blocks: [] };
+const EMPTY_STRUCTURE: FileStructure = { symbols: [], imports: [], calls: [], scopes: [] };
 
 export function createAnalysisContext(options: CreateContextOptions): AnalysisContext {
   const read = options.readSource ?? readFromDisk;
-  // One cache holding the whole parsed structure, so symbols AND blocks come from a single parse per
-  // file — no double work when a finding needs both its enclosing symbol and its enclosing block.
+  // One cache holding the whole parsed structure, so symbols AND repair scopes come from a single
+  // parse per file — no double work when a finding needs both its enclosing symbol and its scope.
   const structureCache = new Map<string, Promise<FileStructure>>();
 
   const structureFor = (file: AnalysisFile): Promise<FileStructure> => {
@@ -55,6 +55,6 @@ export function createAnalysisContext(options: CreateContextOptions): AnalysisCo
     files: options.files,
     readSource: read,
     symbolsFor: (file) => structureFor(file).then((s) => s.symbols),
-    blocksFor: (file): Promise<readonly BlockRange[]> => structureFor(file).then((s) => s.blocks),
+    scopesFor: (file): Promise<readonly RepairScope[]> => structureFor(file).then((s) => s.scopes),
   };
 }

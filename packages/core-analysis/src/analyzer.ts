@@ -55,17 +55,22 @@ export interface AnalysisContext {
   /** The file's symbols (functions/classes/…), parsed once and cached across analyzers. */
   symbolsFor(file: AnalysisFile): Promise<readonly SymbolRef[]>;
   /**
-   * The file's top-level block ranges, from the same cached parse. Used to ground a finding on a
-   * syntactically COMPLETE unit when no named symbol encloses it, so a repair never targets a partial
-   * line. Optional so a hand-built context (tests) need not provide it.
+   * The file's repair scopes — every self-contained statement/declaration/function/class range, from
+   * the same cached parse. A repair grounds on the SMALLEST scope containing the finding, so it always
+   * targets a syntactically complete, splice-safe unit and never a partial fragment. Optional so a
+   * hand-built context (tests) need not provide it.
    */
-  blocksFor?(file: AnalysisFile): Promise<readonly BlockRange[]>;
+  scopesFor?(file: AnalysisFile): Promise<readonly RepairScope[]>;
 }
 
-/** A top-level statement/declaration range (1-based, inclusive) — a syntactically complete unit. */
-export interface BlockRange {
+/** Where a repair scope sits in the Token→…→Module hierarchy (Repair Context Engine v2). */
+export type RepairScopeLevel = 'statement' | 'declaration' | 'function' | 'class' | 'module';
+
+/** A self-contained AST scope (1-based, inclusive) that parses independently and splices safely. */
+export interface RepairScope {
   readonly startLine: number;
   readonly endLine: number;
+  readonly level: RepairScopeLevel;
 }
 
 export interface Analyzer {

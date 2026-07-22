@@ -7,11 +7,11 @@ import type {
   SymbolRef,
 } from '@fixora/shared-types';
 
-import type { AnalysisContext, BlockRange } from '../analyzer.js';
+import type { AnalysisContext, RepairScope } from '../analyzer.js';
 import { findingId } from '../finding-id.js';
 import type { ToolRunner } from '../process/run-tool.js';
 import { classifyRepair } from '../repair/micro-repair.js';
-import { blockContaining } from '../structure.js';
+import { smallestScopeContaining } from '../repair/scope-selector.js';
 import { enclosingSymbol } from '../symbols/symbols.js';
 import type { ResolvedTool } from '../tools/resolve.js';
 
@@ -49,22 +49,24 @@ export interface FileGrounder {
   ground(raw: RawFinding): Finding;
 }
 
-/** Ground the findings of one file: `text` is its source, `symbols`/`blocks` its parsed structure. */
+/** Ground the findings of one file: `text` is its source, `symbols`/`scopes` its parsed structure. */
 export function createFileGrounder(
   source: FindingSource,
   file: string,
   text: string,
   symbols: readonly SymbolRef[],
-  blocks: readonly BlockRange[] = [],
+  scopes: readonly RepairScope[] = [],
 ): FileGrounder {
   const lines = text.split(/\r?\n/);
   return {
     ground(raw: RawFinding): Finding {
       const symbol = enclosingSymbol(symbols, raw.startLine);
-      // When no named symbol encloses the finding, record the smallest complete top-level block that
-      // does. A repair grounds on this so it replaces a whole, splice-valid unit — never a partial
-      // line (the object-literal / type-member TS2322 that the parser rejected).
-      const block = symbol === undefined ? blockContaining(blocks, raw.startLine) : null;
+      // The repair scope: the SMALLEST self-contained statement/declaration that contains the finding
+      // (Repair Context Engine v2). It always parses independently and splices safely, and it is the
+      // tightest such region — so a repair targets the least code that still compiles, never a partial
+      // fragment (the object-literal TS2322 that the parser rejected) and never the whole function for
+      // a one-line fix.
+      const scope = smallestScopeContaining(scopes, raw.startLine);
       const snippet = lines[raw.startLine - 1] ?? '';
       const finding: Finding = {
         id: findingId({ source, ruleId: raw.ruleId, file, enclosingSymbol: symbol, snippet }),
@@ -82,8 +84,8 @@ export function createFileGrounder(
         message: raw.message,
         evidence: {
           ...(symbol !== undefined ? { enclosingSymbol: symbol } : {}),
-          ...(block !== null
-            ? { enclosingRange: { startLine: block.startLine, endLine: block.endLine } }
+          ...(scope !== null
+            ? { enclosingRange: { startLine: scope.startLine, endLine: scope.endLine } }
             : {}),
           snippet,
           relatedLocations: [],
@@ -120,15 +122,15 @@ export async function* groundByFile(
     const analysisFile = filesByRel.get(file);
     if (analysisFile === undefined) continue;
     const symbols = await context.symbolsFor(analysisFile);
-    // Blocks (top-level statement ranges) come from the same cached parse. A hand-built context may
-    // omit blocksFor, in which case findings simply carry no enclosingRange (the old behaviour).
-    const blocks = context.blocksFor ? await context.blocksFor(analysisFile) : [];
+    // Repair scopes come from the same cached parse. A hand-built context may omit scopesFor, in which
+    // case findings simply carry no enclosingRange (the old behaviour).
+    const scopes = context.scopesFor ? await context.scopesFor(analysisFile) : [];
     const grounder = createFileGrounder(
       source,
       file,
       context.readSource(analysisFile.absPath) ?? '',
       symbols,
-      blocks,
+      scopes,
     );
     for (const raw of raws) yield grounder.ground(raw);
   }
