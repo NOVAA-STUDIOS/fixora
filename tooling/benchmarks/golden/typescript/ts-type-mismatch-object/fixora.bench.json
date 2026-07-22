@@ -1,0 +1,22 @@
+{
+  "id": "ts-type-mismatch-object",
+  "language": "typescript",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "TS2322 inside an object literal (a value not enclosed by any named symbol). The exact P0 case where a repair must ground on the whole declaration, not the partial `count:` line.",
+  "requiresTools": [
+    "tsc"
+  ],
+  "expected": [
+    {
+      "file": "src/a.ts",
+      "line": 6,
+      "ruleId": "TS2322",
+      "severity": "error",
+      "analyzer": "tsc",
+      "repairAvailable": false,
+      "note": "The object property `count: \"hello\"` violates the declared `count: number`. It has no enclosing named symbol, so the repair must ground on the whole `export const settings = {\u2026}` declaration (evidence.enclosingRange), never the partial line."
+    }
+  ],
+  "ignoreRules": []
+}

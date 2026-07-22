@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-07-21T16:59:15.556Z",
+  "ranAt": "2026-07-22T09:34:26.329Z",
   "capabilities": {
     "tools": [
       "eslint",
@@ -14,7 +14,7 @@
   },
   "overall": {
     "counts": {
-      "truePositives": 19,
+      "truePositives": 20,
       "attributeMismatches": 0,
       "falsePositives": 0,
       "falseNegatives": 0,
@@ -114,7 +114,7 @@
     {
       "name": "typescript",
       "counts": {
-        "truePositives": 3,
+        "truePositives": 4,
         "attributeMismatches": 0,
         "falsePositives": 0,
         "falseNegatives": 0,
@@ -129,7 +129,7 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 5
+      "cases": 6
     }
   ],
   "byAnalyzer": [
@@ -196,7 +196,7 @@
     {
       "name": "tsc",
       "counts": {
-        "truePositives": 3,
+        "truePositives": 4,
         "attributeMismatches": 0,
         "falsePositives": 0,
         "falseNegatives": 0,
@@ -211,7 +211,7 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 3
+      "cases": 4
     }
   ],
   "byRule": [
@@ -498,7 +498,7 @@
     {
       "name": "TS2322",
       "counts": {
-        "truePositives": 1,
+        "truePositives": 2,
         "attributeMismatches": 0,
         "falsePositives": 0,
         "falseNegatives": 0,
@@ -513,7 +513,7 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 1
+      "cases": 2
     },
     {
       "name": "TS2345",
@@ -571,12 +571,12 @@
   "knownDefects": [],
   "skipped": [],
   "benchmarks": {
-    "passed": 25,
+    "passed": 26,
     "failed": 0,
     "knownDefects": 0,
     "skipped": 0,
     "unsupported": 2,
-    "total": 27
+    "total": 28
   },
   "repair": {
     "measured": false,
