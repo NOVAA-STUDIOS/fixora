@@ -90,6 +90,14 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/coverage/**',
       'docs/**',
+      // Deliberately-broken fixtures the analyzer/repair harnesses exist to measure. Linting them
+      // reports the very defects they encode (invalid types, unused names, malformed JSX) as errors,
+      // and the type-aware parser cannot even load fixtures outside a tsconfig. This mirrors the
+      // `.prettierignore` policy exactly — a formatter or linter must never touch the corpus.
+      'tooling/benchmarks/golden/**',
+      'tooling/benchmarks/results/**',
+      'samples/certification/**',
+      'tooling/certification/results/**',
     ],
   },
 

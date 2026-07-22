@@ -24,6 +24,10 @@ import type { RepairMeasurement } from './report.js';
 /** Set to a real provider key to enable measurement. Absent in CI and on a fresh checkout. */
 const PROVIDER_ENV = 'FIXORA_BENCH_OPENROUTER_KEY';
 
+// The async signature is the contract callers already await, and it becomes genuinely async the
+// moment the execution path (generate → verify → apply, see below) is wired in. Keeping it async now
+// avoids churning every call site later; today both branches return synchronously.
+// eslint-disable-next-line @typescript-eslint/require-await
 export async function measureRepairs(): Promise<RepairMeasurement> {
   const key = process.env[PROVIDER_ENV];
 

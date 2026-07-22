@@ -11,8 +11,8 @@ import {
 } from '@fixora/core-analysis';
 import type { Finding } from '@fixora/shared-types';
 
-import { countOutcomes, type Counts } from './metrics.js';
 import { matchFindings, type MatchOutcome } from './match.js';
+import { countOutcomes, type Counts } from './metrics.js';
 import { parseManifest, type BenchmarkCase } from './schema.js';
 
 /**

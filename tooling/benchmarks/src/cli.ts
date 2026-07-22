@@ -2,8 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { buildDashboard, renderReport, type Dashboard, type RepairMeasurement } from './report.js';
 import { measureRepairs } from './repair.js';
+import { buildDashboard, renderReport, type Dashboard, type RepairMeasurement } from './report.js';
 import { runSuite } from './run.js';
 
 /**
