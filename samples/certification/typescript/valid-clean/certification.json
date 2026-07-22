@@ -8,5 +8,9 @@
   "expected": {
     "findings": [],
     "deterministicRepairable": 0
+  },
+  "sourceHashes": {
+    "src/a.ts": "ff3ff12d0150d32e350d6fcce9a466d1b912a3cc8166f6c5fce1c42522cd5f61",
+    "tsconfig.json": "04ebda156e0f27399aca337b89e7a013da61c1b71fd70e1fe641f88053304697"
   }
 }

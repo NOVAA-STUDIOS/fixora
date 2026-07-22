@@ -17,5 +17,8 @@
       }
     ],
     "deterministicRepairable": 0
+  },
+  "sourceHashes": {
+    "config.json": "d056adaf0775dfe436920f04a1d7b7202fceb693e76bc045d8e02ea379393311"
   }
 }

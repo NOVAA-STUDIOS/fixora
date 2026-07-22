@@ -35,5 +35,9 @@
       }
     ],
     "deterministicRepairable": 0
+  },
+  "sourceHashes": {
+    "src/C.tsx": "f2e48cfaf246fb18a02795363f2bea931b82a0b7bf9864018f90a03d857be0ac",
+    "tsconfig.json": "04ebda156e0f27399aca337b89e7a013da61c1b71fd70e1fe641f88053304697"
   }
 }

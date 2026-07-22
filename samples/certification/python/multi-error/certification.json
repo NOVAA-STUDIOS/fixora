@@ -27,5 +27,8 @@
       }
     ],
     "deterministicRepairable": 1
+  },
+  "sourceHashes": {
+    "main.py": "95b7ed04f6f02a05fff6ebc3d8f2d2003b8936c84bb339ac28c9d526c567d654"
   }
 }

@@ -19,5 +19,8 @@
       }
     ],
     "deterministicRepairable": 0
+  },
+  "sourceHashes": {
+    "index.js": "6220ce79246fa3ad03ad7fc118638cc328e2833dd698f3d7a0e0c85ca5f0f861"
   }
 }
