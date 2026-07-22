@@ -1,0 +1,31 @@
+{
+  "id": "use-isnan",
+  "language": "javascript",
+  "category": "broken",
+  "support": "supported",
+  "requiresTools": [
+    "eslint"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "index.js",
+        "line": 1,
+        "ruleId": "TS2845",
+        "severity": "error",
+        "source": "tsc",
+        "repair": "ai-required"
+      },
+      {
+        "file": "index.js",
+        "line": 1,
+        "ruleId": "use-isnan",
+        "severity": "error",
+        "source": "eslint",
+        "repair": "ai-required"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}

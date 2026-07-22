@@ -1,0 +1,23 @@
+{
+  "id": "type-mismatch",
+  "language": "typescript",
+  "category": "broken",
+  "support": "supported",
+  "requiresTools": [
+    "tsc"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "src/a.ts",
+        "line": 1,
+        "ruleId": "TS2322",
+        "severity": "error",
+        "source": "tsc",
+        "repair": "ai-required"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}

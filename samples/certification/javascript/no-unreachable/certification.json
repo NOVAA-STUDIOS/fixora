@@ -1,0 +1,23 @@
+{
+  "id": "no-unreachable",
+  "language": "javascript",
+  "category": "broken",
+  "support": "supported",
+  "requiresTools": [
+    "eslint"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "index.js",
+        "line": 3,
+        "ruleId": "no-unreachable",
+        "severity": "error",
+        "source": "eslint",
+        "repair": "ai-required"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}

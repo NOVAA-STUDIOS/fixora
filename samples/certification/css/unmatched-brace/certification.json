@@ -1,0 +1,12 @@
+{
+  "id": "unmatched-brace",
+  "language": "css",
+  "category": "broken",
+  "support": "unsupported",
+  "requiresTools": [],
+  "note": "No CSS analyzer implemented — languageForPath returns null. A gap, never scored.",
+  "expected": {
+    "findings": [],
+    "deterministicRepairable": 0
+  }
+}

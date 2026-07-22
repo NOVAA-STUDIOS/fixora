@@ -1,0 +1,12 @@
+{
+  "id": "fp-guard",
+  "language": "javascript",
+  "category": "fp-guard",
+  "support": "supported",
+  "requiresTools": [],
+  "note": "",
+  "expected": {
+    "findings": [],
+    "deterministicRepairable": 0
+  }
+}

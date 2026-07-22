@@ -1,0 +1,23 @@
+{
+  "id": "unused-import",
+  "language": "python",
+  "category": "broken",
+  "support": "supported",
+  "requiresTools": [
+    "ruff"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "main.py",
+        "line": 1,
+        "ruleId": "F401",
+        "severity": "warning",
+        "source": "ruff",
+        "repair": "safe-auto"
+      }
+    ],
+    "deterministicRepairable": 1
+  }
+}

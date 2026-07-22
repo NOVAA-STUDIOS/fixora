@@ -1,0 +1,23 @@
+{
+  "id": "mutable-default",
+  "language": "python",
+  "category": "broken",
+  "support": "supported",
+  "requiresTools": [
+    "ruff"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "main.py",
+        "line": 1,
+        "ruleId": "B006",
+        "severity": "warning",
+        "source": "ruff",
+        "repair": "ai-required"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}

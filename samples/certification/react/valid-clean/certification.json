@@ -1,0 +1,29 @@
+{
+  "id": "valid-clean",
+  "language": "react",
+  "category": "valid",
+  "support": "supported",
+  "requiresTools": [],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "src/Ok.tsx",
+        "line": 5,
+        "ruleId": "TS7026",
+        "severity": "error",
+        "source": "tsc",
+        "repair": "ai-required"
+      },
+      {
+        "file": "src/Ok.tsx",
+        "line": 5,
+        "ruleId": "TS7026",
+        "severity": "error",
+        "source": "tsc",
+        "repair": "ai-required"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}

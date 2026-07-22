@@ -1,0 +1,23 @@
+{
+  "id": "undefined-name",
+  "language": "typescript",
+  "category": "broken",
+  "support": "supported",
+  "requiresTools": [
+    "tsc"
+  ],
+  "note": "",
+  "expected": {
+    "findings": [
+      {
+        "file": "src/a.ts",
+        "line": 2,
+        "ruleId": "TS2304",
+        "severity": "error",
+        "source": "tsc",
+        "repair": "manual"
+      }
+    ],
+    "deterministicRepairable": 0
+  }
+}
