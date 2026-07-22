@@ -48,7 +48,37 @@ describe('splice / slice', () => {
   it('slices a 1-based inclusive range', () => {
     expect(sliceLines(FILE, 2, 3)).toBe('line2\nline3');
   });
+
+  /**
+   * P0.2 regression: applying a repair (always LF from the model) into a CRLF (Windows) file must not
+   * leave a lone-LF line behind — a mixed-ending file is corruption every tool flags. The splice
+   * normalises to the file's dominant ending.
+   */
+  it('keeps a CRLF file uniformly CRLF when the LF replacement is spliced in', () => {
+    const crlf = 'const a = 1;\r\nconst b = 2;\r\nconst c = 3;\r\n';
+    const out = spliceLines(crlf, 2, 2, 'const b = 20;'); // model reply is LF
+    expect(out).toBe('const a = 1;\r\nconst b = 20;\r\nconst c = 3;\r\n');
+    // No lone LF survives.
+    expect(/(?<!\r)\n/.test(out)).toBe(false);
+  });
+
+  it('keeps an LF file LF (no stray CRLF introduced)', () => {
+    const lf = 'a\nb\nc\n';
+    expect(spliceLines(lf, 2, 2, 'B')).toBe('a\nB\nc\n');
+    expect(out_has_cr(spliceLines(lf, 2, 2, 'B'))).toBe(false);
+  });
+
+  it('slices identically whether the file is CRLF or LF, so the stale-range check is ending-agnostic', () => {
+    const lf = 'line1\nline2\nline3\n';
+    const crlf = 'line1\r\nline2\r\nline3\r\n';
+    expect(sliceLines(crlf, 2, 3)).toBe(sliceLines(lf, 2, 3));
+    expect(sliceLines(crlf, 2, 3)).toBe('line2\nline3'); // no \r leaks into the compared text
+  });
 });
+
+function out_has_cr(s: string): boolean {
+  return s.includes('\r');
+}
 
 describe('computeVerdict (ADR-003)', () => {
   const target = finding({ rule: 'no-unused', symbol: 'greet' });

@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -79,6 +79,28 @@ describe('ai:applyRepair — filesystem failures travel as contract data', () =>
       { requestId: 'r2', window: null },
     );
     expect(outcome.applied).toBe(true);
+  });
+
+  it('P0.2 runtime proof: applying to a CRLF file leaves it uniformly CRLF, not mixed', () => {
+    // Windows file with CRLF endings; the "repair" is LF, as a model reply always is.
+    const crlf = 'const a = 1;\r\nconst b = 2;\r\nconst c = 3;\r\n';
+    writeFileSync(join(root, 'src', 'w.ts'), crlf);
+    return applyHandler(root).then((handler) => {
+      const outcome = handler(
+        {
+          file: 'src/w.ts',
+          startLine: 2,
+          endLine: 2,
+          code: 'const b = 20;', // LF (no \r), like every model reply
+          expectedOriginal: 'const b = 2;', // stale check compares stripped content — matches
+        },
+        { requestId: 'rc', window: null },
+      );
+      expect(outcome.applied).toBe(true);
+      const after = readFileSync(join(root, 'src', 'w.ts'), 'utf8');
+      expect(after).toBe('const a = 1;\r\nconst b = 20;\r\nconst c = 3;\r\n');
+      expect(/(?<!\r)\n/.test(after)).toBe(false); // no lone LF survived — no mixed endings
+    });
   });
 
   it('a read-only file returns write-failed with an authored reason (or applies) — never a raw throw', () => {

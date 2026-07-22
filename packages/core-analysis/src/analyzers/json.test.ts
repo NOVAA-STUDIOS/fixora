@@ -59,6 +59,17 @@ describe('JSON validator', () => {
     expect(await run('ok.json', '{\n  "a": 1,\n  "b": [true, null, 2.5]\n}\n')).toEqual([]);
   });
 
+  it('is SILENT on valid JSON that begins with a UTF-8 BOM (P0.2 — no false positive)', async () => {
+    // Windows editors / PowerShell write a BOM; JSON.parse rejects it, so the validator must strip it.
+    expect(await run('bom.json', '﻿{\n  "a": 1\n}\n')).toEqual([]);
+  });
+
+  it('still reports a real error in a BOM-prefixed file, at the right line', async () => {
+    const findings = await run('bom-bad.json', '﻿{\n  "a": 1,\n}\n'); // trailing comma
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.ruleId).toBe('json-parse');
+  });
+
   it('ignores non-JSON files entirely', async () => {
     const c = createAnalysisContext({
       root: ROOT,

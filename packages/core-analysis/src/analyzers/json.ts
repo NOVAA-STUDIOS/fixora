@@ -104,8 +104,13 @@ export function createJsonAnalyzer(): Analyzer {
       for (const file of context.files) {
         if (signal.aborted) return;
         if (file.language !== 'json') continue;
-        const source = context.readSource(file.absPath);
-        if (source === null) continue;
+        const rawSource = context.readSource(file.absPath);
+        if (rawSource === null) continue;
+        // A UTF-8 BOM at the start is valid per RFC 8259 (a parser MAY ignore it), and Windows editors
+        // and PowerShell write it routinely — but Node's JSON.parse rejects it. Stripping the single
+        // leading BOM before parsing prevents a false "Invalid JSON" on a perfectly good file. It sits
+        // on line 1 with no newline, so error line numbers are unaffected.
+        const source = rawSource.charCodeAt(0) === 0xfeff ? rawSource.slice(1) : rawSource;
 
         let raw: string | null = null;
         try {

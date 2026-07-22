@@ -6,23 +6,44 @@ import type { Finding, VerificationReport, Verdict } from '@fixora/shared-types'
  * and deterministic — the same inputs always produce the same verdict.
  */
 
-/** Replace a 1-based inclusive line range with `replacement`, returning the new file content. */
+/**
+ * The file's dominant line ending. A repair spliced into a CRLF (Windows) file must not leave LF-only
+ * lines behind it — that mixes endings and shows up as a whole-file diff / git warning, corrupting the
+ * source in the eyes of every tool that cares. CRLF wins when at least half the newlines are CRLF, so
+ * a consistently-CRLF file stays CRLF and a consistently-LF file stays LF.
+ */
+export function dominantEol(content: string): '\r\n' | '\n' {
+  const total = (content.match(/\n/g) ?? []).length;
+  const crlf = (content.match(/\r\n/g) ?? []).length;
+  return total > 0 && crlf * 2 >= total ? '\r\n' : '\n';
+}
+
+/**
+ * Replace a 1-based inclusive line range with `replacement`, returning the new file content. Line
+ * endings are normalised to the file's dominant ending, so a model reply (always LF) spliced into a
+ * CRLF file produces a uniformly-CRLF result, never a mixed-ending file.
+ */
 export function spliceLines(
   content: string,
   startLine: number,
   endLine: number,
   replacement: string,
 ): string {
-  const lines = content.split('\n');
+  const eol = dominantEol(content);
+  const lines = content.split(/\r?\n/);
   const before = lines.slice(0, Math.max(0, startLine - 1));
   const after = lines.slice(endLine);
-  return [...before, ...replacement.split('\n'), ...after].join('\n');
+  return [...before, ...replacement.split(/\r?\n/), ...after].join(eol);
 }
 
-/** Extract a 1-based inclusive line range (the original target symbol text). */
+/**
+ * Extract a 1-based inclusive line range (the original target text). Line endings are stripped (split
+ * on `/\r?\n/`, join on `\n`) so the stale-range comparison is on content, not on whether the file
+ * happens to use CRLF — the same text must compare equal regardless of ending.
+ */
 export function sliceLines(content: string, startLine: number, endLine: number): string {
   return content
-    .split('\n')
+    .split(/\r?\n/)
     .slice(Math.max(0, startLine - 1), endLine)
     .join('\n');
 }
