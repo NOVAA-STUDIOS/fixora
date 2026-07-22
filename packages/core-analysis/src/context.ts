@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import type {
   AnalysisContext,
   AnalysisFile,
+  ImportRef,
   RepairScope,
   WorkspaceCapabilities,
 } from './analyzer.js';
@@ -56,5 +57,12 @@ export function createAnalysisContext(options: CreateContextOptions): AnalysisCo
     readSource: read,
     symbolsFor: (file) => structureFor(file).then((s) => s.symbols),
     scopesFor: (file): Promise<readonly RepairScope[]> => structureFor(file).then((s) => s.scopes),
+    importsFor: (file): Promise<readonly ImportRef[]> =>
+      structureFor(file).then((s) =>
+        s.imports.map((i) => ({
+          module: i.module,
+          location: { startLine: i.location.startLine, endLine: i.location.endLine },
+        })),
+      ),
   };
 }

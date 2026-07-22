@@ -110,6 +110,21 @@ export const EvidenceSchema = z.object({
   enclosingRange: z
     .object({ startLine: z.number().int().positive(), endLine: z.number().int().positive() })
     .optional(),
+  /**
+   * The Semantic + Dependency scope (Repair Context Engine v3): ranges, in the SAME file, of the
+   * imports and declarations the repair target references — the interface it implements, the import it
+   * uses. A repair prompt includes these so the model rewrites against what the code actually refers
+   * to, not against a guess. Selected by name from the parsed structure, capped and relevant-only.
+   */
+  contextRanges: z
+    .array(
+      z.object({
+        label: z.string(),
+        startLine: z.number().int().positive(),
+        endLine: z.number().int().positive(),
+      }),
+    )
+    .optional(),
   snippet: z.string(),
   relatedLocations: z.array(LocationSchema),
   toolOutput: z.unknown(),

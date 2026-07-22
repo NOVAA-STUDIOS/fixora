@@ -25,6 +25,7 @@ import type { WorkspaceService } from '../services/workspace-service.js';
 import type { VerificationService } from '../verification/verification-service.js';
 
 import type { KeyStore } from './key-store.js';
+import { projectConventions, repairNeighbours } from './repair-context.js';
 
 /**
  * The AI run orchestrator (AI-Pipeline). It is the only thing in main that talks to a provider, and it
@@ -233,13 +234,20 @@ export function createAiService(deps: AiServiceDeps): AiService {
               endLine: finding.location.endLine,
             };
 
+      // v3 context layers: the Semantic + Dependency neighbours the analyzer selected (sliced from the
+      // current file), and the Project Metadata conventions detected from the project itself.
       const context = buildContext({
         filePath: finding.location.file,
         language,
         fileContent: content,
         finding,
         target,
-        conventions: [`Language: ${language}`],
+        neighbours: repairNeighbours(content, finding),
+        conventions: projectConventions({
+          language,
+          fileContent: content,
+          workspaceRoot: workspace.rootPath,
+        }),
         budget: DEFAULT_BUDGETS[request.profile],
       });
 
