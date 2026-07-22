@@ -7,10 +7,11 @@ import type {
   SymbolRef,
 } from '@fixora/shared-types';
 
-import type { AnalysisContext } from '../analyzer.js';
+import type { AnalysisContext, BlockRange } from '../analyzer.js';
 import { findingId } from '../finding-id.js';
 import type { ToolRunner } from '../process/run-tool.js';
 import { classifyRepair } from '../repair/micro-repair.js';
+import { blockContaining } from '../structure.js';
 import { enclosingSymbol } from '../symbols/symbols.js';
 import type { ResolvedTool } from '../tools/resolve.js';
 
@@ -48,17 +49,22 @@ export interface FileGrounder {
   ground(raw: RawFinding): Finding;
 }
 
-/** Ground the findings of one file: `text` is its source, `symbols` its parsed structure. */
+/** Ground the findings of one file: `text` is its source, `symbols`/`blocks` its parsed structure. */
 export function createFileGrounder(
   source: FindingSource,
   file: string,
   text: string,
   symbols: readonly SymbolRef[],
+  blocks: readonly BlockRange[] = [],
 ): FileGrounder {
   const lines = text.split(/\r?\n/);
   return {
     ground(raw: RawFinding): Finding {
       const symbol = enclosingSymbol(symbols, raw.startLine);
+      // When no named symbol encloses the finding, record the smallest complete top-level block that
+      // does. A repair grounds on this so it replaces a whole, splice-valid unit — never a partial
+      // line (the object-literal / type-member TS2322 that the parser rejected).
+      const block = symbol === undefined ? blockContaining(blocks, raw.startLine) : null;
       const snippet = lines[raw.startLine - 1] ?? '';
       const finding: Finding = {
         id: findingId({ source, ruleId: raw.ruleId, file, enclosingSymbol: symbol, snippet }),
@@ -76,6 +82,9 @@ export function createFileGrounder(
         message: raw.message,
         evidence: {
           ...(symbol !== undefined ? { enclosingSymbol: symbol } : {}),
+          ...(block !== null
+            ? { enclosingRange: { startLine: block.startLine, endLine: block.endLine } }
+            : {}),
           snippet,
           relatedLocations: [],
           toolOutput: raw.toolOutput,
@@ -111,11 +120,15 @@ export async function* groundByFile(
     const analysisFile = filesByRel.get(file);
     if (analysisFile === undefined) continue;
     const symbols = await context.symbolsFor(analysisFile);
+    // Blocks (top-level statement ranges) come from the same cached parse. A hand-built context may
+    // omit blocksFor, in which case findings simply carry no enclosingRange (the old behaviour).
+    const blocks = context.blocksFor ? await context.blocksFor(analysisFile) : [];
     const grounder = createFileGrounder(
       source,
       file,
       context.readSource(analysisFile.absPath) ?? '',
       symbols,
+      blocks,
     );
     for (const raw of raws) yield grounder.ground(raw);
   }

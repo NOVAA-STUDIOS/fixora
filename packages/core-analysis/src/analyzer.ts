@@ -54,6 +54,18 @@ export interface AnalysisContext {
   readSource(absPath: string): string | null;
   /** The file's symbols (functions/classes/…), parsed once and cached across analyzers. */
   symbolsFor(file: AnalysisFile): Promise<readonly SymbolRef[]>;
+  /**
+   * The file's top-level block ranges, from the same cached parse. Used to ground a finding on a
+   * syntactically COMPLETE unit when no named symbol encloses it, so a repair never targets a partial
+   * line. Optional so a hand-built context (tests) need not provide it.
+   */
+  blocksFor?(file: AnalysisFile): Promise<readonly BlockRange[]>;
+}
+
+/** A top-level statement/declaration range (1-based, inclusive) — a syntactically complete unit. */
+export interface BlockRange {
+  readonly startLine: number;
+  readonly endLine: number;
 }
 
 export interface Analyzer {

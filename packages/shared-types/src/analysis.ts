@@ -101,6 +101,15 @@ export type SymbolRef = z.infer<typeof SymbolRefSchema>;
  */
 export const EvidenceSchema = z.object({
   enclosingSymbol: SymbolRefSchema.optional(),
+  /**
+   * The smallest syntactically COMPLETE unit (top-level statement/declaration) that contains the
+   * finding, when no named symbol does. A repair targets this range so it always replaces a whole,
+   * splice-valid unit rather than a partial line — the fix for parser-rejected repairs on findings
+   * inside object literals, type members, and other non-symbol code. 1-based, inclusive.
+   */
+  enclosingRange: z
+    .object({ startLine: z.number().int().positive(), endLine: z.number().int().positive() })
+    .optional(),
   snippet: z.string(),
   relatedLocations: z.array(LocationSchema),
   toolOutput: z.unknown(),
