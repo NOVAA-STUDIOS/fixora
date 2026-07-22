@@ -157,9 +157,8 @@ function renderReport(results: SampleResult[], ranAt: string): string {
   else {
     for (const f of failures) {
       const detail =
-        f.reason === undefined
-          ? `FP=${String(f.detection.falsePositives)} FN=${String(f.detection.falseNegatives)} regressions=${String(f.regressionsIntroduced)}`
-          : f.reason;
+        f.reason ??
+        `FP=${String(f.detection.falsePositives)} FN=${String(f.detection.falseNegatives)} regressions=${String(f.regressionsIntroduced)}`;
       lines.push(`- **${f.sample.id}** (${f.sample.language}): ${detail}`);
     }
     lines.push('');
