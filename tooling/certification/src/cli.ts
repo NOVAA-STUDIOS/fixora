@@ -156,9 +156,11 @@ function renderReport(results: SampleResult[], ranAt: string): string {
   if (failures.length === 0) lines.push('_None._', '');
   else {
     for (const f of failures) {
-      lines.push(
-        `- **${f.sample.id}** (${f.sample.language}): FP=${String(f.detection.falsePositives)} FN=${String(f.detection.falseNegatives)} regressions=${String(f.regressionsIntroduced)}`,
-      );
+      const detail =
+        f.reason === undefined
+          ? `FP=${String(f.detection.falsePositives)} FN=${String(f.detection.falseNegatives)} regressions=${String(f.regressionsIntroduced)}`
+          : f.reason;
+      lines.push(`- **${f.sample.id}** (${f.sample.language}): ${detail}`);
     }
     lines.push('');
   }

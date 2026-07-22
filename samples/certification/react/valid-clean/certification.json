@@ -25,5 +25,9 @@
       }
     ],
     "deterministicRepairable": 0
+  },
+  "sourceHashes": {
+    "src/Ok.tsx": "c2df558fb5afcde15e5bbe4691a9fa56669e8f8fe3d28f281b75926d44c0dceb",
+    "tsconfig.json": "04ebda156e0f27399aca337b89e7a013da61c1b71fd70e1fe641f88053304697"
   }
 }

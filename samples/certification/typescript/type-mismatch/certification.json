@@ -19,5 +19,9 @@
       }
     ],
     "deterministicRepairable": 0
+  },
+  "sourceHashes": {
+    "src/a.ts": "e2fbc0724149804636a79ef2a10c7081ece740669c4832b8afa8b309ad018129",
+    "tsconfig.json": "04ebda156e0f27399aca337b89e7a013da61c1b71fd70e1fe641f88053304697"
   }
 }

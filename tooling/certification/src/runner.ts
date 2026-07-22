@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
@@ -46,6 +47,15 @@ export interface CertificationSample {
   requiresTools: string[];
   note: string;
   expected: { findings: ExpectedFinding[]; deterministicRepairable: number };
+  /**
+   * SHA-256 of each analyzed source file at record time, keyed by workspace-relative path. It is the
+   * fixture's fingerprint: expected findings were DERIVED from exactly these bytes, so if the bytes on
+   * disk no longer match, the fixture drifted (e.g. an Apply wrote a repair back over the real sample)
+   * and every recall figure computed against it is meaningless. Run mode checks this FIRST and reports
+   * `fixture-drift` — a corrupted fixture must never masquerade as an engine false-negative. Optional
+   * for backward compatibility with manifests recorded before the fingerprint existed.
+   */
+  sourceHashes?: Record<string, string>;
 }
 
 export interface SampleResult {
@@ -109,6 +119,25 @@ function collectFiles(root: string): AnalysisFile[] {
   return files.sort((a, b) => a.file.localeCompare(b.file));
 }
 
+/** Fingerprint the analyzable source files of a sample — the exact bytes expectations were derived from. */
+export function hashSources(root: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const f of collectFiles(root)) {
+    out[f.file] = createHash('sha256').update(readFileSync(f.absPath)).digest('hex');
+  }
+  return out;
+}
+
+/** null when the on-disk fixture still matches its fingerprint; otherwise the first drifted file path. */
+function firstDriftedFile(dir: string, sample: CertificationSample): string | null {
+  if (sample.sourceHashes === undefined) return null; // legacy manifest, nothing to check against
+  const current = hashSources(dir);
+  for (const [file, expected] of Object.entries(sample.sourceHashes)) {
+    if (current[file] !== expected) return file;
+  }
+  return null;
+}
+
 async function analyze(root: string, capabilities: WorkspaceCapabilities): Promise<Finding[]> {
   const files = collectFiles(root);
   const context = createAnalysisContext({ root, capabilities, files });
@@ -158,6 +187,19 @@ export async function runSample(
   if (sample.support === 'unsupported') {
     return { ...base, status: 'unsupported', durationMs: Date.now() - started };
   }
+  // Fixture integrity FIRST: expectations were derived from specific bytes. If the on-disk source no
+  // longer matches its fingerprint, the fixture drifted (a stray Apply, a bad edit) and the whole
+  // comparison is void — fail with the exact reason, never as a mystery engine false-negative.
+  const drifted = firstDriftedFile(dir, sample);
+  if (drifted !== null) {
+    return {
+      ...base,
+      status: 'fail',
+      reason: `fixture-drift: ${drifted} no longer matches its recorded fingerprint (re-record or restore the fixture)`,
+      durationMs: Date.now() - started,
+    };
+  }
+
   const missing = sample.requiresTools.filter((t) => !capabilities.tools.has(t));
   if (missing.length > 0) {
     return {
@@ -261,7 +303,9 @@ export function writeExpected(
   sample: CertificationSample,
   expected: CertificationSample['expected'],
 ): void {
-  const next = { ...sample, expected };
+  // Record the fixture fingerprint alongside the expectations it was derived from, so run mode can
+  // detect drift. Unsupported samples have no analyzed source, so their hash map is simply empty.
+  const next = { ...sample, expected, sourceHashes: hashSources(dir) };
   writeFileSync(join(dir, MANIFEST), JSON.stringify(next, null, 2) + '\n', 'utf8');
 }
 

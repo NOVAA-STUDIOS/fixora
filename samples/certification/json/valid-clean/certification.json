@@ -8,5 +8,8 @@
   "expected": {
     "findings": [],
     "deterministicRepairable": 0
+  },
+  "sourceHashes": {
+    "config.json": "3855430bc130329d4c383504b8e23213307eeb5239f9706bdff92f97fd6df19a"
   }
 }

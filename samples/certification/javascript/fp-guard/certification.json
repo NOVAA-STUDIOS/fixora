@@ -8,5 +8,8 @@
   "expected": {
     "findings": [],
     "deterministicRepairable": 0
+  },
+  "sourceHashes": {
+    "index.js": "0f28807d63f739d2101e9171c73f87302ca2a7ab2431b5abc9fcdc526cdfb3f3"
   }
 }

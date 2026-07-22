@@ -8,5 +8,6 @@
   "expected": {
     "findings": [],
     "deterministicRepairable": 0
-  }
+  },
+  "sourceHashes": {}
 }
