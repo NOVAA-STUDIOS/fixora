@@ -33,6 +33,11 @@ export {
 } from './repair/micro-repair.js';
 export { formatGate, resolveFormatter, type FormatGateResult } from './repair/format-gate.js';
 export {
+  selectRepairContext,
+  type ContextRange,
+  type ImportLike,
+} from './repair/context-selector.js';
+export {
   enclosingSymbol,
   extractCalls,
   extractImports,

@@ -61,6 +61,17 @@ export interface AnalysisContext {
    * hand-built context (tests) need not provide it.
    */
   scopesFor?(file: AnalysisFile): Promise<readonly RepairScope[]>;
+  /**
+   * The file's imports, from the same cached parse — the Dependency scope's raw material. Optional for
+   * the same reason as `scopesFor`.
+   */
+  importsFor?(file: AnalysisFile): Promise<readonly ImportRef[]>;
+}
+
+/** An import as the Dependency-scope selector needs it: the module and where its statement sits. */
+export interface ImportRef {
+  readonly module: string;
+  readonly location: { readonly startLine: number; readonly endLine: number };
 }
 
 /** Where a repair scope sits in the Token→…→Module hierarchy (Repair Context Engine v2). */

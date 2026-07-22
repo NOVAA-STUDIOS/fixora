@@ -7,9 +7,10 @@ import type {
   SymbolRef,
 } from '@fixora/shared-types';
 
-import type { AnalysisContext, RepairScope } from '../analyzer.js';
+import type { AnalysisContext, ImportRef, RepairScope } from '../analyzer.js';
 import { findingId } from '../finding-id.js';
 import type { ToolRunner } from '../process/run-tool.js';
+import { selectRepairContext } from '../repair/context-selector.js';
 import { classifyRepair } from '../repair/micro-repair.js';
 import { smallestScopeContaining } from '../repair/scope-selector.js';
 import { enclosingSymbol } from '../symbols/symbols.js';
@@ -56,6 +57,7 @@ export function createFileGrounder(
   text: string,
   symbols: readonly SymbolRef[],
   scopes: readonly RepairScope[] = [],
+  imports: readonly ImportRef[] = [],
 ): FileGrounder {
   const lines = text.split(/\r?\n/);
   return {
@@ -67,6 +69,19 @@ export function createFileGrounder(
       // fragment (the object-literal TS2322 that the parser rejected) and never the whole function for
       // a one-line fix.
       const scope = smallestScopeContaining(scopes, raw.startLine);
+      // The Semantic + Dependency scope (v3): the imports and declarations THIS scope references, so
+      // the repair prompt carries what the code refers to. Only computed when a scope was resolved.
+      const contextRanges =
+        scope !== null
+          ? selectRepairContext({
+              source: text,
+              scopeStartLine: scope.startLine,
+              scopeEndLine: scope.endLine,
+              symbols,
+              imports,
+              targetSymbolName: symbol?.name ?? null,
+            })
+          : [];
       const snippet = lines[raw.startLine - 1] ?? '';
       const finding: Finding = {
         id: findingId({ source, ruleId: raw.ruleId, file, enclosingSymbol: symbol, snippet }),
@@ -87,6 +102,7 @@ export function createFileGrounder(
           ...(scope !== null
             ? { enclosingRange: { startLine: scope.startLine, endLine: scope.endLine } }
             : {}),
+          ...(contextRanges.length > 0 ? { contextRanges } : {}),
           snippet,
           relatedLocations: [],
           toolOutput: raw.toolOutput,
@@ -122,15 +138,17 @@ export async function* groundByFile(
     const analysisFile = filesByRel.get(file);
     if (analysisFile === undefined) continue;
     const symbols = await context.symbolsFor(analysisFile);
-    // Repair scopes come from the same cached parse. A hand-built context may omit scopesFor, in which
-    // case findings simply carry no enclosingRange (the old behaviour).
+    // Repair scopes and imports come from the same cached parse. A hand-built context may omit them,
+    // in which case findings simply carry no enclosingRange/contextRanges (the old behaviour).
     const scopes = context.scopesFor ? await context.scopesFor(analysisFile) : [];
+    const imports = context.importsFor ? await context.importsFor(analysisFile) : [];
     const grounder = createFileGrounder(
       source,
       file,
       context.readSource(analysisFile.absPath) ?? '',
       symbols,
       scopes,
+      imports,
     );
     for (const raw of raws) yield grounder.ground(raw);
   }
