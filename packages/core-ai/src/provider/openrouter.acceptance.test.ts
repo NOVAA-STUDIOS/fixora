@@ -69,6 +69,7 @@ const FINDING: Finding = {
   message: 'Prefer template literals.',
   evidence: { snippet: "const msg = 'hi ' + name;", relatedLocations: [], toolOutput: {} },
   fixable: true,
+  repair: 'ai-required',
   confidence: 1,
 };
 

@@ -26,6 +26,7 @@ function makeFinding(): Finding {
       toolOutput: {},
     },
     fixable: true,
+    repair: 'ai-required',
     confidence: 1,
   };
 }

@@ -18,7 +18,14 @@ import {
  */
 
 function model(over: Partial<CatalogueModel> & { id: string }): CatalogueModel {
-  return { name: over.id, free: false, codeCapable: false, ...over };
+  return {
+    name: over.id,
+    free: false,
+    codeCapable: false,
+    structuredOutput: false,
+    contextLength: null,
+    ...over,
+  };
 }
 
 function jsonResponse(body: unknown, status = 200): Response {

@@ -16,6 +16,7 @@ function inputWithTarget(fileContent: string): ContextInput {
     message: 'something',
     evidence: { snippet: fileContent, relatedLocations: [], toolOutput: {} },
     fixable: false,
+    repair: 'ai-required',
     confidence: 1,
   };
   return {
