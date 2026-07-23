@@ -47,6 +47,14 @@ export const EditIntentSchema = z.enum([
   'python',
   'documentation',
   'explanation',
+  /**
+   * A recognisable edit request that matches no specific category — "add error handling", "wrap this
+   * in try/catch". The classifier is a keyword lexicon, and English is bigger than any lexicon, so a
+   * plausible instruction must NOT be refused just because it missed a keyword. `general` is the
+   * honest label for "this is an edit, we just have no specialised hint for it".
+   */
+  'general',
+  /** Not an actionable instruction at all (empty, or no recognisable action). Refused, gracefully. */
   'unknown',
 ]);
 export type EditIntent = z.infer<typeof EditIntentSchema>;
@@ -463,6 +471,13 @@ export const ProceedOutcomeSchema = z.discriminatedUnion('status', [
     reason: z.string(),
     verification: VerificationReportSchema.optional(),
   }),
-  z.object({ status: z.literal('error'), code: z.string(), message: z.string() }),
+  z.object({
+    status: z.literal('error'),
+    /** The failing layer: quota | auth | model | network | provider | model-output | engine. */
+    code: z.string(),
+    message: z.string(),
+    /** True when retrying the same request could plausibly succeed — drives the Retry affordance. */
+    retryable: z.boolean().optional(),
+  }),
 ]);
 export type ProceedOutcome = z.infer<typeof ProceedOutcomeSchema>;

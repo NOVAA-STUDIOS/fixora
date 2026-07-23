@@ -123,7 +123,9 @@ export function ProceedView(): React.JSX.Element {
   const proposal = useProceedStore((s) => s.proposal);
   const message = useProceedStore((s) => s.message);
   const applying = useProceedStore((s) => s.applying);
+  const retryable = useProceedStore((s) => s.retryable);
   const run = useProceedStore((s) => s.run);
+  const retry = useProceedStore((s) => s.retry);
   const accept = useProceedStore((s) => s.accept);
   const cancel = useProceedStore((s) => s.cancel);
 
@@ -172,9 +174,17 @@ export function ProceedView(): React.JSX.Element {
     <section aria-label="Proceed" className="flex h-full min-h-0 flex-col overflow-y-auto">
       <ProceedPanel busy={status === 'running'} onSubmit={(instruction) => void run(instruction)} />
       {message !== null && (
-        <p role="alert" className="px-3 pb-3 text-xs text-fg-muted">
-          {message}
-        </p>
+        <div className="flex flex-col items-start gap-2 px-3 pb-3">
+          {/* whitespace-pre-line: the diagnostic tail (detected intent / language) is newline-separated. */}
+          <p role="alert" className="whitespace-pre-line text-xs text-fg-muted">
+            {message}
+          </p>
+          {retryable && (
+            <Button type="button" variant="ghost" onClick={() => void retry()}>
+              Retry
+            </Button>
+          )}
+        </div>
       )}
     </section>
   );

@@ -27,8 +27,13 @@ type ProceedState = {
   /** Secret-gate matches, when the request was blocked before sending. */
   blocked: GateMatchInfo[] | null;
   applying: boolean;
+  /** True when the failure could plausibly succeed on a retry (quota reset, provider blip). */
+  retryable: boolean;
+  /** The last instruction, so Retry can re-send it without retyping. */
+  lastInstruction: string | null;
 
   run: (instruction: string) => Promise<void>;
+  retry: () => Promise<void>;
   accept: () => Promise<boolean>;
   cancel: () => void;
 };
@@ -39,6 +44,14 @@ export const useProceedStore = create<ProceedState>((set, get) => ({
   message: null,
   blocked: null,
   applying: false,
+  retryable: false,
+  lastInstruction: null,
+
+  retry: async () => {
+    const instruction = get().lastInstruction;
+    if (instruction === null) return;
+    await get().run(instruction);
+  },
 
   run: async (instruction) => {
     const file = useEditorStore.getState().activeTab;
@@ -58,7 +71,14 @@ export const useProceedStore = create<ProceedState>((set, get) => ({
       return;
     }
 
-    set({ status: 'running', proposal: null, message: null, blocked: null });
+    set({
+      status: 'running',
+      proposal: null,
+      message: null,
+      blocked: null,
+      retryable: false,
+      lastInstruction: instruction,
+    });
     const result = await invoke('proceed:run', {
       instruction,
       file,
@@ -67,7 +87,8 @@ export const useProceedStore = create<ProceedState>((set, get) => ({
     });
 
     if (!result.ok) {
-      set({ status: 'error', message: result.error.message });
+      // Transport failure between renderer and main — a UI-layer failure, retryable by nature.
+      set({ status: 'error', message: result.error.message, retryable: true });
       return;
     }
     const outcome = result.value;
@@ -90,7 +111,11 @@ export const useProceedStore = create<ProceedState>((set, get) => ({
         set({ status: 'error', message: `Edit rejected by verification: ${outcome.reason}` });
         return;
       default:
-        set({ status: 'error', message: outcome.message });
+        set({
+          status: 'error',
+          message: outcome.message,
+          retryable: outcome.retryable === true,
+        });
     }
   },
 
