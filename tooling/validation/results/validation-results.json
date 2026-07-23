@@ -1,6 +1,6 @@
 {
-  "ranAt": "2026-07-23T10:36:05.861Z",
-  "providerKeyPresent": false,
+  "ranAt": "2026-07-23T11:33:38.313Z",
+  "providerKeyPresent": true,
   "projects": [
     {
       "project": "css-theme",
@@ -8,7 +8,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\css\\theme",
       "filesAnalyzed": 0,
       "findings": 0,
-      "analyzeMs": 4,
+      "analyzeMs": 3,
       "baselineCompile": {
         "ran": false,
         "ok": false,
@@ -36,7 +36,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\javascript\\http-cache",
       "filesAnalyzed": 1,
       "findings": 1,
-      "analyzeMs": 5529,
+      "analyzeMs": 6203,
       "baselineCompile": {
         "ran": true,
         "ok": true,
@@ -52,35 +52,40 @@
           "severity": "error",
           "repairability": "ai-required",
           "repair": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "model generated a repair (confidence 1.00, recovery: code-fence)"
           },
           "verification": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "parses; formatter absent (no formatter for this language)"
           },
           "apply": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "patched file written and verified byte-for-byte"
           },
           "reanalysis": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "target finding cleared; no new findings introduced"
           },
           "compile": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "node --check passed on 1 file(s)"
           },
-          "stage": "repair",
-          "subsystem": "ai-provider",
-          "rootCause": "AI-required repair, no provider key present (FIXORA_BENCH_OPENROUTER_KEY absent)",
-          "finalOutcome": "AI_DEFERRED",
-          "runtimeMs": 0
+          "stage": "compile",
+          "subsystem": "none",
+          "rootCause": "repair survived analyze → repair → verify → apply → re-analyze → compile",
+          "finalOutcome": "AI_REPAIR_APPLIED",
+          "runtimeMs": 18913,
+          "aiDiagnostic": {
+            "targetStartLine": 29,
+            "targetEndLine": 29,
+            "repairedCode": "isNaN(this.maxEntries)"
+          }
         }
       ]
     },
@@ -90,7 +95,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\json\\app-config",
       "filesAnalyzed": 1,
       "findings": 1,
-      "analyzeMs": 3,
+      "analyzeMs": 2,
       "baselineCompile": {
         "ran": true,
         "ok": false,
@@ -106,9 +111,9 @@
           "severity": "error",
           "repairability": "ai-required",
           "repair": {
-            "ran": false,
+            "ran": true,
             "ok": false,
-            "detail": "not reached"
+            "detail": "model output did not match the repair schema after a re-ask: empty — The model returned no content at all."
           },
           "verification": {
             "ran": false,
@@ -131,10 +136,10 @@
             "detail": "not reached"
           },
           "stage": "repair",
-          "subsystem": "ai-provider",
-          "rootCause": "AI-required repair, no provider key present (FIXORA_BENCH_OPENROUTER_KEY absent)",
-          "finalOutcome": "AI_DEFERRED",
-          "runtimeMs": 0
+          "subsystem": "response-parser",
+          "rootCause": "model output did not match the repair schema after a re-ask: empty — The model returned no content at all.",
+          "finalOutcome": "AI_GENERATE_FAILED",
+          "runtimeMs": 199126
         }
       ]
     },
@@ -144,7 +149,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\python\\task-queue",
       "filesAnalyzed": 1,
       "findings": 2,
-      "analyzeMs": 148,
+      "analyzeMs": 168,
       "baselineCompile": {
         "ran": true,
         "ok": true,
@@ -188,7 +193,7 @@
           "subsystem": "none",
           "rootCause": "repair survived analyze → repair → verify → apply → re-analyze → compile",
           "finalOutcome": "SAFE_AUTO_REPAIR_APPLIED",
-          "runtimeMs": 346
+          "runtimeMs": 385
         },
         {
           "language": "python",
@@ -199,35 +204,40 @@
           "severity": "warning",
           "repairability": "ai-required",
           "repair": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "model generated a repair (confidence 0.99, after one schema re-ask)"
           },
           "verification": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "parses; formatter passed"
           },
           "apply": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "patched file written and verified byte-for-byte"
           },
           "reanalysis": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "target finding cleared; no new findings introduced"
           },
           "compile": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "python syntax check passed on 1 file(s)"
           },
-          "stage": "repair",
-          "subsystem": "ai-provider",
-          "rootCause": "AI-required repair, no provider key present (FIXORA_BENCH_OPENROUTER_KEY absent)",
-          "finalOutcome": "AI_DEFERRED",
-          "runtimeMs": 0
+          "stage": "compile",
+          "subsystem": "none",
+          "rootCause": "repair survived analyze → repair → verify → apply → re-analyze → compile",
+          "finalOutcome": "AI_REPAIR_APPLIED",
+          "runtimeMs": 139677,
+          "aiDiagnostic": {
+            "targetStartLine": 16,
+            "targetEndLine": 21,
+            "repairedCode": "def drain(heap, sink=None):\n    \"\"\"Pop every task off ``heap`` in priority order, collecting them into ``sink``.\"\"\"\n    if sink is None:\n        sink = []\n    while heap:\n        _, _, task = heapq.heappop(heap)\n        sink.append(task)\n    return sink"
+          }
         }
       ]
     },
@@ -237,7 +247,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\python\\text-metrics",
       "filesAnalyzed": 1,
       "findings": 1,
-      "analyzeMs": 128,
+      "analyzeMs": 143,
       "baselineCompile": {
         "ran": true,
         "ok": true,
@@ -281,7 +291,7 @@
           "subsystem": "none",
           "rootCause": "repair survived analyze → repair → verify → apply → re-analyze → compile",
           "finalOutcome": "SAFE_AUTO_REPAIR_APPLIED",
-          "runtimeMs": 327
+          "runtimeMs": 353
         }
       ]
     },
@@ -291,7 +301,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\react\\counter",
       "filesAnalyzed": 1,
       "findings": 1,
-      "analyzeMs": 5667,
+      "analyzeMs": 9601,
       "baselineCompile": {
         "ran": false,
         "ok": false,
@@ -307,35 +317,40 @@
           "severity": "error",
           "repairability": "ai-required",
           "repair": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "model generated a repair (confidence 0.60)"
           },
           "verification": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "parses; formatter absent (no formatter for this language)"
           },
           "apply": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "patched file written and verified byte-for-byte"
           },
           "reanalysis": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "target finding cleared; no new findings introduced"
           },
           "compile": {
             "ran": false,
             "ok": false,
-            "detail": "not reached"
+            "detail": "no compiler applies to this language"
           },
-          "stage": "repair",
-          "subsystem": "ai-provider",
-          "rootCause": "AI-required repair, no provider key present (FIXORA_BENCH_OPENROUTER_KEY absent)",
-          "finalOutcome": "AI_DEFERRED",
-          "runtimeMs": 0
+          "stage": "compile",
+          "subsystem": "none",
+          "rootCause": "repair survived analyze → repair → verify → apply → re-analyze → compile",
+          "finalOutcome": "AI_REPAIR_APPLIED",
+          "runtimeMs": 68899,
+          "aiDiagnostic": {
+            "targetStartLine": 15,
+            "targetEndLine": 15,
+            "repairedCode": "// eslint-disable-next-line react-hooks/rules-of-hooks\nconst [count, setCount] = useState(start);"
+          }
         }
       ]
     },
@@ -345,7 +360,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\typescript\\pricing",
       "filesAnalyzed": 2,
       "findings": 1,
-      "analyzeMs": 8103,
+      "analyzeMs": 7890,
       "baselineCompile": {
         "ran": true,
         "ok": false,
@@ -361,35 +376,40 @@
           "severity": "error",
           "repairability": "ai-required",
           "repair": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "model generated a repair (confidence 0.99)"
           },
           "verification": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "parses; formatter absent (no formatter for this language)"
           },
           "apply": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "patched file written and verified byte-for-byte"
           },
           "reanalysis": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "target finding cleared; no new findings introduced"
           },
           "compile": {
-            "ran": false,
-            "ok": false,
-            "detail": "not reached"
+            "ran": true,
+            "ok": true,
+            "detail": "tsc --noEmit: no type errors"
           },
-          "stage": "repair",
-          "subsystem": "ai-provider",
-          "rootCause": "AI-required repair, no provider key present (FIXORA_BENCH_OPENROUTER_KEY absent)",
-          "finalOutcome": "AI_DEFERRED",
-          "runtimeMs": 0
+          "stage": "compile",
+          "subsystem": "none",
+          "rootCause": "repair survived analyze → repair → verify → apply → re-analyze → compile",
+          "finalOutcome": "AI_REPAIR_APPLIED",
+          "runtimeMs": 29783,
+          "aiDiagnostic": {
+            "targetStartLine": 18,
+            "targetEndLine": 18,
+            "repairedCode": "const total: number = subtotal(items) * (1 + TAX_RATE);"
+          }
         }
       ]
     }

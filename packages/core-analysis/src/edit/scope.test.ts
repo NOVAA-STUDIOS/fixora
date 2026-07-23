@@ -60,6 +60,35 @@ describe('resolveEditScope', () => {
     expect(scope.text).toContain('import { z }');
   });
 
+  /**
+   * P2.2 runtime defect, found by the live editing acceptance run: a caret parked on a BLANK line
+   * between declarations produced a one-empty-line scope, which no model can meaningfully edit and
+   * which then failed verification. A blank caret now snaps to the nearest symbol.
+   */
+  it('P2.2: a caret on a blank line snaps to the nearest symbol, not an empty 1-line scope', async () => {
+    const withBlank = `import { z } from 'zod';\n\n\nexport function greet(n: string): string {\n  return n;\n}\n`;
+    const scope = await resolveEditScope({
+      source: withBlank,
+      language: 'typescript',
+      filePath: 'a.ts',
+      selectionStartLine: 3, // a blank line just above greet()
+    });
+    expect(scope.basis).toBe('nearest-symbol');
+    expect(scope.symbolName).toBe('greet');
+    expect(scope.text).toContain('return n;');
+  });
+
+  it('P2.2: a selection with real content is respected exactly, never snapped away', async () => {
+    const scope = await resolveEditScope({
+      source: TS,
+      language: 'typescript',
+      filePath: 'a.ts',
+      selectionStartLine: 1, // the import line — real content, no enclosing symbol
+    });
+    expect(scope.basis).toBe('selection-fallback');
+    expect(scope.text).toContain('import { z }');
+  });
+
   it('clamps an out-of-range selection into the file rather than throwing', async () => {
     const scope = await resolveEditScope({
       source: TS,

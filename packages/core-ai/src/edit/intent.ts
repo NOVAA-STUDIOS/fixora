@@ -1,4 +1,4 @@
-import type { EditIntent } from '@fixora/shared-types';
+import type { EditIntent, Language } from '@fixora/shared-types';
 
 /**
  * Intent detection for Proceed Mode (P2.1).
@@ -142,6 +142,15 @@ const LEXICON: readonly (readonly [EditIntent, readonly string[]])[] = [
       'function name',
       'method',
       'rename this',
+      // Structural edits (add/insert/set a field/property/key) — a real, common request that otherwise
+      // fell through to `unknown`. Kept specific so "add loading state" still reads as React.
+      'add a field',
+      'add a property',
+      'add a key',
+      'add a top-level field',
+      'add an entry',
+      'insert',
+      'set to',
     ],
   ],
   [
@@ -158,12 +167,31 @@ function fires(haystack: string, phrase: string): boolean {
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(haystack);
 }
 
-export function classifyIntent(instruction: string): IntentResult {
+/**
+ * Language-specific categories that CONTRADICT the file being edited are impossible, so they are
+ * removed from contention. This fixes a real misclassification: a `.py` file's "add a type hint"
+ * matched both `python` ("type hint") and `typescript` ("type", "type annotation"), and TypeScript
+ * won on count — for a Python file. A `.ts` file is never a Python edit, and vice versa.
+ */
+function contradicts(intent: EditIntent, language: Language | undefined): boolean {
+  if (language === undefined) return false;
+  if (language === 'python') return intent === 'typescript' || intent === 'react';
+  if (language === 'typescript' || language === 'javascript') return intent === 'python';
+  return false;
+}
+
+export interface ClassifyOptions {
+  /** The language of the file being edited — used to drop contradictory language categories. */
+  readonly language?: Language;
+}
+
+export function classifyIntent(instruction: string, options: ClassifyOptions = {}): IntentResult {
   const text = instruction.toLowerCase().trim();
   if (text === '') return { intent: 'unknown', confidence: 0, matched: [] };
 
   let best: { intent: EditIntent; matched: string[] } | null = null;
   for (const [intent, phrases] of LEXICON) {
+    if (contradicts(intent, options.language)) continue;
     const matched = phrases.filter((p) => fires(text, p));
     if (matched.length === 0) continue;
     if (best === null || matched.length > best.matched.length) best = { intent, matched };
