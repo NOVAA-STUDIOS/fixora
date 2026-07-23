@@ -11,6 +11,7 @@
     "validate:report": "tsx src/cli.ts --report"
   },
   "dependencies": {
+    "@fixora/core-ai": "workspace:*",
     "@fixora/core-analysis": "workspace:*",
     "@fixora/shared-types": "workspace:*"
   },

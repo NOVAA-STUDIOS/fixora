@@ -49,6 +49,8 @@ export type Subsystem =
  */
 export type FinalOutcome =
   | 'SAFE_AUTO_REPAIR_APPLIED'
+  | 'AI_REPAIR_APPLIED'
+  | 'AI_GENERATE_FAILED'
   | 'MANUAL_FIX_REQUIRED'
   | 'AI_DEFERRED'
   | 'UNSUPPORTED_LANGUAGE'

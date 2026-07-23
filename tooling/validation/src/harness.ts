@@ -2,18 +2,21 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 
+import type { AIProvider } from '@fixora/core-ai';
 import {
   analyzeWorkspace,
   createAnalysisContext,
   deterministicRepair,
   formatGate,
   languageForPath,
+  parse,
   type AnalysisFile,
   type WorkspaceCapabilities,
 } from '@fixora/core-analysis';
 import type { Finding, Language } from '@fixora/shared-types';
 
 import { compileProject } from './compile.js';
+import { generateRepair } from './generate.js';
 import { collectFiles, type DiscoveredProject } from './projects.js';
 import type {
   AttemptRecord,
@@ -72,46 +75,45 @@ interface Terminal {
   finalOutcome: FinalOutcome;
 }
 
+interface GateInput {
+  project: DiscoveredProject;
+  finding: Finding;
+  language: Language;
+  /** The full file content after the repair (deterministic splice or AI splice). */
+  patched: string;
+  /** The already-formed repair-stage result (edits applied, or model generated). */
+  repairStage: StageResult;
+  /** The terminal outcome to record when every gate passes. */
+  successOutcome: FinalOutcome;
+  beforeIds: Set<string>;
+  capabilities: WorkspaceCapabilities;
+  baselineCompileOk: boolean | null;
+  toolRoot: string;
+}
+
 /**
- * Drive one deterministic (safe-auto) repair through the whole loop on a fresh overlay. Returns the
- * per-stage results plus the terminal classification. The overlay is always disposed.
+ * The shared gate pipeline every repair — deterministic OR AI — must survive, run on a fresh overlay:
+ * parser gate → formatter gate → re-analyze (regression + target-cleared) → apply round-trip →
+ * compile. Identical treatment is the point: an AI patch is held to exactly the same bar as a
+ * tool autofix, so no repair source can bypass verification. The overlay is always disposed.
  */
-async function runDeterministic(
-  project: DiscoveredProject,
-  finding: Finding,
-  beforeIds: Set<string>,
-  capabilities: WorkspaceCapabilities,
-  baselineCompileOk: boolean | null,
-  toolRoot: string,
+async function runGates(
+  input: GateInput,
 ): Promise<{ stages: ReturnType<typeof blankStages>; terminal: Terminal }> {
+  const { project, finding, language, patched } = input;
   const stages = blankStages();
-  const language: Language = languageForPath(finding.location.file) ?? 'javascript';
-  const absSource = join(project.dir, finding.location.file);
-  const source = readFileSync(absSource, 'utf8');
+  stages.repair = input.repairStage;
 
-  // --- Repair (deterministic micro-repair; parser gate is inside) ---
-  const micro = await deterministicRepair({
-    finding,
-    source,
-    language,
-    filePath: finding.location.file,
-  });
-  if (micro === null) {
-    stages.repair = FAIL('safe-auto finding produced no composable tool autofix');
-    return {
-      stages,
-      terminal: {
-        stage: 'repair',
-        subsystem: 'patch-extractor',
-        rootCause: 'autofix edits did not compose into a patch (applyEdits returned null)',
-        finalOutcome: 'VERIFICATION_FAILED',
-      },
-    };
+  // --- Verify: parser gate (the patched file must parse under its own grammar) ---
+  let parseOk: boolean;
+  try {
+    const tree = await parse(language, patched, finding.location.file);
+    parseOk = !tree.root.hasError;
+    tree.dispose();
+  } catch {
+    parseOk = false;
   }
-  stages.repair = PASS(`applied ${String(micro.edits.length)} edit(s) from ${micro.source}`);
-
-  // --- Verify: parser gate (already run in-memory by deterministicRepair) ---
-  if (!micro.parseOk) {
+  if (!parseOk) {
     stages.verification = FAIL('patched file does not parse under its own grammar');
     return {
       stages,
@@ -136,7 +138,7 @@ async function runDeterministic(
         !src.includes(`${sep}__pycache__${sep}`),
     });
     const absOverlay = join(overlay, finding.location.file);
-    writeFileSync(absOverlay, micro.patched, 'utf8');
+    writeFileSync(absOverlay, patched, 'utf8');
 
     // --- Verify: formatter gate (only where a formatter exists; honestly absent otherwise) ---
     const fmt = await formatGate({ root: overlay, absFile: absOverlay, language });
@@ -161,9 +163,9 @@ async function runDeterministic(
 
     // --- Re-analyze the overlay → regression + target-cleared check ---
     const overlayFiles = collectFiles(overlay);
-    const after = await analyze(overlay, overlayFiles, capabilities);
+    const after = await analyze(overlay, overlayFiles, input.capabilities);
     const afterIds = new Set(after.map((f) => f.id));
-    const newIds = [...afterIds].filter((id) => id !== finding.id && !beforeIds.has(id));
+    const newIds = [...afterIds].filter((id) => id !== finding.id && !input.beforeIds.has(id));
     const targetCleared = !afterIds.has(finding.id);
 
     if (newIds.length > 0) {
@@ -203,7 +205,7 @@ async function runDeterministic(
     // integrity check) before crediting it.
     const readback = readFileSync(absOverlay, 'utf8');
     stages.apply =
-      readback === micro.patched
+      readback === patched
         ? PASS('patched file written and verified byte-for-byte')
         : FAIL('written content did not read back identically');
     if (!stages.apply.ok) {
@@ -222,13 +224,13 @@ async function runDeterministic(
     const compile = await compileProject({
       kind: project.manifest.compile,
       root: overlay,
-      toolRoot,
+      toolRoot: input.toolRoot,
       files: overlayFiles,
     });
     stages.compile = compile;
     // A compile that flips from green (baseline) to red is a regression the repair caused. A compile
     // that was already red at baseline, or that does not apply, is not held against the repair.
-    if (compile.ran && !compile.ok && baselineCompileOk === true) {
+    if (compile.ran && !compile.ok && input.baselineCompileOk === true) {
       return {
         stages,
         terminal: {
@@ -246,12 +248,120 @@ async function runDeterministic(
         stage: 'compile',
         subsystem: 'none',
         rootCause: 'repair survived analyze → repair → verify → apply → re-analyze → compile',
-        finalOutcome: 'SAFE_AUTO_REPAIR_APPLIED',
+        finalOutcome: input.successOutcome,
       },
     };
   } finally {
     rmSync(overlay, { recursive: true, force: true });
   }
+}
+
+/** Drive one deterministic (safe-auto) repair through the shared gates. */
+async function runDeterministic(
+  project: DiscoveredProject,
+  finding: Finding,
+  beforeIds: Set<string>,
+  capabilities: WorkspaceCapabilities,
+  baselineCompileOk: boolean | null,
+  toolRoot: string,
+): Promise<{ stages: ReturnType<typeof blankStages>; terminal: Terminal }> {
+  const language: Language = languageForPath(finding.location.file) ?? 'javascript';
+  const source = readFileSync(join(project.dir, finding.location.file), 'utf8');
+
+  const micro = await deterministicRepair({
+    finding,
+    source,
+    language,
+    filePath: finding.location.file,
+  });
+  if (micro === null) {
+    const stages = blankStages();
+    stages.repair = FAIL('safe-auto finding produced no composable tool autofix');
+    return {
+      stages,
+      terminal: {
+        stage: 'repair',
+        subsystem: 'patch-extractor',
+        rootCause: 'autofix edits did not compose into a patch (applyEdits returned null)',
+        finalOutcome: 'VERIFICATION_FAILED',
+      },
+    };
+  }
+  return runGates({
+    project,
+    finding,
+    language,
+    patched: micro.patched,
+    repairStage: PASS(`applied ${String(micro.edits.length)} edit(s) from ${micro.source}`),
+    successOutcome: 'SAFE_AUTO_REPAIR_APPLIED',
+    beforeIds,
+    capabilities,
+    baselineCompileOk,
+    toolRoot,
+  });
+}
+
+/**
+ * Drive one AI (model) repair through Generate → the shared gates. A generation failure is classified
+ * by its exact subsystem (context/prompt/provider/parser) and never reaches the gates; a successful
+ * generation is held to exactly the same gate bar as a deterministic repair.
+ */
+async function runAi(
+  project: DiscoveredProject,
+  finding: Finding,
+  provider: AIProvider,
+  model: string,
+  beforeIds: Set<string>,
+  capabilities: WorkspaceCapabilities,
+  baselineCompileOk: boolean | null,
+  toolRoot: string,
+): Promise<{ stages: ReturnType<typeof blankStages>; terminal: Terminal }> {
+  const language: Language = languageForPath(finding.location.file) ?? 'javascript';
+  const fileContent = readFileSync(join(project.dir, finding.location.file), 'utf8');
+  const target = {
+    symbolName: finding.evidence.enclosingSymbol?.name ?? null,
+    startLine: finding.evidence.enclosingRange?.startLine ?? finding.location.startLine,
+    endLine: finding.evidence.enclosingRange?.endLine ?? finding.location.endLine,
+  };
+
+  const gen = await generateRepair({
+    provider,
+    model,
+    finding,
+    language,
+    fileContent,
+    workspaceRoot: project.dir,
+    target,
+  });
+  if (!gen.ok) {
+    const stages = blankStages();
+    stages.repair = FAIL(gen.reason);
+    return {
+      stages,
+      terminal: {
+        stage: 'repair',
+        subsystem: gen.subsystem,
+        rootCause: gen.reason,
+        finalOutcome: 'AI_GENERATE_FAILED',
+      },
+    };
+  }
+  return runGates({
+    project,
+    finding,
+    language,
+    patched: gen.patched,
+    repairStage: PASS(
+      `model generated a repair (confidence ${gen.confidence.toFixed(2)}` +
+        (gen.reAsked ? ', after one schema re-ask' : '') +
+        `${gen.recovery.length > 0 && gen.recovery[0] !== 'none' ? `, recovery: ${gen.recovery.join('+')}` : ''})`,
+    ),
+    successOutcome: 'AI_REPAIR_APPLIED',
+    beforeIds,
+    capabilities,
+    baselineCompileOk,
+    toolRoot,
+  });
 }
 
 /** Build the record for a finding the engine cannot deterministically repair here. */
@@ -283,10 +393,17 @@ function nonDeterministicRecord(
   return { ...base, ...stages, ...terminal, runtimeMs: 0 };
 }
 
+/** The live-model leg, when a provider key is present. Null → AI-required findings are deferred. */
+export interface AiRunner {
+  provider: AIProvider;
+  model: string;
+}
+
 export async function runProject(
   project: DiscoveredProject,
   capabilities: WorkspaceCapabilities,
   toolRoot: string,
+  ai: AiRunner | null = null,
 ): Promise<ProjectResult> {
   const base: ProjectResult = {
     project: project.manifest.name,
@@ -342,6 +459,7 @@ export async function runProject(
       repairability: finding.repair,
     };
 
+    const baselineOk = baselineCompile.ran ? baselineCompile.ok : null;
     if (finding.repair === 'safe-auto') {
       const start = Date.now();
       const { stages, terminal } = await runDeterministic(
@@ -349,7 +467,20 @@ export async function runProject(
         finding,
         beforeIds,
         capabilities,
-        baselineCompile.ran ? baselineCompile.ok : null,
+        baselineOk,
+        toolRoot,
+      );
+      attempts.push({ ...common, ...stages, ...terminal, runtimeMs: Date.now() - start });
+    } else if (finding.repair === 'ai-required' && ai !== null) {
+      const start = Date.now();
+      const { stages, terminal } = await runAi(
+        project,
+        finding,
+        ai.provider,
+        ai.model,
+        beforeIds,
+        capabilities,
+        baselineOk,
         toolRoot,
       );
       attempts.push({ ...common, ...stages, ...terminal, runtimeMs: Date.now() - start });
