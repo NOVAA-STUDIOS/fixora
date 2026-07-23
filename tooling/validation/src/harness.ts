@@ -315,7 +315,11 @@ async function runAi(
   capabilities: WorkspaceCapabilities,
   baselineCompileOk: boolean | null,
   toolRoot: string,
-): Promise<{ stages: ReturnType<typeof blankStages>; terminal: Terminal }> {
+): Promise<{
+  stages: ReturnType<typeof blankStages>;
+  terminal: Terminal;
+  aiDiagnostic?: AttemptRecord['aiDiagnostic'];
+}> {
   const language: Language = languageForPath(finding.location.file) ?? 'javascript';
   const fileContent = readFileSync(join(project.dir, finding.location.file), 'utf8');
   const target = {
@@ -346,7 +350,12 @@ async function runAi(
       },
     };
   }
-  return runGates({
+  const aiDiagnostic = {
+    targetStartLine: target.startLine,
+    targetEndLine: target.endLine,
+    repairedCode: gen.repairedCode,
+  };
+  const result = await runGates({
     project,
     finding,
     language,
@@ -362,6 +371,7 @@ async function runAi(
     baselineCompileOk,
     toolRoot,
   });
+  return { ...result, aiDiagnostic };
 }
 
 /** Build the record for a finding the engine cannot deterministically repair here. */
@@ -473,7 +483,7 @@ export async function runProject(
       attempts.push({ ...common, ...stages, ...terminal, runtimeMs: Date.now() - start });
     } else if (finding.repair === 'ai-required' && ai !== null) {
       const start = Date.now();
-      const { stages, terminal } = await runAi(
+      const { stages, terminal, aiDiagnostic } = await runAi(
         project,
         finding,
         ai.provider,
@@ -483,7 +493,13 @@ export async function runProject(
         baselineOk,
         toolRoot,
       );
-      attempts.push({ ...common, ...stages, ...terminal, runtimeMs: Date.now() - start });
+      attempts.push({
+        ...common,
+        ...stages,
+        ...terminal,
+        runtimeMs: Date.now() - start,
+        ...(aiDiagnostic !== undefined ? { aiDiagnostic } : {}),
+      });
     } else {
       attempts.push(nonDeterministicRecord(common, finding));
     }

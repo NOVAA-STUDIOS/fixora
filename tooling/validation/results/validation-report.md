@@ -1,6 +1,6 @@
 # Fixora — Real Repository Repair Acceptance Report (P1.2)
 
-Generated 2026-07-23T09:10:12.537Z from a REAL execution of the engine over the acceptance corpus.
+Generated 2026-07-23T10:36:05.861Z from a REAL execution of the engine over the acceptance corpus.
 Provider key present: **no** — AI-required repairs are DEFERRED (not measurable without a key) and never counted as success.
 
 ## Summary (measured)
@@ -21,8 +21,8 @@ Provider key present: **no** — AI-required repairs are DEFERRED (not measurabl
 | Compile pass rate (of those that ran) | 2 / 2 (100.0%) |
 | AI-deferred (need a key) | 5 |
 | Manual-only findings | 0 |
-| Avg repair→compile time (attempted) | 370 ms |
-| Avg project analyze time | 2299 ms |
+| Avg repair→compile time (attempted) | 337 ms |
+| Avg project analyze time | 2448 ms |
 
 ## Final outcomes (every finding lands in exactly one)
 
