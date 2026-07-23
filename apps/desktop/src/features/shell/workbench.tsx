@@ -140,10 +140,15 @@ export function Workbench(): React.JSX.Element {
  */
 function AssistantPanel(): React.JSX.Element {
   const [mode, setMode] = useState<EditMode>('repair');
+  // A flex column that owns the pane's height. The first version returned a bare Fragment, so the tab
+  // strip and the `h-full` AiPanel were siblings with no height distribution — together they exceeded
+  // the pane, squeezing the strip and overflowing the panel. `min-h-0` lets the body actually shrink.
   return (
-    <>
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <EditModeTabs active={mode} onChange={setMode} />
-      {mode === 'proceed' ? <ProceedView /> : <AiPanel />}
-    </>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {mode === 'proceed' ? <ProceedView /> : <AiPanel />}
+      </div>
+    </div>
   );
 }
