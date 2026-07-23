@@ -454,6 +454,9 @@ importers:
 
   tooling/validation:
     dependencies:
+      '@fixora/core-ai':
+        specifier: workspace:*
+        version: link:../../packages/core-ai
       '@fixora/core-analysis':
         specifier: workspace:*
         version: link:../../packages/core-analysis
