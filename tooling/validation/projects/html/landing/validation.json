@@ -1,0 +1,7 @@
+{
+  "name": "html-landing",
+  "language": "html",
+  "requiresTools": [],
+  "compile": "none",
+  "note": "Real-shaped landing page. Fixora ships no HTML analyzer, so the harness should analyze it, find nothing, and report HTML as unsupported — never crash, never invent a finding."
+}

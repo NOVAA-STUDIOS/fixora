@@ -1,0 +1,7 @@
+{
+  "name": "python-task-queue",
+  "language": "python",
+  "requiresTools": ["ruff"],
+  "compile": "py-compile",
+  "note": "A realistic in-memory task queue. Mixes a ruff-fixable unused import (safe-auto) with a mutable default argument (B006) that ruff flags but cannot mechanically fix without changing intent (classified non-safe-auto)."
+}

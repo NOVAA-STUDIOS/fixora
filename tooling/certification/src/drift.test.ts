@@ -64,7 +64,11 @@ describe('runSample — fixture-drift guard', () => {
 
   it('fails with an exact fixture-drift reason when the source no longer matches its fingerprint', async () => {
     // A manifest that pins a hash the current bytes do NOT produce = the fixture drifted.
-    const result = await runSample(dir, sample({ sourceHashes: { 'src/a.ts': 'deadbeef' } }), NO_TOOLS);
+    const result = await runSample(
+      dir,
+      sample({ sourceHashes: { 'src/a.ts': 'deadbeef' } }),
+      NO_TOOLS,
+    );
     expect(result.status).toBe('fail');
     expect(result.reason).toMatch(/^fixture-drift: src\/a\.ts /);
   });

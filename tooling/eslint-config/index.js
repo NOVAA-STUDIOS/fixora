@@ -98,6 +98,8 @@ export default tseslint.config(
       'tooling/benchmarks/results/**',
       'samples/certification/**',
       'tooling/certification/results/**',
+      'tooling/validation/projects/**',
+      'tooling/validation/results/**',
     ],
   },
 

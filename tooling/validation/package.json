@@ -1,0 +1,25 @@
+{
+  "name": "@fixora/validation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "validate": "tsx src/cli.ts",
+    "validate:report": "tsx src/cli.ts --report"
+  },
+  "dependencies": {
+    "@fixora/core-analysis": "workspace:*",
+    "@fixora/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@fixora/eslint-config": "workspace:*",
+    "@fixora/tsconfig": "workspace:*",
+    "@types/node": "26.1.1",
+    "tsx": "4.23.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

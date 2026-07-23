@@ -1,0 +1,7 @@
+{
+  "name": "react-counter",
+  "language": "react",
+  "requiresTools": ["eslint"],
+  "compile": "none",
+  "note": "A React component that calls a hook conditionally (rules-of-hooks). A real defect ESLint's react-hooks plugin detects; the correct fix depends on intended behaviour, so it is not a safe mechanical autofix. Compile is 'none' — no React types are installed in the corpus, so a standalone tsc run would only report module-resolution noise."
+}
