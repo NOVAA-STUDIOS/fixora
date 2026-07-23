@@ -6,6 +6,10 @@ coverage/
 pnpm-lock.yaml
 CHANGELOG.md
 
+# Environment files have no Prettier parser and may hold secrets — never format them.
+.env
+.env.*
+
 # The blueprint is the source of truth and it is authored by humans, not by a formatter.
 # Prettier reflows markdown tables, which produces a large, meaningless diff on documents whose
 # whole value is that they are stable and citable. `docs/adr/` is additionally generated, and
