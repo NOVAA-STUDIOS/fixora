@@ -117,31 +117,19 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
       const base = {
         event: 'run' as const,
         instructionChars: request.instruction.length,
+        intent: 'unknown' as string,
         language: null as string | null,
         scope: null as ProceedLogEntry['scope'],
         verdict: null as VerificationReport['verdict'] | null,
         applied: false,
       };
       const done = (o: ProceedOutcome, reason: string | null): ProceedOutcome => {
-        deps.log({ ...base, intent, outcome: o.status, rejectionReason: reason });
+        deps.log({ ...base, outcome: o.status, rejectionReason: reason });
         return o;
       };
 
-      // 1) Intent — deterministic. Unknown fails gracefully, never guesses.
-      const { intent } = classifyIntent(request.instruction);
-      if (intent === 'unknown') {
-        return done(
-          {
-            status: 'unknown-intent',
-            message:
-              'I could not tell what kind of change you want. Try naming the change, e.g. ' +
-              '"make this button green" or "rename this variable".',
-          },
-          'unknown-intent',
-        );
-      }
-
-      // 2) Language + scope — smallest valid context, never the whole file.
+      // 1) Language first — an unsupported file type is unsupported whatever the instruction says,
+      //    and the language is what disambiguates the intent below (a .py file is never a TS edit).
       const language = deps.detectLanguage(request.file);
       base.language = language;
       if (language === null) {
@@ -154,6 +142,22 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
           'unsupported-language',
         );
       }
+
+      // 2) Intent — deterministic, biased by the real file language. Unknown fails gracefully.
+      const { intent } = classifyIntent(request.instruction, { language });
+      base.intent = intent;
+      if (intent === 'unknown') {
+        return done(
+          {
+            status: 'unknown-intent',
+            message:
+              'I could not tell what kind of change you want. Try naming the change, e.g. ' +
+              '"make this button green" or "rename this variable".',
+          },
+          'unknown-intent',
+        );
+      }
+
       const source = deps.readSource(request.file);
       const scope = await deps.resolveScope({
         source,

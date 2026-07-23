@@ -41,7 +41,7 @@ const NOT_RUN = (detail: string): StageResult => ({ ran: false, ok: false, detai
 const PASS = (detail: string): StageResult => ({ ran: true, ok: true, detail });
 const FAIL = (detail: string): StageResult => ({ ran: true, ok: false, detail });
 
-async function analyze(
+export async function analyze(
   root: string,
   files: AnalysisFile[],
   capabilities: WorkspaceCapabilities,
@@ -68,16 +68,19 @@ function blankStages(): Pick<
   };
 }
 
-interface Terminal {
+export interface Terminal {
   stage: Stage;
   subsystem: Subsystem;
   rootCause: string;
   finalOutcome: FinalOutcome;
 }
 
-interface GateInput {
+export interface GateInput {
   project: DiscoveredProject;
-  finding: Finding;
+  /** The workspace-relative file being patched. */
+  file: string;
+  /** The finding being repaired, or `null` for a Proceed EDIT (verify regression-only, no target). */
+  finding: Finding | null;
   language: Language;
   /** The full file content after the repair (deterministic splice or AI splice). */
   patched: string;
@@ -97,17 +100,17 @@ interface GateInput {
  * compile. Identical treatment is the point: an AI patch is held to exactly the same bar as a
  * tool autofix, so no repair source can bypass verification. The overlay is always disposed.
  */
-async function runGates(
+export async function runGates(
   input: GateInput,
 ): Promise<{ stages: ReturnType<typeof blankStages>; terminal: Terminal }> {
-  const { project, finding, language, patched } = input;
+  const { project, finding, language, patched, file } = input;
   const stages = blankStages();
   stages.repair = input.repairStage;
 
   // --- Verify: parser gate (the patched file must parse under its own grammar) ---
   let parseOk: boolean;
   try {
-    const tree = await parse(language, patched, finding.location.file);
+    const tree = await parse(language, patched, file);
     parseOk = !tree.root.hasError;
     tree.dispose();
   } catch {
@@ -137,7 +140,7 @@ async function runGates(
         !src.includes(`${sep}node_modules${sep}`) &&
         !src.includes(`${sep}__pycache__${sep}`),
     });
-    const absOverlay = join(overlay, finding.location.file);
+    const absOverlay = join(overlay, file);
     writeFileSync(absOverlay, patched, 'utf8');
 
     // --- Verify: formatter gate (only where a formatter exists; honestly absent otherwise) ---
@@ -165,8 +168,11 @@ async function runGates(
     const overlayFiles = collectFiles(overlay);
     const after = await analyze(overlay, overlayFiles, input.capabilities);
     const afterIds = new Set(after.map((f) => f.id));
-    const newIds = [...afterIds].filter((id) => id !== finding.id && !input.beforeIds.has(id));
-    const targetCleared = !afterIds.has(finding.id);
+    // Edit mode (finding === null): every new finding counts; there is no target to exclude or clear.
+    const newIds = [...afterIds].filter(
+      (id) => id !== finding?.id && !input.beforeIds.has(id),
+    );
+    const targetCleared = finding === null ? true : !afterIds.has(finding.id);
 
     if (newIds.length > 0) {
       const evidence = after
@@ -289,6 +295,7 @@ async function runDeterministic(
   }
   return runGates({
     project,
+    file: finding.location.file,
     finding,
     language,
     patched: micro.patched,
@@ -357,6 +364,7 @@ async function runAi(
   };
   const result = await runGates({
     project,
+    file: finding.location.file,
     finding,
     language,
     patched: gen.patched,

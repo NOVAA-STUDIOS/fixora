@@ -9,7 +9,8 @@
     "test": "vitest run",
     "validate": "tsx src/cli.ts",
     "validate:report": "tsx src/cli.ts --report",
-    "check-env": "tsx src/cli.ts --check-env"
+    "check-env": "tsx src/cli.ts --check-env",
+    "edit-bench": "tsx src/edit-bench.ts"
   },
   "dependencies": {
     "@fixora/core-ai": "workspace:*",

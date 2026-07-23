@@ -49,6 +49,31 @@ describe('classifyIntent', () => {
     expect(r.matched.length).toBeGreaterThan(0);
   });
 
+  /**
+   * P2.2 runtime defects, found by the live editing acceptance run and fixed here.
+   */
+  it('P2.2 defect A: a .py file is never a TypeScript edit — language disambiguates', () => {
+    const instruction =
+      'add a type hint annotation for the text parameter of word_count (it is a str)';
+    // Without the hint, "type"/"type annotation" (TypeScript) outscored "type hint" (Python).
+    expect(classifyIntent(instruction).intent).toBe('typescript');
+    // With the real file language, the contradictory category is dropped.
+    expect(classifyIntent(instruction, { language: 'python' }).intent).toBe('python');
+  });
+
+  it('P2.2 defect A: a .ts file is never a Python edit', () => {
+    expect(classifyIntent('add a type hint', { language: 'typescript' }).intent).not.toBe('python');
+  });
+
+  it('P2.2 defect B: a structural field/property edit is classified, not dropped as unknown', () => {
+    expect(
+      classifyIntent('add a top-level field "maxConnections" set to the number 10').intent,
+    ).toBe('refactoring');
+    expect(classifyIntent('add a property timeout to the config').intent).toBe('refactoring');
+    // ...without stealing React's more specific signal.
+    expect(classifyIntent('add loading state').intent).toBe('react');
+  });
+
   it('does not fire a keyword embedded inside another word (word boundaries)', () => {
     // "type" must not fire inside "typewriter"; this instruction has no real category signal.
     expect(classifyIntent('describe the typewriter museum').intent).toBe('explanation'); // "describe"
