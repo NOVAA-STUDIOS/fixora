@@ -1,4 +1,4 @@
-import { Button } from '@fixora/ui';
+import { Button, cn } from '@fixora/ui';
 import { useState } from 'react';
 
 import { useProceedStore } from '../../stores/proceed-store.js';
@@ -20,7 +20,14 @@ export interface EditModeTabsProps {
   onChange: (mode: EditMode) => void;
 }
 
-/** The Repair / Proceed / Explain switch. Explain is a placeholder (disabled) for now. */
+/**
+ * The Repair / Proceed / Explain switch. Explain is a placeholder (disabled) for now.
+ *
+ * Styled with the app's own tokens, mirroring the severity-filter segmented control in the findings
+ * panel. The first version shipped bare <button>s with no classes: in a Tailwind + design-token app
+ * they inherit nothing, so the three tabs rendered as one run-together line of plain text with no
+ * active state — present in the DOM, but unreadable as tabs and indistinguishable from a header.
+ */
 export function EditModeTabs({ active, onChange }: EditModeTabsProps): React.JSX.Element {
   const modes: readonly { id: EditMode; label: string; disabled?: boolean }[] = [
     { id: 'repair', label: 'Repair' },
@@ -28,22 +35,36 @@ export function EditModeTabs({ active, onChange }: EditModeTabsProps): React.JSX
     { id: 'explain', label: 'Explain', disabled: true },
   ];
   return (
-    <div role="tablist" aria-label="Editing mode" style={{ display: 'flex', gap: 4 }}>
-      {modes.map((m) => (
-        <button
-          key={m.id}
-          type="button"
-          role="tab"
-          aria-selected={active === m.id}
-          disabled={m.disabled === true}
-          onClick={() => {
-            onChange(m.id);
-          }}
-        >
-          {m.label}
-          {m.disabled === true ? ' (soon)' : ''}
-        </button>
-      ))}
+    <div
+      role="tablist"
+      aria-label="Editing mode"
+      className="flex h-9 shrink-0 items-center gap-1 border-b border-border-subtle px-2"
+    >
+      {modes.map((m) => {
+        const disabled = m.disabled === true;
+        return (
+          <button
+            key={m.id}
+            type="button"
+            role="tab"
+            aria-selected={active === m.id}
+            disabled={disabled}
+            onClick={() => {
+              onChange(m.id);
+            }}
+            className={cn(
+              'rounded px-2 py-0.5 text-xs font-medium',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring',
+              disabled && 'cursor-not-allowed text-fg-muted opacity-60',
+              !disabled && active === m.id && 'bg-hover text-fg',
+              !disabled && active !== m.id && 'text-fg-muted hover:text-fg',
+            )}
+          >
+            {m.label}
+            {disabled ? ' (soon)' : ''}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -67,8 +88,10 @@ export function ProceedPanel({ onSubmit, busy = false }: ProceedPanelProps): Rea
   };
 
   return (
-    <form onSubmit={submit} aria-label="Proceed">
-      <label htmlFor="proceed-instruction">What would you like to change?</label>
+    <form onSubmit={submit} aria-label="Proceed" className="flex flex-col gap-2 p-3">
+      <label htmlFor="proceed-instruction" className="text-xs font-medium text-fg-secondary">
+        What would you like to change?
+      </label>
       <textarea
         id="proceed-instruction"
         value={instruction}
@@ -78,8 +101,9 @@ export function ProceedPanel({ onSubmit, busy = false }: ProceedPanelProps): Rea
         placeholder="e.g. make this button green, rename this variable, add a loading state"
         rows={3}
         disabled={busy}
+        className="w-full resize-y rounded border border-border-subtle bg-base p-2 text-xs text-fg placeholder:text-fg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring disabled:opacity-60"
       />
-      <Button type="submit" disabled={!canSubmit}>
+      <Button type="submit" disabled={!canSubmit} className="self-start">
         {busy ? 'Working…' : 'Proceed'}
       </Button>
     </form>
@@ -105,35 +129,53 @@ export function ProceedView(): React.JSX.Element {
 
   if (status === 'preview' && proposal !== null) {
     return (
-      <section aria-label="Proceed preview">
-        <p>
-          <strong>{proposal.summary}</strong>
-        </p>
-        <p>
-          {proposal.target.file}
-          {proposal.target.symbolName !== null
-            ? ` — ${proposal.target.symbolName}`
-            : ''} (lines {proposal.target.startLine}–{proposal.target.endLine}) · verified:{' '}
-          {proposal.verification.verdict}
-        </p>
-        <p>Original</p>
-        <pre>{proposal.originalCode}</pre>
-        <p>Proposed edit</p>
-        <pre>{proposal.editedCode}</pre>
-        <Button type="button" disabled={applying} onClick={() => void accept()}>
-          {applying ? 'Applying…' : 'Accept'}
-        </Button>
-        <Button type="button" variant="ghost" disabled={applying} onClick={cancel}>
-          Cancel
-        </Button>
+      <section
+        aria-label="Proceed preview"
+        className="flex h-full min-h-0 flex-col overflow-y-auto"
+      >
+        <div className="flex flex-col gap-1 border-b border-border-subtle p-3">
+          <p className="text-sm font-medium text-fg">{proposal.summary}</p>
+          <p className="text-[11px] text-fg-muted">
+            {proposal.target.file}
+            {proposal.target.symbolName !== null ? ` — ${proposal.target.symbolName}` : ''} · lines{' '}
+            {proposal.target.startLine}–{proposal.target.endLine} · verified:{' '}
+            {proposal.verification.verdict}
+          </p>
+        </div>
+        <div className="flex flex-col gap-1 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+            Original
+          </p>
+          <pre className="overflow-x-auto rounded border border-border-subtle bg-base p-2 font-mono text-[11px] text-fg-muted">
+            {proposal.originalCode}
+          </pre>
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+            Proposed edit
+          </p>
+          <pre className="overflow-x-auto rounded border border-border-subtle bg-base p-2 font-mono text-[11px] text-fg">
+            {proposal.editedCode}
+          </pre>
+        </div>
+        <div className="flex shrink-0 gap-2 border-t border-border-subtle p-3">
+          <Button type="button" disabled={applying} onClick={() => void accept()}>
+            {applying ? 'Applying…' : 'Accept'}
+          </Button>
+          <Button type="button" variant="ghost" disabled={applying} onClick={cancel}>
+            Cancel
+          </Button>
+        </div>
       </section>
     );
   }
 
   return (
-    <section aria-label="Proceed">
+    <section aria-label="Proceed" className="flex h-full min-h-0 flex-col overflow-y-auto">
       <ProceedPanel busy={status === 'running'} onSubmit={(instruction) => void run(instruction)} />
-      {message !== null && <p role="alert">{message}</p>}
+      {message !== null && (
+        <p role="alert" className="px-3 pb-3 text-xs text-fg-muted">
+          {message}
+        </p>
+      )}
     </section>
   );
 }
