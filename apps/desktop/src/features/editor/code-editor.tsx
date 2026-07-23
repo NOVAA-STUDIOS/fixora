@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
+import { setActiveEditor } from './active-editor.js';
 import { useEditorStore } from './editor-store.js';
 import { modelFor } from './models.js';
 import { setupMonaco } from './monaco-setup.js';
@@ -65,6 +66,7 @@ export function CodeEditor({
       renderWhitespace: 'selection',
     });
     editorRef.current = editor;
+    setActiveEditor(editor);
 
     // Ctrl/Cmd+S saves the file the editor is showing.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -92,6 +94,7 @@ export function CodeEditor({
       observer.disconnect();
       editor.dispose();
       editorRef.current = null;
+      setActiveEditor(null);
     };
   }, []);
 
