@@ -26,3 +26,7 @@ apps/desktop/release/
 # truth, not an 11 MB blob in git history. PROVENANCE.json is written beside the binary so a built
 # tree can be audited without re-downloading.
 packages/core-analysis/vendor/
+
+# Python bytecode from the validation harness compile step (should never be written into the corpus)
+__pycache__/
+*.pyc

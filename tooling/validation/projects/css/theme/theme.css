@@ -1,0 +1,18 @@
+:root {
+  --bg: #0b0b0f;
+  --fg: #e8e8ef;
+  --accent: #6c8cff;
+  --radius: 8px;
+}
+
+.card {
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.card__title {
+  font-weight: 600;
+  margin: 0 0 8px;
+}

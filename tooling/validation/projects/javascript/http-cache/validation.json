@@ -1,0 +1,7 @@
+{
+  "name": "javascript-http-cache",
+  "language": "javascript",
+  "requiresTools": ["eslint"],
+  "compile": "node-check",
+  "note": "A small LRU-ish response cache. Carries a use-isnan defect (x === NaN is always false) — a real correctness bug ESLint detects but ships no safe autofix for, so it is classified non-safe-auto (AI-required, deferred without a key)."
+}

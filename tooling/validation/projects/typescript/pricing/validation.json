@@ -1,0 +1,7 @@
+{
+  "name": "typescript-pricing",
+  "language": "typescript",
+  "requiresTools": ["tsc"],
+  "compile": "tsc",
+  "note": "A small pricing module with a genuine type error (assigning a string to a number field, TS2322). tsc detects it; there is no mechanical fix that preserves intent, so it is AI-required (deferred without a key)."
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "@fixora/tsconfig/node.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "vitest.config.ts"],
+  "// exclude": "projects/ is the corpus: real-shaped source the harness analyzes and repairs. Type-checking it here would report the very defects it exists to contain.",
+  "exclude": ["results", "projects"]
+}

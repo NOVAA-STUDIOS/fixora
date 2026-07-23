@@ -1,0 +1,7 @@
+{
+  "name": "python-text-metrics",
+  "language": "python",
+  "requiresTools": ["ruff"],
+  "compile": "py-compile",
+  "note": "A small real-shaped text-stats module. Carries an unused import (F401, ruff-fixable = safe-auto) alongside clean code, to exercise the deterministic repair loop end to end."
+}

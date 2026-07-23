@@ -22,3 +22,8 @@ tooling/benchmarks/results
 # Results are generated.
 samples/certification
 tooling/certification/results
+
+# The validation corpus is real-shaped source carrying naturally-occurring defects the harness
+# analyzes and repairs; formatting it would repair the defects under test. Results are generated.
+tooling/validation/projects
+tooling/validation/results

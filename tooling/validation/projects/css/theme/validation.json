@@ -1,0 +1,7 @@
+{
+  "name": "css-theme",
+  "language": "css",
+  "requiresTools": [],
+  "compile": "none",
+  "note": "Real-shaped stylesheet. Fixora ships no CSS analyzer, so the harness should analyze it, find nothing, and report CSS as unsupported — never crash, never invent a finding."
+}

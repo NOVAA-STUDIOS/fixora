@@ -1,0 +1,10 @@
+{
+  "service": "reporting",
+  "port": 8080,
+  "timeoutMs": 30000,
+  "retries": 3,
+  "features": {
+    "cache": true,
+    "verboseLogging": false,
+  }
+}

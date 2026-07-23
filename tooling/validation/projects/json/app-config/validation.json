@@ -1,0 +1,7 @@
+{
+  "name": "json-app-config",
+  "language": "json",
+  "requiresTools": [],
+  "compile": "json-parse",
+  "note": "A realistic app config carrying a trailing comma — a common, real JSON defect the Fixora JSON validator flags (and that strict JSON.parse rejects). Repairability is decided by the engine, not assumed."
+}
