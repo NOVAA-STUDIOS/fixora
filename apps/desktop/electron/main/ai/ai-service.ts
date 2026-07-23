@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import {
   buildContext,
   createOpenRouterProvider,
+  describeProviderFailure,
   DEFAULT_BUDGETS,
   OPENROUTER_ENDPOINT,
   parseRepairOutput,
@@ -132,12 +133,16 @@ export function createAiService(deps: AiServiceDeps): AiService {
           code: event.providerCode,
           message: event.message,
         });
+        // Classified, not echoed (P2.2.1). The raw string — "429 Too Many Requests — Rate limit
+        // exceeded: free-models-per-day…" — is correct for the log above and useless in a panel.
+        // Repair and Proceed share this classifier so they can never disagree about what a 429 means.
         return {
           ok: false,
-          message:
-            event.message.trim() === ''
-              ? `Provider error (${event.providerCode}).`
-              : `${event.message} (${event.providerCode})`,
+          message: describeProviderFailure({
+            providerCode: event.providerCode,
+            detail: event.message,
+            retryable: event.retryable,
+          }).message,
         };
       }
     }

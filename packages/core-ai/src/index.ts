@@ -88,6 +88,12 @@ export {
   type PreparedEdit,
 } from './edit/edit-request.js';
 export {
+  describeModelOutputFailure,
+  describeProviderFailure,
+  type FailureKind,
+  type ProviderFailure,
+} from './provider/failure.js';
+export {
   capabilitiesFor,
   suggestCapableModel,
   type ModelCapabilities,

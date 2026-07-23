@@ -1,9 +1,12 @@
 import {
   buildEditContext,
   classifyIntent,
+  describeModelOutputFailure,
+  describeProviderFailure,
   parseEditOutput,
   prepareEditRequest,
   type AIProvider,
+  type ProviderFailure,
   type ProviderMessage,
   type ProviderRequest,
 } from '@fixora/core-ai';
@@ -94,17 +97,19 @@ async function stream(
   provider: AIProvider,
   request: ProviderRequest,
   signal: AbortSignal,
-): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+): Promise<{ ok: true; text: string } | { ok: false; failure: ProviderFailure }> {
   let text = '';
   for await (const event of provider.stream(request, signal)) {
     if (event.type === 'text_delta') text += event.text;
     else if (event.type === 'error') {
+      // Classified, not echoed: the user gets "your quota is exhausted", not "429 Too Many Requests".
       return {
         ok: false,
-        reason:
-          event.message.trim() === ''
-            ? `provider error (${event.providerCode})`
-            : `${event.message} (${event.providerCode})`,
+        failure: describeProviderFailure({
+          providerCode: event.providerCode,
+          detail: event.message,
+          retryable: event.retryable,
+        }),
       };
     }
   }
@@ -196,22 +201,31 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
         );
       }
 
+      // Every failure below carries the same diagnostic tail: what we detected, and what to try. A
+      // failed edit must never leave the user guessing which of intent / language / model went wrong.
+      const failed = (failure: ProviderFailure): ProceedOutcome => ({
+        status: 'error',
+        code: failure.kind,
+        message: `${failure.message}\n\nDetected intent: ${intent} · language: ${language}${
+          failure.retryable ? '\nYou can retry this request.' : ''
+        }`,
+        retryable: failure.retryable,
+      });
+
       // 4) Generate — stream + one schema re-ask, exactly like repair.
       let out = await stream(deps.provider, prepared.request, signal);
       if (!out.ok)
-        return done({ status: 'error', code: 'provider_error', message: out.reason }, out.reason);
+        return done(failed(out.failure), `${out.failure.kind}:${out.failure.providerCode}`);
       let parsed = parseEditOutput(out.text);
       if (!parsed.ok) {
         out = await stream(deps.provider, reAsk(prepared.request, out.text), signal);
         if (!out.ok)
-          return done({ status: 'error', code: 'provider_error', message: out.reason }, out.reason);
+          return done(failed(out.failure), `${out.failure.kind}:${out.failure.providerCode}`);
         parsed = parseEditOutput(out.text);
       }
       if (!parsed.ok) {
-        return done(
-          { status: 'error', code: 'bad_model_output', message: parsed.detail },
-          `model-output:${parsed.reason}`,
-        );
+        const failure = describeModelOutputFailure(parsed.reason, parsed.detail);
+        return done(failed(failure), `model-output:${parsed.reason}`);
       }
 
       // 5) Verify — the REAL pipeline, in EDIT mode (finding: null). Never bypassed.

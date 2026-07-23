@@ -128,14 +128,42 @@ describe('createProceedService', () => {
     if (out.status === 'rejected') expect(out.verification?.verdict).toBe('regression');
   });
 
-  it('ERROR: persistent non-JSON output → bad_model_output after one re-ask', async () => {
+  it('ERROR: persistent non-JSON output is classified `model-output`, retryable, with diagnostics', async () => {
     const provider = fakeProvider([
       [{ type: 'text_delta', text: 'nope' }],
       [{ type: 'text_delta', text: 'still nope' }],
     ]);
     const out = await createProceedService(deps({ provider })).run(request, NO_ABORT);
     expect(out.status).toBe('error');
-    if (out.status === 'error') expect(out.code).toBe('bad_model_output');
+    if (out.status === 'error') {
+      expect(out.code).toBe('model-output'); // the failing LAYER, not a generic code
+      expect(out.retryable).toBe(true);
+      // P2.2.1 item 5: every failure states what we detected and what to try.
+      expect(out.message).toContain('Detected intent: styling');
+      expect(out.message).toContain('language: typescript');
+      expect(out.message).toMatch(/stronger model/);
+    }
+  });
+
+  it('ERROR: a provider 429 becomes the quota sentence, never a raw HTTP string', async () => {
+    const provider = fakeProvider([
+      [
+        {
+          type: 'error',
+          retryable: true,
+          providerCode: 'HTTP_429',
+          message: 'Rate limit exceeded',
+        },
+      ],
+    ]);
+    const out = await createProceedService(deps({ provider })).run(request, NO_ABORT);
+    expect(out.status).toBe('error');
+    if (out.status === 'error') {
+      expect(out.code).toBe('quota');
+      expect(out.retryable).toBe(true);
+      expect(out.message).toContain('Your OpenRouter quota has been exhausted');
+      expect(out.message).not.toMatch(/429|Too Many Requests/);
+    }
   });
 
   it('LOGS the decision without source code or keys', async () => {

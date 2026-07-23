@@ -53,6 +53,10 @@ const LEXICON: readonly (readonly [EditIntent, readonly string[]])[] = [
       'flex',
       'grid',
       'align',
+      'center',
+      'centre',
+      'centered',
+      'centred',
       'spacing',
       'theme',
       'dark mode',
@@ -159,6 +163,53 @@ const LEXICON: readonly (readonly [EditIntent, readonly string[]])[] = [
   ],
 ];
 
+/**
+ * Action verbs that make a sentence an *instruction*. This is the safety net behind the lexicon: an
+ * instruction with a real action ("add error handling", "wrap this in try/catch") is a valid edit
+ * request even when it matches no specific category, and must never be refused. Only input with no
+ * recognisable action at all — empty, or "asdf qwerty" — is `unknown`.
+ */
+const ACTION_VERBS: readonly string[] = [
+  'add',
+  'remove',
+  'delete',
+  'rename',
+  'replace',
+  'change',
+  'update',
+  'make',
+  'convert',
+  'wrap',
+  'extract',
+  'inline',
+  'move',
+  'split',
+  'merge',
+  'sort',
+  'fix',
+  'handle',
+  'simplify',
+  'refactor',
+  'set',
+  'insert',
+  'use',
+  'turn',
+  'apply',
+  'guard',
+  'validate',
+  'rewrite',
+  'annotate',
+  'document',
+  'center',
+  'centre',
+  'align',
+  'increase',
+  'decrease',
+  'disable',
+  'enable',
+  'support',
+];
+
 /** Match a phrase on word boundaries in a normalized (lowercased) instruction. */
 function fires(haystack: string, phrase: string): boolean {
   if (phrase.endsWith(' ')) return haystack.includes(phrase); // e.g. "def " — keep the trailing space
@@ -197,7 +248,14 @@ export function classifyIntent(instruction: string, options: ClassifyOptions = {
     if (best === null || matched.length > best.matched.length) best = { intent, matched };
   }
 
-  if (best === null) return { intent: 'unknown', confidence: 0, matched: [] };
+  if (best === null) {
+    // No specific category matched. If the instruction still contains a real action, it IS a valid
+    // edit request — classify it `general` rather than refusing it. Refusing valid English because a
+    // keyword list is finite was the single biggest usability defect in Proceed.
+    const verb = ACTION_VERBS.find((v) => fires(text, v));
+    if (verb !== undefined) return { intent: 'general', confidence: 0.4, matched: [verb] };
+    return { intent: 'unknown', confidence: 0, matched: [] };
+  }
 
   // Confidence: saturating in the number of distinct signals, capped below 1 (a keyword classifier is
   // never certain). One hit ≈ 0.6, two ≈ 0.8, three+ ≈ 0.9.

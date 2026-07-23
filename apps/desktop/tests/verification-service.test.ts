@@ -54,6 +54,7 @@ function hostReturning(result: VerifyResult | 'error'): AnalysisHost {
     run: () => undefined,
     cancel: () => undefined,
     dispose: () => undefined,
+    resolveScope: () => undefined, // not exercised by verification tests
     verify: (job: VerifyJob) => {
       if (result === 'error') job.onError('worker died');
       else job.onResult(result);
