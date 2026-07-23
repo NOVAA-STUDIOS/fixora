@@ -16,7 +16,8 @@ import { computeVerdict, sliceLines, spliceLines } from './patch.js';
  */
 
 export interface VerifyInput {
-  finding: Finding;
+  /** The finding being repaired, or `null` for a Proceed-Mode edit (verify regression-only). */
+  finding: Finding | null;
   repairedCode: string;
   target: { file: string; startLine: number; endLine: number; language: Language };
   workspaceRoot: string;

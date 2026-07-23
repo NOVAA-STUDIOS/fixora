@@ -22,6 +22,7 @@ export { detectCapabilities } from './capabilities.js';
 export { runTool, type RunToolOptions, type ToolRun, type ToolRunner } from './process/run-tool.js';
 export { resolveNodeTool, resolvePathTool, which, type ResolvedTool } from './tools/resolve.js';
 export { languageForPath } from './language.js';
+export { resolveEditScope, type EditScope, type ResolveScopeInput } from './edit/scope.js';
 export { parseStructure, type FileStructure } from './structure.js';
 export { parse, type ParsedTree } from './parser/tree-sitter.js';
 export {

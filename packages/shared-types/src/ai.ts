@@ -33,6 +33,37 @@ export const TestOutputSchema = z
 export type TestOutput = z.infer<typeof TestOutputSchema>;
 
 /**
+ * Proceed Mode (P2.1) — Intelligent Editing. Unlike a repair, an edit is driven by a natural-language
+ * instruction rather than a deterministic Finding, but it is held to the SAME verification pipeline
+ * before anything is applied. These types are additive: the repair contract above is untouched.
+ */
+
+/** The category an editing instruction was classified into. `unknown` fails gracefully (no edit). */
+export const EditIntentSchema = z.enum([
+  'styling',
+  'refactoring',
+  'react',
+  'typescript',
+  'python',
+  'documentation',
+  'explanation',
+  'unknown',
+]);
+export type EditIntent = z.infer<typeof EditIntentSchema>;
+
+/** The model's structured edit output: a full replacement for the target scope, plus a summary. */
+export const EditOutputSchema = z
+  .object({
+    /** The complete replacement source for the target scope only — not a diff, not the whole file. */
+    editedCode: z.string().min(1),
+    /** A one- or two-sentence summary of exactly what changed and why. */
+    summary: z.string().min(1),
+    confidence: z.number().min(0).max(1),
+  })
+  .strict();
+export type EditOutput = z.infer<typeof EditOutputSchema>;
+
+/**
  * BYOK config the *renderer* is allowed to see. It carries whether a key is set, the chosen model,
  * and a non-sensitive hint (last few chars) — but **never the key itself**. The key lives encrypted
  * in the OS keychain and is read only in the main process, right before a provider call.
@@ -390,3 +421,48 @@ export const AiRunStateSchema = z.object({
   message: z.string().optional(),
 });
 export type AiRunState = z.infer<typeof AiRunStateSchema>;
+
+/**
+ * Proceed Mode (P2.1) — Intelligent Editing contracts. Additive: the repair/explain/test contracts
+ * above are untouched. Placed after RepairTargetSchema/VerificationReportSchema/GateMatchInfoSchema
+ * so every referenced schema is already defined.
+ */
+
+/** The request: a natural-language instruction plus the user's selection (where the cursor is). */
+export const ProceedRunRequestSchema = z.object({
+  instruction: z.string().min(1),
+  file: z.string().min(1),
+  selectionStartLine: z.number().int().positive(),
+  selectionEndLine: z.number().int().positive().optional(),
+});
+export type ProceedRunRequest = z.infer<typeof ProceedRunRequestSchema>;
+
+/** A verified Proceed edit, ready to preview + apply. Mirrors the repair proposal's diff-able shape. */
+export const ProceedProposalSchema = z.object({
+  intent: EditIntentSchema,
+  editedCode: z.string(),
+  /** The original text of the target scope — the left side of the diff view. */
+  originalCode: z.string(),
+  summary: z.string(),
+  confidence: z.number().min(0).max(1),
+  target: RepairTargetSchema,
+  verification: VerificationReportSchema,
+});
+export type ProceedProposal = z.infer<typeof ProceedProposalSchema>;
+
+/**
+ * The terminal outcome of a Proceed run — exactly one, no generic errors. `rejected` carries the
+ * verification report that refused the edit (safe apply: a failed edit is never applied).
+ */
+export const ProceedOutcomeSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('ok'), proposal: ProceedProposalSchema }),
+  z.object({ status: z.literal('unknown-intent'), message: z.string() }),
+  z.object({ status: z.literal('blocked'), matches: z.array(GateMatchInfoSchema) }),
+  z.object({
+    status: z.literal('rejected'),
+    reason: z.string(),
+    verification: VerificationReportSchema.optional(),
+  }),
+  z.object({ status: z.literal('error'), code: z.string(), message: z.string() }),
+]);
+export type ProceedOutcome = z.infer<typeof ProceedOutcomeSchema>;

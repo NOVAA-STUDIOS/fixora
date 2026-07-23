@@ -60,19 +60,25 @@ export function verificationSignature(finding: Finding): string {
 }
 
 export interface VerdictInput {
-  target: Finding;
+  /**
+   * The finding being repaired. `null` is EDIT MODE (Proceed, P2.1): there is no finding to resolve,
+   * so the verdict reduces to "does it parse and introduce no new problems". The repair path always
+   * passes a Finding and is byte-for-byte unchanged — every branch that reads `target` is guarded.
+   */
+  target: Finding | null;
   originalFindings: readonly Finding[];
   patchedFindings: readonly Finding[];
   syntaxOk: boolean;
 }
 
 export function computeVerdict(input: VerdictInput): VerificationReport {
-  const targetSig = verificationSignature(input.target);
+  const targetSig = input.target === null ? null : verificationSignature(input.target);
   const originalSigs = new Set(input.originalFindings.map(verificationSignature));
   const patchedSigs = input.patchedFindings.map(verificationSignature);
   const patchedSet = new Set(patchedSigs);
 
-  const targetResolved = !patchedSet.has(targetSig);
+  // In edit mode there is no target to resolve, so "resolved" is vacuously true.
+  const targetResolved = targetSig === null ? true : !patchedSet.has(targetSig);
   // A regression is a finding the patched file has that the original did not (excluding the target).
   const newSigs = new Set(patchedSigs.filter((s) => s !== targetSig && !originalSigs.has(s)));
   const newFindingCount = newSigs.size;
@@ -105,7 +111,10 @@ export function computeVerdict(input: VerdictInput): VerificationReport {
     note = 'The fix does not parse — it would break the file.';
   } else if (newFindingCount > 0) {
     verdict = 'regression';
-    note = `The fix resolves the finding but introduces ${String(newFindingCount)} new problem(s).`;
+    note =
+      input.target === null
+        ? `The edit introduces ${String(newFindingCount)} new problem(s).`
+        : `The fix resolves the finding but introduces ${String(newFindingCount)} new problem(s).`;
   } else if (targetResolved) {
     verdict = 'verified';
   } else {
@@ -116,14 +125,14 @@ export function computeVerdict(input: VerdictInput): VerificationReport {
   // The evidence behind the verdict. A `regression` is a claim about signature-set arithmetic, and
   // without the sets themselves that claim is unfalsifiable by the person it affects most.
   const diagnostics = {
-    targetSignature: targetSig,
+    targetSignature: targetSig ?? '(edit — no target finding)',
     originalSignatures: [...originalSigs].sort(),
     patchedSignatures: [...patchedSet].sort(),
     newSignatures: [...newSigs].sort(),
     // Recorded so it is visible that severity is *carried* but never *consulted*: no branch in this
     // function reads it. If a regression report ever correlates with severity, this is the proof it
     // did not come from here.
-    targetSeverity: input.target.severity,
+    targetSeverity: input.target?.severity ?? 'n/a',
     originalSources: [...new Set(input.originalFindings.map((f) => f.source))].sort(),
     patchedSources: [...new Set(input.patchedFindings.map((f) => f.source))].sort(),
   };
