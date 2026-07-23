@@ -49,7 +49,8 @@ const EXT_LANGUAGE: Record<string, Language> = {
   go: 'go',
 };
 
-function languageFor(relPath: string): Language | null {
+/** Path → language. Exported so Proceed Mode uses the SAME mapping the repair path does. */
+export function languageFor(relPath: string): Language | null {
   const ext = relPath.split('.').pop()?.toLowerCase() ?? '';
   return EXT_LANGUAGE[ext] ?? null;
 }

@@ -18,6 +18,7 @@ import {
 import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
 import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
+import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
@@ -118,6 +119,17 @@ if (!gotTheLock) {
         workspace: workspaceService,
         history: repairHistory,
         catalogue: modelCatalogue,
+      });
+      // Proceed Mode (P2.2R). Reuses the SAME key store, verification service and findings the repair
+      // path uses; scope selection runs on the verification worker (which owns tree-sitter). Applying
+      // a Proceed edit goes through `ai:applyRepair` — the one verified write path.
+      registerProceedHandlers({
+        keyStore,
+        workspace: workspaceService,
+        findings: findingsRepo,
+        verification,
+        host: verificationHost,
+        appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
       registerLicenseHandlers({ license });
 

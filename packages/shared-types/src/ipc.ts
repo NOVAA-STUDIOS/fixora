@@ -7,6 +7,8 @@ import {
   AiRunResponseSchema,
   ApplyOutcomeSchema,
   ApplyRepairRequestSchema,
+  ProceedOutcomeSchema,
+  ProceedRunRequestSchema,
   RepairHistoryEntrySchema,
 } from './ai.js';
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
@@ -176,6 +178,9 @@ export const contracts = {
   },
   'ai:run': { request: AiRunRequestSchema, response: AiRunResponseSchema },
   'ai:cancel': { request: empty, response: z.void() },
+  // Proceed Mode: a natural-language instruction + the caret, answered with a VERIFIED edit proposal
+  // (or an exact refusal). Never writes — applying reuses `ai:applyRepair` below.
+  'proceed:run': { request: ProceedRunRequestSchema, response: ProceedOutcomeSchema },
   // Apply a verified repair to the file on disk (path-guarded in main). The renderer sends the target
   // range + the repaired code; main splices and writes. Returns void — the editor + analysis refresh.
   // Returns a structured outcome rather than throwing: a stale range is an expected condition the

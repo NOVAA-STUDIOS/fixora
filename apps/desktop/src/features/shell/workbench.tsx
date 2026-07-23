@@ -1,9 +1,10 @@
 import { PanelGroupRoot, ResizablePanel, ResizeHandle } from '@fixora/ui';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 import { ErrorBoundary } from '../../app/error-boundary.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { AiPanel } from '../ai/ai-panel.js';
+import { EditModeTabs, ProceedView, type EditMode } from '../ai/proceed-panel.js';
 import { EditorArea } from '../editor/editor-area.js';
 import { FindingsPanel } from '../findings/findings-panel.js';
 import { HistoryPanel } from '../history/history-panel.js';
@@ -126,9 +127,23 @@ export function Workbench(): React.JSX.Element {
       <ResizeHandle aria-label="Resize AI panel" />
       <ResizablePanel id="ai" minSize={260} defaultSize="24" className="min-w-0">
         <ErrorBoundary label="The assistant panel">
-          <AiPanel />
+          <AssistantPanel />
         </ErrorBoundary>
       </ResizablePanel>
     </PanelGroupRoot>
+  );
+}
+
+/**
+ * The assistant pane: Repair (unchanged) beside Proceed. A mode switch, not a redesign — Repair
+ * renders exactly the panel it always did, and Explain stays the disabled placeholder it is.
+ */
+function AssistantPanel(): React.JSX.Element {
+  const [mode, setMode] = useState<EditMode>('repair');
+  return (
+    <>
+      <EditModeTabs active={mode} onChange={setMode} />
+      {mode === 'proceed' ? <ProceedView /> : <AiPanel />}
+    </>
   );
 }

@@ -16,6 +16,7 @@ import {
   formatGate,
   languageForPath,
   parse,
+  resolveEditScope,
 } from '@fixora/core-analysis';
 
 const port = process.parentPort;
@@ -44,8 +45,39 @@ port.on('message', (event) => {
   }
   if (message.type === 'verify') {
     void runVerify(message);
+    return;
+  }
+  if (message.type === 'resolveScope') {
+    void runResolveScope(message);
   }
 });
+
+/**
+ * Proceed Mode scope selection (P2.2R). The AST lives here, in the worker, because tree-sitter is ESM
+ * + WASM — so main asks for the smallest enclosing scope rather than parsing anything itself. This is
+ * the engine's own `resolveEditScope`; nothing about scope selection is reimplemented on the main side.
+ */
+async function runResolveScope({
+  jobId,
+  source,
+  language,
+  filePath,
+  selectionStartLine,
+  selectionEndLine,
+}) {
+  try {
+    const scope = await resolveEditScope({
+      source,
+      language,
+      filePath,
+      selectionStartLine,
+      ...(selectionEndLine !== undefined ? { selectionEndLine } : {}),
+    });
+    port.postMessage({ type: 'scopeResult', jobId, scope });
+  } catch (error) {
+    port.postMessage({ type: 'error', jobId, message: String(error) });
+  }
+}
 
 /**
  * Locate the first syntax error in a parsed tree, as a 1-based line/column. Prunes with `hasError`
@@ -119,7 +151,11 @@ async function runVerify(message) {
     // overlay copy lives. Skipped when the file does not parse — a formatter would only re-report the
     // syntax error the parser gate already owns.
     const formatter = syntaxOk
-      ? await formatGate({ root: workspaceRoot, absFile: target.absPath, language: target.language })
+      ? await formatGate({
+          root: workspaceRoot,
+          absFile: target.absPath,
+          language: target.language,
+        })
       : { ran: false, ok: true };
 
     port.postMessage({

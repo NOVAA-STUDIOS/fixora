@@ -1,6 +1,8 @@
 import { Button } from '@fixora/ui';
 import { useState } from 'react';
 
+import { useProceedStore } from '../../stores/proceed-store.js';
+
 /**
  * Proceed Mode — minimal UI (P2.1, objective 8).
  *
@@ -81,5 +83,57 @@ export function ProceedPanel({ onSubmit, busy = false }: ProceedPanelProps): Rea
         {busy ? 'Working…' : 'Proceed'}
       </Button>
     </form>
+  );
+}
+
+/**
+ * The connected Proceed view: prompt → run → progress → preview → Accept / Cancel.
+ *
+ * Preview is deliberately plain (original above, proposed below) — no redesign, and no new diff
+ * component: the proposal it shows has ALREADY passed the same verification the Repair path uses, so
+ * this is a confirmation step, not a second gate. Accept goes through `ai:applyRepair`; Cancel just
+ * discards the proposal, having written nothing.
+ */
+export function ProceedView(): React.JSX.Element {
+  const status = useProceedStore((s) => s.status);
+  const proposal = useProceedStore((s) => s.proposal);
+  const message = useProceedStore((s) => s.message);
+  const applying = useProceedStore((s) => s.applying);
+  const run = useProceedStore((s) => s.run);
+  const accept = useProceedStore((s) => s.accept);
+  const cancel = useProceedStore((s) => s.cancel);
+
+  if (status === 'preview' && proposal !== null) {
+    return (
+      <section aria-label="Proceed preview">
+        <p>
+          <strong>{proposal.summary}</strong>
+        </p>
+        <p>
+          {proposal.target.file}
+          {proposal.target.symbolName !== null
+            ? ` — ${proposal.target.symbolName}`
+            : ''} (lines {proposal.target.startLine}–{proposal.target.endLine}) · verified:{' '}
+          {proposal.verification.verdict}
+        </p>
+        <p>Original</p>
+        <pre>{proposal.originalCode}</pre>
+        <p>Proposed edit</p>
+        <pre>{proposal.editedCode}</pre>
+        <Button type="button" disabled={applying} onClick={() => void accept()}>
+          {applying ? 'Applying…' : 'Accept'}
+        </Button>
+        <Button type="button" variant="ghost" disabled={applying} onClick={cancel}>
+          Cancel
+        </Button>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label="Proceed">
+      <ProceedPanel busy={status === 'running'} onSubmit={(instruction) => void run(instruction)} />
+      {message !== null && <p role="alert">{message}</p>}
+    </section>
   );
 }
