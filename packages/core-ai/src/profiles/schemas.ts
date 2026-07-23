@@ -1,4 +1,4 @@
-import { RepairOutputSchema, TestOutputSchema } from '@fixora/shared-types';
+import { EditOutputSchema, RepairOutputSchema, TestOutputSchema } from '@fixora/shared-types';
 import type { z } from 'zod';
 
 import type { ResponseSchema } from '../provider/types.js';
@@ -45,6 +45,24 @@ export const TEST_JSON_SCHEMA: ResponseSchema = {
       framework: { type: 'string', description: "The test framework, e.g. 'vitest', 'pytest'." },
       testCode: { type: 'string', description: 'A single focused test file.' },
       rationale: { type: 'string' },
+    },
+  },
+};
+
+/** Proceed Mode's structured edit output (P2.1). Same contract discipline as repair — no fence-scraping. */
+export const EDIT_JSON_SCHEMA: ResponseSchema = {
+  name: 'edit',
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['editedCode', 'summary', 'confidence'],
+    properties: {
+      editedCode: {
+        type: 'string',
+        description: 'The full replacement source for the target scope only. No surrounding file.',
+      },
+      summary: { type: 'string', description: 'One or two sentences: exactly what changed and why.' },
+      confidence: { type: 'number', minimum: 0, maximum: 1 },
     },
   },
 };
@@ -114,4 +132,8 @@ export function parseRepairOutput(raw: string): ParseResult<z.infer<typeof Repai
 
 export function parseTestOutput(raw: string): ParseResult<z.infer<typeof TestOutputSchema>> {
   return parseWith(TestOutputSchema, raw);
+}
+
+export function parseEditOutput(raw: string): ParseResult<z.infer<typeof EditOutputSchema>> {
+  return parseWith(EditOutputSchema, raw);
 }

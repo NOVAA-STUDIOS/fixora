@@ -64,11 +64,29 @@ export {
 export {
   parseRepairOutput,
   parseTestOutput,
+  parseEditOutput,
   REPAIR_JSON_SCHEMA,
   TEST_JSON_SCHEMA,
+  EDIT_JSON_SCHEMA,
   type ParseResult,
 } from './profiles/schemas.js';
 export { prepareRequest, type PreparedRequest } from './pipeline/prepare.js';
+
+// Proceed Mode (P2.1) — the editing pipeline. A parallel, additive path that reuses the repair
+// engine's gate/budget/provider/parse primitives; the repair path above is untouched.
+export { classifyIntent, type IntentResult } from './edit/intent.js';
+export {
+  buildEditContext,
+  type EditContext,
+  type EditContextInput,
+  type EditTarget,
+} from './edit/edit-context.js';
+export {
+  buildEditRequest,
+  prepareEditRequest,
+  type BuildEditRequestOptions,
+  type PreparedEdit,
+} from './edit/edit-request.js';
 export {
   capabilitiesFor,
   suggestCapableModel,

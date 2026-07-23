@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseRepairOutput, parseTestOutput } from './schemas.js';
+import { parseEditOutput, parseRepairOutput, parseTestOutput } from './schemas.js';
 
 describe('schema-constrained output parsing', () => {
   it('accepts a well-formed repair output', () => {
@@ -53,5 +53,27 @@ describe('schema-constrained output parsing', () => {
       rationale: 'covers the fix',
     });
     expect(parseTestOutput(raw).ok).toBe(true);
+  });
+
+  it('accepts a well-formed edit output (Proceed Mode)', () => {
+    const raw = JSON.stringify({
+      editedCode: 'export const Button = () => <button className="green">x</button>;',
+      summary: 'Added the green class to the button.',
+      confidence: 0.85,
+    });
+    expect(parseEditOutput(raw).ok).toBe(true);
+  });
+
+  it('rejects an edit output missing editedCode', () => {
+    const result = parseEditOutput(JSON.stringify({ summary: 'x', confidence: 0.5 }));
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.reason).toBe('schema-mismatch');
+  });
+
+  it('rejects an empty editedCode (a no-op edit is not an edit)', () => {
+    const result = parseEditOutput(
+      JSON.stringify({ editedCode: '', summary: 'x', confidence: 0.5 }),
+    );
+    expect(result.ok).toBe(false);
   });
 });

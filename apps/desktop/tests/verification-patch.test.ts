@@ -144,6 +144,61 @@ describe('computeVerdict (ADR-003)', () => {
 });
 
 /**
+ * Proceed Mode (P2.1) reuses computeVerdict with `target: null` — there is no finding to resolve, so
+ * the verdict reduces to "parses + introduces no new problems". These tests pin the edit-mode branch
+ * AND that the repair path (target present) is completely unchanged.
+ */
+describe('computeVerdict — edit mode (target: null)', () => {
+  it('VERIFIED when the edit parses and introduces no new findings', () => {
+    const pre = finding({ rule: 'pre-existing', symbol: 'other' });
+    const report = computeVerdict({
+      target: null,
+      originalFindings: [pre],
+      patchedFindings: [pre], // unchanged baseline finding is not new
+      syntaxOk: true,
+    });
+    expect(report.verdict).toBe('verified');
+    expect(report.targetResolved).toBe(true); // vacuously — nothing to resolve
+    expect(report.newFindingCount).toBe(0);
+    expect(report.diagnostics?.targetSignature).toBe('(edit — no target finding)');
+    expect(report.diagnostics?.targetSeverity).toBe('n/a');
+  });
+
+  it('REGRESSION when the edit introduces a new finding', () => {
+    const introduced = finding({ rule: 'no-explicit-any', symbol: 'greet' });
+    const report = computeVerdict({
+      target: null,
+      originalFindings: [],
+      patchedFindings: [introduced],
+      syntaxOk: true,
+    });
+    expect(report.verdict).toBe('regression');
+    expect(report.newFindingCount).toBe(1);
+    expect(report.note).toContain('The edit introduces');
+  });
+
+  it('REGRESSION when the edit does not parse', () => {
+    const report = computeVerdict({
+      target: null,
+      originalFindings: [],
+      patchedFindings: [],
+      syntaxOk: false,
+    });
+    expect(report.verdict).toBe('regression');
+  });
+
+  it('never produces UNRESOLVED in edit mode (there is no target to leave unresolved)', () => {
+    const report = computeVerdict({
+      target: null,
+      originalFindings: [],
+      patchedFindings: [],
+      syntaxOk: true,
+    });
+    expect(report.verdict).toBe('verified');
+  });
+});
+
+/**
  * Severity parity.
  *
  * A user reported that Apply worked for `error` findings but not for `warning` ones. The Apply
