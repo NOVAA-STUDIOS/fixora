@@ -8,6 +8,8 @@ import type { AttemptRecord, FinalOutcome, RunResult } from './types.js';
 
 const OUTCOMES: FinalOutcome[] = [
   'SAFE_AUTO_REPAIR_APPLIED',
+  'AI_REPAIR_APPLIED',
+  'AI_GENERATE_FAILED',
   'MANUAL_FIX_REQUIRED',
   'AI_DEFERRED',
   'UNSUPPORTED_LANGUAGE',
@@ -16,6 +18,24 @@ const OUTCOMES: FinalOutcome[] = [
   'REGRESSION_DETECTED',
   'APPLY_FAILED',
 ];
+
+/** The exact-subsystem → sprint-classification map (requirement 4's 11-way taxonomy). */
+const TAXONOMY: Record<string, string> = {
+  analyzer: 'Analyzer issue',
+  'eligibility-engine': 'Unsupported/manual',
+  'scope-selector': 'Context extraction issue',
+  'context-builder': 'Context extraction issue',
+  'prompt-builder': 'Prompt generation issue',
+  'ai-provider': 'Provider limitation',
+  'response-parser': 'Model output issue',
+  'patch-extractor': 'Model output issue',
+  'ast-verifier': 'Parser issue',
+  formatter: 'Formatter issue',
+  'regression-verifier': 'Verifier / regression detection',
+  'apply-engine': 'Apply issue',
+  'compile-runner': 'Verifier / regression detection',
+  none: 'None (survived)',
+};
 
 function frac(n: number, d: number): string {
   return d === 0 ? 'n/a' : `${String(n)} / ${String(d)} (${((n / d) * 100).toFixed(1)}%)`;
@@ -27,21 +47,38 @@ function row(cells: string[]): string {
 
 const allAttempts = (run: RunResult): AttemptRecord[] => run.projects.flatMap((p) => p.attempts);
 
-/** The deterministic repairs that were actually executed (the only leg measurable without a key). */
-const deterministic = (a: AttemptRecord[]): AttemptRecord[] =>
-  a.filter((r) => r.repairability === 'safe-auto');
+const APPLIED_OUTCOMES: FinalOutcome[] = ['SAFE_AUTO_REPAIR_APPLIED', 'AI_REPAIR_APPLIED'];
+
+/**
+ * A repair was ATTEMPTED (a patch was generated and gates were run, or generation itself failed) —
+ * as opposed to deferred/manual/unsupported, where no repair was tried. This is the honest denominator
+ * for success/failure/regression rates: only attempts where the engine actually tried to fix something.
+ */
+const ATTEMPTED_OUTCOMES: FinalOutcome[] = [
+  'SAFE_AUTO_REPAIR_APPLIED',
+  'AI_REPAIR_APPLIED',
+  'AI_GENERATE_FAILED',
+  'VERIFICATION_FAILED',
+  'REGRESSION_DETECTED',
+  'APPLY_FAILED',
+];
+
+const isAttempted = (r: AttemptRecord): boolean => ATTEMPTED_OUTCOMES.includes(r.finalOutcome);
+const isApplied = (r: AttemptRecord): boolean => APPLIED_OUTCOMES.includes(r.finalOutcome);
 
 export function renderReport(run: RunResult): string {
   const attempts = allAttempts(run);
-  const det = deterministic(attempts);
-  const applied = det.filter((r) => r.finalOutcome === 'SAFE_AUTO_REPAIR_APPLIED');
-  const verifyRan = det.filter((r) => r.verification.ran);
+  const attempted = attempts.filter(isAttempted);
+  const applied = attempted.filter(isApplied);
+  const det = attempted.filter((r) => r.repairability === 'safe-auto');
+  const aiExecuted = attempted.filter((r) => r.repairability === 'ai-required');
+  const verifyRan = attempted.filter((r) => r.verification.ran);
   const verifyOk = verifyRan.filter((r) => r.verification.ok);
-  const applyRan = det.filter((r) => r.apply.ran);
+  const applyRan = attempted.filter((r) => r.apply.ran);
   const applyOk = applyRan.filter((r) => r.apply.ok);
-  const compileRan = det.filter((r) => r.compile.ran);
+  const compileRan = attempted.filter((r) => r.compile.ran);
   const compileOk = compileRan.filter((r) => r.compile.ok);
-  const regressions = det.filter((r) => r.finalOutcome === 'REGRESSION_DETECTED');
+  const regressions = attempted.filter((r) => r.finalOutcome === 'REGRESSION_DETECTED');
 
   const avg = (nums: number[]): string =>
     nums.length === 0
@@ -49,12 +86,12 @@ export function renderReport(run: RunResult): string {
       : `${String(Math.round(nums.reduce((s, n) => s + n, 0) / nums.length))} ms`;
 
   const lines: string[] = [
-    '# Fixora — Real Repository Validation Report (P1.1)',
+    '# Fixora — Real Repository Repair Acceptance Report (P1.2)',
     '',
-    `Generated ${run.ranAt} from a REAL execution of the engine over the validation corpus.`,
+    `Generated ${run.ranAt} from a REAL execution of the engine over the acceptance corpus.`,
     `Provider key present: **${run.providerKeyPresent ? 'yes' : 'no'}** — ${
       run.providerKeyPresent
-        ? 'AI-required repairs were executed.'
+        ? 'AI-required repairs were GENERATED and run through the same gates as deterministic ones.'
         : 'AI-required repairs are DEFERRED (not measurable without a key) and never counted as success.'
     }`,
     '',
@@ -68,25 +105,27 @@ export function renderReport(run: RunResult): string {
       String(run.projects.filter((p) => p.error !== undefined).length),
     ]),
     row(['Total findings', String(attempts.length)]),
-    row(['Deterministic repair attempts', String(det.length)]),
-    row(['Deterministic repairs applied (survived full loop)', frac(applied.length, det.length)]),
+    row(['Total repair ATTEMPTS (deterministic + AI executed)', String(attempted.length)]),
+    row(['— of which deterministic', String(det.length)]),
+    row(['— of which AI (executed, needs key)', String(aiExecuted.length)]),
+    row([
+      '**Repair success rate** (applied, survived full loop)',
+      frac(applied.length, attempted.length),
+    ]),
+    row(['**Repair failure rate**', frac(attempted.length - applied.length, attempted.length)]),
+    row(['**Regression rate**', frac(regressions.length, attempted.length)]),
     row(['Verification pass rate (of those that ran)', frac(verifyOk.length, verifyRan.length)]),
     row(['Apply success rate (of those that ran)', frac(applyOk.length, applyRan.length)]),
     row(['Compile pass rate (of those that ran)', frac(compileOk.length, compileRan.length)]),
-    row(['Regressions rejected by the harness', String(regressions.length)]),
+    row([
+      'AI-deferred (need a key)',
+      String(attempts.filter((r) => r.finalOutcome === 'AI_DEFERRED').length),
+    ]),
     row([
       'Manual-only findings',
       String(attempts.filter((r) => r.finalOutcome === 'MANUAL_FIX_REQUIRED').length),
     ]),
-    row([
-      'AI-deferred findings (need a key)',
-      String(attempts.filter((r) => r.finalOutcome === 'AI_DEFERRED').length),
-    ]),
-    row([
-      'Unsupported-language findings',
-      String(attempts.filter((r) => r.finalOutcome === 'UNSUPPORTED_LANGUAGE').length),
-    ]),
-    row(['Avg deterministic repair→compile time', avg(det.map((r) => r.runtimeMs))]),
+    row(['Avg repair→compile time (attempted)', avg(attempted.map((r) => r.runtimeMs))]),
     row([
       'Avg project analyze time',
       avg(run.projects.filter((p) => p.error === undefined).map((p) => p.analyzeMs)),
@@ -109,15 +148,7 @@ export function renderReport(run: RunResult): string {
     '',
     '## Per language',
     '',
-    row([
-      'Language',
-      'Projects',
-      'Findings',
-      'Det.applied',
-      'Manual',
-      'AI-deferred',
-      'Regressions',
-    ]),
+    row(['Language', 'Projects', 'Findings', 'Applied', 'Manual', 'AI-deferred', 'Regressions']),
     row(['---', '---:', '---:', '---:', '---:', '---:', '---:']),
   );
   const byLang = new Map<string, { projects: number; attempts: AttemptRecord[] }>();
@@ -128,13 +159,13 @@ export function renderReport(run: RunResult): string {
     byLang.set(p.language, g);
   }
   for (const [lang, g] of [...byLang.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    const d = deterministic(g.attempts);
+    const tried = g.attempts.filter(isAttempted);
     lines.push(
       row([
         lang,
         String(g.projects),
         String(g.attempts.length),
-        frac(d.filter((r) => r.finalOutcome === 'SAFE_AUTO_REPAIR_APPLIED').length, d.length),
+        frac(tried.filter(isApplied).length, tried.length),
         String(g.attempts.filter((r) => r.finalOutcome === 'MANUAL_FIX_REQUIRED').length),
         String(g.attempts.filter((r) => r.finalOutcome === 'AI_DEFERRED').length),
         String(g.attempts.filter((r) => r.finalOutcome === 'REGRESSION_DETECTED').length),
@@ -142,12 +173,26 @@ export function renderReport(run: RunResult): string {
     );
   }
 
-  // Every non-success deterministic attempt, with the exact subsystem + reason (reproducible).
-  const failures = det.filter((r) => r.finalOutcome !== 'SAFE_AUTO_REPAIR_APPLIED');
-  lines.push('', '## Deterministic repair failures (exact subsystem + reason)', '');
+  // Failure taxonomy: every non-applied ATTEMPT bucketed by the exact subsystem responsible, mapped to
+  // the sprint's required classification. This is the "top recurring failure causes" evidence.
+  const failures = attempted.filter((r) => !isApplied(r));
+  lines.push('', '## Failure taxonomy (exact subsystem responsible)', '');
   if (failures.length === 0)
-    lines.push('_None — every executed deterministic repair survived the full loop._', '');
+    lines.push('_None — every executed repair (deterministic + AI) survived the full loop._', '');
   else {
+    const bySubsystem = new Map<string, AttemptRecord[]>();
+    for (const f of failures) {
+      const list = bySubsystem.get(f.subsystem) ?? [];
+      list.push(f);
+      bySubsystem.set(f.subsystem, list);
+    }
+    lines.push(row(['Subsystem', 'Classification', 'Count']), row(['---', '---', '---:']));
+    for (const [sub, list] of [...bySubsystem.entries()].sort(
+      (a, b) => b[1].length - a[1].length,
+    )) {
+      lines.push(row([`\`${sub}\``, TAXONOMY[sub] ?? 'Unclassified', String(list.length)]));
+    }
+    lines.push('', '### Every failure (reproducible: file + rule + stage + root cause)', '');
     for (const f of failures) {
       lines.push(
         `- **${f.project}/${f.file}** ${f.source}:${f.ruleId} → \`${f.finalOutcome}\` at stage \`${f.stage}\` (subsystem: \`${f.subsystem}\`) — ${f.rootCause}`,

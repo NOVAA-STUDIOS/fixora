@@ -78,8 +78,9 @@ describe('renderReport — measurement integrity', () => {
         }),
       ]),
     );
-    // 2 deterministic attempts, only 1 applied → 50%.
-    expect(md).toContain('Deterministic repairs applied (survived full loop) | 1 / 2 (50.0%)');
+    // 2 repair attempts, only 1 applied → 50%.
+    expect(md).toContain('**Repair success rate** (applied, survived full loop) | 1 / 2 (50.0%)');
+    expect(md).toContain('**Repair failure rate** | 1 / 2 (50.0%)');
     // The regression is listed with its exact subsystem + reason, and is not silently dropped.
     expect(md).toContain(
       '`REGRESSION_DETECTED` at stage `regression` (subsystem: `regression-verifier`)',
@@ -105,8 +106,8 @@ describe('renderReport — measurement integrity', () => {
         }),
       ]),
     );
-    // No deterministic attempts ran, so applied/verify/apply/compile rates are n/a, never 100%.
-    expect(md).toContain('Deterministic repairs applied (survived full loop) | n/a');
+    // No repair was attempted (deferred), so success/verify/apply/compile rates are n/a, never 100%.
+    expect(md).toContain('**Repair success rate** (applied, survived full loop) | n/a');
     expect(md).toContain('Verification pass rate (of those that ran) | n/a');
     expect(md).not.toContain('100.0%');
   });

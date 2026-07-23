@@ -2,9 +2,15 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  createOpenRouterProvider,
+  fetchModelCatalogue,
+  pickDefaultModel,
+  PREFERRED_FREE_CODE_MODELS,
+} from '@fixora/core-ai';
 import { detectCapabilities } from '@fixora/core-analysis';
 
-import { runProject } from './harness.js';
+import { runProject, type AiRunner } from './harness.js';
 import { discoverProjects } from './projects.js';
 import { renderReport } from './report.js';
 import type { RunResult } from './types.js';
@@ -36,20 +42,42 @@ function argValue(flag: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
+/**
+ * Build the live-model leg from the environment, or null. The key is read ONLY from the environment,
+ * never from disk or a profile, and is never printed. Model: FIXORA_BENCH_MODEL if set, else the
+ * catalogue's default free code model, else the first preferred free model — chosen from the real
+ * catalogue, never hardcoded blindly.
+ */
+async function buildAiRunner(): Promise<AiRunner | null> {
+  const key = (process.env['FIXORA_BENCH_OPENROUTER_KEY'] ?? '').trim();
+  if (key === '') return null;
+  let model = (process.env['FIXORA_BENCH_MODEL'] ?? '').trim();
+  if (model === '') {
+    try {
+      model = pickDefaultModel(await fetchModelCatalogue()) ?? PREFERRED_FREE_CODE_MODELS[0] ?? '';
+    } catch {
+      model = PREFERRED_FREE_CODE_MODELS[0] ?? '';
+    }
+  }
+  if (model === '') return null;
+  const provider = createOpenRouterProvider({ apiKey: key, appName: 'fixora-validation' });
+  return { provider, model };
+}
+
 async function main(): Promise<void> {
   const corpus = argValue('--projects') ?? DEFAULT_CORPUS;
-  const providerKeyPresent = (process.env['FIXORA_BENCH_OPENROUTER_KEY'] ?? '').trim().length > 0;
+  const ai = await buildAiRunner();
 
   const projects = discoverProjects(corpus);
   const capabilities = await detectCapabilities(corpus);
 
   const run: RunResult = {
     ranAt: new Date().toISOString(),
-    providerKeyPresent,
+    providerKeyPresent: ai !== null,
     projects: [],
   };
   for (const p of projects) {
-    run.projects.push(await runProject(p, capabilities, PKG_ROOT));
+    run.projects.push(await runProject(p, capabilities, PKG_ROOT, ai));
   }
 
   mkdirSync(RESULTS_DIR, { recursive: true });
