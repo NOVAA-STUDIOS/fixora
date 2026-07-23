@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-07-23T09:10:12.537Z",
+  "ranAt": "2026-07-23T10:36:05.861Z",
   "providerKeyPresent": false,
   "projects": [
     {
@@ -8,7 +8,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\css\\theme",
       "filesAnalyzed": 0,
       "findings": 0,
-      "analyzeMs": 3,
+      "analyzeMs": 4,
       "baselineCompile": {
         "ran": false,
         "ok": false,
@@ -36,7 +36,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\javascript\\http-cache",
       "filesAnalyzed": 1,
       "findings": 1,
-      "analyzeMs": 4954,
+      "analyzeMs": 5529,
       "baselineCompile": {
         "ran": true,
         "ok": true,
@@ -90,7 +90,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\json\\app-config",
       "filesAnalyzed": 1,
       "findings": 1,
-      "analyzeMs": 2,
+      "analyzeMs": 3,
       "baselineCompile": {
         "ran": true,
         "ok": false,
@@ -144,7 +144,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\python\\task-queue",
       "filesAnalyzed": 1,
       "findings": 2,
-      "analyzeMs": 142,
+      "analyzeMs": 148,
       "baselineCompile": {
         "ran": true,
         "ok": true,
@@ -188,7 +188,7 @@
           "subsystem": "none",
           "rootCause": "repair survived analyze → repair → verify → apply → re-analyze → compile",
           "finalOutcome": "SAFE_AUTO_REPAIR_APPLIED",
-          "runtimeMs": 373
+          "runtimeMs": 346
         },
         {
           "language": "python",
@@ -237,7 +237,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\python\\text-metrics",
       "filesAnalyzed": 1,
       "findings": 1,
-      "analyzeMs": 138,
+      "analyzeMs": 128,
       "baselineCompile": {
         "ran": true,
         "ok": true,
@@ -281,7 +281,7 @@
           "subsystem": "none",
           "rootCause": "repair survived analyze → repair → verify → apply → re-analyze → compile",
           "finalOutcome": "SAFE_AUTO_REPAIR_APPLIED",
-          "runtimeMs": 367
+          "runtimeMs": 327
         }
       ]
     },
@@ -291,7 +291,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\react\\counter",
       "filesAnalyzed": 1,
       "findings": 1,
-      "analyzeMs": 5445,
+      "analyzeMs": 5667,
       "baselineCompile": {
         "ran": false,
         "ok": false,
@@ -345,7 +345,7 @@
       "root": "C:\\dev\\FIXORA\\tooling\\validation\\projects\\typescript\\pricing",
       "filesAnalyzed": 2,
       "findings": 1,
-      "analyzeMs": 7703,
+      "analyzeMs": 8103,
       "baselineCompile": {
         "ran": true,
         "ok": false,

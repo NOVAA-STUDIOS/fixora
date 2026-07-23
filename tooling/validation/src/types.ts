@@ -90,6 +90,16 @@ export interface AttemptRecord {
   reanalysis: StageResult;
   compile: StageResult;
   finalOutcome: FinalOutcome;
+  /**
+   * Diagnostic evidence for an AI attempt — the model's replacement and the target it was spliced
+   * into. Present only for AI attempts, so a failure is reproducible from the record alone (the exact
+   * text the model produced, not a summary). Never contains a key; the model output is not a secret.
+   */
+  aiDiagnostic?: {
+    targetStartLine: number;
+    targetEndLine: number;
+    repairedCode: string;
+  };
 }
 
 /** The result of validating one project: its per-file analysis plus every repair attempt. */
