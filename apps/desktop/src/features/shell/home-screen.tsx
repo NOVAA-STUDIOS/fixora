@@ -3,6 +3,7 @@ import { Button, FixoraMark, FolderIcon, Kbd } from '@fixora/ui';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
+import { QuickActions } from './quick-actions.js';
 import { RecentProjects } from './recent-projects.js';
 
 /**
@@ -26,7 +27,11 @@ export function HomeScreen(): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto rounded-lg border border-border-subtle bg-raised">
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-10 px-8 py-12">
+      {/* gap-6/py-8 (was gap-10/py-12): at the app's documented 940×600 minimum window size the
+          previous spacing pushed Quick Actions/Recent Projects below the fold, needing a scroll to
+          see either. Tightened rather than redesigned — same sections, same order, less padding
+          between them. (Beta audit A1, Welcome Screen finding 1 / Small Screens finding 1.) */}
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-6 px-8 py-8">
         <header className="flex flex-col items-center gap-4 text-center">
           <FixoraMark className="size-14 drop-shadow-lg" title="Fixora" />
           <div className="flex flex-col gap-1.5">
@@ -59,6 +64,8 @@ export function HomeScreen(): React.JSX.Element {
             </p>
           )}
         </header>
+
+        <QuickActions />
 
         <RecentProjects />
 

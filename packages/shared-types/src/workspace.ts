@@ -11,6 +11,8 @@ export const WorkspaceSchema = z.object({
   rootPath: z.string(),
   name: z.string(),
   lastOpenedAt: z.number(),
+  /** When the user pinned this project, or null if it is not pinned (Sprint F2). */
+  pinnedAt: z.number().nullable(),
 });
 export type WorkspaceInfo = z.infer<typeof WorkspaceSchema>;
 

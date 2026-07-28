@@ -120,4 +120,50 @@ describe('workspace service', () => {
     expect(typeof row?.['content_hash']).toBe('string');
     driver.close();
   });
+
+  describe('pinning recent projects (Sprint F2)', () => {
+    it('opens with no pin by default', () => {
+      const { service, driver } = makeService();
+      service.open(repo);
+      expect(service.recent()[0]?.pinnedAt).toBeNull();
+      driver.close();
+    });
+
+    it('sorts a pinned project before more-recently-opened, unpinned ones', () => {
+      const { service, driver } = makeService();
+      const other = mkdtempSync(join(tmpdir(), 'fixora-ws-other-'));
+      mkdirSync(join(other, 'x'), { recursive: true });
+
+      const { workspace: repoWs } = service.open(repo);
+      service.open(other); // opened more recently than repo
+
+      // Before pinning, recency alone puts `other` first.
+      expect(service.recent().map((w) => w.rootPath)).toEqual([other, repo]);
+
+      service.setPinned(repoWs.id, true);
+      expect(service.recent().map((w) => w.rootPath)).toEqual([repo, other]);
+      expect(service.recent()[0]?.pinnedAt).not.toBeNull();
+
+      driver.close();
+      rmSync(other, { recursive: true, force: true });
+    });
+
+    it('unpins back to recency ordering', () => {
+      const { service, driver } = makeService();
+      const other = mkdtempSync(join(tmpdir(), 'fixora-ws-other-'));
+      mkdirSync(join(other, 'x'), { recursive: true });
+
+      const { workspace: repoWs } = service.open(repo);
+      service.open(other);
+      service.setPinned(repoWs.id, true);
+      expect(service.recent().map((w) => w.rootPath)).toEqual([repo, other]);
+
+      service.setPinned(repoWs.id, false);
+      expect(service.recent().map((w) => w.rootPath)).toEqual([other, repo]);
+      expect(service.recent().find((w) => w.rootPath === repo)?.pinnedAt).toBeNull();
+
+      driver.close();
+      rmSync(other, { recursive: true, force: true });
+    });
+  });
 });

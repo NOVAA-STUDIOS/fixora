@@ -134,6 +134,11 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
       deps.workspaces.removeAll();
     },
 
+    /** Pin or unpin a recent project (Sprint F2) — a list-ordering preference, not a security fact. */
+    setPinned(id: string, pinned: boolean): void {
+      deps.workspaces.setPinned(id, pinned);
+    },
+
     /**
      * Re-open the most recent workspace whose folder still exists (like an IDE reopening your last
      * project). A recent whose folder was deleted or moved is skipped, not an error. Returns the

@@ -20,6 +20,7 @@ const workspace: WorkspaceInfo = {
   rootPath: '/repo',
   name: 'repo',
   lastOpenedAt: 1,
+  pinnedAt: null,
 };
 
 function dir(name: string, relPath: string): DirEntryInfo {

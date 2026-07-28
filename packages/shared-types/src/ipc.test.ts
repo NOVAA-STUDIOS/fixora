@@ -30,6 +30,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'workspace:clearRecent',
       'workspace:current',
       'workspace:close',
+      'workspace:setPinned',
       'fs:listDir',
       'fs:readFile',
       'fs:writeFile',

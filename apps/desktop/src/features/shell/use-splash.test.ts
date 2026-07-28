@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   SPLASH_FADE_MS,
+  SPLASH_HANG_TIMEOUT_MS,
   SPLASH_MESSAGES,
   SPLASH_MESSAGE_HOLD_MS,
   SPLASH_MIN_VISIBLE_MS,
@@ -11,9 +12,10 @@ import {
 } from './use-splash.js';
 
 /**
- * The splash's contract, which is entirely about timing and therefore entirely worth testing: it
- * must not hide while work is running, must not linger once work is done, and must never strand a
- * user on a screen with no way forward.
+ * The splash's contract: it must not hide while work is running, must not linger once work is done
+ * beyond the time the entrance animation needs to finish (no manufactured "premium" wait on top of
+ * that), must hide its loading indicator the instant work resolves even if still up for that brief
+ * remainder, and must never strand a user on a screen with no way forward.
  */
 
 /** A promise plus the handles to settle it, so a test controls exactly when "init finishes". */
@@ -57,7 +59,7 @@ describe('useSplash', () => {
     expect(result.current.state).toMatchObject({ visible: true, phase: 'loading' });
   });
 
-  it('stays visible for the full floor when initialization finishes immediately', async () => {
+  it('stays visible for the animation-completion floor when initialization finishes instantly', async () => {
     const { promise, resolve } = deferred();
     const { result } = renderHook(() => useSplash(() => promise));
 
@@ -66,7 +68,8 @@ describe('useSplash', () => {
       await promise;
     });
 
-    // Work is done, but the floor has not elapsed — the screen must still be readable.
+    // Work is done, but the floor (bounded, short — just long enough for the entrance animation to
+    // finish) has not elapsed — the screen must still be up.
     await advance(SPLASH_MIN_VISIBLE_MS - 200);
     expect(result.current.state).toMatchObject({ visible: true, phase: 'loading' });
 
@@ -77,12 +80,17 @@ describe('useSplash', () => {
     expect(result.current.state.visible).toBe(false);
   });
 
-  it('stays visible past the floor while initialization is still running', async () => {
+  it('the floor is bounded at roughly 1.5-2.5s, not a multi-second manufactured wait', () => {
+    expect(SPLASH_MIN_VISIBLE_MS).toBeGreaterThanOrEqual(1500);
+    expect(SPLASH_MIN_VISIBLE_MS).toBeLessThanOrEqual(2500);
+  });
+
+  it('stays visible past the floor while initialization is still running, however long that takes', async () => {
     const { promise, resolve } = deferred();
     const { result } = renderHook(() => useSplash(() => promise));
 
     // Well past the floor and still working: the floor is a minimum, never a schedule.
-    await advance(SPLASH_MIN_VISIBLE_MS * 2);
+    await advance(SPLASH_MIN_VISIBLE_MS * 4);
     expect(result.current.state).toMatchObject({ visible: true, phase: 'loading' });
 
     await act(async () => {
@@ -115,7 +123,6 @@ describe('useSplash', () => {
       reject(new Error('Could not list the workspace.'));
       await promise.catch(() => undefined);
     });
-    await advance(SPLASH_FADE_MS);
 
     expect(result.current.state).toMatchObject({
       visible: true,
@@ -125,7 +132,7 @@ describe('useSplash', () => {
 
     // Long past the floor, the error is still on screen — an infinite loader is exactly what a
     // failed launch must not become, and neither is an error that vanishes on its own.
-    await advance(SPLASH_MIN_VISIBLE_MS * 3);
+    await advance(SPLASH_MIN_VISIBLE_MS * 4);
     expect(result.current.state).toMatchObject({ visible: true, phase: 'error' });
   });
 
@@ -144,7 +151,6 @@ describe('useSplash', () => {
       first.reject(new Error('nope'));
       await first.promise.catch(() => undefined);
     });
-    await advance(SPLASH_FADE_MS);
     expect(result.current.state).toMatchObject({ phase: 'error' });
 
     act(() => {
@@ -170,7 +176,6 @@ describe('useSplash', () => {
       reject(new Error('nope'));
       await promise.catch(() => undefined);
     });
-    await advance(SPLASH_FADE_MS);
 
     act(() => {
       result.current.dismiss();
@@ -187,6 +192,56 @@ describe('useSplash', () => {
     rerender();
     // A splash that restarts the work it is waiting on would never finish.
     expect(initialize).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The loading indicator (req. 5) must reflect real work in progress, not the splash's own visibility
+ * — it disappears the instant initialization resolves, even during the brief remainder of the
+ * animation-completion floor.
+ */
+describe('the working flag (gates the loading indicator)', () => {
+  it('is true while initialization has not resolved', async () => {
+    const { promise } = deferred();
+    const { result } = renderHook(() => useSplash(() => promise));
+    await advance(50);
+    expect(result.current.state).toMatchObject({ working: true });
+  });
+
+  it('flips to false the instant initialization resolves, even though the splash stays up for the floor', async () => {
+    const { promise, resolve } = deferred();
+    const { result } = renderHook(() => useSplash(() => promise));
+
+    await act(async () => {
+      resolve();
+      await promise;
+    });
+
+    // Still visible (floor not elapsed) but no longer "working" — the spinner must be gone already.
+    expect(result.current.state).toMatchObject({ visible: true, working: false });
+    await advance(SPLASH_MIN_VISIBLE_MS);
+  });
+
+  it('is true again after a retry starts a fresh attempt', async () => {
+    const first = deferred();
+    const second = deferred();
+    let attempt = 0;
+    const { result } = renderHook(() =>
+      useSplash(() => {
+        attempt += 1;
+        return attempt === 1 ? first.promise : second.promise;
+      }),
+    );
+
+    await act(async () => {
+      first.reject(new Error('nope'));
+      await first.promise.catch(() => undefined);
+    });
+    act(() => {
+      result.current.retry();
+    });
+    await advance(50);
+    expect(result.current.state).toMatchObject({ working: true });
   });
 });
 
@@ -292,7 +347,6 @@ describe('progressive status messages', () => {
       first.reject(new Error('nope'));
       await first.promise.catch(() => undefined);
     });
-    await advance(SPLASH_FADE_MS);
 
     act(() => {
       result.current.retry();
@@ -300,5 +354,85 @@ describe('progressive status messages', () => {
     await advance(50);
     // Back to the beginning: the second attempt has not reported anything yet.
     expect(result.current.state).toMatchObject({ message: SPLASH_MESSAGES[0] });
+  });
+});
+
+/**
+ * The hang safety net (beta audit A1, Splash Screen finding 3): if `initialize()` never settles,
+ * the splash must not become an infinite loader with no error and no way out. This only ever fires
+ * on that one path — never on a genuinely slow-but-working machine, and never after the real promise
+ * has already settled.
+ */
+describe('the hang safety net', () => {
+  it('shows an error if initialization never settles within SPLASH_HANG_TIMEOUT_MS', async () => {
+    const { promise } = deferred(); // never resolved or rejected in this test
+    const { result } = renderHook(() => useSplash(() => promise));
+
+    await advance(SPLASH_HANG_TIMEOUT_MS - 100);
+    expect(result.current.state).toMatchObject({ visible: true, phase: 'loading' });
+
+    await advance(200);
+    expect(result.current.state).toMatchObject({
+      visible: true,
+      phase: 'error',
+      errorMessage: expect.stringContaining('longer than expected'),
+    });
+  });
+
+  it('never fires if initialization settles normally well before the timeout', async () => {
+    const { promise, resolve } = deferred();
+    const { result } = renderHook(() => useSplash(() => promise));
+
+    await act(async () => {
+      resolve();
+      await promise;
+    });
+    await advance(SPLASH_MIN_VISIBLE_MS);
+    expect(result.current.state).toMatchObject({ phase: 'leaving' });
+
+    // Long past where the hang timer would have fired, had it not already been superseded by the
+    // real completion — the splash must already be closed, not resurrected into an error.
+    await advance(SPLASH_HANG_TIMEOUT_MS);
+    expect(result.current.state.visible).toBe(false);
+  });
+
+  it('a late-arriving real result from a hung attempt is ignored once the user has retried', async () => {
+    let attempt = 0;
+    const first = deferred();
+    const second = deferred();
+    const { result } = renderHook(() =>
+      useSplash(() => {
+        attempt += 1;
+        return attempt === 1 ? first.promise : second.promise;
+      }),
+    );
+
+    // First attempt hangs past the safety net.
+    await advance(SPLASH_HANG_TIMEOUT_MS);
+    expect(result.current.state).toMatchObject({ phase: 'error' });
+
+    // User retries — a second attempt begins while the first's promise is still technically pending.
+    act(() => {
+      result.current.retry();
+    });
+    await advance(50);
+    expect(result.current.state).toMatchObject({ phase: 'loading', errorMessage: null });
+
+    // The first attempt's promise finally settles late. It must be ignored — not allowed to stomp
+    // the second attempt's in-progress state back to "leaving"/"done".
+    await act(async () => {
+      first.resolve();
+      await first.promise;
+    });
+    await advance(1);
+    expect(result.current.state).toMatchObject({ phase: 'loading' });
+
+    // The second (current) attempt completing normally still works correctly.
+    await act(async () => {
+      second.resolve();
+      await second.promise;
+    });
+    await advance(SPLASH_RETRY_MIN_MS);
+    expect(result.current.state).toMatchObject({ phase: 'leaving' });
   });
 });

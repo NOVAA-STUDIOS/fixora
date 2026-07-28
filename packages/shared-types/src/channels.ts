@@ -34,6 +34,8 @@ export const channels = [
   'workspace:clearRecent',
   'workspace:current',
   'workspace:close',
+  // Sprint F2 (Welcome Experience): pin/unpin a recent project.
+  'workspace:setPinned',
   'fs:listDir',
   'fs:readFile',
   'fs:writeFile',

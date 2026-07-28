@@ -23,6 +23,8 @@ export type Workspace = {
   rootPath: string;
   name: string;
   lastOpenedAt: number;
+  /** When the user pinned this project, or null if it is not pinned (Sprint F2). */
+  pinnedAt: number | null;
   settingsJson: string;
   createdAt: number;
 };
@@ -44,6 +46,7 @@ function toWorkspace(row: Row): Workspace {
     rootPath: row['root_path'] as string,
     name: row['name'] as string,
     lastOpenedAt: row['last_opened_at'] as number,
+    pinnedAt: (row['pinned_at'] as number | null) ?? null,
     settingsJson: row['settings_json'] as string,
     createdAt: row['created_at'] as number,
   };
@@ -73,17 +76,32 @@ export function createWorkspaceRepository(driver: SqliteDriver, now: () => numbe
         rootPath,
         name,
         lastOpenedAt: ts,
+        pinnedAt: null,
         settingsJson: '{}',
         createdAt: ts,
       };
     },
 
-    /** Recent workspaces, most-recently-opened first — what the "open recent" list reads. */
+    /**
+     * Recent workspaces: pinned first (most-recently-pinned first), then everything else by
+     * recency — what the "open recent" list reads.
+     */
     recent(limit = 10): Workspace[] {
       return driver
-        .prepare('SELECT * FROM workspaces ORDER BY last_opened_at DESC LIMIT ?')
+        .prepare(
+          `SELECT * FROM workspaces
+             ORDER BY pinned_at IS NULL, pinned_at DESC, last_opened_at DESC
+             LIMIT ?`,
+        )
         .all(limit)
         .map(toWorkspace);
+    },
+
+    /** Pin or unpin a project. Pinning stamps "now" so pin order is itself recency-ordered. */
+    setPinned(id: string, pinned: boolean, ts: number = now()): void {
+      driver
+        .prepare('UPDATE workspaces SET pinned_at = ? WHERE id = ?')
+        .run(pinned ? ts : null, id);
     },
 
     findByRootPath(rootPath: string): Workspace | undefined {

@@ -35,16 +35,18 @@ export const DropdownMenuContent = forwardRef<
 
 export const DropdownMenuItem = forwardRef<
   ComponentRef<typeof DropdownMenuPrimitive.Item>,
-  ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item>
->(function DropdownMenuItem({ className, ...props }, ref) {
+  ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & { danger?: boolean }
+>(function DropdownMenuItem({ className, danger = false, ...props }, ref) {
   return (
     <DropdownMenuPrimitive.Item
       ref={ref}
       className={cn(
         'relative flex h-(--fx-row-height) cursor-default select-none items-center gap-2 rounded-sm',
         'px-2 text-sm outline-none',
-        'data-[highlighted]:bg-hover data-[highlighted]:text-fg',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        danger
+          ? 'text-danger-text data-[highlighted]:bg-danger-subtle'
+          : 'data-[highlighted]:bg-hover data-[highlighted]:text-fg',
         className,
       )}
       {...props}

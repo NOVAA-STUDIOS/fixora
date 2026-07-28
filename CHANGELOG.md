@@ -24,6 +24,14 @@ Stripe, or publish step has been performed for any of this.
   Accept, and manual Save all go through) now reads every write back and refuses — with a clear,
   actionable error — if the on-disk bytes don't match what was intended, instead of silently reporting
   success.
+- **Welcome Experience (Sprint F2).** A premium first-run/startup surface: the splash screen's
+  minimum-visible time is now bounded at ~1.8s — just long enough for the staggered logo/wordmark
+  entrance animation to finish playing, never a multi-second "premium" wait manufactured on top of
+  that — and its loading indicator disappears the instant initialization actually resolves, even
+  during that brief remainder. The Home screen (shown whenever no project is open) gains a **Quick
+  Actions** row (Open folder, Open recent, Documentation, What's New — the latter two as in-app
+  dialogs, no network required) and **pin support** for Recent Projects (a pinned project sorts to
+  the top; migration v6 adds `workspaces.pinned_at`, a new `workspace:setPinned` IPC channel).
 - **Suggestion System (Sprint F1) — COMPLETE.** A local-first feedback channel: category selector,
   auto-resizing message editor with a character counter, validation, submit loading state, a
   thank-you confirmation, SQLite-backed history, and export to JSON. Two ways to send a suggestion to
