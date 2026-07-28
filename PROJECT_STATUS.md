@@ -1,9 +1,82 @@
 # Fixora — Project Status
 
-**Updated:** 2026-07-18 · **Mission:** ship a **BYOK Public Beta** this month (pivot 2026-07-16).
-**Release:** Public Beta **v0.9.0-beta.1** — code complete, `pnpm run ci` green, tagged. Remaining before
-public launch is owner-side: provision the license keypair + Stripe link, build the installer on a build
-machine, and pass the clean-machine acceptance ([RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)).
+**Updated:** 2026-07-27 · **Mission:** ship a **BYOK Public Beta** (pivot 2026-07-16).
+**Release:** `v0.9.0-beta.1` was tagged **code complete** 2026-07-18 (see the Beta track table below —
+Phases A–F all done; `pnpm run ci` green at 323 tests). Since that tag, substantial additional work has
+been built on `sprint-1/ui-stability` and is **not yet released**: Proceed Mode (a second editing
+pipeline alongside Repair) and a four-part reliability/validation sequence (H1→Q1→Q2→Q3) hardening both
+Repair and Proceed. See "Post-beta-tag work" below for the current, authoritative state of that branch.
+Owner-side launch steps for `v0.9.0-beta.1` (license keypair + Stripe link, installer build on a build
+machine, clean-machine acceptance — [RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)) have not been
+confirmed done and are unaffected by this update.
+
+---
+
+## Post-beta-tag work: Proceed Mode + reliability sequence (branch `sprint-1/ui-stability`)
+
+Everything in this section happened **after** the `v0.9.0-beta.1` tag above and is **unreleased** —
+it lives only on `sprint-1/ui-stability`, not in any tagged release or the published beta.
+
+### Proceed Mode (P2.1 → P2.2.1) — done
+
+A second editing pipeline alongside Repair: a natural-language instruction ("make this button green")
+is turned into a VERIFIED edit proposal, reusing the Repair engine's verification/apply machinery rather
+than duplicating it.
+
+- **P2.1 — Intelligent Editing foundation.** Deterministic intent classifier, AST scope detection
+  (smallest enclosing symbol, never the whole file), editing context builder (reuses the repair budget +
+  secret gate), edit prompt/schema, orchestration service with 6 outcomes unit-tested, a minimal Proceed
+  tab. Verification's `computeVerdict` extended with `target: null` for edit mode — the Repair path is
+  byte-identical (proven), not forked.
+- **P2.2 / P2.2R / P2.2.1 — shipped into the running application.** Live editing acceptance harness;
+  the `proceed:run` IPC channel + worker `resolveScope` wired through `AnalysisHost`; the Proceed tab
+  mounted beside Repair with its own store; Apply reuses `ai:applyRepair` (the one verified write path —
+  never a second one); Repair + Proceed failure UX stabilized (`retryable` classification surfaced
+  consistently in both panels).
+
+### Reliability / validation sequence (H1 → Q1 → Q2 → Q3) — done, Q3 formally FROZEN 2026-07-27
+
+Run with the same audit-then-fix discipline as the original M0–M3 milestone reviews: one confirmed,
+reproduced defect at a time, smallest safe fix, regression test, re-verify gates, human validation in
+the running app before calling anything closed.
+
+| Sprint | Scope                                                                                                                                                                                        | Status                                                                                                                                                                                                                                                                        |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **H1** | Human validation of the running app; bugs found/fixed one at a time, logged in [BUGLOG.md](docs/BUGLOG.md)                                                                                   | Closed                                                                                                                                                                                                                                                                        |
+| **Q1** | Analyzer accuracy — false positive/negative/line-precision defects in `core-analysis` only                                                                                                   | Closed — 4 confirmed defects fixed (complexity, JSON, symbol resolution); certification 21/21, benchmark 100%                                                                                                                                                                 |
+| **Q2** | Repair reliability — success rate, deterministic-vs-AI routing, verification correctness                                                                                                     | Closed 2026-07-26 — Fix #1 (retryable provider-failure UX parity Repair/Proceed), Fix #2A (deterministic `safe-auto` repairs now route to a worker-hosted `deterministicRepair()` instead of silently going through the AI pipeline); both human-validated in the running app |
+| **Q3** | Proceed final stabilization — a full audit of the Proceed pipeline (intent, scope, request construction, edit quality, verification, preview/apply/cancel, provider failures, state machine) | **Formally FROZEN 2026-07-27** — see below                                                                                                                                                                                                                                    |
+
+**Q3 defects — all four implemented, gate-verified, and human-validated in the running app (TESTs 1–10, all PASS):**
+
+1. **Explanation-intent refusal** — a question-style instruction ("explain what this does") is refused before it ever reaches the AI provider, instead of being silently treated as an edit request.
+2. **Proposal/file scoping** — a pending Proceed preview is invalidated the instant the active editor tab changes away from the file it was generated for, so Accept can never write to the wrong file.
+3. **Immutable Retry replay** — Retry replays the exact captured request (instruction, file, selection) from the failed attempt, never re-derived from whatever the cursor/tab happens to be at retry-time.
+4. **Real in-flight cancellation** — a genuine Cancel action aborts the actual in-flight request (a `proceed:cancel` IPC channel mirroring Repair's existing `ai:cancel` pattern), with a renderer-side staleness token so a late/cancelled result can never overwrite newer state.
+
+**BUG-002 — data-integrity incident, unresolved / non-reproducible, accepted as a tracked risk.**
+During Q3 human validation, a test file was reduced to 60 bytes of all-`0x00` content after a normal
+Proceed→Accept. An extensive evidence-driven investigation (full write-path code review, a mechanical
+reproduction of the write path with correct inputs — clean, 8 controlled live-reproduction attempts
+covering rapid repetition/CRLF-LF/concurrent-editor/UI-race/antivirus/process-duplication hypotheses,
+a Windows Defender Protection History check, a full process-tree audit) could not reproduce it or
+identify a root cause. **Root cause remains unresolved.** A permanent, root-cause-agnostic safety net —
+`verifyWrittenFile()` in `apps/desktop/electron/main/services/fs/fs-service.ts` — now reads every write
+back (Repair, Proceed, and manual Save alike, since they share one `writeTextFile` function) and refuses
+with a clear, actionable error if the on-disk bytes don't match what was intended, instead of silently
+reporting success. No automatic rollback (deliberate — could destroy a legitimate concurrent edit).
+Temporary `[Q3-DIAG]` diagnostic instrumentation remains **intentionally active** (gated on a
+`proceed-diag` filename substring) for recurrence detection. Full record: [BUGLOG.md](docs/BUGLOG.md)
+BUG-002. This is an accepted, non-blocking, separately tracked risk — it did not block the Q3 freeze.
+
+**BUG-003 — `acceptance-scale.test.ts` flakes under full-suite parallel load, tracked separately.**
+Passes cleanly every time run in isolation; times out under full-suite parallel contention on this
+machine. Test-infrastructure/performance item, not an application defect. See
+[BUGLOG.md](docs/BUGLOG.md) BUG-003.
+
+**No additional `sprint-1/ui-stability` scope is currently documented.** No repository document
+enumerates further UI-stability work beyond the Proceed Mode build and the H1→Q3 reliability sequence
+above. This is recorded as a gap, not as confirmation that the branch's scope is complete.
 
 ## Mission pivot (2026-07-16) — BYOK-first Public Beta
 
@@ -35,16 +108,17 @@ plugins, cloud sync, API platform, analytics/reports, collaboration, org managem
 
 ## Milestones
 
-| #           | Milestone                                | Status                                          | Notes                                         |
-| ----------- | ---------------------------------------- | ----------------------------------------------- | --------------------------------------------- |
-| —           | Blueprint                                | ✅ Signed off 2026-07-13                        | 28 ADRs accepted                              |
-| **M0**      | **Foundations**                          | ✅ **Approved — audited + red-teamed**          | Signed off 2026-07-14                         |
-| **M1**      | **Design system & app shell**            | ✅ **Approved — audited + red-teamed**          | Signed off 2026-07-14                         |
-| **M2**      | **Workspace, editor, local persistence** | ✅ **Approved — audited + red-teamed**          | Signed off 2026-07-15                         |
-| **M3**      | **Deterministic analysis engine**        | ✅ **Approved — audited + red-teamed**          | Signed off 2026-07-16                         |
-| **M4**      | **Backend, auth, entitlements**          | ✅ **Built (fixora-api A–E), deferred to v1.1** | BYOK beta needs no server; ready to switch on |
-| **Beta-M5** | **Verified AI Repair (BYOK)**            | ▶ **In progress** — Phases A–D done             | The beta product; see Beta track above        |
-| M6+         | Teams / enterprise / marketplace / cloud | ⏸ v1.1 backlog                                  | Deferred by the beta pivot                    |
+| #             | Milestone                                                     | Status                                                  | Notes                                                                                     |
+| ------------- | ------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| —             | Blueprint                                                     | ✅ Signed off 2026-07-13                                | 28 ADRs accepted                                                                          |
+| **M0**        | **Foundations**                                               | ✅ **Approved — audited + red-teamed**                  | Signed off 2026-07-14                                                                     |
+| **M1**        | **Design system & app shell**                                 | ✅ **Approved — audited + red-teamed**                  | Signed off 2026-07-14                                                                     |
+| **M2**        | **Workspace, editor, local persistence**                      | ✅ **Approved — audited + red-teamed**                  | Signed off 2026-07-15                                                                     |
+| **M3**        | **Deterministic analysis engine**                             | ✅ **Approved — audited + red-teamed**                  | Signed off 2026-07-16                                                                     |
+| **M4**        | **Backend, auth, entitlements**                               | ✅ **Built (fixora-api A–E), deferred to v1.1**         | BYOK beta needs no server; ready to switch on                                             |
+| **Beta-M5**   | **Verified AI Repair (BYOK)**                                 | ✅ **Done — Phases A–F all done**                       | The beta product; see Beta track above. Tagged `v0.9.0-beta.1`, 2026-07-18                |
+| **Post-beta** | **Proceed Mode (P2.1–P2.2.1) + reliability sequence (H1→Q3)** | ✅ **Done, unreleased** — Q3 formally frozen 2026-07-27 | Branch `sprint-1/ui-stability`; not in any tagged release. See "Post-beta-tag work" above |
+| M6+           | Teams / enterprise / marketplace / cloud                      | ⏸ v1.1 backlog                                          | Deferred by the beta pivot                                                                |
 
 ---
 

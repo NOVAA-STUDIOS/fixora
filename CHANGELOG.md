@@ -8,6 +8,49 @@ this file is a **product surface on the website** (Repo §3), not an afterthough
 
 ## [Unreleased]
 
+Built on `sprint-1/ui-stability`, after the `v0.9.0-beta.1` tag below. Not released; no installer,
+Stripe, or publish step has been performed for any of this.
+
+### Added
+
+- **Proceed Mode** — a second editing pipeline alongside Repair: a natural-language instruction is
+  turned into a VERIFIED edit proposal (deterministic intent classification, AST scope detection,
+  context/prompt construction reusing the repair budget + secret gate, and the same verification engine
+  Repair uses — `computeVerdict` extended with an edit-mode branch rather than forked). Ships with
+  preview → Accept/Cancel, Retry on a retryable provider failure, and real in-flight Cancel.
+- Repair and Proceed failure UX brought to parity: a `retryable` classification is now surfaced
+  consistently in both panels' Retry affordance.
+- A permanent write-verification invariant: `writeTextFile` (the one function Repair's apply, Proceed's
+  Accept, and manual Save all go through) now reads every write back and refuses — with a clear,
+  actionable error — if the on-disk bytes don't match what was intended, instead of silently reporting
+  success.
+
+### Fixed
+
+- Four confirmed defects in Proceed Mode, found by a full pipeline audit (Q3): a question-style
+  instruction ("explain what this does") no longer reaches the AI provider as if it were an edit
+  request; a pending preview is invalidated the instant the active tab changes away from the file it
+  targets; Retry now replays the exact failed request instead of re-deriving one from whatever the
+  cursor/tab happens to be at retry-time; a real Cancel action now aborts the in-flight request rather
+  than only resetting local UI state.
+- Four confirmed Analyzer defects (Q1): complexity scoring for callbacks/object methods and else-if
+  chains, a JSON trailing-comma error location, and `memo()`/`forwardRef()`-wrapped component symbol
+  resolution.
+- A Repair reliability defect (Q2): deterministic (`safe-auto`) repairs were silently routed through the
+  AI pipeline instead of the existing, already-tested `deterministicRepair()` — now routed correctly
+  through a worker job mirroring the existing scope-resolution pattern.
+
+### Known issues
+
+- **Unresolved, non-reproducible data-integrity incident (tracked, not blocking).** A file was reduced
+  to all-zero bytes once during manual testing of Proceed's Accept path; extensive investigation (8
+  varied controlled reproduction attempts, an antivirus history check, a process-tree audit) could not
+  reproduce it or identify a cause. The write-verification invariant above guards against a recurrence
+  ever being silent, but the root cause itself remains unknown. See `docs/BUGLOG.md` BUG-002.
+- A background test (`acceptance-scale.test.ts`) intermittently times out only under full-suite parallel
+  load on one dev machine; passes cleanly in isolation every time. Test-infrastructure item, not an
+  application defect. See `docs/BUGLOG.md` BUG-003.
+
 ## [0.9.0-beta.1] — 2026-07-18 — Public Beta 🎉
 
 The first Public Beta: **Verified AI Code Repair**, bring-your-own-key. Open a repo, run your own

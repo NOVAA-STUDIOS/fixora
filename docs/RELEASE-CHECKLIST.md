@@ -1,9 +1,17 @@
 # Fixora — Public Beta Release Checklist
 
-The engineering is complete, verified, and tagged. This is the sequence from a green codebase to a live
-Public Beta. Items marked **[owner]** need your machine/accounts and can't be done from the codebase.
+The engineering for the tagged `v0.9.0-beta.1` release is complete, verified, and tagged. This is the
+sequence from a green codebase to a live Public Beta. Items marked **[owner]** need your machine/accounts
+and can't be done from the codebase.
 
-## Engineering (done in-repo)
+**Since that tag**, substantial additional engineering has been built on branch `sprint-1/ui-stability`
+and is **not yet part of any tagged release**: Proceed Mode (a second editing pipeline) and a four-part
+reliability/validation sequence (H1→Q1→Q2→Q3, the latter formally frozen 2026-07-27). See
+[PROJECT_STATUS.md](../PROJECT_STATUS.md) for the current, authoritative state of that work — this
+checklist's "Engineering" section below reflects only what was true at the `v0.9.0-beta.1` tag and has
+not been re-run against the newer branch.
+
+## Engineering (done in-repo, as of the `v0.9.0-beta.1` tag)
 
 - [x] Verified AI repair loop: analyze → BYOK AI → gate → verify (overlay) → diff → apply → history.
 - [x] Secret gate (fails closed), path-guarded apply, stale-apply guard, keychain-encrypted key.
@@ -12,6 +20,9 @@ Public Beta. Items marked **[owner]** need your machine/accounts and can't be do
 - [x] Website + user/privacy/licensing/acceptance docs.
 - [x] Acceptance + audit + red-team (`docs/BETA-ACCEPTANCE.md`), ADR-036/037/038.
 - [x] `pnpm run ci` green; version tagged.
+- [ ] Proceed Mode + the H1–Q3 reliability sequence are **not represented in this checklist yet** — they
+      postdate it. Not marked done here; see `PROJECT_STATUS.md` / `docs/BUGLOG.md` for their actual
+      status. Clean-machine acceptance below has not been re-run against this newer work.
 
 ## Provisioning **[owner]**
 
