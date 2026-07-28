@@ -84,6 +84,21 @@ export {
   type LicenseStatus,
 } from './license.js';
 export {
+  SUGGESTION_CATEGORY_LABELS,
+  SUGGESTION_MESSAGE_MAX_LENGTH,
+  SUGGESTION_MESSAGE_MIN_LENGTH,
+  ShareSuggestionResponseSchema,
+  ShareViaGmailResponseSchema,
+  SubmitSuggestionRequestSchema,
+  SuggestionCategorySchema,
+  SuggestionSchema,
+  type Suggestion,
+  type SuggestionCategory,
+  type ShareSuggestionResponse,
+  type ShareViaGmailResponse,
+  type SubmitSuggestionRequest,
+} from './suggestions.js';
+export {
   AiConfigSchema,
   AiDeltaSchema,
   AiProposalSchema,

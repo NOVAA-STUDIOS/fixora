@@ -184,6 +184,34 @@ export function WinCloseIcon(props: IconProps): React.JSX.Element {
   );
 }
 
+export function LightbulbIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M9 18h6M10 22h4" />
+      <path d="M12 2a7 7 0 0 0-4 12.7c.7.5 1 1.3 1 2.1V17h6v-.2c0-.8.3-1.6 1-2.1A7 7 0 0 0 12 2z" />
+    </Icon>
+  );
+}
+
+export function SendIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M22 2 11 13" />
+      <path d="M22 2 15 22l-4-9-9-4z" />
+    </Icon>
+  );
+}
+
+export function DownloadIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M4 21h16" />
+    </Icon>
+  );
+}
+
 /**
  * The Fixora brand mark: a rounded badge holding code brackets around a check.
  *

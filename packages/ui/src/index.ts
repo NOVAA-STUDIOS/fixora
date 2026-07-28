@@ -2,6 +2,7 @@ export { cn } from './lib/cn.js';
 
 export { Button, buttonVariants, type ButtonProps } from './components/button.js';
 export { Input, type InputProps } from './components/input.js';
+export { Textarea, type TextareaProps } from './components/textarea.js';
 export { Kbd } from './components/kbd.js';
 export { ConfirmDialog } from './components/confirm-dialog.js';
 export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from './components/popover.js';
@@ -36,6 +37,9 @@ export {
   WinRestoreIcon,
   WinCloseIcon,
   FixoraMark,
+  LightbulbIcon,
+  SendIcon,
+  DownloadIcon,
 } from './components/icons.js';
 
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/tooltip.js';

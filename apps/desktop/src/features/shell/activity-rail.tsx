@@ -1,4 +1,4 @@
-import { AlertIcon, ClockIcon, FolderIcon, SettingsIcon, cn } from '@fixora/ui';
+import { AlertIcon, ClockIcon, FolderIcon, LightbulbIcon, SettingsIcon, cn } from '@fixora/ui';
 
 import { useUiStore, type ActivityView } from '../../stores/ui-store.js';
 
@@ -12,6 +12,7 @@ const items: RailItem[] = [
   { view: 'workspace', label: 'Files', Icon: FolderIcon },
   { view: 'findings', label: 'Problems', Icon: AlertIcon },
   { view: 'history', label: 'History', Icon: ClockIcon },
+  { view: 'suggestions', label: 'Suggest', Icon: LightbulbIcon },
   { view: 'settings', label: 'Settings', Icon: SettingsIcon },
 ];
 
@@ -53,7 +54,16 @@ export function ActivityRail(): React.JSX.Element {
             )}
           >
             <Icon className="size-5 shrink-0" />
-            <span className="w-full truncate text-center leading-none">{label}</span>
+            {/*
+              leading-none (line-height: 1) left no buffer above a glyph's descender — invisible
+              for every label until "Suggest" (F1) added the rail's first descender (the two "g"s),
+              which then rendered visibly clipped at the bottom. Worse under Windows' fractional
+              display scaling (125%/150%), where sub-pixel rounding shaves into an already-exact-fit
+              line box. leading-tight (1.25, the same ratio as --fx-leading-tight) gives every
+              descender room without visibly growing the row — the label box is unconstrained by any
+              ancestor height, so it grows to fit rather than clipping.
+            */}
+            <span className="w-full truncate text-center leading-tight">{label}</span>
           </button>
         );
       })}

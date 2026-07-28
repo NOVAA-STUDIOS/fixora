@@ -14,6 +14,12 @@ import {
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
 import { LicenseStatusSchema } from './license.js';
+import {
+  ShareSuggestionResponseSchema,
+  ShareViaGmailResponseSchema,
+  SubmitSuggestionRequestSchema,
+  SuggestionSchema,
+} from './suggestions.js';
 import { DirEntrySchema, FileContentSchema, WorkspaceSchema } from './workspace.js';
 
 /**
@@ -213,6 +219,51 @@ export const contracts = {
     response: LicenseStatusSchema,
   },
   'license:deactivate': { request: empty, response: LicenseStatusSchema },
+
+  // Sprint F1 (Suggestion System). Local-only: a suggestion never leaves the machine except through
+  // the explicit, user-initiated 'suggestions:export', which writes a file the user picks via a
+  // native save dialog and never uploads anything.
+  'suggestions:submit': {
+    request: SubmitSuggestionRequestSchema,
+    response: z.object({ suggestion: SuggestionSchema }),
+  },
+  'suggestions:list': {
+    request: empty,
+    response: z.object({ suggestions: z.array(SuggestionSchema) }),
+  },
+  // A suggestion is the user's own note to themselves and to us; deleting one removes only the
+  // local record, same discipline as ai:historyRemove above.
+  'suggestions:remove': {
+    request: z.object({ id: z.string().min(1) }),
+    response: z.object({ suggestions: z.array(SuggestionSchema) }),
+  },
+  'suggestions:clear': {
+    request: empty,
+    response: z.object({ suggestions: z.array(SuggestionSchema) }),
+  },
+  // `path` is null when the user cancels the native save dialog — not an error.
+  'suggestions:export': {
+    request: empty,
+    response: z.object({ path: z.string().nullable() }),
+  },
+  // Sprint F1.1 / F1.4 (MailService). Main looks the suggestion up by id itself (never trusts a
+  // renderer-supplied category/message pair for what goes in the email) and composes the mailto:
+  // link with a fixed recipient and scheme via MailService — the request carries no URL.
+  // `not_found` means the id no longer exists (e.g. deleted in another window); `no_mail_client`
+  // means MailService could not confirm a handler is registered on this machine and carries the
+  // composed `to`/`subject` back so the renderer can offer Copy Email / Copy Subject.
+  'suggestions:share': {
+    request: z.object({ id: z.string().min(1) }),
+    response: ShareSuggestionResponseSchema,
+  },
+  // Sprint F1.5. The user explicitly chose "Open Gmail" from the no-mail-client dialog. Same trust
+  // rule as 'suggestions:share': main re-derives to/subject/body from the suggestion id, never from
+  // a renderer-supplied value. `browser_failed` means shell.openExternal itself could not launch a
+  // browser for the Gmail compose URL.
+  'suggestions:shareViaGmail': {
+    request: z.object({ id: z.string().min(1) }),
+    response: ShareViaGmailResponseSchema,
+  },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;
