@@ -236,7 +236,11 @@ function asWorkerMessage(value: unknown): WorkerMessage | null {
     };
   }
   if (m['type'] === 'microRepairResult') {
-    return { type: 'microRepairResult', jobId: String(m['jobId']), result: asMicroRepairResult(m['result']) };
+    return {
+      type: 'microRepairResult',
+      jobId: String(m['jobId']),
+      result: asMicroRepairResult(m['result']),
+    };
   }
   if (m['type'] === 'done')
     return { type: 'done', jobId: String(m['jobId']), aborted: m['aborted'] === true };
