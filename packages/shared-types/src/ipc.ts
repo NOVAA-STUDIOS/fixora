@@ -181,6 +181,8 @@ export const contracts = {
   // Proceed Mode: a natural-language instruction + the caret, answered with a VERIFIED edit proposal
   // (or an exact refusal). Never writes — applying reuses `ai:applyRepair` below.
   'proceed:run': { request: ProceedRunRequestSchema, response: ProceedOutcomeSchema },
+  // Aborts the in-flight `proceed:run` request (Q3 Defect #4) — same shape as `ai:cancel`.
+  'proceed:cancel': { request: empty, response: z.void() },
   // Apply a verified repair to the file on disk (path-guarded in main). The renderer sends the target
   // range + the repaired code; main splices and writes. Returns void — the editor + analysis refresh.
   // Returns a structured outcome rather than throwing: a stale range is an expected condition the

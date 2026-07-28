@@ -35,6 +35,17 @@ export function registerProceedHandlers(deps: {
   host: AnalysisHost;
   appMeta?: { url?: string; name?: string };
 }): void {
+  // Mirrors `ai-service.ts`'s `active` controller exactly (Q3 Defect #4): held at module-registration
+  // scope, not inside the request closure, so a LATER `proceed:cancel` call — arriving on its own IPC
+  // round trip — can reach the SAME controller a `proceed:run` in flight is using. One Proceed request
+  // running at a time; starting a new one aborts whatever was still running.
+  let active: AbortController | null = null;
+
+  registerHandler('proceed:cancel', () => {
+    active?.abort();
+    active = null;
+  });
+
   registerHandler('proceed:run', async (request): Promise<ProceedOutcome> => {
     const key = deps.keyStore.getKey();
     if (key === null) {
@@ -50,6 +61,8 @@ export function registerProceedHandlers(deps: {
     }
 
     const controller = new AbortController();
+    active?.abort();
+    active = controller;
     const timer = setTimeout(() => {
       controller.abort();
     }, RUN_TIMEOUT_MS);
@@ -106,6 +119,10 @@ export function registerProceedHandlers(deps: {
       return { status: 'error', code: 'proceed_failed', message };
     } finally {
       clearTimeout(timer);
+      // Only clear `active` if it is STILL this request's controller — a newer `proceed:run` (which
+      // aborts and replaces `active` on entry) or an explicit `proceed:cancel` may already have moved
+      // it on, and this stale request finishing must not null out someone else's live controller.
+      if (active === controller) active = null;
     }
   });
 }

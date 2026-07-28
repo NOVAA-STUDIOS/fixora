@@ -49,6 +49,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'ai:historyRemove',
       'ai:historyClear',
       'proceed:run',
+      'proceed:cancel',
       'license:get',
       'license:activate',
       'license:deactivate',
