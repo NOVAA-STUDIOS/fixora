@@ -19,6 +19,14 @@ export const SYMBOL_KIND_CAPTURES: readonly SymbolKind[] = [
   'struct',
 ];
 
+// The `(variable_declarator ... value: (call_expression arguments: (arguments (arrow_function))))`
+// patterns cover a component wrapped in exactly one higher-order call — `memo(fn)`, `forwardRef(fn)`,
+// `observer(fn)` — a common, real React shape. Measured: `export const Counter = memo(({ start }) =>
+// {...})` previously produced ZERO symbols for the whole file (the arrow function's parent is
+// `call_expression`, not `variable_declarator`, so the existing direct-value pattern never matched),
+// so `enclosingSymbol` returned `undefined` for every finding inside it — no name in the Problems
+// panel, no repair scope, weaker finding-id grounding. Deliberately narrow: exactly one level of
+// wrapping, first argument only — not a general "unwrap anything" resolver.
 export const SYMBOL_QUERIES: Record<Language, string> = {
   typescript: `
     (function_declaration name: (identifier) @function) @symbol
@@ -27,6 +35,8 @@ export const SYMBOL_QUERIES: Record<Language, string> = {
     (interface_declaration name: (type_identifier) @interface) @symbol
     (variable_declarator name: (identifier) @function value: (arrow_function)) @symbol
     (variable_declarator name: (identifier) @function value: (function_expression)) @symbol
+    (variable_declarator name: (identifier) @function value: (call_expression arguments: (arguments . (arrow_function)))) @symbol
+    (variable_declarator name: (identifier) @function value: (call_expression arguments: (arguments . (function_expression)))) @symbol
   `,
   javascript: `
     (function_declaration name: (identifier) @function) @symbol
@@ -34,6 +44,8 @@ export const SYMBOL_QUERIES: Record<Language, string> = {
     (class_declaration name: (identifier) @class) @symbol
     (variable_declarator name: (identifier) @function value: (arrow_function)) @symbol
     (variable_declarator name: (identifier) @function value: (function_expression)) @symbol
+    (variable_declarator name: (identifier) @function value: (call_expression arguments: (arguments . (arrow_function)))) @symbol
+    (variable_declarator name: (identifier) @function value: (call_expression arguments: (arguments . (function_expression)))) @symbol
   `,
   python: `
     (function_definition name: (identifier) @function) @symbol

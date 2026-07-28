@@ -33,6 +33,41 @@ function offsetToLineCol(source: string, offset: number): { line: number; column
   return { line, column: offset - lineStart + 1 };
 }
 
+/** The inverse of `offsetToLineCol`: a 1-based line/column back to a 0-based character offset. */
+function lineColToOffset(source: string, line: number, column: number): number {
+  let offset = 0;
+  let currentLine = 1;
+  while (currentLine < line) {
+    const idx = source.indexOf('\n', offset);
+    if (idx === -1) return source.length;
+    offset = idx + 1;
+    currentLine += 1;
+  }
+  return offset + (column - 1);
+}
+
+/**
+ * A trailing comma (`"a": 1,\n}`) is reported by both `JSON.parse` and tree-sitter's grammar at the
+ * token AFTER it — the closing `}`/`]` — because that is where the parser actually gave up. Measured
+ * directly: `{ "scripts": { "build": "tsc",\n  } }` locates at the `}` line, one line past the comma
+ * a developer actually needs to remove. This is correct for every OTHER shape of error (an unquoted
+ * key is genuinely wrong at its own position, not at a preceding comma), so the adjustment only fires
+ * in the one case it is provably right: the reported character is a closing bracket, and the nearest
+ * non-whitespace character before it is a comma. Anything else is left exactly where the parser said.
+ */
+function backUpToTrailingComma(
+  source: string,
+  located: { line: number; column: number },
+): { line: number; column: number } {
+  const offset = lineColToOffset(source, located.line, located.column);
+  if (source[offset] !== '}' && source[offset] !== ']') return located;
+  let i = offset - 1;
+  while (i >= 0 && /\s/.test(source[i] ?? '')) i -= 1;
+  if (i < 0 || source[i] !== ',') return located;
+  const { line, column } = offsetToLineCol(source, i);
+  return { line, column };
+}
+
 /**
  * A location from a `JSON.parse` SyntaxError message, or null if the message carries none. Node's
  * message has two shapes: an explicit "(line L column C)" / "position N" (older and structured), and a
@@ -123,7 +158,8 @@ export function createJsonAnalyzer(): Analyzer {
           // tree-sitter's JSON grammar locates it when the message only carries a context snippet.
           const located =
             locateFromMessage(raw, source) ?? (await locateWithTreeSitter(source, file.file));
-          const { line, column } = located ?? { line: 1, column: 1 };
+          const { line, column } =
+            located !== null ? backUpToTrailingComma(source, located) : { line: 1, column: 1 };
           // Strip Node's bookkeeping tails so the message reads as the defect: both the
           // "… in JSON at position N (line …)" form and the newer "…, \"<snippet>\" is not valid
           // JSON" form, which otherwise dumps a chunk of the file into the message.
