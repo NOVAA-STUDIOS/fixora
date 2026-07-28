@@ -96,6 +96,23 @@ if (!gotTheLock) {
         workspace: workspaceService,
         verification,
         history: repairHistory,
+        // Q2 Fix #2A: deterministic (`safe-auto`) repairs run in the analysis worker, the same one
+        // verification uses — `deterministicRepair` needs the ESM + tree-sitter engine that cannot
+        // load in this process. Mirrors exactly how Proceed's `resolveScope` is wired below.
+        microRepair: (input) =>
+          new Promise((resolve, reject) => {
+            verificationHost.microRepair({
+              id: `micro-${String(Date.now())}`,
+              finding: input.finding,
+              source: input.source,
+              language: input.language,
+              filePath: input.filePath,
+              onResult: resolve,
+              onError: (message) => {
+                reject(new Error(message));
+              },
+            });
+          }),
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
 

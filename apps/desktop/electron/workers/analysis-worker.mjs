@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import {
   analyzeWorkspace,
   createAnalysisContext,
+  deterministicRepair,
   detectCapabilities,
   formatGate,
   languageForPath,
@@ -49,6 +50,10 @@ port.on('message', (event) => {
   }
   if (message.type === 'resolveScope') {
     void runResolveScope(message);
+    return;
+  }
+  if (message.type === 'microRepair') {
+    void runMicroRepair(message);
   }
 });
 
@@ -74,6 +79,22 @@ async function runResolveScope({
       ...(selectionEndLine !== undefined ? { selectionEndLine } : {}),
     });
     port.postMessage({ type: 'scopeResult', jobId, scope });
+  } catch (error) {
+    port.postMessage({ type: 'error', jobId, message: String(error) });
+  }
+}
+
+/**
+ * Deterministic micro-repair (Q2 Fix #2A). Same reasoning as `runResolveScope`: `deterministicRepair`
+ * depends on the ESM + tree-sitter-WASM engine, so it runs here rather than in main. This is the
+ * engine's own `deterministicRepair` (ESLint/Ruff's own autofix, re-parsed for the parser gate) —
+ * nothing about the fix itself is reimplemented on the main side. `result` is `null` when the finding
+ * has no autofix or the edits could not be applied cleanly; that is a normal outcome, not an error.
+ */
+async function runMicroRepair({ jobId, finding, source, language, filePath }) {
+  try {
+    const result = await deterministicRepair({ finding, source, language, filePath });
+    port.postMessage({ type: 'microRepairResult', jobId, result });
   } catch (error) {
     port.postMessage({ type: 'error', jobId, message: String(error) });
   }

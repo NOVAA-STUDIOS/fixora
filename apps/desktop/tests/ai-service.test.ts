@@ -63,6 +63,7 @@ function deps(overrides: {
   provider: AIProvider;
   readFile?: () => string;
   finding?: Finding;
+  microRepair?: AiServiceDeps['microRepair'];
 }): AiServiceDeps {
   const keyStore = {
     getKey: () => (overrides.hasKey === false ? null : 'sk-or-test'),
@@ -117,6 +118,9 @@ function deps(overrides: {
     history,
     providerFactory: () => overrides.provider,
     readFile: overrides.readFile ?? (() => overrides.fileContent ?? CLEAN_FILE),
+    // Real deps route this through the analysis worker (Q2 Fix #2A); the default here answers "no
+    // autofix" so tests that don't care about deterministic repair are unaffected.
+    microRepair: overrides.microRepair ?? (() => Promise.resolve(null)),
   };
 }
 
@@ -163,6 +167,200 @@ describe('AI service (BYOK run orchestration)', () => {
     expect(result.proposal.verification.verdict).toBe('verified');
     expect(result.proposal.originalCode).toBe('ORIGINAL_SYMBOL_TEXT');
     expect(result.proposal.historyId).toBe('history-1');
+  });
+
+  // Q2 Fix #2A: deterministic (`safe-auto`) repair routing. A tool-authored autofix (ESLint's `fix`,
+  // Ruff's edits) needs no model — `evaluateRepairEligibility` already computes `method:
+  // 'deterministic'` for it. Fix #2 proved a DIRECT import of `deterministicRepair`
+  // (`@fixora/core-analysis`, pure ESM + tree-sitter/WASM) into this CJS main process crashes the app
+  // (`require()` on an ESM package throws `ERR_REQUIRE_ESM` — confirmed via a real `electron-vite
+  // build`). Fix #2A instead routes through the SAME worker-boundary seam `resolveScope` uses
+  // (`AiServiceDeps.microRepair`, backed in production by `AnalysisHost.microRepair` → the worker's
+  // own `deterministicRepair` call) — never duplicated here.
+  describe('deterministic (safe-auto) repair', () => {
+    function deterministicFinding(): Finding {
+      const target = "'hi ' + name";
+      const start = CLEAN_FILE.indexOf(target);
+      return {
+        ...makeFinding(),
+        repair: 'safe-auto',
+        fixable: true,
+        autofix: {
+          source: 'eslint',
+          edits: [{ range: [start, start + target.length], text: '`hi ${name}`' }],
+        },
+      };
+    }
+
+    function noProviderCall(): { provider: AIProvider; called: () => boolean } {
+      let called = false;
+      return {
+        called: () => called,
+        provider: {
+          id: 'fake',
+          capabilities: { structuredOutput: true, maxContext: 100 },
+          stream() {
+            called = true;
+            return (async function* () {})();
+          },
+        },
+      };
+    }
+
+    it('executes through the injected worker seam and never calls the AI provider', async () => {
+      const { provider, called } = noProviderCall();
+      const finding = deterministicFinding();
+      const microRepairCalls: unknown[] = [];
+      const service = createAiService(
+        deps({
+          provider,
+          finding,
+          microRepair: (input) => {
+            microRepairCalls.push(input);
+            return Promise.resolve({
+              patched: 'export function greet(name: string): string {\n  return `hi ${name}`;\n}\n',
+              edits: finding.autofix?.edits ?? [],
+              parseOk: true,
+              source: 'eslint',
+            });
+          },
+        }),
+      );
+      const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+      expect(called()).toBe(false); // provider call count = 0
+      expect(microRepairCalls).toEqual([
+        {
+          finding,
+          source: CLEAN_FILE,
+          language: 'typescript',
+          filePath: 'src/greet.ts',
+        },
+      ]);
+      expect(result.status).toBe('ok');
+      if (result.status !== 'ok' || result.proposal.profile !== 'repair')
+        throw new Error('expected repair');
+      expect(result.proposal.repairedCode).toContain('`hi ${name}`');
+      expect(result.proposal.confidence).toBe(1);
+    });
+
+    it('routes the repaired code through the SAME verification gate the AI path uses', async () => {
+      const { provider } = noProviderCall();
+      const verifyCalls: unknown[] = [];
+      const patched = 'export function greet(name: string): string {\n  return `hi ${name}`;\n}\n';
+      const withSpy = deps({
+        provider,
+        finding: deterministicFinding(),
+        microRepair: () =>
+          Promise.resolve({ patched, edits: [], parseOk: true, source: 'eslint' as const }),
+      });
+      const realVerify = withSpy.verification.verify.bind(withSpy.verification);
+      withSpy.verification.verify = (input) => {
+        verifyCalls.push(input);
+        return realVerify(input);
+      };
+      const service = createAiService(withSpy);
+      const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+      expect(verifyCalls).toHaveLength(1); // never skipped
+      expect((verifyCalls[0] as { repairedCode: string }).repairedCode).toBe(patched);
+      expect(result.status).toBe('ok');
+      if (result.status !== 'ok' || result.proposal.profile !== 'repair')
+        throw new Error('expected repair');
+      expect(result.proposal.verification.verdict).toBe('verified');
+    });
+
+    it('a regression verdict is carried through, never silently upgraded to verified', async () => {
+      const { provider } = noProviderCall();
+      const regressingDeps = deps({
+        provider,
+        finding: deterministicFinding(),
+        microRepair: () =>
+          Promise.resolve({
+            patched: 'export function greet(name: string): string {\n  return `hi ${name}`;\n}\n',
+            edits: [],
+            parseOk: true,
+            source: 'eslint',
+          }),
+      });
+      regressingDeps.verification.verify = () =>
+        Promise.resolve({
+          report: {
+            verdict: 'regression',
+            targetResolved: true,
+            newFindingCount: 1,
+            syntaxOk: true,
+            ran: ['syntax', 'eslint'],
+            note: 'The edit introduces 1 new problem(s).',
+          },
+          originalCode: 'ORIGINAL_SYMBOL_TEXT',
+        });
+      const service = createAiService(regressingDeps);
+      const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+      // Still `status: 'ok'` — same contract the AI path uses (ai-panel.tsx's client-side apply gate
+      // disables Apply on a regression verdict; the service never fabricates a passing verdict).
+      expect(result.status).toBe('ok');
+      if (result.status !== 'ok' || result.proposal.profile !== 'repair')
+        throw new Error('expected repair');
+      expect(result.proposal.verification.verdict).toBe('regression');
+    });
+
+    it('a null result (edits could not be applied) is a typed failure, never falls through to AI', async () => {
+      const { provider, called } = noProviderCall();
+      const service = createAiService(
+        deps({
+          provider,
+          finding: deterministicFinding(),
+          microRepair: () => Promise.resolve(null),
+        }),
+      );
+      const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+      expect(called()).toBe(false);
+      expect(result.status).toBe('error');
+      if (result.status === 'error') {
+        expect(result.code).toBe('not_found');
+        expect(result.message).toContain('could not be applied safely');
+      }
+    });
+
+    it('a patch that fails the parser gate (parseOk: false) is a typed failure, never applied', async () => {
+      const { provider, called } = noProviderCall();
+      const service = createAiService(
+        deps({
+          provider,
+          finding: deterministicFinding(),
+          microRepair: () =>
+            Promise.resolve({
+              patched: 'export function greet(',
+              edits: [],
+              parseOk: false,
+              source: 'eslint',
+            }),
+        }),
+      );
+      const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+      expect(called()).toBe(false);
+      expect(result.status).toBe('error');
+      if (result.status === 'error') expect(result.code).toBe('not_found');
+    });
+
+    it('a worker failure (rejected promise — timeout/crash) is a typed failure, not a throw or a fallback to AI', async () => {
+      const { provider, called } = noProviderCall();
+      const service = createAiService(
+        deps({
+          provider,
+          finding: deterministicFinding(),
+          microRepair: () => Promise.reject(new Error('Deterministic repair timed out.')),
+        }),
+      );
+      const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+      expect(called()).toBe(false);
+      expect(result.status).toBe('error');
+      if (result.status === 'error') {
+        expect(result.code).toBe('not_found');
+        expect(result.message.toLowerCase()).not.toContain('internal error');
+      }
+    });
   });
 
   it('refuses a manual-only finding BEFORE any provider call, with the precise reason (P0.1 Part 2)', async () => {
@@ -213,6 +411,28 @@ describe('AI service (BYOK run orchestration)', () => {
     const service = createAiService(deps({ provider }));
     const result = await service.run({ profile: 'explain', findingId: 'find-1' }, null);
     expect(result).toMatchObject({ status: 'error', code: 'provider_error' });
+  });
+
+  // Q2 (Repair Reliability): `retryable` used to be computed by the shared `describeProviderFailure`
+  // classifier and then thrown away here — Proceed exposed it (P2.2.1), Repair didn't, so the same
+  // 429 offered a Retry affordance in one panel and not the other. These pin that the classifier's
+  // `retryable` verdict now survives all the way out to `AiRunResponse`, for both directions.
+  it('a retryable provider failure (429) carries retryable: true through to AiRunResponse', async () => {
+    const provider = scriptedProvider([
+      [{ type: 'error', retryable: true, providerCode: 'HTTP_429', message: 'rate limited' }],
+    ]);
+    const service = createAiService(deps({ provider }));
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    expect(result).toMatchObject({ status: 'error', code: 'provider_error', retryable: true });
+  });
+
+  it('a non-retryable provider failure (401) carries retryable: false through to AiRunResponse', async () => {
+    const provider = scriptedProvider([
+      [{ type: 'error', retryable: false, providerCode: 'HTTP_401', message: 'bad key' }],
+    ]);
+    const service = createAiService(deps({ provider }));
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    expect(result).toMatchObject({ status: 'error', code: 'provider_error', retryable: false });
   });
 
   it('re-asks once on a schema violation, then succeeds', async () => {

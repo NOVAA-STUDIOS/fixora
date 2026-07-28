@@ -45,10 +45,15 @@ type AiState = {
   proposal: AiProposal | null;
   blocked: readonly GateMatchInfo[] | null;
   errorMessage: string | null;
+  /** True when the failure could plausibly succeed on a retry (quota reset, provider blip). Mirrors
+   *  Proceed's `retryable` (P2.2.1) so the two panels behave consistently for the same failure. */
+  retryable: boolean;
   /** The last apply attempt, in full. Rendered by the diagnostics panel; never persisted. */
   lastApplyAttempt: ApplyAttempt | null;
 
   run: (profile: TaskProfile, findingId: string) => Promise<void>;
+  /** Re-run the last attempted profile/finding — Proceed's Retry, mirrored for Repair/Explain/Test. */
+  retry: () => Promise<void>;
   cancel: () => Promise<void>;
   /** Apply the current repair proposal to the file on disk. Returns true on success. */
   applyRepair: () => Promise<boolean>;
@@ -101,6 +106,7 @@ export const useAiStore = create<AiState>((set, get) => ({
   proposal: null,
   blocked: null,
   errorMessage: null,
+  retryable: false,
 
   run: async (profile, findingId) => {
     set({
@@ -111,11 +117,14 @@ export const useAiStore = create<AiState>((set, get) => ({
       proposal: null,
       blocked: null,
       errorMessage: null,
+      retryable: false,
     });
 
     const result = await invoke('ai:run', { profile, findingId });
     if (!result.ok) {
-      set({ status: 'error', errorMessage: result.error.message });
+      // Transport failure between renderer and main — a UI-layer failure, retryable by nature (same
+      // treatment Proceed gives the equivalent case).
+      set({ status: 'error', errorMessage: result.error.message, retryable: true });
       return;
     }
     const response = result.value;
@@ -124,8 +133,18 @@ export const useAiStore = create<AiState>((set, get) => ({
     } else if (response.status === 'blocked') {
       set({ status: 'blocked', blocked: response.matches });
     } else {
-      set({ status: 'error', errorMessage: response.message });
+      set({
+        status: 'error',
+        errorMessage: response.message,
+        retryable: response.retryable === true,
+      });
     }
+  },
+
+  retry: async () => {
+    const { activeProfile, activeFindingId, run } = get();
+    if (activeProfile === null || activeFindingId === null) return;
+    await run(activeProfile, activeFindingId);
   },
 
   cancel: async () => {
@@ -223,6 +242,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       proposal: null,
       blocked: null,
       errorMessage: null,
+      retryable: false,
     });
   },
 
