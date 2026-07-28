@@ -45,9 +45,11 @@ export function AiPanel(): React.JSX.Element {
   const proposal = useAiStore((s) => s.proposal);
   const blocked = useAiStore((s) => s.blocked);
   const errorMessage = useAiStore((s) => s.errorMessage);
+  const retryable = useAiStore((s) => s.retryable);
   const configured = useAiStore((s) => s.config?.configured ?? false);
   const cancel = useAiStore((s) => s.cancel);
   const dismiss = useAiStore((s) => s.dismiss);
+  const retry = useAiStore((s) => s.retry);
   const loadConfig = useAiStore((s) => s.loadConfig);
   const listen = useAiStore((s) => s.listen);
 
@@ -117,9 +119,19 @@ export function AiPanel(): React.JSX.Element {
           )}
 
           {status === 'error' && errorMessage !== null && (
-            // overflow-wrap:anywhere, not break-words: a provider error can contain a bare URL,
-            // which has no break opportunity and would otherwise force the pane to scroll sideways.
-            <p className="text-danger-text [overflow-wrap:anywhere]">{errorMessage}</p>
+            <div className="flex flex-col items-start gap-2">
+              {/* overflow-wrap:anywhere, not break-words: a provider error can contain a bare URL,
+                  which has no break opportunity and would otherwise force the pane to scroll sideways. */}
+              <p className="text-danger-text [overflow-wrap:anywhere]">{errorMessage}</p>
+              {/* Mirrors Proceed's Retry (P2.2.1): shown only when the same failure classifier says
+                  this could plausibly succeed again — quota reset, provider blip — never for a
+                  deterministic refusal like a missing key or an unsupported file. */}
+              {retryable && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => void retry()}>
+                  Retry
+                </Button>
+              )}
+            </div>
           )}
 
           {/* overflow-wrap:anywhere as well as pre-wrap: pre-wrap breaks at whitespace, and model

@@ -1,4 +1,4 @@
-import type { EditScope } from '@fixora/core-analysis';
+import type { EditScope, MicroRepairResult } from '@fixora/core-analysis';
 import type { Finding, Language } from '@fixora/shared-types';
 import { utilityProcess, type UtilityProcess } from 'electron';
 
@@ -74,6 +74,25 @@ export interface ResolveScopeJob {
   onError: (message: string) => void;
 }
 
+/**
+ * Deterministic micro-repair (Q2 Fix #2A). A tool-authored autofix (ESLint's `fix`, Ruff's edits) is
+ * applied and re-parsed here, in the worker, because `deterministicRepair` — like `resolveEditScope`
+ * before it — depends on the ESM + tree-sitter-WASM engine that cannot load in Electron's CJS main
+ * process (confirmed by a real build: `require("@fixora/core-analysis")` in main throws
+ * `ERR_REQUIRE_ESM`). Main never re-implements the fix; it only asks the worker to run the SAME
+ * `deterministicRepair` the engine already ships.
+ */
+export interface MicroRepairJob {
+  id: string;
+  finding: Finding;
+  source: string;
+  language: Language;
+  filePath: string;
+  timeoutMs?: number;
+  onResult: (result: MicroRepairResult | null) => void;
+  onError: (message: string) => void;
+}
+
 type ActiveJob =
   | {
       kind: 'analyze';
@@ -96,11 +115,20 @@ type ActiveJob =
       timer: NodeJS.Timeout;
       onResult: ResolveScopeJob['onResult'];
       onError: ResolveScopeJob['onError'];
+    }
+  | {
+      kind: 'microRepair';
+      id: string;
+      timer: NodeJS.Timeout;
+      onResult: MicroRepairJob['onResult'];
+      onError: MicroRepairJob['onError'];
     };
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 /** Scope selection is one parse of one file — seconds, not minutes. A stall here must not hang the UI. */
 const SCOPE_TIMEOUT_MS = 30_000;
+/** A micro-repair is one edit-apply + one re-parse of a single file — same order of cost as scope selection. */
+const MICRO_REPAIR_TIMEOUT_MS = 30_000;
 
 /** A message from the worker — validated structurally before use (it crosses a process boundary). */
 type WorkerMessage =
@@ -116,7 +144,29 @@ type WorkerMessage =
       aborted: boolean;
     }
   | { type: 'scopeResult'; jobId: string; scope: EditScope }
+  | { type: 'microRepairResult'; jobId: string; result: MicroRepairResult | null }
   | { type: 'error'; jobId: string; message: string };
+
+/** `null` means "no autofix could be applied cleanly" — a valid, expected outcome, not a shape error. */
+function asMicroRepairResult(value: unknown): MicroRepairResult | null {
+  if (value === null || typeof value !== 'object') return null;
+  const r = value as Record<string, unknown>;
+  if (typeof r['patched'] !== 'string' || typeof r['parseOk'] !== 'boolean') return null;
+  if (typeof r['source'] !== 'string' || !Array.isArray(r['edits'])) return null;
+  const edits = r['edits'].filter(
+    (e): e is { range: [number, number]; text: string } =>
+      typeof e === 'object' &&
+      e !== null &&
+      Array.isArray((e as Record<string, unknown>)['range']) &&
+      typeof (e as Record<string, unknown>)['text'] === 'string',
+  );
+  return {
+    patched: r['patched'],
+    parseOk: r['parseOk'],
+    source: r['source'] as MicroRepairResult['source'],
+    edits,
+  };
+}
 
 function asWorkerMessage(value: unknown): WorkerMessage | null {
   if (typeof value !== 'object' || value === null) return null;
@@ -185,6 +235,9 @@ function asWorkerMessage(value: unknown): WorkerMessage | null {
       },
     };
   }
+  if (m['type'] === 'microRepairResult') {
+    return { type: 'microRepairResult', jobId: String(m['jobId']), result: asMicroRepairResult(m['result']) };
+  }
   if (m['type'] === 'done')
     return { type: 'done', jobId: String(m['jobId']), aborted: m['aborted'] === true };
   if (m['type'] === 'error')
@@ -197,6 +250,8 @@ export interface AnalysisHost {
   verify(job: VerifyJob): void;
   /** Proceed Mode: ask the worker for the smallest enclosing edit scope (tree-sitter lives there). */
   resolveScope(job: ResolveScopeJob): void;
+  /** Q2 Fix #2A: apply a tool-authored autofix in the worker, where `deterministicRepair` lives. */
+  microRepair(job: MicroRepairJob): void;
   cancel(): void;
   dispose(): void;
 }
@@ -233,6 +288,13 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
       if (message.type === 'scopeResult') {
         finish(job);
         job.onResult(message.scope);
+      }
+      return;
+    }
+    if (job.kind === 'microRepair') {
+      if (message.type === 'microRepairResult') {
+        finish(job);
+        job.onResult(message.result);
       }
       return;
     }
@@ -346,6 +408,34 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
         filePath: job.filePath,
         selectionStartLine: job.selectionStartLine,
         ...(job.selectionEndLine !== undefined ? { selectionEndLine: job.selectionEndLine } : {}),
+      });
+    },
+
+    microRepair(job: MicroRepairJob): void {
+      this.cancel();
+      const child = ensureWorker();
+      const timer = setTimeout(() => {
+        const stalled = active;
+        kill();
+        if (stalled !== null) {
+          active = null;
+          stalled.onError('Deterministic repair timed out.');
+        }
+      }, job.timeoutMs ?? MICRO_REPAIR_TIMEOUT_MS);
+      active = {
+        kind: 'microRepair',
+        id: job.id,
+        timer,
+        onResult: job.onResult,
+        onError: job.onError,
+      };
+      child.postMessage({
+        type: 'microRepair',
+        jobId: job.id,
+        finding: job.finding,
+        source: job.source,
+        language: job.language,
+        filePath: job.filePath,
       });
     },
 

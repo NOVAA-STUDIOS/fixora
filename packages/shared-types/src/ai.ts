@@ -416,6 +416,11 @@ export const AiRunResponseSchema = z.discriminatedUnion('status', [
       'internal_error',
     ]),
     message: z.string(),
+    // Mirrors ProceedOutcome's error variant (P2.2.1): whether the same request could plausibly
+    // succeed on a retry (quota reset, provider blip). Optional/absent for codes that were never
+    // classified by the provider-failure pipeline (e.g. `no_key`, `not_found`), which are not
+    // meaningfully "retryable" in the first place.
+    retryable: z.boolean().optional(),
   }),
 ]);
 export type AiRunResponse = z.infer<typeof AiRunResponseSchema>;

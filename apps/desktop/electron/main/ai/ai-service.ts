@@ -15,8 +15,9 @@ import {
   type ProviderMessage,
   type ProviderRequest,
 } from '@fixora/core-ai';
+import type { MicroRepairResult } from '@fixora/core-analysis';
 import { isUserFacingError } from '@fixora/shared-types';
-import type { AiRunRequest, AiRunResponse, Language } from '@fixora/shared-types';
+import type { AiRunRequest, AiRunResponse, Finding, Language } from '@fixora/shared-types';
 import { app, type BrowserWindow } from 'electron';
 
 import type { FindingsRepository, RepairHistoryRepository } from '../db/repositories.js';
@@ -66,6 +67,18 @@ export interface AiServiceDeps {
   providerFactory?: (key: string) => AIProvider;
   /** Injected for tests; defaults to the path-guarded, secret-denylisted reader. */
   readFile?: (rootPath: string, relPath: string) => string;
+  /**
+   * Q2 Fix #2A: apply a tool-authored autofix (ESLint's `fix`, Ruff's edits) for a `safe-auto`
+   * finding. Routed through the analysis worker — same reason `resolveScope` is — because
+   * `deterministicRepair` depends on the ESM + tree-sitter-WASM engine, which cannot load in this
+   * (CJS) process. Required, not defaulted: there is no safe in-main implementation to fall back to.
+   */
+  microRepair: (input: {
+    finding: Finding;
+    source: string;
+    language: Language;
+    filePath: string;
+  }) => Promise<MicroRepairResult | null>;
   appMeta?: { url?: string; name?: string };
 }
 
@@ -74,7 +87,9 @@ export interface AiService {
   cancel(): void;
 }
 
-type StreamResult = { ok: true; text: string } | { ok: false; message: string };
+type StreamResult =
+  | { ok: true; text: string }
+  | { ok: false; message: string; retryable: boolean };
 
 interface Target {
   symbolName: string | null;
@@ -135,15 +150,14 @@ export function createAiService(deps: AiServiceDeps): AiService {
         });
         // Classified, not echoed (P2.2.1). The raw string — "429 Too Many Requests — Rate limit
         // exceeded: free-models-per-day…" — is correct for the log above and useless in a panel.
-        // Repair and Proceed share this classifier so they can never disagree about what a 429 means.
-        return {
-          ok: false,
-          message: describeProviderFailure({
-            providerCode: event.providerCode,
-            detail: event.message,
-            retryable: event.retryable,
-          }).message,
-        };
+        // Repair and Proceed share this classifier so they can never disagree about what a 429 means,
+        // or whether it's worth retrying.
+        const failure = describeProviderFailure({
+          providerCode: event.providerCode,
+          detail: event.message,
+          retryable: event.retryable,
+        });
+        return { ok: false, message: failure.message, retryable: failure.retryable };
       }
     }
     return { ok: true, text };
@@ -204,6 +218,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
       // (Part 4), never on the workspace. Model capability is enforced downstream by the provider/
       // schema path, so here it is not pre-judged (repairCapable: true); the language and manual-rule
       // decisions ARE final and short-circuit with the engine's exact reason, never a generic one.
+      let repairMethod: 'deterministic' | 'ai' | null = null;
       if (request.profile === 'repair') {
         const eligibility = evaluateRepairEligibility({
           language,
@@ -221,6 +236,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
           });
           return { status: 'error', code: 'not_found', message: eligibility.reason };
         }
+        repairMethod = eligibility.method;
       }
 
       let content: string;
@@ -240,6 +256,93 @@ export function createAiService(deps: AiServiceDeps): AiService {
           message,
         });
         return { status: 'error', code: 'not_found', message };
+      }
+
+      // Deterministic micro-repair (Q2 Fix #2A): a tool-authored autofix (finding.repair ===
+      // 'safe-auto') needs no model at all — `evaluateRepairEligibility` already computes
+      // `method: 'deterministic'` for it. Runs `deterministicRepair` in the analysis worker (Q2 Fix
+      // #2 proved a direct import of `@fixora/core-analysis` into this CJS main process throws
+      // `ERR_REQUIRE_ESM`), then feeds the result through the SAME `verify()` gate and `AiProposal`
+      // shape the AI path uses below — nothing downstream (history, the client-side apply gate, the
+      // UI) needs to know a model was never called. Never falls through to AI on failure: a
+      // `safe-auto` finding's repairability was decided by the analyzer, not by whether the model
+      // pipeline happens to be reachable, so a failure here is a typed refusal, not a silent retry
+      // with a different (unproven, unrequested) strategy.
+      if (request.profile === 'repair' && repairMethod === 'deterministic') {
+        let micro: MicroRepairResult | null;
+        try {
+          micro = await deps.microRepair({
+            finding,
+            source: content,
+            language,
+            filePath: finding.location.file,
+          });
+        } catch (error) {
+          // A worker timeout/crash is a transport failure, not a verdict on the fix — typed the same
+          // way every other failure in this block is, so the caller never has to distinguish "the
+          // repair was unsafe" from "the process that would have computed it died".
+          console.error('[ai:run] deterministic repair worker failed', {
+            ruleId: finding.ruleId,
+            message: error instanceof Error ? error.message : String(error),
+          });
+          return {
+            status: 'error',
+            code: 'not_found',
+            message: `The automatic fix for ${finding.ruleId} could not be computed right now. Re-run analysis and try again.`,
+          };
+        }
+        if (!micro?.parseOk) {
+          console.error('[ai:run] deterministic repair could not be applied cleanly', {
+            ruleId: finding.ruleId,
+            hasAutofix: finding.autofix !== undefined,
+            parseOk: micro?.parseOk ?? null,
+          });
+          return {
+            status: 'error',
+            code: 'not_found',
+            message: `The automatic fix for ${finding.ruleId} could not be applied safely to this file.`,
+          };
+        }
+        const lineCount = content.split(/\r?\n/).length;
+        const { report, originalCode } = await deps.verification.verify({
+          finding,
+          repairedCode: micro.patched,
+          target: { file: finding.location.file, startLine: 1, endLine: lineCount, language },
+          workspaceRoot: workspace.rootPath,
+          originalContent: content,
+          originalFindings: deps.findings.list(workspace.id, { relPath: finding.location.file }),
+        });
+        const rationale = `Applied ${micro.source}'s own fix for ${finding.ruleId} — no model was used.`;
+        const historyId = deps.history.record({
+          workspaceId: workspace.id,
+          findingId: finding.id,
+          relPath: finding.location.file,
+          symbolName: null,
+          ruleId: finding.ruleId,
+          source: finding.source,
+          verdict: report.verdict,
+          rationale,
+          originalCode,
+          repairedCode: micro.patched,
+          model: null,
+          confidence: 1,
+          startLine: 1,
+          endLine: lineCount,
+        });
+        if (window !== null) emitToWindow(window, 'ai:runState', { status: 'done' });
+        return {
+          status: 'ok',
+          proposal: {
+            profile: 'repair',
+            historyId,
+            repairedCode: micro.patched,
+            originalCode,
+            rationale,
+            confidence: 1,
+            target: { file: finding.location.file, startLine: 1, endLine: lineCount, symbolName: null },
+            verification: report,
+          },
+        };
       }
 
       // The repair target is the smallest self-contained AST scope the analyzer resolved for this
@@ -411,7 +514,12 @@ export function createAiService(deps: AiServiceDeps): AiService {
         if (!stream.ok) {
           if (window !== null)
             emitToWindow(window, 'ai:runState', { status: 'error', message: stream.message });
-          return { status: 'error', code: 'provider_error', message: stream.message };
+          return {
+            status: 'error',
+            code: 'provider_error',
+            message: stream.message,
+            retryable: stream.retryable,
+          };
         }
 
         let response = await finalize(stream.text);

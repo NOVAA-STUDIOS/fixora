@@ -290,7 +290,27 @@ async function main(): Promise<number> {
       } as unknown as RepairHistoryRepository;
 
       // No providerFactory: the default is the real OpenRouter adapter.
-      const ai = createAiService({ keyStore, findings, workspace, verification, history });
+      const ai = createAiService({
+        keyStore,
+        findings,
+        workspace,
+        verification,
+        history,
+        microRepair: (input) =>
+          new Promise((resolve, reject) => {
+            host.microRepair({
+              id: `micro-${String(Date.now())}`,
+              finding: input.finding,
+              source: input.source,
+              language: input.language,
+              filePath: input.filePath,
+              onResult: resolve,
+              onError: (message) => {
+                reject(new Error(message));
+              },
+            });
+          }),
+      });
       const response = await ai.run({ profile: 'repair', findingId: finding.id } as never, null);
 
       const proposal = (response as { proposal?: Record<string, unknown> }).proposal;
