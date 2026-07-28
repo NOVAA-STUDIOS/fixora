@@ -1,5 +1,10 @@
 # Fixora — Milestone Roadmap
 
+> **This is the original blueprint, kept as historical record — it is not updated for current status.**
+> It predates the 2026-07-16 BYOK-first pivot (M4's managed-backend/auth scope was subsequently deferred
+> to v1.1) and predates all work after the `v0.9.0-beta.1` tag (Proceed Mode, and the H1→Q3 reliability
+> sequence). For current, authoritative project state, see [PROJECT_STATUS.md](../PROJECT_STATUS.md).
+
 Sequencing rule: **a demonstrable, sellable product must exist by M7.** Everything after that is
 monetisation and expansion. One milestone at a time; each requires explicit approval before starting.
 

@@ -9,6 +9,80 @@ Updated after every milestone. Newest milestone first.
 
 ---
 
+## Proceed Mode + reliability sequence (H1→Q3), branch `sprint-1/ui-stability` (2026-07-27)
+
+Built after `v0.9.0-beta.1` was tagged; unreleased. Two parts: a new editing pipeline (Proceed Mode),
+then four reliability/validation sprints (H1, Q1, Q2, Q3) run with the same audit-then-fix discipline as
+the M0–M3 milestone reviews — one confirmed, reproduced defect at a time, smallest safe fix, regression
+test, re-verify gates, human validation in the running app before calling anything closed.
+
+### Proceed Mode reuses the Repair engine's verification — it does not fork it
+
+The temptation with a second editing mode is a second verification path. Instead `computeVerdict` gained
+one parameter, `target: Finding | null` — `null` means "edit mode: no finding to resolve, so the verdict
+reduces to does it parse and introduce no new problems." The Repair call site is byte-identical to
+before. One verifier, two callers, proven by the same test suite passing for both. The lesson generalises
+from M3's "verify the workflow the user actually runs": when a second feature needs the guarantees the
+first one already built, extend the primitive's parameter space before considering a fork.
+
+### Q3 established four guarantees worth carrying into any future editing feature
+
+- **Question-intent refusal.** A classifier can produce a category ("explanation") without every caller
+  correctly treating it as non-actionable. The lesson: an intent classifier's output types are not
+  self-enforcing — every consumer of "what kind of instruction is this" must be audited for the refusal
+  branch, not just the happy-path branches. (`packages/core-ai/src/edit/intent.ts` classifies
+  `explanation`; `proceed-service.ts`'s `run()` is what has to act on it.)
+- **Proposal/file scoping.** A preview generated for file A must stop being acceptable the instant the
+  user's active editor tab moves to file B — otherwise Accept can silently write to a file the user is no
+  longer looking at. Enforced via a `useEditorStore.subscribe()` callback in `proceed-store.ts` that
+  invalidates a pending preview on tab change, plus a same-file guard checked again when the async
+  response actually lands (closing the race where the user switches tabs _while the request is still in
+  flight_). The general lesson: any async proposal keyed to "the user's current context" needs the check
+  re-run at delivery time, not just at request time — context can move in between.
+- **Immutable Retry replay.** Retry must replay the _exact_ failed request, never reconstruct one from
+  live editor state (cursor, selection, active tab) at the moment Retry is clicked. The fix: capture the
+  full request object at send-time into store state; Retry resends that captured object, untouched. This
+  generalises: any "try that again" action needs its own snapshot of the original inputs — "re-run with
+  current state" and "re-run what actually failed" are different operations that look identical until a
+  user moves the cursor between the failure and the click.
+- **Real in-flight cancellation, with a staleness token.** Cancel must reach the actual in-flight
+  operation (an `AbortController`, mirrored from Repair's already-proven `ai:cancel` pattern — one
+  `active` controller held at IPC-registration scope, aborted and replaced on every new request), not
+  just reset local UI state. Beyond that, a renderer-side monotonic `requestToken` — bumped by both
+  Cancel and every new request — silently discards any result a superseded request resolves with later
+  (a cancelled request's late reply, or an overtaken retry). The lesson: cancellation has two halves that
+  are both required — stopping the operation, and discarding whatever it produces anyway if stopping
+  didn't win the race.
+
+### A data-integrity incident that hardening could close without finding the cause (BUG-002)
+
+A test file was reduced to 60 bytes, every byte `0x00`, after an ordinary Proceed→Accept — reproducible
+once, then not reproducible again across 8 varied controlled attempts (rapid repetition, CRLF/LF, a
+concurrent editor with autosave, a UI double-click race, antivirus interference, duplicate processes —
+each checked with real evidence, not assumed). **The important lesson is procedural, not technical:** a
+serious incident that cannot be reproduced is not the same as a false alarm, and it is not something a
+fix should be invented for on speculation. The correct response when the mechanism is unknown is a
+**root-cause-agnostic invariant** — `verifyWrittenFile()` reads every write back and refuses to report
+success if the bytes on disk don't match what was intended, regardless of what would have caused a
+mismatch. This makes the _failure mode_ safe (loud and refused) without requiring the _cause_ to be
+known, and it is intentionally the one place all three write paths (Repair apply, Proceed accept, manual
+Save) converge — `writeTextFile` — so one guard covers all of them. Deliberately **no automatic
+rollback**: a single read-back cannot distinguish "our own bug" from "a legitimate concurrent external
+edit landed in the same window," and guessing wrong would destroy real work. BUG-002 stays open,
+recorded in `docs/BUGLOG.md`, with temporary diagnostic instrumentation left active on purpose.
+
+### Sequence and status, for anyone picking this branch back up
+
+H1 (human validation) → Q1 (analyzer accuracy, 4 defects fixed) → Q2 (repair reliability, 2 fixes) → Q3
+(Proceed stabilization, 4 defects fixed) → **Q3 formally frozen 2026-07-27** after all four defects passed
+both automated gates and a 10-item human-validation checklist run against the real app. BUG-002 (open,
+non-reproducible) and BUG-003 (`acceptance-scale.test.ts` flaking under parallel load, test-infra not app)
+are both tracked separately and did not block the freeze. **No further `sprint-1/ui-stability` scope is
+documented anywhere in this repo** — if there was more intended for this branch, it exists only outside
+these files.
+
+---
+
 ## Beta pivot + Beta-M5 — Verified AI Repair, BYOK (2026-07-17)
 
 ### The pivot: BYOK deletes the server from the critical path
