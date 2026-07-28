@@ -24,6 +24,15 @@ Stripe, or publish step has been performed for any of this.
   Accept, and manual Save all go through) now reads every write back and refuses — with a clear,
   actionable error — if the on-disk bytes don't match what was intended, instead of silently reporting
   success.
+- **Suggestion System (Sprint F1) — COMPLETE.** A local-first feedback channel: category selector,
+  auto-resizing message editor with a character counter, validation, submit loading state, a
+  thank-you confirmation, SQLite-backed history, and export to JSON. Two ways to send a suggestion to
+  Fixora: **Email to Fixora** (a pure `buildShareEmail()` formatter + a reusable, cross-platform
+  `MailService` that pre-checks for a registered `mailto:` handler before ever calling
+  `shell.openExternal`) and, when no mail client is detected, a **Gmail Web fallback** dialog (Open
+  Gmail / Copy Email Address / Copy Subject / Copy Message). The email body includes the category,
+  message, app version, OS, the current **workspace name** (or `Workspace: None`), and a
+  **timestamp**.
 
 ### Fixed
 
@@ -39,6 +48,13 @@ Stripe, or publish step has been performed for any of this.
 - A Repair reliability defect (Q2): deterministic (`safe-auto`) repairs were silently routed through the
   AI pipeline instead of the existing, already-tested `deterministicRepair()` — now routed correctly
   through a worker job mirroring the existing scope-resolution pattern.
+- **BUG-F1-EMAIL-001** — "Email to Fixora" did nothing (no mail client opened, no error, no feedback).
+  Two compounding causes: `shell.openExternal` was called with `void` (a rejection was silently
+  discarded), and even once awaited, `shell.openExternal` can *resolve* with nothing actually opening.
+  Fixed by awaiting/rethrowing plus a pre-send handler-presence check (Windows registry / macOS
+  LaunchServices / Linux xdg-mime) that reports `no_mail_client` before ever calling
+  `shell.openExternal`.
+- Navigation rail category labels no longer clip (`leading-none` → `leading-tight`).
 
 ### Known issues
 

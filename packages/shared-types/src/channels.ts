@@ -59,6 +59,18 @@ export const channels = [
   'license:get',
   'license:activate',
   'license:deactivate',
+  // Sprint F1: the Suggestion System. Local-only — no channel here ever leaves the machine except
+  // through the explicit, user-initiated 'suggestions:export'.
+  'suggestions:submit',
+  'suggestions:list',
+  'suggestions:remove',
+  'suggestions:clear',
+  'suggestions:export',
+  // Sprint F1.1: compose a pre-filled feedback email in the user's default mail client.
+  'suggestions:share',
+  // Sprint F1.5: the Gmail web-compose fallback, offered when 'suggestions:share' reports
+  // no_mail_client.
+  'suggestions:shareViaGmail',
 ] as const;
 
 export type Channel = (typeof channels)[number];

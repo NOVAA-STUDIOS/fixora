@@ -14,7 +14,13 @@ import { persist } from 'zustand/middleware';
  * storage swap, not a redesign.
  */
 
-export type ActivityView = 'workspace' | 'findings' | 'history' | 'settings' | 'diagnostics';
+export type ActivityView =
+  | 'workspace'
+  | 'findings'
+  | 'history'
+  | 'suggestions'
+  | 'settings'
+  | 'diagnostics';
 
 /** One view's pane proportions, keyed by panel id. */
 export type PaneSizes = Record<string, number>;
@@ -29,6 +35,7 @@ const VIEWS: readonly ActivityView[] = [
   'workspace',
   'findings',
   'history',
+  'suggestions',
   'settings',
   'diagnostics',
 ];

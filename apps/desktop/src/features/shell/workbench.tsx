@@ -9,6 +9,7 @@ import { EditorArea } from '../editor/editor-area.js';
 import { FindingsPanel } from '../findings/findings-panel.js';
 import { HistoryPanel } from '../history/history-panel.js';
 import { SettingsPanel } from '../settings/settings-panel.js';
+import { SuggestionPanel } from '../suggestions/suggestion-panel.js';
 import { WorkspacePanel } from '../workspace/workspace-panel.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
@@ -66,7 +67,12 @@ export function Workbench(): React.JSX.Element {
   // With no project open there is nothing for three panes to show, and each used to render its own
   // "nothing here" state — three empty columns as the product's first impression. One Home surface
   // replaces all of it, and the panes come back the moment there is a project to put in them.
-  if (!hasWorkspace && activeView !== 'settings' && activeView !== 'diagnostics') {
+  if (
+    !hasWorkspace &&
+    activeView !== 'settings' &&
+    activeView !== 'diagnostics' &&
+    activeView !== 'suggestions'
+  ) {
     return (
       <ErrorBoundary label="The home screen">
         <HomeScreen />
@@ -91,6 +97,16 @@ export function Workbench(): React.JSX.Element {
     return (
       <ErrorBoundary label="Settings">
         <SettingsPanel />
+      </ErrorBoundary>
+    );
+  }
+
+  // Suggestions is feedback about Fixora itself, not about the open project — full width like
+  // Settings, and reachable whether or not a workspace is open.
+  if (activeView === 'suggestions') {
+    return (
+      <ErrorBoundary label="Suggestions">
+        <SuggestionPanel />
       </ErrorBoundary>
     );
   }

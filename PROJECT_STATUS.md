@@ -1,11 +1,12 @@
 # Fixora — Project Status
 
-**Updated:** 2026-07-27 · **Mission:** ship a **BYOK Public Beta** (pivot 2026-07-16).
+**Updated:** 2026-07-28 · **Mission:** ship a **BYOK Public Beta** (pivot 2026-07-16).
 **Release:** `v0.9.0-beta.1` was tagged **code complete** 2026-07-18 (see the Beta track table below —
 Phases A–F all done; `pnpm run ci` green at 323 tests). Since that tag, substantial additional work has
 been built on `sprint-1/ui-stability` and is **not yet released**: Proceed Mode (a second editing
-pipeline alongside Repair) and a four-part reliability/validation sequence (H1→Q1→Q2→Q3) hardening both
-Repair and Proceed. See "Post-beta-tag work" below for the current, authoritative state of that branch.
+pipeline alongside Repair), a four-part reliability/validation sequence (H1→Q1→Q2→Q3) hardening both
+Repair and Proceed, and the Suggestion System (Sprint F1, now **COMPLETE**). See "Post-beta-tag work"
+below for the current, authoritative state of that branch.
 Owner-side launch steps for `v0.9.0-beta.1` (license keypair + Stripe link, installer build on a build
 machine, clean-machine acceptance — [RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)) have not been
 confirmed done and are unaffected by this update.
@@ -74,9 +75,69 @@ Passes cleanly every time run in isolation; times out under full-suite parallel 
 machine. Test-infrastructure/performance item, not an application defect. See
 [BUGLOG.md](docs/BUGLOG.md) BUG-003.
 
+**BUG-F1-EMAIL-001 — "Email to Fixora" did nothing (click, no mail client, no error), now fixed.**
+Two compounding defects: (1) `shell.openExternal` was called with `void` — never awaited, a real
+rejection was discarded and the handler claimed success regardless; (2) even after awaiting,
+`shell.openExternal` can *resolve* without any application actually opening — confirmed live, twice,
+via real (non-mocked) runtime tracing on a machine that genuinely has no `mailto:` handler
+registered. Fixed by awaiting/rethrowing (part 1) plus a Windows registry pre-check that refuses
+before ever calling `shell.openExternal` when no handler is registered (part 2). Verified by
+deliberately reverting the fix and confirming the exact regression tests fail, then restoring and
+re-confirming they pass. See [BUGLOG.md](docs/BUGLOG.md) BUG-F1-EMAIL-001.
+
+**BUG-005 — `navigation-guard.ts`'s `openExternal` fire-and-forgets `shell.openExternal`, low
+severity, deliberately deferred.** Found during the BUG-F1-EMAIL-001 (Suggestion Sharing) final
+verification pass's repo-wide search for the same fire-and-forget shape. Same code pattern as
+BUG-F1-EMAIL-001's root cause, but lower risk: it opens `https://` docs/GitHub/purchase links (a
+default browser is present on virtually every real desktop, unlike a mail client), and
+`setWindowOpenHandler` has no renderer-side promise to reject even if awaited, so there is no
+existing channel to carry a failure back to the UI. Non-blocking — does not touch Analyzer, Repair,
+Proceed, or the Suggestion System. Not fixed yet (explicitly deferred, not forgotten). Full record:
+[BUGLOG.md](docs/BUGLOG.md) BUG-005.
+
 **No additional `sprint-1/ui-stability` scope is currently documented.** No repository document
 enumerates further UI-stability work beyond the Proceed Mode build and the H1→Q3 reliability sequence
 above. This is recorded as a gap, not as confirmation that the branch's scope is complete.
+
+### Sprint F1 — Suggestion System — **COMPLETE**
+
+A local-first feedback channel, independent of Analyzer/Repair/Proceed: category-selected suggestions
+(feature/bug/improvement/other), persisted to SQLite (migration v5, table `suggestions`, not
+workspace-scoped — this is feedback about Fixora itself), with history, JSON export, and two ways to
+actually send one to Fixora.
+
+- **F1 core** — category selector, auto-resizing message editor with a character counter, input
+  validation, submit loading state, a thank-you confirmation, suggestion history (newest first),
+  and export to a JSON file via the native save dialog.
+- **F1.1 — Email to Fixora.** A pure, synchronous `buildShareEmail()` formatter composes the
+  subject/body (category, message verbatim, app version, OS, workspace name, timestamp); the
+  `suggestions:share` handler opens it via `MailService`.
+- **F1.4 — `MailService`.** A reusable, cross-platform (Windows registry / macOS LaunchServices /
+  Linux xdg-mime) `mailto:` opener with a pre-send handler-presence check, so a missing mail client is
+  reported as `no_mail_client` rather than silently doing nothing — see BUG-F1-EMAIL-001 below.
+- **F1.5 — Gmail Web fallback.** When no mail client is detected, the renderer's
+  `MailUnavailableDialog` offers **Open Gmail** (`suggestions:shareViaGmail`, opens Gmail compose in
+  the browser), **Copy Email Address**, **Copy Subject**, **Copy Message**, and **Cancel** — so a
+  suggestion is never a dead end even with nothing configured.
+- **F1.3** — all user-facing text renamed from "Share with Fixora" to **"Email to Fixora"**, matching
+  what the feature actually does now that Gmail is a named alternative alongside it.
+- **Finalization polish** — the email body now also includes the current **Workspace** name (or the
+  literal `Workspace: None` when no project is open, looked up fresh per request via
+  `workspaceService.getCurrent()`, not baked in at construction time like `appVersion`/`platform`) and
+  a **Timestamp** (`new Date().toISOString()`, generated per call).
+- Also in this sprint: the navigation rail's category label no longer clips (`leading-none` →
+  `leading-tight`), with a regression test.
+
+Bugs found and fixed while building this sprint: **BUG-F1-EMAIL-001** ("Email to Fixora" did nothing —
+no mail client, no error, no feedback; two compounding root causes, both fixed and regression-tested)
+and **BUG-005** (a lower-severity, same-shape fire-and-forget `shell.openExternal` call in
+`navigation-guard.ts`, found during BUG-F1-EMAIL-001's repo-wide follow-up search, deliberately
+**not** fixed yet). Full detail: [BUGLOG.md](docs/BUGLOG.md).
+
+Architecture: `docs/features/suggestion-system.md` (Suggestion System) and
+`docs/features/mail-service.md` (`MailService`). Manually validated in the running app (Email to
+Fixora, Gmail fallback, export, history all confirmed working) with full regression test coverage.
+Does not touch Analyzer, Repair, or Proceed.
 
 ## Mission pivot (2026-07-16) — BYOK-first Public Beta
 
@@ -118,6 +179,7 @@ plugins, cloud sync, API platform, analytics/reports, collaboration, org managem
 | **M4**        | **Backend, auth, entitlements**                               | ✅ **Built (fixora-api A–E), deferred to v1.1**         | BYOK beta needs no server; ready to switch on                                             |
 | **Beta-M5**   | **Verified AI Repair (BYOK)**                                 | ✅ **Done — Phases A–F all done**                       | The beta product; see Beta track above. Tagged `v0.9.0-beta.1`, 2026-07-18                |
 | **Post-beta** | **Proceed Mode (P2.1–P2.2.1) + reliability sequence (H1→Q3)** | ✅ **Done, unreleased** — Q3 formally frozen 2026-07-27 | Branch `sprint-1/ui-stability`; not in any tagged release. See "Post-beta-tag work" above |
+| **F1**        | **Suggestion System (F1, F1.1, F1.3–F1.5)**                   | ✅ **COMPLETE 2026-07-28**                              | Not workspace-scoped, not in any tagged release yet. See "Sprint F1" above                |
 | M6+           | Teams / enterprise / marketplace / cloud                      | ⏸ v1.1 backlog                                          | Deferred by the beta pivot                                                                |
 
 ---

@@ -54,7 +54,25 @@ The **History** panel (clock icon) is your local audit trail: every repair you r
 whether you applied it — newest first. Click one to open its file. It's stored on your machine and
 survives restarts.
 
-## 6. Your privacy
+## 6. Send a suggestion
+
+The **Suggest** panel (lightbulb icon) is where feature requests, bug notes, and general feedback about
+Fixora go — pick a category, write what's on your mind, and send it. No project needs to be open to use
+it.
+
+Every suggestion is saved **locally only** — Fixora never sends anything automatically. From your history
+below the form, you get two ways to actually share it:
+
+- **Email to Fixora** — opens your default mail client with a pre-filled email (category, your
+  suggestion, your Fixora version, OS, open project name, and a timestamp) addressed to us. Review
+  it and hit send from your own mail app,
+  just like forwarding any other email. If Fixora can't find a mail app configured on your computer, it
+  tells you so directly and offers **Open Gmail** (opens the same pre-filled email in Gmail's website,
+  in your browser — handy if you have a Gmail account but no desktop mail app), plus **Copy Email
+  Address**, **Copy Subject**, and **Copy Message** buttons so you can send it yourself another way.
+- **Export JSON** — saves a copy of your suggestions to a file of your choosing, unchanged from before.
+
+## 7. Your privacy
 
 - Analysis and verification run **locally**.
 - An AI repair sends only the **relevant code slice** (the target symbol + its evidence — never your whole
@@ -66,7 +84,7 @@ survives restarts.
 
 Full statement: [privacy page](https://fixora.dev/privacy.html).
 
-## 7. Supporter license (optional)
+## 8. Supporter license (optional)
 
 Fixora is free with your own key. A one-time **Supporter/Pro** license funds development and locks in
 early-supporter benefits. Buy it on the website, then **Settings → License → paste key → Activate**. It's

@@ -19,13 +19,18 @@ import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
 import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
 import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
+import { registerSuggestionHandlers } from './ipc/handlers/suggestions.handlers.js';
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
 import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
 import { createLicenseService } from './license/license-service.js';
 import { licensePublicKey } from './license/public-key.js';
+import { createMailService } from './services/mail/mail-service.js';
 import { createWorkspaceService } from './services/workspace-service.js';
+import { createSuggestionRepository } from './suggestions/suggestion-repository.js';
+import { createSuggestionService } from './suggestions/suggestion-service.js';
+import { createSuggestionStorage } from './suggestions/suggestion-storage.js';
 import { createVerificationService } from './verification/verification-service.js';
 import { createMainWindow } from './windows/main-window.js';
 
@@ -149,6 +154,21 @@ if (!gotTheLock) {
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
       registerLicenseHandlers({ license });
+
+      // Suggestion System (Sprint F1, F1.1). Not workspace-scoped — feedback about Fixora itself, so
+      // it is available whether or not a project is open, same as Settings. appVersion/platform are
+      // injected so the share-email formatter (and the service around it) stays free of an Electron
+      // import — the same reasoning `system:getAppInfo` follows for `app.getVersion()`.
+      const suggestionService = createSuggestionService({
+        repository: createSuggestionRepository(createSuggestionStorage(driver)),
+        appVersion: app.getVersion(),
+        platform: process.platform,
+      });
+      // MailService (Sprint F1.4): the one reusable way anything in Fixora opens a mailto: link.
+      // Fully generic — no built-in recipient — so any future feature that needs to send mail takes
+      // this same dependency rather than growing a second implementation.
+      const mailService = createMailService();
+      registerSuggestionHandlers(suggestionService, mailService, workspaceService);
 
       // NOT restored here.
       //

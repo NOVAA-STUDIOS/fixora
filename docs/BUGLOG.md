@@ -261,3 +261,168 @@ and read-only in `--check` mode. Byte-level evidence:
 report 21 / 21, 0 failed. Full gate suite (typecheck, lint zero-warnings, full test suite, accuracy
 benchmark, validation, certification, boundaries, ADR, Electron security, secrets) re-run clean with no
 regression to Q1/Q2/Q3 behaviour.
+
+### BUG-F1-EMAIL-001 — "Email to Fixora" did nothing: click, no mail client, no error, no feedback
+
+**Feature:** Suggestion System — Email to Fixora (Sprint F1.1)
+**Reported:** 2026-07-28, manual validation of Sprint F1.1 (release-blocking)
+**Requires AI provider:** no
+
+**Steps to Reproduce:**
+1. Submit a suggestion, or use an existing one from history.
+2. Click **Email to Fixora**.
+3. (Original report) On a machine with no default mail client configured, or (part 2) on any
+   machine where `shell.openExternal` resolves for a `mailto:` link without actually opening
+   anything — both observed for real during this investigation.
+
+**Expected Result:** Default mail client opens with To/Subject/Body pre-filled, or — if it cannot —
+an explicit, visible error.
+
+**Actual Result (before either fix):** Nothing. No mail client, no error toast, no dialog, no
+console-visible behaviour. The button was clickable and the click handler fired; nothing after that
+point was ever visible.
+
+**Root Cause — two distinct, compounding defects, found in two passes:**
+
+*Part 1:* `openMailClient` called `shell.openExternal(mailto)` with `void` — never awaited, never
+checked — and `suggestions:share` unconditionally returned `{ opened: true }`. A genuine rejection
+(no mail client registered) was silently discarded at the source; every layer above it (store,
+panel) had no failure to react to, because main had already claimed success.
+
+*Part 2 (found after part 1 shipped, still failing in real manual testing):* awaiting alone is not
+sufficient. **Real, non-mocked runtime tracing** — a temporary headless Electron harness built for
+this investigation, running the actual production `mailto.ts`/`suggestions.handlers.ts` against the
+real `shell` module, no test doubles — proved `shell.openExternal('mailto:...')` can **resolve**
+(not reject) even when nothing on the machine can handle it. Confirmed twice, live, on the actual
+machine this investigation ran on: it genuinely has no `mailto:` handler registered
+(`HKEY_CLASSES_ROOT\mailto\shell\open\command` absent), and the awaited call resolved anyway —
+exactly the condition originally reported, and exactly the case a rejection-based fix cannot catch.
+Every pre-existing test used a bare `vi.fn()` mock for `shell.openExternal`, which can never
+reproduce this — a mock has no OS underneath it to lie about.
+
+**Files Changed:**
+- `apps/desktop/electron/main/security/mailto.ts` — `openMailClient` now awaits
+  `shell.openExternal` and rethrows (part 1). Added `hasWindowsMailtoHandler()`, which queries
+  `HKEY_CLASSES_ROOT\mailto\shell\open\command` via the built-in `reg.exe`; `openMailClient` calls
+  it on `win32` and refuses **before** ever calling `shell.openExternal` when no handler is
+  registered (part 2). Recipient corrected to `novaa.support.team@gmail.com` (was a placeholder,
+  `feedback@fixora.dev`, chosen before this address was specified).
+- `apps/desktop/electron/main/ipc/handlers/suggestions.handlers.ts` — `suggestions:share` awaits
+  `openMailClient`, catches, logs the real cause main-side, and throws a `UserFacingError` the
+  router already surfaces to the renderer verbatim.
+- `apps/desktop/src/features/suggestions/suggestions-store.ts` — `share()` returns a discriminated
+  `{ ok: true } | { ok: false; message }` instead of collapsing every failure into a bare `false`,
+  so the real message from main is never discarded.
+- `apps/desktop/src/features/suggestions/suggestion-panel.tsx` — shows `result.message` (whichever
+  of "not found" or the real mail-client failure actually happened), not a hardcoded guess.
+- `docs/features/suggestion-system.md`, `docs/USER-GUIDE.md` — updated for both the corrected
+  recipient and the two-part fix.
+
+**Regression Tests Added:**
+- `apps/desktop/tests/mailto.test.ts` — `hasWindowsMailtoHandler` (present/absent, via a mocked
+  `execFile`); `openMailClient`'s three branches (refuses before calling `shell.openExternal` when
+  no Windows handler exists, calls it when one does, and non-Windows platforms skip the registry
+  check entirely).
+- `apps/desktop/tests/suggestions-handlers.test.ts` — `suggestions:share` end to end: exact
+  `mailto:` URL and content on success; a rejecting `shell.openExternal` throws visibly (this is the
+  one test the original implementation could never have passed); **the no-Windows-handler-registered
+  case throws before `shell.openExternal` is ever called** (part 2's regression test); not-found and
+  submit-never-shares-implicitly cases.
+- `apps/desktop/src/features/suggestions/suggestions-store.test.ts`,
+  `suggestion-panel.test.tsx` — the real error message survives the store and reaches a specific
+  toast; a genuine success path is confirmed to raise **zero** toasts (not just "the call happened").
+- **Verified by deliberate reversion, not assumption:** all four fixed files were reverted to their
+  exact pre-fix content and the full regression suite re-run — exactly the 6 tests written for this
+  bug failed (no others), proving they are precise, not incidentally broad. The fix was then
+  restored and the suite re-run clean.
+
+**Status:** Fixed — verified 2026-07-28, twice, including live on a real machine with no mail
+client registered (the fixed code correctly threw a clear, actionable error in that exact
+condition, confirmed via real non-mocked execution, not a test). Full suite: 54/54 desktop test
+files, 504/504 tests, typecheck clean, lint zero-warnings. Known residual gap on macOS/Linux (no
+single-registry-lookup equivalent to Windows's check) tracked honestly in
+`docs/features/suggestion-system.md`, not hidden.
+
+### BUG-005 — `navigation-guard.ts`'s `openExternal` fire-and-forgets `shell.openExternal` (deliberately not fixed yet)
+
+**Feature:** Security (`apps/desktop/electron/main/security/navigation-guard.ts`) — external-link
+opening (docs links, GitHub issue link, purchase link), unrelated to the Suggestion System
+**Reported:** 2026-07-28, as a finding during the BUG-F1-EMAIL-001 final verification pass
+(repo-wide search for `shell.openExternal(`/`void`/fire-and-forget patterns)
+**Requires AI provider:** no
+
+**Steps to Reproduce (of the pattern, not a live failure):**
+1. Open `apps/desktop/electron/main/security/navigation-guard.ts:44-67` (`export function
+   openExternal`).
+2. Note line 66: `void shell.openExternal(url.toString());` — the returned Promise is discarded, not
+   awaited, and the function's own return type is `void`.
+3. This is called from exactly one production call site: `setWindowOpenHandler` (line ~94), which
+   fires whenever the renderer's Monaco/webContents tries to open a link via `window.open` or
+   `target="_blank"` — e.g. a rule's docs link in the problem-details panel, the GitHub "report this
+   bug" link from a contract-violation error, or the Settings "Buy Pro" purchase link.
+
+**Why this is different from BUG-F1-EMAIL-001 (important — do not conflate):**
+- **No IPC round-trip exists to carry a failure back.** BUG-F1-EMAIL-001's `suggestions:share` is an
+  `ipcMain.handle` the renderer explicitly `invoke()`s and awaits a `Result<T>` from — there was a
+  promise on the renderer side that could (and should) have rejected. `setWindowOpenHandler` is an
+  Electron-internal callback with no renderer-side promise at all: `window.open()` in the renderer
+  returns immediately regardless of what main does asynchronously afterward. Awaiting the call here
+  would not, by itself, give the renderer anything to observe — there is no existing channel for
+  main to push a "that failed" signal back for this specific interaction.
+- **Different dependency reliability.** BUG-F1-EMAIL-001 depends on a *mail client* being installed
+  and set as default — frequently absent, especially in dev/CI/fresh-install environments (this is
+  exactly what made it a release blocker). This code depends on a *default web browser* — on Windows,
+  macOS, and Linux desktop installs, one is present in essentially all real-world configurations.
+  Same code shape, materially different real-world failure rate.
+- **Different content.** The mailto path carries user-authored suggestion text into the URL (via
+  `encodeURIComponent`, still). This path only ever opens `https://` URLs already validated against a
+  fixed host allowlist (Security §2) — no user-authored free text is ever part of the URL.
+
+**Current risk level:** Low. Requires *both* (a) an unusual environment with no default browser
+associated with `https:`, which is rare on a real desktop OS, *and* (b) the user actually clicking one
+of the three external-link entry points, which are not part of any core workflow (Analyzer, Repair,
+Proceed, Suggestion submission/history are all unaffected).
+
+**Failure modes:**
+- `shell.openExternal` rejects (no browser handler registered, OS refuses the launch) → rejection is
+  discarded by `void`; nothing observable happens.
+- `shell.openExternal` resolves without any browser actually opening (the same OS-level ambiguity
+  documented as a residual risk in BUG-F1-EMAIL-001's fix) → indistinguishable from the above from
+  main's perspective, since neither is awaited here regardless.
+
+**User impact:** Clicking a docs link, the GitHub bug-report link, or the purchase link does nothing
+visible. No crash, no data loss, no incorrect state — the click is simply inert. Lower-severity than
+BUG-F1-EMAIL-001 (which blocked the entire point of the Suggestion Sharing feature); this affects
+secondary, non-blocking navigation actions only.
+
+**Can it produce a silent failure?** Yes — structurally the same shape as BUG-F1-EMAIL-001 (a
+discarded `shell.openExternal` promise), so by the same reasoning it can fail with zero console
+output, zero thrown error, and zero UI feedback. This is exactly why it was flagged rather than
+ignored, even though its real-world likelihood is much lower.
+
+**Proposed future fix (not implemented yet):**
+1. Await `shell.openExternal` inside `openExternal()` and log a `console.error` on rejection (parity
+   with `mailto.ts`'s main-side logging) — cheap, safe, no behavior change on the success path.
+2. Decide whether a user-visible signal is worth building for this specific interaction. Since
+   `setWindowOpenHandler` has no return channel to the renderer, this would require either (a) a new
+   one-way main→renderer event (e.g. `system:externalOpenFailed`) the shell subscribes to and turns
+   into a toast, or (b) accepting that awaiting + logging (main-process visibility only) is
+   sufficient for a low-severity, non-blocking path and deferring a full UI-visible fix until this
+   is reported as an actual, reproduced user complaint (the same "await, log, hold for a real signal
+   before over-building" discipline already applied to BUG-002).
+3. If pursued, add a regression test mirroring `suggestions-handlers.test.ts`'s
+   rejecting-`shell.openExternal` case — mocking a rejection and asserting it no longer disappears
+   silently.
+
+**Priority:** Low/P3 — track and revisit, not urgent.
+
+**Blocking or non-blocking:** **Non-blocking.** Does not affect Analyzer, Repair, Proceed, or the
+Suggestion System (submit/history/export/email-share all unaffected). Not a release blocker on its
+own; recorded so the pattern is not forgotten or rediscovered from scratch later.
+
+**Files Changed:** None — investigation/documentation only, no code changed for this entry.
+
+**Regression Tests Added:** None yet — deferred to the future fix above.
+
+**Status:** Open — deliberately deferred, not fixed. Linked from `PROJECT_STATUS.md` so it is visible
+alongside BUG-002/BUG-003 as a known, tracked, non-blocking item.

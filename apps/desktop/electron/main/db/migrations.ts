@@ -141,4 +141,22 @@ export const migrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 5,
+    name: 'suggestions',
+    up: (d) => {
+      // Sprint F1 (Suggestion System). Unlike workspaces/findings/repairs, a suggestion is not
+      // scoped to a project — it is feedback about Fixora itself — so there is no workspace_id and
+      // no FK. Kept intentionally small: an id, a category, the message, and when it was submitted.
+      d.exec(`
+        CREATE TABLE suggestions (
+          id         TEXT PRIMARY KEY,
+          category   TEXT NOT NULL,
+          message    TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX idx_suggestions_created_at ON suggestions(created_at DESC);
+      `);
+    },
+  },
 ];
