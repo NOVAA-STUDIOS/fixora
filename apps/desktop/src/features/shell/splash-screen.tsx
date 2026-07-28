@@ -24,14 +24,21 @@ export type SplashPhase = 'entering' | 'loading' | 'error' | 'leaving';
 export function SplashScreen({
   phase,
   message,
+  working,
   errorMessage,
+  version,
   onRetry,
   onDismiss,
 }: {
   phase: SplashPhase;
   /** What initialization is currently doing. Replaced by the error copy when it fails. */
   message: string;
+  /** Whether initialization is genuinely still running — the loading indicator only ever shows
+   *  while this is true (req. 5), never during the brief animation-completion wait after it's done. */
+  working: boolean;
   errorMessage: string | null;
+  /** The running app version, or null while `system:getAppInfo` is still in flight. */
+  version: string | null;
   onRetry: () => void;
   /** Continue without a restored workspace — the app is usable, it just has no project open. */
   onDismiss: () => void;
@@ -68,6 +75,12 @@ export function SplashScreen({
         >
           <h1 className="text-2xl font-semibold tracking-tight text-fg">Fixora</h1>
           <p className="text-sm text-fg-muted">Fix smarter. Ship faster.</p>
+          {/* Rendered only once fetched — an absent version is silence, never a placeholder.
+              Plain `text-fg-muted` (no opacity modifier): an ad-hoc `/70` opacity is invisible to
+              the automated contrast gate, which only audits the defined token pairs (Beta audit A1,
+              Light/Dark Mode finding 1). The 11px size alone still reads as secondary next to the
+              14px tagline above it. */}
+          {version !== null && <p className="text-[11px] tabular-nums text-fg-muted">v{version}</p>}
         </div>
       </div>
 
@@ -94,13 +107,17 @@ export function SplashScreen({
           className="motion-safe:animate-[fx-splash-in_420ms_ease-out_both] flex flex-col items-center gap-3"
           style={{ animationDelay: '900ms' }}
         >
-          {/* An indeterminate sweep, not a percentage. Startup is two round-trips that typically
-              finish in well under a second — a percentage over two coarse steps would be a number
-              invented to look precise, and a progress bar that lies is worse than one that only says
-              "working". The sweep keeps animating for as long as this screen is up. */}
-          <div className="h-0.5 w-40 overflow-hidden rounded-full bg-border-subtle">
-            <div className="motion-safe:animate-[fx-splash-sweep_1.4s_ease-in-out_infinite] h-full w-1/3 rounded-full bg-accent" />
-          </div>
+          {/* An indeterminate sweep, not a percentage — and shown only while work is genuinely
+              still running (req. 5). Once initialization resolves, the indicator disappears
+              immediately even if the splash itself is still up for the brief remainder of the
+              entrance-animation floor; a spinner that keeps moving after the work it represents has
+              finished is a small dishonesty the same way a progress bar with a made-up percentage
+              would be. */}
+          {working && (
+            <div className="h-0.5 w-40 overflow-hidden rounded-full bg-border-subtle">
+              <div className="motion-safe:animate-[fx-splash-sweep_1.4s_ease-in-out_infinite] h-full w-1/3 rounded-full bg-accent" />
+            </div>
+          )}
           {/* aria-live so the sequence is announced rather than silently swapped under a reader. */}
           <p aria-live="polite" className="max-w-xs px-6 text-center text-xs text-fg-muted">
             {message}

@@ -212,6 +212,49 @@ export function DownloadIcon(props: IconProps): React.JSX.Element {
   );
 }
 
+/** A thumbtack — pin/unpin a recent project (Sprint F2). */
+export function PinIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M12 17v5" />
+      <path d="M9 3h6l-.5 6 2.5 3H8l2.5-3z" />
+      <path d="M8 12h8" />
+    </Icon>
+  );
+}
+
+/** An open book — the Documentation quick action (Sprint F2). */
+export function BookIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </Icon>
+  );
+}
+
+/** A four-point sparkle — the What's New quick action (Sprint F2). */
+export function SparkleIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
+      <path d="m12 8-1.5 2.5L8 12l2.5 1.5L12 16l1.5-2.5L16 12l-2.5-1.5z" />
+    </Icon>
+  );
+}
+
+/** Three horizontal dots — a visible "more actions" trigger (beta audit A1, Recent Projects
+ *  finding 1: the same actions a right-click menu offered had no on-screen affordance at all). */
+export function MoreIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <circle cx="5" cy="12" r="1.25" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.25" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.25" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}
+
 /**
  * The Fixora brand mark: a rounded badge holding code brackets around a check.
  *

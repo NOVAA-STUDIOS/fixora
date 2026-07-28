@@ -159,4 +159,15 @@ export const migrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 6,
+    name: 'workspaces_pinned',
+    up: (d) => {
+      // Sprint F2 (Welcome Experience): pin support for recent projects. A single nullable
+      // timestamp carries both facts a pin needs — whether it is pinned (non-null) and the order
+      // among pinned entries (most-recently-pinned first) — rather than a separate boolean plus a
+      // second ordering column.
+      d.exec(`ALTER TABLE workspaces ADD COLUMN pinned_at INTEGER`);
+    },
+  },
 ];

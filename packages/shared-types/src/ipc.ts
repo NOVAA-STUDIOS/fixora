@@ -137,6 +137,12 @@ export const contracts = {
     request: z.object({}),
     response: z.void(),
   },
+  // Sprint F2 (Welcome Experience): pin/unpin a recent project. A list-ordering preference, not a
+  // security fact — the renderer supplies an id, not a path, same trust shape as removeRecent.
+  'workspace:setPinned': {
+    request: z.object({ id: z.string().min(1), pinned: z.boolean() }),
+    response: z.object({ workspaces: z.array(WorkspaceSchema) }),
+  },
 
   'fs:listDir': {
     request: z.object({ relPath: z.string() }),

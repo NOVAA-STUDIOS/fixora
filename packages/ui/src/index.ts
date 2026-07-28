@@ -40,6 +40,10 @@ export {
   LightbulbIcon,
   SendIcon,
   DownloadIcon,
+  PinIcon,
+  BookIcon,
+  SparkleIcon,
+  MoreIcon,
 } from './components/icons.js';
 
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/tooltip.js';

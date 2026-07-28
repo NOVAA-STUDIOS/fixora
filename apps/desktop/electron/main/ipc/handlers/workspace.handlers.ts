@@ -98,6 +98,11 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     return { workspaces: service.recent().map(toInfo) };
   });
 
+  registerHandler('workspace:setPinned', ({ id, pinned }) => {
+    service.setPinned(id, pinned);
+    return { workspaces: service.recent().map(toInfo) };
+  });
+
   registerHandler('workspace:current', (_req, { window }) => {
     const current = service.getCurrent();
     // The restore-on-launch path opens the workspace before any window exists; start the watcher
@@ -112,6 +117,7 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
               rootPath: current.rootPath,
               name: current.name,
               lastOpenedAt: 0,
+              pinnedAt: null,
             },
     };
   });
@@ -151,6 +157,13 @@ function toInfo(w: {
   rootPath: string;
   name: string;
   lastOpenedAt: number;
+  pinnedAt: number | null;
 }): WorkspaceInfo {
-  return { id: w.id, rootPath: w.rootPath, name: w.name, lastOpenedAt: w.lastOpenedAt };
+  return {
+    id: w.id,
+    rootPath: w.rootPath,
+    name: w.name,
+    lastOpenedAt: w.lastOpenedAt,
+    pinnedAt: w.pinnedAt,
+  };
 }

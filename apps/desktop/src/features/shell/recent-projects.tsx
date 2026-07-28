@@ -6,15 +6,21 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuShortcut,
   ContextMenuTrigger,
   CopyIcon,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   ExternalIcon,
   FolderIcon,
+  MoreIcon,
+  PinIcon,
   TrashIcon,
   cn,
 } from '@fixora/ui';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { copyToClipboard } from '../../lib/clipboard.js';
@@ -25,13 +31,19 @@ import { useWorkspaceStore } from '../workspace/workspace-store.js';
  *
  * This is the list a desktop user manages, not just reads: projects accumulate, and the ones you
  * opened once by accident stay there forever unless you can remove them. So it behaves the way the
- * equivalent list does in VS Code — a hover-only ✕ on each row, a right-click menu with the
- * operations that belong to a path, and a Clear All behind a confirmation.
+ * equivalent list does in VS Code — a hover-only ✕ on each row, a menu with the operations that
+ * belong to a path, and a Clear All behind a confirmation.
  *
  * The safety line matters more than any of it and is stated in the UI itself: removing an entry is
  * a *list* operation. It forgets a bookmark. It never touches the folder, and the confirmation says
  * so in as many words, because "Clear all recent projects" is a sentence that can reasonably be
  * misread as "delete my projects".
+ *
+ * A card's menu is reachable two ways (beta audit A1, finding: the original right-click-only menu
+ * had no on-screen affordance at all, so Reveal/Copy path were effectively undiscoverable): a
+ * right-click anywhere on the card, and a visible "More actions" (⋯) button. Both render the same
+ * items, driven from the same `menuActions` data below the split into three groups — there is
+ * exactly one place each action's label/icon/handler is defined.
  */
 export function RecentProjects(): React.JSX.Element | null {
   const openPath = useWorkspaceStore((s) => s.openPath);
@@ -67,6 +79,13 @@ export function RecentProjects(): React.JSX.Element | null {
 
   const clearAll = useCallback(() => {
     void invoke('workspace:clearRecent', {}).then((r) => {
+      if (r.ok) setRecent(r.value.workspaces);
+    });
+  }, []);
+
+  /** Pin/unpin (Sprint F2). The list re-sorts itself — pinned entries sort first server-side. */
+  const togglePin = useCallback((id: string, pinned: boolean) => {
+    void invoke('workspace:setPinned', { id, pinned }).then((r) => {
       if (r.ok) setRecent(r.value.workspaces);
     });
   }, []);
@@ -112,7 +131,7 @@ export function RecentProjects(): React.JSX.Element | null {
         }}
       />
       <div className="grid gap-2 sm:grid-cols-2">
-        {recent.slice(0, 6).map((w) => (
+        {shownWorkspaces(recent).map((w) => (
           <RecentCard
             key={w.id}
             workspace={w}
@@ -121,6 +140,9 @@ export function RecentProjects(): React.JSX.Element | null {
             onOpen={() => void openPath(w.rootPath)}
             onRemove={() => {
               remove(w.id);
+            }}
+            onTogglePin={() => {
+              togglePin(w.id, w.pinnedAt === null);
             }}
             onClearAll={() => {
               setConfirmClear(true);
@@ -141,6 +163,26 @@ export function RecentProjects(): React.JSX.Element | null {
   );
 }
 
+/**
+ * Which of `recent` to show, at most 6. Pinned entries are prioritised (the backend already returns
+ * them first), but never so completely that pinning several projects makes every unpinned-but-recent
+ * one unreachable from this screen — the only other place a not-yet-opened project's path could come
+ * from is picking its folder again from scratch. At least `MIN_UNPINNED_SLOTS` unpinned entries (if
+ * that many exist) are always reserved, even when 6+ projects are pinned. (Beta audit A1, Recent
+ * Projects finding: pinning ≥6 projects hid every unpinned recent with no way back to it.)
+ */
+const MAX_SHOWN = 6;
+const MIN_UNPINNED_SLOTS = 2;
+
+function shownWorkspaces(recent: WorkspaceInfo[]): WorkspaceInfo[] {
+  const pinned = recent.filter((w) => w.pinnedAt !== null);
+  const unpinned = recent.filter((w) => w.pinnedAt === null);
+  const reservedForUnpinned = Math.min(MIN_UNPINNED_SLOTS, unpinned.length);
+  const pinnedShown = pinned.slice(0, Math.max(0, MAX_SHOWN - reservedForUnpinned));
+  const unpinnedShown = unpinned.slice(0, MAX_SHOWN - pinnedShown.length);
+  return [...pinnedShown, ...unpinnedShown];
+}
+
 function Header({ onClear }: { onClear: (() => void) | null }): React.JSX.Element {
   return (
     <div className="flex items-center justify-between gap-3 px-0.5">
@@ -158,12 +200,15 @@ function Header({ onClear }: { onClear: (() => void) | null }): React.JSX.Elemen
   );
 }
 
+type MenuAction = { key: string; icon: ReactNode; label: string; onSelect: () => void };
+
 function RecentCard({
   workspace,
   busy,
   leaving,
   onOpen,
   onRemove,
+  onTogglePin,
   onClearAll,
 }: {
   workspace: WorkspaceInfo;
@@ -171,9 +216,12 @@ function RecentCard({
   leaving: boolean;
   onOpen: () => void;
   onRemove: () => void;
+  onTogglePin: () => void;
   onClearAll: () => void;
 }): React.JSX.Element {
   const [copied, setCopied] = useState(false);
+  const pinned = workspace.pinnedAt !== null;
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const copyPath = (): void => {
     void copyToClipboard(workspace.rootPath, { label: 'Path copied' }).then((ok) => {
@@ -184,6 +232,35 @@ function RecentCard({
       }, 1200);
     });
   };
+
+  // Three groups (primary, path-related, destructive), rendered identically into the right-click
+  // menu and the visible "More actions" menu — one definition, two triggers. Rebuilt each render
+  // (cheap — a handful of objects for one card) rather than memoized, so it never risks holding a
+  // stale closure over `pinned`/`copied`.
+  const primaryActions: MenuAction[] = [
+    { key: 'open', icon: <FolderIcon className="size-4 text-fg-muted" />, label: 'Open', onSelect: onOpen },
+    {
+      key: 'pin',
+      icon: <PinIcon className="size-4 text-fg-muted" fill={pinned ? 'currentColor' : 'none'} />,
+      label: pinned ? 'Unpin project' : 'Pin project',
+      onSelect: onTogglePin,
+    },
+  ];
+  const pathActions: MenuAction[] = [
+    {
+      key: 'reveal',
+      icon: <ExternalIcon className="size-4 text-fg-muted" />,
+      label: 'Reveal in File Explorer',
+      onSelect: () => {
+        void invoke('system:revealInFolder', { path: workspace.rootPath });
+      },
+    },
+    { key: 'copy', icon: <CopyIcon className="size-4 text-fg-muted" />, label: 'Copy path', onSelect: copyPath },
+  ];
+  const dangerActions: MenuAction[] = [
+    { key: 'remove', icon: <CloseIcon className="size-4" />, label: 'Remove from recent', onSelect: onRemove },
+    { key: 'clear', icon: <TrashIcon className="size-4" />, label: 'Clear all recent', onSelect: onClearAll },
+  ];
 
   return (
     <ContextMenu>
@@ -225,6 +302,81 @@ function RecentCard({
             </span>
           </button>
 
+          {/* Top-right cluster: More actions + Pin. Remove sits at the bottom-right corner instead
+              of vertically centered, so the three overlay controls don't crowd one corner (beta
+              audit A1, Recent Projects finding: pin/remove sat close enough to risk a mis-click). */}
+          <div className="absolute right-2 top-2 flex items-center gap-0.5">
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  aria-label={`More actions for ${workspace.name}`}
+                  title="More actions"
+                  className={cn(
+                    'rounded-md p-1 text-fg-muted opacity-0 transition-[opacity,background-color,color] duration-(--fx-motion-duration-fast)',
+                    'group-hover/card:opacity-100 focus-visible:opacity-100 hover:bg-hover hover:text-fg',
+                    menuOpen && 'opacity-100 bg-hover text-fg',
+                    'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline',
+                  )}
+                >
+                  <MoreIcon className="size-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {primaryActions.map((a) => (
+                  <DropdownMenuItem key={a.key} onSelect={a.onSelect}>
+                    {a.icon}
+                    {a.label}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                {pathActions.map((a) => (
+                  <DropdownMenuItem key={a.key} onSelect={a.onSelect}>
+                    {a.icon}
+                    {a.label}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                {dangerActions.map((a) => (
+                  <DropdownMenuItem key={a.key} danger onSelect={a.onSelect}>
+                    {a.icon}
+                    {a.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Pinned stays visible always (it is the fact the sort order is keyed on); unpinned is
+                hover/focus-only, same convention as the buttons beside it. */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePin();
+              }}
+              aria-label={pinned ? `Unpin ${workspace.name}` : `Pin ${workspace.name}`}
+              aria-pressed={pinned}
+              title={pinned ? 'Unpin project' : 'Pin project to the top of Recent'}
+              className={cn(
+                'rounded-md p-1',
+                'transition-[opacity,background-color,color] duration-(--fx-motion-duration-fast)',
+                pinned
+                  ? 'text-accent-text opacity-100'
+                  : [
+                      'text-fg-muted opacity-0',
+                      'group-hover/card:opacity-100 focus-visible:opacity-100',
+                      'hover:bg-hover hover:text-fg',
+                    ],
+                'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline',
+              )}
+            >
+              <PinIcon className="size-3.5" fill={pinned ? 'currentColor' : 'none'} />
+            </button>
+          </div>
+
           <button
             type="button"
             // Hover-only, but always reachable by keyboard: `focus-visible` brings it back, so the
@@ -233,7 +385,7 @@ function RecentCard({
             aria-label={`Remove ${workspace.name} from recent projects`}
             title="Remove from recent (does not delete the folder)"
             className={cn(
-              'absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1.5',
+              'absolute bottom-2 right-2.5 rounded-md p-1.5',
               'text-fg-muted opacity-0 transition-[opacity,background-color,color] duration-(--fx-motion-duration-fast)',
               'group-hover/card:opacity-100 focus-visible:opacity-100',
               'hover:bg-danger-subtle hover:text-danger-text',
@@ -246,37 +398,26 @@ function RecentCard({
       </ContextMenuTrigger>
 
       <ContextMenuContent>
-        <ContextMenuItem onSelect={onOpen}>
-          <FolderIcon className="size-4 text-fg-muted" />
-          Open
-        </ContextMenuItem>
-        <ContextMenuItem disabled>
-          <ExternalIcon className="size-4 text-fg-muted" />
-          Open in new window
-          <ContextMenuShortcut>Soon</ContextMenuShortcut>
-        </ContextMenuItem>
+        {primaryActions.map((a) => (
+          <ContextMenuItem key={a.key} onSelect={a.onSelect}>
+            {a.icon}
+            {a.label}
+          </ContextMenuItem>
+        ))}
         <ContextMenuSeparator />
-        <ContextMenuItem
-          onSelect={() => {
-            void invoke('system:revealInFolder', { path: workspace.rootPath });
-          }}
-        >
-          <ExternalIcon className="size-4 text-fg-muted" />
-          Reveal in File Explorer
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={copyPath}>
-          <CopyIcon className="size-4 text-fg-muted" />
-          Copy path
-        </ContextMenuItem>
+        {pathActions.map((a) => (
+          <ContextMenuItem key={a.key} onSelect={a.onSelect}>
+            {a.icon}
+            {a.label}
+          </ContextMenuItem>
+        ))}
         <ContextMenuSeparator />
-        <ContextMenuItem danger onSelect={onRemove}>
-          <CloseIcon className="size-4" />
-          Remove from recent
-        </ContextMenuItem>
-        <ContextMenuItem danger onSelect={onClearAll}>
-          <TrashIcon className="size-4" />
-          Clear all recent
-        </ContextMenuItem>
+        {dangerActions.map((a) => (
+          <ContextMenuItem key={a.key} danger onSelect={a.onSelect}>
+            {a.icon}
+            {a.label}
+          </ContextMenuItem>
+        ))}
       </ContextMenuContent>
     </ContextMenu>
   );
