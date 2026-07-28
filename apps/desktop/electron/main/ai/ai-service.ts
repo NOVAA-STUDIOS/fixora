@@ -87,9 +87,7 @@ export interface AiService {
   cancel(): void;
 }
 
-type StreamResult =
-  | { ok: true; text: string }
-  | { ok: false; message: string; retryable: boolean };
+type StreamResult = { ok: true; text: string } | { ok: false; message: string; retryable: boolean };
 
 interface Target {
   symbolName: string | null;
@@ -339,7 +337,12 @@ export function createAiService(deps: AiServiceDeps): AiService {
             originalCode,
             rationale,
             confidence: 1,
-            target: { file: finding.location.file, startLine: 1, endLine: lineCount, symbolName: null },
+            target: {
+              file: finding.location.file,
+              startLine: 1,
+              endLine: lineCount,
+              symbolName: null,
+            },
             verification: report,
           },
         };
