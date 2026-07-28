@@ -185,3 +185,79 @@ investigation.
 **Status:** Open — tracked as a test-stability item. Candidate fixes for later: raise the test's own
 timeout further, mark it `.concurrent`-exempt, or run it in its own isolated pool/shard. Not blocking
 any release decision on its own; re-run in isolation to confirm real status if it ever shows red in CI.
+
+### BUG-004 — 11 certification manifests carried a stale `sourceHashes` fingerprint (release gate false-fail, and a prior false-green)
+
+**Feature:** Certification (release trust gate, `tooling/certification`)
+**Reported:** 2026-07-28 (discovered during post-merge gate re-verification of `sprint-1/ui-stability` → `main`)
+**Requires AI provider:** no
+
+**Steps to Reproduce:**
+1. On the committed tree at `main` HEAD `88ed97c`, run `pnpm gate:certification`.
+2. Observe 10 passed / 11 failed, every failure reading
+   `fixture-drift: <file> no longer matches its recorded fingerprint`.
+
+**Expected Result:**
+21 / 21 scored samples pass, matching the report already committed in `88ed97c`
+(`tooling/certification/results/certification-report.md`, generated `2026-07-28T03:10:56.392Z`,
+"Samples passed: 21 / 21 scored", "Failures: _None._").
+
+**Actual Result:**
+Reproducibly 10 passed / 11 failed across 5+ consecutive runs, from a clean tree, on both `main` and
+the `sprint-1/ui-stability` pointer, with the tsx transform cache cleared. All 11 failures were the
+config sidecar of their sample (`tsconfig.json` for react/typescript samples, `config.json` for json
+samples) — never the actual analyzed source file.
+
+**Root Cause:**
+Not a runner bug, not corruption, not caused by any of the Q1–Q3 work merged this session.
+`tooling/certification/src/runner.ts`'s `hashSources`/`collectFiles` has had exactly 2 commits in its
+entire history (`6078e0f` creation, `126aa6e` which added the fingerprint feature) and is proven pure
+and read-only in `--check` mode. Byte-level evidence:
+- Every affected fixture's content is byte-identical to its git blob today, and has been byte-identical
+  since **before** `126aa6e` (`git diff 6078e0f HEAD -- <file>` is empty for all 11).
+- Re-running the real `captureFindings()` against the current fixture content reproduces the exact
+  `expected.findings` already recorded — the engine's behaviour was never in question.
+- Of the 11, 7 (all react/typescript samples) share one identical stale hash pair, because they share
+  one identical `tsconfig.json` template; the other 4 (json samples) each carry an independent stale
+  `config.json` hash.
+- Conclusion: at commit `126aa6e` (2026-07-23), `certify:record` was run against a draft of these
+  fixtures, the fixtures (a shared tsconfig template standardization, and per-sample config touch-ups)
+  were edited afterward, and both landed in the same commit **without re-running `--record`** — the
+  manifests were stale from the moment they were committed. Classification: **(D)** — fixture content
+  changed after fingerprinting, fingerprint never refreshed to match.
+- The `2026-07-28T03:10:56.392Z` clean 21/21 embedded in `88ed97c`'s own committed report is genuine
+  (not stale/copied — no other commit between `6078e0f` and `88ed97c` touched these fixtures or that
+  report), yet contradicts the now-reproducible failure against provably unchanged bytes and an
+  unchanged algorithm. Despite ruling out branch/merge causation, tsx cache staleness, checkout/CRLF
+  corruption, and any of this session's 7 new commits, the exact mechanism for that one transient green
+  run could not be pinned down with direct evidence and is reported honestly as unresolved. Given the
+  drift condition is proven structurally present in the committed tree independent of that run, **the
+  earlier 21/21 must be treated as a false green** — certification trust for these 11 samples was not
+  actually being enforced at that moment.
+
+**Files Changed:**
+- `samples/certification/react/conditional-hook/certification.json` — corrected `tsconfig.json` hash.
+- `samples/certification/react/exhaustive-deps/certification.json` — corrected `tsconfig.json` hash.
+- `samples/certification/react/valid-clean/certification.json` — corrected `tsconfig.json` hash.
+- `samples/certification/typescript/type-in-object/certification.json` — corrected `tsconfig.json` hash.
+- `samples/certification/typescript/type-mismatch/certification.json` — corrected `tsconfig.json` hash.
+- `samples/certification/typescript/undefined-name/certification.json` — corrected `tsconfig.json` hash.
+- `samples/certification/typescript/valid-clean/certification.json` — corrected `tsconfig.json` hash.
+- `samples/certification/json/trailing-comma/certification.json` — corrected `config.json` hash.
+- `samples/certification/json/unquoted-key/certification.json` — corrected `config.json` hash.
+- `samples/certification/json/valid-bom/certification.json` — corrected `config.json` hash.
+- `samples/certification/json/valid-clean/certification.json` — corrected `config.json` hash.
+- Only the `sourceHashes` values were touched in each file — `expected.findings` was left untouched in
+  every manifest, verified unchanged against a fresh `captureFindings()` run before editing.
+
+**Regression Tests Added:**
+- `tooling/certification/src/fixture-integrity.test.ts` — walks the real, committed
+  `samples/certification` tree (not a synthetic tmpdir) and asserts every recorded `sourceHashes` entry
+  in every manifest matches the fixture bytes actually on disk. This test would have failed on all 11
+  stale manifests from the day `126aa6e` was committed, instead of surfacing only when someone happened
+  to run the gate.
+
+**Status:** Fixed — verified 2026-07-28. 5 consecutive `gate:certification` runs from a clean state all
+report 21 / 21, 0 failed. Full gate suite (typecheck, lint zero-warnings, full test suite, accuracy
+benchmark, validation, certification, boundaries, ADR, Electron security, secrets) re-run clean with no
+regression to Q1/Q2/Q3 behaviour.
