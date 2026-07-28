@@ -37,6 +37,25 @@ describe('ProceedPanel', () => {
     render(<ProceedPanel onSubmit={vi.fn()} busy />);
     expect(screen.getByRole('button', { name: 'Working…' }).hasAttribute('disabled')).toBe(true);
   });
+
+  it('offers a real Cancel action while busy (Q3 Defect #4)', () => {
+    const onCancel = vi.fn();
+    render(<ProceedPanel onSubmit={vi.fn()} busy onCancel={onCancel} />);
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancelButton.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(cancelButton);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render Cancel when idle (nothing running to cancel)', () => {
+    render(<ProceedPanel onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+  });
+
+  it('does not render Cancel while busy if no onCancel handler was given', () => {
+    render(<ProceedPanel onSubmit={vi.fn()} busy />);
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+  });
 });
 
 describe('EditModeTabs', () => {

@@ -106,6 +106,27 @@ describe('createProceedService', () => {
     expect(provider.stream).not.toHaveBeenCalled();
   });
 
+  it('EXPLANATION-INTENT: a non-actionable question is refused gracefully and never calls the provider', async () => {
+    const provider = { ...fakeProvider([]), stream: vi.fn() };
+    const out = await createProceedService(
+      deps({ provider: provider as unknown as AIProvider }),
+    ).run({ ...request, instruction: 'Explain what this does' }, NO_ABORT);
+    expect(out.status).toBe('unknown-intent');
+    expect(provider.stream).not.toHaveBeenCalled();
+  });
+
+  it('GENERAL-INTENT: a valid actionable instruction with no specific category still proceeds', async () => {
+    // "add error handling" matches no LEXICON category (styling/react/typescript/python/documentation/
+    // refactoring/explanation) but has a real action verb ("add"), so it must classify `general` and
+    // still reach the provider — the fix for explanation-intent must not touch this path.
+    const out = await createProceedService(deps()).run(
+      { ...request, instruction: 'add error handling' },
+      NO_ABORT,
+    );
+    expect(out.status).toBe('ok');
+    if (out.status === 'ok') expect(out.proposal.intent).toBe('general');
+  });
+
   it('BLOCKED: a secret in the target scope is refused before anything is sent', async () => {
     const out = await createProceedService(
       deps({
@@ -126,6 +147,23 @@ describe('createProceedService', () => {
     ).run(request, NO_ABORT);
     expect(out.status).toBe('rejected');
     if (out.status === 'rejected') expect(out.verification?.verdict).toBe('regression');
+  });
+
+  it('CANCELLED: an aborted signal returns a clean cancellation, never a confusing model-output error (Q3 Defect #4)', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    // `fakeProvider([])` yields nothing — exactly how the real OpenRouter provider ends a stream once
+    // its signal is aborted (no error event, just an empty stream). That must be detected explicitly
+    // rather than falling through to `parseEditOutput('')` and surfacing as "invalid model output".
+    const out = await createProceedService(deps({ provider: fakeProvider([]) })).run(
+      request,
+      controller.signal,
+    );
+    expect(out.status).toBe('error');
+    if (out.status === 'error') {
+      expect(out.code).toBe('cancelled');
+      expect(out.message).toBe('Cancelled.');
+    }
   });
 
   it('ERROR: persistent non-JSON output is classified `model-output`, retryable, with diagnostics', async () => {

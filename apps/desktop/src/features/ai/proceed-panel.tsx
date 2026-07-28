@@ -74,9 +74,15 @@ export interface ProceedPanelProps {
   onSubmit: (instruction: string) => void;
   /** True while an edit is being generated/verified — disables the input and submit. */
   busy?: boolean;
+  /** Aborts the in-flight request (Q3 Defect #4). Only rendered while `busy`. */
+  onCancel?: () => void;
 }
 
-export function ProceedPanel({ onSubmit, busy = false }: ProceedPanelProps): React.JSX.Element {
+export function ProceedPanel({
+  onSubmit,
+  busy = false,
+  onCancel,
+}: ProceedPanelProps): React.JSX.Element {
   const [instruction, setInstruction] = useState('');
   const trimmed = instruction.trim();
   const canSubmit = trimmed.length > 0 && !busy;
@@ -103,9 +109,16 @@ export function ProceedPanel({ onSubmit, busy = false }: ProceedPanelProps): Rea
         disabled={busy}
         className="w-full resize-y rounded border border-border-subtle bg-base p-2 text-xs text-fg placeholder:text-fg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring disabled:opacity-60"
       />
-      <Button type="submit" disabled={!canSubmit} className="self-start">
-        {busy ? 'Working…' : 'Proceed'}
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={!canSubmit} className="self-start">
+          {busy ? 'Working…' : 'Proceed'}
+        </Button>
+        {busy && onCancel !== undefined && (
+          <Button type="button" variant="ghost" className="self-start" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
+      </div>
     </form>
   );
 }
@@ -162,7 +175,7 @@ export function ProceedView(): React.JSX.Element {
           <Button type="button" disabled={applying} onClick={() => void accept()}>
             {applying ? 'Applying…' : 'Accept'}
           </Button>
-          <Button type="button" variant="ghost" disabled={applying} onClick={cancel}>
+          <Button type="button" variant="ghost" disabled={applying} onClick={() => void cancel()}>
             Cancel
           </Button>
         </div>
@@ -172,7 +185,11 @@ export function ProceedView(): React.JSX.Element {
 
   return (
     <section aria-label="Proceed" className="flex h-full min-h-0 flex-col overflow-y-auto">
-      <ProceedPanel busy={status === 'running'} onSubmit={(instruction) => void run(instruction)} />
+      <ProceedPanel
+        busy={status === 'running'}
+        onSubmit={(instruction) => void run(instruction)}
+        onCancel={() => void cancel()}
+      />
       {message !== null && (
         <div className="flex flex-col items-start gap-2 px-3 pb-3">
           {/* whitespace-pre-line: the diagnostic tail (detected intent / language) is newline-separated. */}

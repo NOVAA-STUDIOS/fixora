@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   lstatSync,
   readFileSync,
@@ -161,8 +161,41 @@ export function writeTextFile(root: string, relPath: string, content: string): v
   // never a half-written mix. If anything fails, the temp file is removed and the original is left
   // exactly as it was (repair rollback, requirement §8).
   const tmp = join(dirname(absolute), `.${randomBytes(6).toString('hex')}.fixora-tmp`);
+  // TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause). Gated on the disposable
+  // repro filename so no other file's content is ever logged. This is the LAST point before the OS
+  // write syscall — everything upstream of here has already been logged by the caller.
+  const diag = normalized.includes('proceed-diag');
+  if (diag) {
+    const contentNul = content.split(String.fromCharCode(0)).length - 1;
+    console.error('[Q3-DIAG] fs-service: writeTextFile input (immediately before writeFileSync)', {
+      normalized,
+      typeofContent: typeof content,
+      contentLength: content.length,
+      contentByteLength: Buffer.byteLength(content, 'utf8'),
+      contentNulCount: contentNul,
+      preview: JSON.stringify(content.slice(0, 60)) + ' ... ' + JSON.stringify(content.slice(-60)),
+    });
+  }
   fsTry('write to', normalized, () => {
     writeFileSync(tmp, content, 'utf8');
+    if (diag) {
+      // Read the TEMP file back — before the rename — to tell apart "content was already wrong" from
+      // "the rename step (or something racing it) is what introduced the corruption".
+      try {
+        const tmpBytes = readFileSync(tmp);
+        let tmpNulCount = 0;
+        for (const byte of tmpBytes) if (byte === 0) tmpNulCount++;
+        console.error('[Q3-DIAG] fs-service: temp file bytes (before rename)', {
+          tmp,
+          tmpByteLength: tmpBytes.length,
+          tmpNulCount,
+        });
+      } catch (diagError) {
+        console.error('[Q3-DIAG] fs-service: temp file read-back FAILED', {
+          message: diagError instanceof Error ? diagError.message : String(diagError),
+        });
+      }
+    }
     try {
       renameSync(tmp, absolute);
     } catch (error) {
@@ -174,7 +207,70 @@ export function writeTextFile(root: string, relPath: string, content: string): v
       }
       throw error;
     }
+    if (diag) {
+      try {
+        const finalBytes = readFileSync(absolute);
+        let finalNulCount = 0;
+        for (const byte of finalBytes) if (byte === 0) finalNulCount++;
+        console.error('[Q3-DIAG] fs-service: target bytes (immediately after rename)', {
+          absolute,
+          finalByteLength: finalBytes.length,
+          finalNulCount,
+        });
+      } catch (diagError) {
+        console.error('[Q3-DIAG] fs-service: post-rename read-back FAILED', {
+          message: diagError instanceof Error ? diagError.message : String(diagError),
+        });
+      }
+    }
+
+    verifyWrittenFile(absolute, normalized, content);
   });
+}
+
+/**
+ * PERMANENT write-verification invariant (Q3 data-integrity hardening — not tied to the temporary
+ * diagnostic gate above `writeTextFile`, and NOT a fix for the incident's still-unknown root cause).
+ * Whatever caused it, the property this restores is simple: Fixora must never report a write as
+ * successful unless the bytes actually on disk match what was intended. Runs on every write through
+ * `writeTextFile` — Repair's apply, Proceed's Accept, and a manual editor Save alike, since this is
+ * the one function all three go through. A mismatch fails closed: the thrown UserFacingError
+ * propagates to the caller as a refusal, never a silent, wrongly-reported success.
+ *
+ * Exported (not just inlined into `writeTextFile`) so it is directly testable: the only realistic way
+ * to exercise "the file was NOT what we intended" is to arrange that disk state directly and check
+ * this function's response to it, rather than trying to race the atomic rename itself — which is a
+ * single synchronous call in `writeTextFile` with no yield point another same-process actor could
+ * ever land in between; only a genuinely separate OS process could do that, which is exactly the
+ * class of cause this guards against without needing to know which one it was.
+ */
+export function verifyWrittenFile(absolute: string, normalized: string, content: string): void {
+  const expected = Buffer.from(content, 'utf8');
+  const actual = readFileSync(absolute);
+  if (!actual.equals(expected)) {
+    const allZero = actual.length > 0 && actual.every((byte) => byte === 0);
+    // Diagnostic-safe: byte lengths and content HASHES only. Never the content itself — it may be a
+    // user's proprietary source or, in the general case, contain secrets.
+    console.error('[fs] write verification FAILED — target does not match what was written', {
+      file: normalized,
+      expectedByteLength: expected.length,
+      actualByteLength: actual.length,
+      expectedHash: createHash('sha256').update(expected).digest('hex'),
+      actualHash: createHash('sha256').update(actual).digest('hex'),
+      actualAllZero: allZero,
+    });
+    throw new UserFacingError(
+      `Fixora wrote ${normalized}, but reading it back shows different bytes than what was ` +
+        'written. This looks like a data-integrity problem, not a normal failure, so the change ' +
+        'was NOT recorded as applied. Check this file in another editor before trusting its ' +
+        'contents, and avoid further edits to it until you have verified it.',
+      {
+        code: 'write_verification_failed',
+        action: { type: 'none', label: 'Dismiss' },
+        stage: 'fs',
+      },
+    );
+  }
 }
 
 export class SecretFileError extends Error {

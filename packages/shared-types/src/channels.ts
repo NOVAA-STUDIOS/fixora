@@ -55,6 +55,7 @@ export const channels = [
   // Proceed Mode (P2.2R): natural-language editing. Apply deliberately reuses `ai:applyRepair` —
   // there is exactly one verified write path in the app and Proceed does not get a second one.
   'proceed:run',
+  'proceed:cancel',
   'license:get',
   'license:activate',
   'license:deactivate',

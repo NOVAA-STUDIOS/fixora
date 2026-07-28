@@ -148,18 +148,23 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
         );
       }
 
-      // 2) Intent — deterministic, biased by the real file language. Unknown fails gracefully.
+      // 2) Intent — deterministic, biased by the real file language. Unknown fails gracefully, and so
+      //    does `explanation`: a question ("explain what this does") is not an edit request, and must
+      //    never reach scope resolution or the provider — Proceed only ever produces edits.
       const { intent } = classifyIntent(request.instruction, { language });
       base.intent = intent;
-      if (intent === 'unknown') {
+      if (intent === 'unknown' || intent === 'explanation') {
         return done(
           {
             status: 'unknown-intent',
             message:
-              'I could not tell what kind of change you want. Try naming the change, e.g. ' +
-              '"make this button green" or "rename this variable".',
+              intent === 'explanation'
+                ? 'That reads like a question, not a change to make. Proceed only performs edits — ' +
+                  'try describing what to change instead, e.g. "make this button green".'
+                : 'I could not tell what kind of change you want. Try naming the change, e.g. ' +
+                  '"make this button green" or "rename this variable".',
           },
-          'unknown-intent',
+          intent === 'explanation' ? 'explanation-intent' : 'unknown-intent',
         );
       }
 
@@ -214,6 +219,13 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
 
       // 4) Generate — stream + one schema re-ask, exactly like repair.
       let out = await stream(deps.provider, prepared.request, signal);
+      // A cancelled stream ends cleanly with no text (AI-Pipeline §6) rather than throwing or failing,
+      // so it must be checked explicitly here — otherwise an aborted request falls through to
+      // `parseEditOutput('')`, fails to parse, and surfaces as a confusing "invalid model output"
+      // error instead of the clean cancellation it actually was (Q3 Defect #4, mirrors ai-service.ts).
+      if (signal.aborted) {
+        return done({ status: 'error', code: 'cancelled', message: 'Cancelled.' }, 'cancelled');
+      }
       if (!out.ok)
         return done(failed(out.failure), `${out.failure.kind}:${out.failure.providerCode}`);
       let parsed = parseEditOutput(out.text);
@@ -226,6 +238,23 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
       if (!parsed.ok) {
         const failure = describeModelOutputFailure(parsed.reason, parsed.detail);
         return done(failed(failure), `model-output:${parsed.reason}`);
+      }
+
+      // TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause). Gated on the
+      // disposable repro filename so no other file's content is ever logged. Captures the model's
+      // editedCode exactly as parsed, before it crosses back to the renderer over `proceed:run`.
+      if (request.file.includes('proceed-diag')) {
+        const ec = parsed.value.editedCode;
+        const nulCount = ec.split(String.fromCharCode(0)).length - 1;
+        console.error('[Q3-DIAG] proceed-service: parsed editedCode', {
+          file: request.file,
+          typeofEditedCode: typeof ec,
+          length: ec.length,
+          byteLength: Buffer.byteLength(ec, 'utf8'),
+          containsNul: nulCount > 0,
+          nulCount,
+          preview: JSON.stringify(ec.slice(0, 60)),
+        });
       }
 
       // 5) Verify — the REAL pipeline, in EDIT mode (finding: null). Never bypassed.
