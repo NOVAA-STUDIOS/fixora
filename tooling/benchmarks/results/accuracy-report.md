@@ -1,6 +1,6 @@
 # Fixora — Analyzer Accuracy Report
 
-Generated 2026-07-22T09:34:26.329Z from a real execution of the analysis engine.
+Generated 2026-07-28T03:09:03.206Z from a real execution of the analysis engine.
 Every number below is measured. Anything not measured is marked `n/a` with a reason.
 
 ## Accuracy Dashboard
@@ -68,9 +68,9 @@ Every number below is measured. Anything not measured is marked `n/a` with a rea
 
 | Metric | Value |
 | --- | ---: |
-| Average analysis time / case | 3460.5 ms |
-| Average analysis time / file | 2811.6 ms |
-| Total analysis time | 89.97 s |
+| Average analysis time / case | 4172.8 ms |
+| Average analysis time / file | 3390.4 ms |
+| Total analysis time | 108.49 s |
 | Scored cases run | 26 (32 files) |
 
 _Wall-clock on this machine, this run. Small cases, so per-case time is dominated by process_
