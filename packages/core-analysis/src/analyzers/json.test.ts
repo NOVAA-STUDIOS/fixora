@@ -55,6 +55,30 @@ describe('JSON validator', () => {
     expect(findings[0]?.ruleId).toBe('json-parse');
   });
 
+  it('locates a multi-line trailing comma at the comma itself, not the closing brace', async () => {
+    // The exact shape from docs/B4-MANUAL-ACCEPTANCE.md's JSON case. `JSON.parse` (and tree-sitter's
+    // grammar) both report this at the `}` on line 6 — where parsing actually gave up — one line past
+    // the comma a developer needs to delete. Measured directly before this fix: `startLine` was 6.
+    const src =
+      '{\n  "name": "demo",\n  "version": "1.0.0",\n  "scripts": {\n    "build": "tsc",\n  }\n}\n';
+    const findings = await run('config.json', src);
+    expect(findings).toHaveLength(1);
+    const commaLine = src.split('\n')[4] ?? '';
+    const commaCol = commaLine.indexOf(',') + 1;
+    expect(commaCol).toBeGreaterThan(0); // sanity: the fixture really does have a comma on line 5
+    expect(findings[0]?.location.startLine).toBe(5);
+    expect(findings[0]?.location.startCol).toBe(commaCol);
+  });
+
+  it('does NOT move the location for an unrelated error that happens to follow a comma', async () => {
+    // Guards the narrow trigger condition: the adjustment must fire only when the reported character
+    // is a closing bracket. An unquoted key is genuinely wrong at its own position — it must stay
+    // there even though a comma sits right before it on the previous line.
+    const src = '{\n  "name": "demo",\n  version: "1.0.0"\n}\n';
+    const findings = await run('config.json', src);
+    expect(findings[0]?.location.startLine).toBe(3); // the `version` line, unchanged
+  });
+
   it('is SILENT on valid JSON — no false positives (precision)', async () => {
     expect(await run('ok.json', '{\n  "a": 1,\n  "b": [true, null, 2.5]\n}\n')).toEqual([]);
   });

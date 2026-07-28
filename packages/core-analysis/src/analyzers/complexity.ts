@@ -114,16 +114,30 @@ const NESTING_NODES: Record<CodeLanguage, ReadonlySet<string>> = {
   go: new Set(['if_statement', 'for_statement', 'expression_case', 'communication_case']),
 };
 
+// TS/JS deliberately capture EVERY function-boundary node (including bare `arrow_function` and
+// `function_expression`, with no name requirement) rather than only named declarations. The prior
+// version only matched `function_declaration`, `method_definition`, and a named
+// `variable_declarator ... value: (arrow_function)` — so any callback passed as an argument
+// (`items.map((x) => { ...branchy logic... })`, `useEffect(() => {...})`, `setTimeout(function () {...})`)
+// was invisible: not captured as its own unit, and explicitly skipped while walking its enclosing
+// function (`measure()` never recurses into a nested function-type node). A real function's complexity
+// was silently undercounted whenever its branching lived inside a callback — extremely common in this
+// codebase's own React code. The name for an unnamed match is derived in code (`deriveName`) instead
+// of by the query, since these node types are mutually exclusive so no match is ever double-captured.
 const FUNCTION_QUERIES: Record<CodeLanguage, string> = {
   typescript: `
     (function_declaration name: (identifier) @name) @fn
+    (generator_function_declaration name: (identifier) @name) @fn
     (method_definition name: (property_identifier) @name) @fn
-    (variable_declarator name: (identifier) @name value: (arrow_function)) @fn
+    (arrow_function) @fn
+    (function_expression) @fn
   `,
   javascript: `
     (function_declaration name: (identifier) @name) @fn
+    (generator_function_declaration name: (identifier) @name) @fn
     (method_definition name: (property_identifier) @name) @fn
-    (variable_declarator name: (identifier) @name value: (arrow_function)) @fn
+    (arrow_function) @fn
+    (function_expression) @fn
   `,
   python: `(function_definition name: (identifier) @name) @fn`,
   go: `
@@ -131,6 +145,33 @@ const FUNCTION_QUERIES: Record<CodeLanguage, string> = {
     (method_declaration name: (field_identifier) @name) @fn
   `,
 };
+
+/**
+ * Recover a label for a function-like node the query captured without a `@name` (an anonymous
+ * `arrow_function`/`function_expression`) by reading its immediate syntactic context — the same
+ * information a developer's eye uses. Falls back to a clearly-marked placeholder rather than being
+ * silently dropped, which is what happened before this node type was ever captured.
+ */
+function deriveName(fnNode: Node): { name: string; kind: SymbolKind } {
+  if (fnNode.type === 'function_expression') {
+    const own = fnNode.childForFieldName('name');
+    if (own !== null) return { name: own.text, kind: 'function' };
+  }
+  const parent = fnNode.parent;
+  if (parent?.type === 'variable_declarator') {
+    const id = parent.childForFieldName('name');
+    if (id?.type === 'identifier') return { name: id.text, kind: 'function' };
+  }
+  if (parent?.type === 'pair') {
+    const key = parent.childForFieldName('key');
+    if (key !== null) return { name: key.text, kind: 'method' };
+  }
+  if (parent?.type === 'assignment_expression') {
+    const left = parent.childForFieldName('left');
+    if (left !== null) return { name: left.text, kind: 'function' };
+  }
+  return { name: 'anonymous function', kind: 'function' };
+}
 
 /** Is this node a short-circuiting boolean operator (each one adds a path)? */
 function isLogicalOperator(node: Node, language: Language): boolean {
@@ -164,6 +205,26 @@ function measure(fnNode: Node, language: CodeLanguage): Metrics {
     if (isLogicalOperator(node, language)) {
       cyclomatic += 1;
       cognitive += 1;
+    }
+    // TS/JS represents `else if` as a SECOND if_statement nested inside an `else_clause` wrapper in
+    // this node's `alternative` field — the whole if/else-if/else chain is nested if_statements,
+    // unlike Python's flat `elif_clause` siblings (already handled correctly above; `elif_clause` is
+    // its own node type, a direct sibling child, never re-entering this branch). Cognitive complexity
+    // scores an else-if as a continuation of the SAME decision at the SAME nesting level (the
+    // reference SonarSource metric), not a fresh, deeper level — so it is measured at `depth` (this
+    // if's own depth), not `childDepth`. Left unhandled, a flat chain of N else-ifs scored ~N² instead
+    // of ~N: measured directly, six trivial, unnested `else if` branches scored cognitive complexity
+    // 21 (over the warning threshold of 16) for code with no real nesting at all.
+    const elseClause = node.type === 'if_statement' ? node.childForFieldName('alternative') : null;
+    const elseIf =
+      elseClause !== null && elseClause.type === 'else_clause' ? elseClause.namedChild(0) : null;
+    if (elseClause !== null && elseIf !== null && elseIf.type === 'if_statement') {
+      visit(elseIf, depth, false);
+      for (let i = 0; i < node.namedChildCount; i++) {
+        const child = node.namedChild(i);
+        if (child !== null && !child.equals(elseClause)) visit(child, childDepth, false);
+      }
+      return;
     }
     for (let i = 0; i < node.namedChildCount; i++) {
       const child = node.namedChild(i);
@@ -270,9 +331,13 @@ export const complexityAnalyzer: Analyzer = {
               if (capture.name === 'fn') fnNode = capture.node;
               else if (capture.name === 'name') nameNode = capture.node;
             }
-            if (fnNode === undefined || nameNode === undefined) continue;
+            if (fnNode === undefined) continue;
 
-            const symbol = toSymbol(nameNode.text, functionKind(fnNode), fnNode, analysisFile.file);
+            const { name, kind } =
+              nameNode !== undefined
+                ? { name: nameNode.text, kind: functionKind(fnNode) }
+                : deriveName(fnNode);
+            const symbol = toSymbol(name, kind, fnNode, analysisFile.file);
             const { cyclomatic, cognitive } = measure(fnNode, language);
 
             const cycSeverity = severityFor(cyclomatic, CYCLOMATIC_WARN, CYCLOMATIC_ERROR);
