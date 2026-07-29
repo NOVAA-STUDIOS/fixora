@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 
 import { VirtualList } from './virtual-list.js';
 
@@ -44,5 +45,128 @@ describe('VirtualList', () => {
     );
     const list = screen.getByRole('listbox', { name: 'Findings' });
     expect(list).toHaveAttribute('tabindex', '0');
+  });
+});
+
+/**
+ * Beta audit A2 (File tree keyboard-navigation finding): the container advertises `listbox`/
+ * `option` roles — a promise to assistive tech that arrow keys move a roving selection. These
+ * tests hold it to that promise: Arrow Up/Down/Home/End move `aria-activedescendant`, and
+ * Enter/Space activate whichever row is currently active.
+ */
+describe('VirtualList keyboard navigation', () => {
+  const small = Array.from({ length: 5 }, (_, i) => ({ id: `row-${String(i)}`, label: `Row ${String(i)}` }));
+
+  // jsdom does not compute real layout, so the virtualizer may not mount the active row's actual
+  // DOM node (its "visible window" math depends on a real clientHeight) — the same limitation the
+  // windowing test above already works around. The active index is parsed from the id itself
+  // rather than looked up via `getElementById`, since the id format (`${baseId}-${index}`) is
+  // exactly what `aria-activedescendant` is asserting either way.
+  function activeIndex(list: HTMLElement): number {
+    const id = list.getAttribute('aria-activedescendant');
+    expect(id).not.toBeNull();
+    const match = /-(\d+)$/.exec(id ?? '');
+    expect(match).not.toBeNull();
+    return Number(match?.[1]);
+  }
+
+  it('starts with the first row active', () => {
+    render(
+      <VirtualList
+        label="Rows"
+        items={small}
+        getKey={(item) => item.id}
+        renderItem={(item) => <span>{item.label}</span>}
+      />,
+    );
+    expect(activeIndex(screen.getByRole('listbox'))).toBe(0);
+  });
+
+  it('ArrowDown/ArrowUp move the active row by one, clamped to the list bounds', async () => {
+    render(
+      <VirtualList
+        label="Rows"
+        items={small}
+        getKey={(item) => item.id}
+        renderItem={(item) => <span>{item.label}</span>}
+      />,
+    );
+    const list = screen.getByRole('listbox');
+    list.focus();
+
+    await userEvent.keyboard('{ArrowDown}');
+    expect(activeIndex(list)).toBe(1);
+    await userEvent.keyboard('{ArrowDown}');
+    expect(activeIndex(list)).toBe(2);
+    await userEvent.keyboard('{ArrowUp}');
+    expect(activeIndex(list)).toBe(1);
+
+    // Clamped: cannot move above the first row.
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}{ArrowUp}');
+    expect(activeIndex(list)).toBe(0);
+  });
+
+  it('Home/End jump to the first/last row', async () => {
+    render(
+      <VirtualList
+        label="Rows"
+        items={small}
+        getKey={(item) => item.id}
+        renderItem={(item) => <span>{item.label}</span>}
+      />,
+    );
+    const list = screen.getByRole('listbox');
+    list.focus();
+
+    await userEvent.keyboard('{End}');
+    expect(activeIndex(list)).toBe(4);
+    await userEvent.keyboard('{Home}');
+    expect(activeIndex(list)).toBe(0);
+  });
+
+  it('cannot move past the last row', async () => {
+    render(
+      <VirtualList
+        label="Rows"
+        items={small}
+        getKey={(item) => item.id}
+        renderItem={(item) => <span>{item.label}</span>}
+      />,
+    );
+    const list = screen.getByRole('listbox');
+    list.focus();
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
+    expect(activeIndex(list)).toBe(4);
+  });
+
+  it('Enter and Space activate the currently active row via onActivate', async () => {
+    const onActivate = vi.fn();
+    render(
+      <VirtualList
+        label="Rows"
+        items={small}
+        getKey={(item) => item.id}
+        renderItem={(item) => <span>{item.label}</span>}
+        onActivate={onActivate}
+      />,
+    );
+    const list = screen.getByRole('listbox');
+    list.focus();
+
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}');
+    await userEvent.keyboard('{Enter}');
+    expect(onActivate).toHaveBeenCalledWith(small[2], 2);
+
+    await userEvent.keyboard(' ');
+    expect(onActivate).toHaveBeenCalledWith(small[2], 2);
+    expect(onActivate).toHaveBeenCalledTimes(2);
+  });
+
+  it('does nothing on an empty list rather than throwing', async () => {
+    render(<VirtualList label="Rows" items={[]} getKey={(item: never) => item} renderItem={() => null} />);
+    const list = screen.getByRole('listbox');
+    list.focus();
+    await userEvent.keyboard('{ArrowDown}{Enter}{End}{Home}');
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
   });
 });

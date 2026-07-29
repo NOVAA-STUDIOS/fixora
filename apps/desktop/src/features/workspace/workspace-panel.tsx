@@ -1,9 +1,8 @@
 import type { WorkspaceInfo } from '@fixora/shared-types';
-import { Button, ChevronDownIcon, ConfirmDialog, FolderIcon, WinCloseIcon, cn } from '@fixora/ui';
+import { Button, ChevronDownIcon, FolderIcon, WinCloseIcon, cn } from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
-import { useEditorStore } from '../editor/editor-store.js';
 
 import { FileTree } from './file-tree.js';
 import { useWorkspaceStore } from './workspace-store.js';
@@ -115,27 +114,21 @@ export function WorkspacePanel(): React.JSX.Element {
   );
 }
 
-/** The always-available "switch project" control in the open-workspace header. */
+/**
+ * The always-available "switch project" control in the open-workspace header.
+ *
+ * Neither "Open folder…", "Close folder", nor a "Recent" entry here checks for unsaved edits
+ * itself — `close()`/`openPath()` in the store do that centrally (via `pendingAction` and the one
+ * shared `WorkspaceSwitchGuard` dialog mounted in `AppShell`), so this menu cannot forget the
+ * check the way it once could (beta audit A2).
+ */
 function OpenMenu(): React.JSX.Element {
   const pickAndOpen = useWorkspaceStore((s) => s.pickAndOpen);
   const openPath = useWorkspaceStore((s) => s.openPath);
   const current = useWorkspaceStore((s) => s.workspace);
   const close = useWorkspaceStore((s) => s.close);
-  const closeAllTabs = useEditorStore((s) => s.closeAll);
-  const dirtyCount = useEditorStore((s) => s.dirty.length);
   const [open, setOpen] = useState(false);
-  const [confirmClose, setConfirmClose] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
-  // Closing throws away every open tab, so unsaved work gets one clear chance to survive.
-  const closeWorkspace = async (): Promise<void> => {
-    if (dirtyCount > 0) {
-      setConfirmClose(true);
-      return;
-    }
-    closeAllTabs();
-    await close();
-  };
 
   useEffect(() => {
     if (!open) return;
@@ -197,7 +190,7 @@ function OpenMenu(): React.JSX.Element {
               role="menuitem"
               onClick={() => {
                 setOpen(false);
-                void closeWorkspace();
+                void close();
               }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-fg hover:bg-hover"
             >
@@ -238,22 +231,6 @@ function OpenMenu(): React.JSX.Element {
           </div>
         </>
       )}
-
-      <ConfirmDialog
-        open={confirmClose}
-        onOpenChange={setConfirmClose}
-        title="Close project without saving?"
-        description={
-          dirtyCount === 1
-            ? '1 file has unsaved changes. Closing this project discards them.'
-            : `${String(dirtyCount)} files have unsaved changes. Closing this project discards them.`
-        }
-        confirmLabel="Discard and close"
-        onConfirm={() => {
-          closeAllTabs();
-          void close();
-        }}
-      />
     </div>
   );
 }

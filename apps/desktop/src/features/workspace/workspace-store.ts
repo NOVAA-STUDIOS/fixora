@@ -49,6 +49,15 @@ export type RevealTarget = {
  */
 export type HydrationStage = 'workspace' | 'files';
 
+/**
+ * A workspace transition blocked on unsaved editor changes, waiting for the user to confirm or
+ * cancel via `WorkspaceSwitchGuard` (mounted once, in `AppShell`, so every entry point that can
+ * leave the current workspace shares the exact same confirmation — beta audit A2, Workspace
+ * switching finding: "Close folder" checked for unsaved changes, but switching straight to a
+ * different recent project via any other entry point did not, and silently discarded them).
+ */
+export type PendingWorkspaceAction = { type: 'switch'; path: string } | { type: 'close' };
+
 type WorkspaceState = {
   workspace: WorkspaceInfo | null;
   nodes: TreeNode[];
@@ -58,10 +67,15 @@ type WorkspaceState = {
   revealTarget: RevealTarget | null;
   opening: boolean;
   error: string | null;
+  /** Set instead of acting, whenever leaving the current workspace would discard unsaved edits. */
+  pendingAction: PendingWorkspaceAction | null;
 
   /** On launch, adopt a workspace main already restored (reopen-last-project) and load its tree. */
   hydrateCurrent: (onStage?: (stage: HydrationStage) => void) => Promise<void>;
   pickAndOpen: () => Promise<void>;
+  /** Switch to a different project. Blocked behind `pendingAction` if the current one has unsaved
+   *  edits — every call site (Recent Projects, Quick Actions, the Open menu, reopen-last, the
+   *  command palette) goes through this one function, so none of them can bypass the guard. */
   openPath: (path: string) => Promise<void>;
   toggleDir: (relPath: string) => Promise<void>;
   selectFile: (relPath: string) => void;
@@ -73,12 +87,16 @@ type WorkspaceState = {
     endLine: number;
     endCol: number;
   }) => void;
-  /** Close the workspace: main forgets the root, the tree/editor empty out. */
+  /** Close the workspace: main forgets the root, the tree/editor empty out. Same guard as `openPath`. */
   close: () => Promise<void>;
   /** Re-open the most recently used folder — the "reopen last project" a returning user expects. */
   reopenLast: () => Promise<void>;
   /** Re-fetch a directory's children in place (used by the file watcher). */
   refreshDir: (relPath: string) => Promise<void>;
+  /** The user confirmed discarding unsaved edits — carry out the action `pendingAction` named. */
+  confirmPendingAction: () => Promise<void>;
+  /** The user backed out — stay on the current workspace, unsaved edits untouched. */
+  cancelPendingAction: () => void;
 };
 
 let revealToken = 0;
@@ -118,6 +136,38 @@ function entryToNode(entry: DirEntryInfo, depth: number): TreeNode {
   return { ...entry, depth, expanded: false, loading: false };
 }
 
+/** The actual switch, unconditional — callers are responsible for having already cleared the
+ *  unsaved-edits gate (or having nothing to gate). Extracted so both the direct path (nothing
+ *  dirty) and the confirmed path (`confirmPendingAction`) share one implementation. */
+async function performOpenPath(
+  set: (partial: Partial<WorkspaceState>) => void,
+  path: string,
+): Promise<void> {
+  set({ opening: true, error: null });
+  const opened = await invoke('workspace:open', { path });
+  if (!opened.ok) {
+    set({ opening: false, error: opened.error.message });
+    return;
+  }
+  // AFTER the open succeeds, so a failed switch leaves the current project intact.
+  resetWorkspaceScopedState();
+  const root = await invoke('fs:listDir', { relPath: '' });
+  set({
+    workspace: opened.value.workspace,
+    nodes: root.ok ? root.value.entries.map((e) => entryToNode(e, 0)) : [],
+    selectedFile: null,
+    revealTarget: null,
+    opening: false,
+    error: root.ok ? null : root.error.message,
+  });
+}
+
+async function performClose(set: (partial: Partial<WorkspaceState>) => void): Promise<void> {
+  await invoke('workspace:close', {});
+  resetWorkspaceScopedState();
+  set({ workspace: null, nodes: [], selectedFile: null, revealTarget: null, error: null });
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspace: null,
   nodes: [],
@@ -125,6 +175,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   revealTarget: null,
   opening: false,
   error: null,
+  pendingAction: null,
 
   hydrateCurrent: async (onStage) => {
     // `onStage` reports what has *actually* completed, so the launch screen narrates real work
@@ -175,23 +226,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   openPath: async (path) => {
-    set({ opening: true, error: null });
-    const opened = await invoke('workspace:open', { path });
-    if (!opened.ok) {
-      set({ opening: false, error: opened.error.message });
+    // Blocked behind confirmation if the current workspace has unsaved edits — the exact same
+    // check and the exact same dialog (`WorkspaceSwitchGuard`) that `close()` uses below, so every
+    // way of leaving the current workspace is protected identically (beta audit A2).
+    if (useEditorStore.getState().dirty.length > 0) {
+      set({ pendingAction: { type: 'switch', path } });
       return;
     }
-    // AFTER the open succeeds, so a failed switch leaves the current project intact.
-    resetWorkspaceScopedState();
-    const root = await invoke('fs:listDir', { relPath: '' });
-    set({
-      workspace: opened.value.workspace,
-      nodes: root.ok ? root.value.entries.map((e) => entryToNode(e, 0)) : [],
-      selectedFile: null,
-      revealTarget: null,
-      opening: false,
-      error: root.ok ? null : root.error.message,
-    });
+    await performOpenPath(set, path);
   },
 
   toggleDir: async (relPath) => {
@@ -255,9 +297,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   close: async () => {
-    await invoke('workspace:close', {});
-    resetWorkspaceScopedState();
-    set({ workspace: null, nodes: [], selectedFile: null, revealTarget: null, error: null });
+    // Same guard as `openPath`: closing with unsaved edits open is exactly as destructive as
+    // switching to a different project with them open, and now goes through the same
+    // confirmation rather than each call site remembering to check `dirty` itself.
+    if (useEditorStore.getState().dirty.length > 0) {
+      set({ pendingAction: { type: 'close' } });
+      return;
+    }
+    await performClose(set);
+  },
+
+  confirmPendingAction: async () => {
+    const action = get().pendingAction;
+    if (action === null) return;
+    set({ pendingAction: null });
+    if (action.type === 'close') {
+      await performClose(set);
+    } else {
+      await performOpenPath(set, action.path);
+    }
+  },
+
+  cancelPendingAction: () => {
+    set({ pendingAction: null });
   },
 
   reopenLast: async () => {

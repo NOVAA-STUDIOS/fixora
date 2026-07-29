@@ -6,6 +6,7 @@ import { UserFacingError } from '@fixora/shared-types';
 
 import type { FileIndexRepository, Workspace, WorkspaceRepository } from '../db/repositories.js';
 
+import { fsTry } from './fs/fs-errors.js';
 import { loadIgnoreRules, type IgnoreMatcher } from './fs/ignore-rules.js';
 import { detectLanguage } from './fs/language.js';
 import { assertInsideWorkspace } from './fs/path-guard.js';
@@ -62,7 +63,13 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
      * plus the root directory's immediate children for the tree's first paint.
      */
     open(rootPath: string): { workspace: Workspace } {
-      const stat = statSync(rootPath); // throws if the path does not exist
+      // Routed through the same fs-error translation layer `fs:listDir`/`fs:readFile`/etc. use
+      // (fs-errors.ts), rather than letting a raw ENOENT/EACCES/etc. reach the router's generic
+      // "Something went wrong handling that action." — the previous bare `statSync` call did
+      // exactly that for a deleted, moved, or renamed recent project (beta audit A2, Recent
+      // Projects finding). `basename`, not `rootPath`, in the message: an absolute path is user
+      // data (Security §9) and must not cross to the renderer even in an error string.
+      const stat = fsTry('open', basename(rootPath) || rootPath, () => statSync(rootPath));
       if (!stat.isDirectory()) {
         throw new UserFacingError(
           'That path is not a folder, so it cannot be opened as a project.',

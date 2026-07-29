@@ -1,6 +1,7 @@
 import { CommandPalette } from '../commands/command-palette.js';
 import { CommandProvider } from '../commands/command-provider.js';
 import { useAppCommands } from '../commands/use-app-commands.js';
+import { WorkspaceSwitchGuard } from '../workspace/workspace-switch-guard.js';
 
 import { ActivityRail } from './activity-rail.js';
 import { StatusBar } from './status-bar.js';
@@ -43,6 +44,7 @@ export function AppShell(): React.JSX.Element {
       </div>
       <CommandPalette />
       <Toaster />
+      <WorkspaceSwitchGuard />
     </CommandProvider>
   );
 }

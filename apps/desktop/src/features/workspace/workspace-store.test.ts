@@ -2,6 +2,7 @@ import type { DirEntryInfo, WorkspaceInfo } from '@fixora/shared-types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useUiStore } from '../../stores/ui-store.js';
+import { useEditorStore } from '../editor/editor-store.js';
 
 import { useWorkspaceStore } from './workspace-store.js';
 
@@ -177,5 +178,76 @@ describe('useWorkspaceStore tree', () => {
   it('selectFile records the activated file', () => {
     useWorkspaceStore.getState().selectFile('README.md');
     expect(useWorkspaceStore.getState().selectedFile).toBe('README.md');
+  });
+});
+
+/**
+ * Beta audit A2, Workspace switching finding: "Close folder" checked for unsaved editor changes,
+ * but switching to a different project via any other entry point (Recent Projects, Quick Actions,
+ * the Open menu's "Recent" list, reopen-last, the command palette) did not, and silently discarded
+ * them. `openPath` and `close` now share one gate (`pendingAction`) so every entry point — they all
+ * call one or the other — is protected identically.
+ */
+describe('useWorkspaceStore — unsaved-changes guard', () => {
+  beforeEach(() => {
+    useUiStore.setState({ reopenLastProject: true });
+    tree = { '': [dir('src', 'src'), file('README.md', 'README.md', 'markdown')] };
+    installBridge();
+    useWorkspaceStore.setState({
+      workspace,
+      nodes: [],
+      selectedFile: null,
+      opening: false,
+      error: null,
+      pendingAction: null,
+    });
+    useEditorStore.setState({ tabs: [], activeTab: null, dirty: [], saving: null, saveError: null });
+  });
+
+  it('openPath switches immediately when there is nothing unsaved', async () => {
+    await useWorkspaceStore.getState().openPath('/other');
+    expect(useWorkspaceStore.getState().workspace).toEqual(workspace);
+    expect(useWorkspaceStore.getState().pendingAction).toBeNull();
+  });
+
+  it('openPath blocks behind pendingAction when the current workspace has unsaved edits', async () => {
+    useEditorStore.setState({ dirty: ['src/index.ts'] });
+    await useWorkspaceStore.getState().openPath('/other');
+
+    // Blocked: nothing switched yet.
+    expect(useWorkspaceStore.getState().pendingAction).toEqual({ type: 'switch', path: '/other' });
+  });
+
+  it('confirmPendingAction carries out a blocked switch and clears the pending state', async () => {
+    useEditorStore.setState({ dirty: ['src/index.ts'] });
+    await useWorkspaceStore.getState().openPath('/other');
+    await useWorkspaceStore.getState().confirmPendingAction();
+
+    expect(useWorkspaceStore.getState().pendingAction).toBeNull();
+    expect(useWorkspaceStore.getState().workspace).toEqual(workspace);
+  });
+
+  it('cancelPendingAction leaves the current workspace untouched', async () => {
+    useEditorStore.setState({ dirty: ['src/index.ts'] });
+    await useWorkspaceStore.getState().openPath('/other');
+    useWorkspaceStore.getState().cancelPendingAction();
+
+    expect(useWorkspaceStore.getState().pendingAction).toBeNull();
+    // Still the original workspace — the blocked switch to '/other' never happened.
+    expect(useWorkspaceStore.getState().workspace).toEqual(workspace);
+  });
+
+  it('close blocks behind pendingAction when there are unsaved edits, same as openPath', async () => {
+    useEditorStore.setState({ dirty: ['src/index.ts'] });
+    await useWorkspaceStore.getState().close();
+
+    expect(useWorkspaceStore.getState().pendingAction).toEqual({ type: 'close' });
+    expect(useWorkspaceStore.getState().workspace).toEqual(workspace); // not yet closed
+  });
+
+  it('close proceeds immediately with nothing unsaved', async () => {
+    await useWorkspaceStore.getState().close();
+    expect(useWorkspaceStore.getState().workspace).toBeNull();
+    expect(useWorkspaceStore.getState().pendingAction).toBeNull();
   });
 });
