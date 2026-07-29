@@ -44,6 +44,12 @@ Stripe, or publish step has been performed for any of this.
 
 ### Fixed
 
+- **Suggestion System (beta audit A7 — closed, no fix required).** A full engineering audit found
+  zero genuine beta blockers — no data-loss, correctness, or trust problem affecting the user's
+  actual project. Non-blocking findings (a renderer/main max-length validation disagreement, no
+  total mailto-URL length guard, no secret-scanning safeguard on suggestion text, no
+  browser-presence pre-check on the Gmail Web fallback, a 500-row cap on history/export with no
+  retention policy) are deferred post-beta per instruction; nothing in this feature changed.
 - **Proceed Mode (beta audit A6 remediation).** Proceed edits are now recorded in the same
   `RepairHistoryRepository` audit trail Repair writes to — whatever the verdict, mirroring Repair's
   "an unresolved or regressed attempt is part of the history too" discipline — closing a real gap
