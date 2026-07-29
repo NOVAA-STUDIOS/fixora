@@ -1,12 +1,14 @@
 # Fixora — Project Status
 
-**Updated:** 2026-07-28 · **Mission:** ship a **BYOK Public Beta** (pivot 2026-07-16).
+**Updated:** 2026-07-29 · **Mission:** ship a **BYOK Public Beta** (pivot 2026-07-16).
 **Release:** `v0.9.0-beta.1` was tagged **code complete** 2026-07-18 (see the Beta track table below —
 Phases A–F all done; `pnpm run ci` green at 323 tests). Since that tag, substantial additional work has
 been built on `sprint-1/ui-stability` and is **not yet released**: Proceed Mode (a second editing
 pipeline alongside Repair), a four-part reliability/validation sequence (H1→Q1→Q2→Q3) hardening both
-Repair and Proceed, and the Suggestion System (Sprint F1, now **COMPLETE**). See "Post-beta-tag work"
-below for the current, authoritative state of that branch.
+Repair and Proceed, the Suggestion System (Sprint F1) and Welcome Experience (Sprint F2, both now
+**COMPLETE**), and a module-by-module pre-launch **Beta Readiness Audit** pass (A1–A3 closed, no
+blockers remaining). See "Post-beta-tag work" and "Beta Readiness Audits" below for the current,
+authoritative state of that branch.
 Owner-side launch steps for `v0.9.0-beta.1` (license keypair + Stripe link, installer build on a build
 machine, clean-machine acceptance — [RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)) have not been
 confirmed done and are unaffected by this update.
@@ -139,6 +141,50 @@ Architecture: `docs/features/suggestion-system.md` (Suggestion System) and
 Fixora, Gmail fallback, export, history all confirmed working) with full regression test coverage.
 Does not touch Analyzer, Repair, or Proceed.
 
+### Sprint F2 — Welcome Experience — **COMPLETE**
+
+A premium first-run and startup surface, independent of Analyzer/Repair/Proceed/Suggestion System:
+a splash screen with a bounded (not artificial) minimum-visible time, a Home screen shown whenever
+no project is open, Quick Actions, and pinnable Recent Projects.
+
+- **Splash screen** — a ~1.8s floor exists only so the staggered logo/wordmark entrance animation
+  finishes playing, never a manufactured "premium" wait on top of that; the loading indicator hides
+  the instant initialization actually resolves; a 20s hang-safety-net guarantees the "never strand
+  the user" rule holds even if initialization never settles.
+- **Home screen** — hero + **Quick Actions** (Open folder, Open recent, Documentation, What's New —
+  the latter two as in-app dialogs, no network required) + **Recent Projects** with pin support
+  (migration v6 adds `workspaces.pinned_at`; a pinned project sorts to the top; a new
+  `workspace:setPinned` IPC channel).
+
+Architecture: `docs/features/welcome-experience.md`. Does not touch Analyzer, Repair, Proceed, or
+the Suggestion System.
+
+## Beta Readiness Audits (A1 → A3+) — pre-launch hardening pass
+
+A module-by-module audit of the Public Beta surface, each pass reviewing one module against a fixed
+rubric (UX, accessibility, performance, error handling, trustworthiness, production readiness),
+fixing only genuine beta-blocking findings, and explicitly deferring lower-severity/optimization
+findings rather than scope-creeping the pass. Each closed audit's findings, fixes (if any), and
+final score are the authoritative record — this section tracks status only.
+
+| Audit | Module | Status | Blockers found | Blockers remaining |
+| ----- | ------ | ------ | --------------- | ------------------- |
+| **A1** | Welcome Experience | ✅ **Closed 2026-07-29** — remediated | 3 (splash focus containment, Recent Projects context-menu discoverability, Documentation dialog's false bundling claim) | 0 — all fixed, re-audited, score 9/10 |
+| **A2** | File Explorer & Workspace | ✅ **Closed 2026-07-29** — remediated | 2 (silent data loss on workspace switch; file tree's `listbox`/`option` ARIA roles had no keyboard implementation) | 0 — all fixed, re-audited, score 8.5/10 |
+| **A3** | Analyzer | ✅ **Closed 2026-07-29** — accepted, no remediation required | 0 — no genuine beta blockers found | 0 — score 7.5/10; several Medium/High-severity **optimization and test-coverage findings deferred post-beta** (see `docs/BUGLOG.md` if promoted; not tracked as defects since none are blocking) |
+| A4+ | (next module) | ⏳ Not started | — | — |
+
+**A3's deferred (non-blocking) findings, explicitly not implemented per instruction:** analysis
+results are fully buffered before the Problems panel updates (contradicts the engine's own "streams
+incrementally" doc comment — a real perceived-hang risk on large repos, but a disclosed, deliberate
+trade-off per ADR-035, not a hidden defect); the desktop-side analysis orchestration layer
+(`analysis-service.ts`/`analysis-host.ts`/`analysis.handlers.ts`/`analysis-worker.mjs`) has zero
+automated test coverage; the complexity analyzer's tree-sitter parse call is the one place a single
+bad file can abort an entire analysis run instead of degrading gracefully like every other analyzer;
+analyzers run sequentially rather than concurrently. None of these block Beta; all are candidates
+for a post-beta hardening pass, or for promotion to blocking status if real-world beta usage shows
+otherwise.
+
 ## Mission pivot (2026-07-16) — BYOK-first Public Beta
 
 Priorities changed to shipping a stable, trustworthy Public Beta. The beta is **BYOK-only** (bring your
@@ -180,6 +226,8 @@ plugins, cloud sync, API platform, analytics/reports, collaboration, org managem
 | **Beta-M5**   | **Verified AI Repair (BYOK)**                                 | ✅ **Done — Phases A–F all done**                       | The beta product; see Beta track above. Tagged `v0.9.0-beta.1`, 2026-07-18                |
 | **Post-beta** | **Proceed Mode (P2.1–P2.2.1) + reliability sequence (H1→Q3)** | ✅ **Done, unreleased** — Q3 formally frozen 2026-07-27 | Branch `sprint-1/ui-stability`; not in any tagged release. See "Post-beta-tag work" above |
 | **F1**        | **Suggestion System (F1, F1.1, F1.3–F1.5)**                   | ✅ **COMPLETE 2026-07-28**                              | Not workspace-scoped, not in any tagged release yet. See "Sprint F1" above                |
+| **F2**        | **Welcome Experience (splash + Home screen + pin support)**   | ✅ **COMPLETE 2026-07-29**                              | Not in any tagged release yet. See "Sprint F2" above                                      |
+| **A1–A3**     | **Beta Readiness Audits (Welcome Experience, Workspace, Analyzer)** | ✅ **Closed 2026-07-29** — no blockers remaining  | A4+ not started. See "Beta Readiness Audits" above                                        |
 | M6+           | Teams / enterprise / marketplace / cloud                      | ⏸ v1.1 backlog                                          | Deferred by the beta pivot                                                                |
 
 ---
