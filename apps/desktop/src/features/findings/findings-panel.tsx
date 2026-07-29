@@ -36,6 +36,7 @@ export function FindingsPanel(): React.JSX.Element {
   const findings = useFindingsStore((s) => s.findings);
   const summary = useFindingsStore((s) => s.summary);
   const status = useFindingsStore((s) => s.status);
+  const error = useFindingsStore((s) => s.error);
   const filter = useFindingsStore((s) => s.filter);
   const ignoredIds = useFindingsStore((s) => s.ignoredIds);
   const refresh = useFindingsStore((s) => s.refresh);
@@ -45,8 +46,10 @@ export function FindingsPanel(): React.JSX.Element {
   const showIgnored = useFindingsStore((s) => s.showIgnored);
   const listen = useFindingsStore((s) => s.listen);
   const selectedId = useFindingsStore((s) => s.selectedId);
+  const select = useFindingsStore((s) => s.select);
 
   const workspace = useWorkspaceStore((s) => s.workspace);
+  const revealAt = useWorkspaceStore((s) => s.revealAt);
   const rowEstimate = useFindingRowEstimate();
 
   useEffect(() => listen(), [listen]);
@@ -56,6 +59,24 @@ export function FindingsPanel(): React.JSX.Element {
 
   const visible = findings.filter((f) => !ignoredIds.includes(f.id));
   const hiddenHere = findings.length - visible.length;
+
+  // One click, or Enter/Space on the keyboard-active row, does the whole job: describe it, open
+  // it, jump to it, highlight it. Defined once and handed to both `VirtualList` (keyboard) and
+  // `FindingRow` (mouse), so there is exactly one place "activating a finding" is defined (beta
+  // audit A4 remediation).
+  const activate = (finding: Finding): void => {
+    select(finding.id);
+    revealAt(finding.location);
+  };
+
+  // Server-side truncation (`repositories.ts`'s `list()` defaults to `limit = 500`) must never
+  // silently disagree with the counts the panel itself displays (beta audit A4, Trustworthiness
+  // finding). `summary` is the true, unfiltered-by-limit count for whichever severity the current
+  // filter names (or the grand total for "All") — if the fetched page came back shorter than that,
+  // some matching findings exist that are not, and cannot be, shown below.
+  const totalForFilter =
+    filter.severity !== undefined ? summary?.bySeverity[filter.severity] : summary?.total;
+  const isTruncated = totalForFilter !== undefined && findings.length < totalForFilter;
 
   return (
     <section
@@ -82,6 +103,28 @@ export function FindingsPanel(): React.JSX.Element {
           </Button>
         )}
       </header>
+
+      {/*
+        A failed run must never fall through silently to a generic empty state or leave stale
+        results looking current (beta audit A4, Error states finding). Shown regardless of whether
+        `visible` is empty or still holds a previous run's findings — `run()` clears `error` the
+        instant a retry starts, so this disappears on its own rather than needing to be dismissed.
+      */}
+      {status === 'error' && error !== null && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-start gap-2 border-b border-border-subtle bg-danger-subtle px-3 py-2"
+        >
+          <AlertIcon className="mt-0.5 size-4 shrink-0 text-danger-text" />
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <p className="text-xs font-medium text-danger-text">Analysis failed</p>
+            <p className="text-xs leading-relaxed text-fg-secondary">{error}</p>
+          </div>
+          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void run()}>
+            Try again
+          </Button>
+        </div>
+      )}
 
       <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border-subtle px-2 py-1.5">
         <SeverityFilter
@@ -111,6 +154,18 @@ export function FindingsPanel(): React.JSX.Element {
         )}
       </div>
 
+      {/*
+        The backend caps a single page at 500 rows (`repositories.ts`'s `list()`); `summary` is the
+        true, unlimited count. Past that cap the two would silently disagree — "N problems" in the
+        filter tabs above claiming more than this list can actually scroll to (beta audit A4,
+        Trustworthiness finding) — so say so explicitly rather than let the mismatch go unremarked.
+      */}
+      {isTruncated && (
+        <p className="shrink-0 border-b border-border-subtle bg-inset px-3 py-1.5 text-[11px] text-fg-muted">
+          Showing {findings.length} of {totalForFilter} problems. Narrow by severity to see the rest.
+        </p>
+      )}
+
       {visible.length === 0 ? (
         <EmptyState
           status={status}
@@ -135,7 +190,19 @@ export function FindingsPanel(): React.JSX.Element {
           isSelected={(f) => f.id === selectedId}
           getKey={(f) => f.id}
           className="min-h-0 flex-1"
-          renderItem={(finding) => <FindingRow finding={finding} />}
+          // Enter/Space on the keyboard-roving active row now activates it — this list carries the
+          // same `listbox`/`option` ARIA contract the file tree does, and until now was the one
+          // consumer that never wired the keyboard half of it (beta audit A4, Keyboard navigation
+          // finding; the fix mirrors file-tree.tsx's `onActivate` wiring exactly).
+          onActivate={activate}
+          renderItem={(finding) => (
+            <FindingRow
+              finding={finding}
+              onActivate={() => {
+                activate(finding);
+              }}
+            />
+          )}
         />
       )}
     </section>
@@ -178,10 +245,14 @@ function SeverityFilter({
   );
 }
 
-function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
-  const revealAt = useWorkspaceStore((s) => s.revealAt);
+function FindingRow({
+  finding,
+  onActivate,
+}: {
+  finding: Finding;
+  onActivate: () => void;
+}): React.JSX.Element {
   const ignore = useFindingsStore((s) => s.ignore);
-  const select = useFindingsStore((s) => s.select);
   const isSelected = useFindingsStore((s) => s.selectedId === finding.id);
   const runAi = useAiStore((s) => s.run);
   const aiConfigured = useAiStore((s) => s.config?.configured ?? false);
@@ -209,15 +280,15 @@ function FindingRow({ finding }: { finding: Finding }): React.JSX.Element {
     >
       <button
         type="button"
-        onClick={() => {
-          // One click does the whole job: describe it, open it, jump to it, highlight it.
-          select(finding.id);
-          revealAt(finding.location);
-        }}
+        // Not a tab stop of its own — `VirtualList`'s container is the single stop, and arrow keys
+        // move a roving `aria-activedescendant` instead (beta audit A4, mirroring the file tree's
+        // fixed pattern exactly). A click still activates the row directly.
+        tabIndex={-1}
+        onClick={onActivate}
         aria-current={isSelected}
         // The clamped message is still readable in full on hover, without opening the details pane.
         title={`${finding.message}\n${finding.location.file}:${String(finding.location.startLine)} — click for details`}
-        className="flex w-full min-w-0 flex-col items-start gap-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
+        className="flex w-full min-w-0 flex-col items-start gap-1 text-left"
       >
         <span className="flex w-full min-w-0 items-start gap-2">
           {/*
