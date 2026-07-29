@@ -44,6 +44,18 @@ Stripe, or publish step has been performed for any of this.
 
 ### Fixed
 
+- **Licensing (beta audit A10 — closed, no fix required). Beta Readiness Audit series (A1–A10)
+  now COMPLETE.** A full engineering audit of the offline Ed25519 license verification, activation/
+  deactivation flow, Stripe entitlement fulfilment, and tamper resistance found zero genuine beta
+  blockers: entitlement is re-verified from the signed key on every read (never a cached boolean),
+  the private signing key has never existed in this repository (confirmed via full git history), and
+  a tampered, wrong-key-signed, expired, or malformed license is correctly rejected and tested. No
+  feature is functionally gated on this entitlement in the beta. Non-blocking/technical-debt/
+  test-coverage findings (no confirmation before deactivating; a file-write error path lacking its
+  own `UserFacingError`; a non-atomic but safely-degrading credentials write; offline expiry's
+  inherent clock-skew exposure; no revocation mechanism; no IPC-handler/store/component test
+  coverage) are deferred post-beta per instruction. This closes the originally planned A1–A10 Beta
+  Readiness Audit series in its entirety — every audited module shipped with zero blockers remaining.
 - **Repair History Panel (beta audit A9 remediation).** "Re-run repair" is no longer offered for a
   Proceed-sourced history entry. Since Proceed edits started recording into the same repair history
   (audit A6), a Proceed row has no real analyzer finding behind it (`source: 'proceed'`, a synthetic
