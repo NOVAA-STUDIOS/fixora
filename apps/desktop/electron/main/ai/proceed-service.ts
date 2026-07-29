@@ -19,6 +19,7 @@ import type {
   VerificationReport,
 } from '@fixora/shared-types';
 
+import type { RepairHistoryRepository } from '../db/repositories.js';
 import type { VerifyInput } from '../verification/verification-service.js';
 
 /**
@@ -53,6 +54,9 @@ export interface ProceedDeps {
   model: string;
   maxOutputTokens?: number;
   workspaceRoot: string;
+  workspaceId: string;
+  /** The SAME audit trail Repair writes to (Beta Phase E) — an edit is recorded whatever its verdict. */
+  history: RepairHistoryRepository;
   /** Read the current file content. */
   readSource: (file: string) => string;
   /** Path → language, without importing the tree-sitter engine into main (CJS boundary). */
@@ -274,6 +278,27 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
       });
       base.verdict = report.verdict;
 
+      // Record every reviewed edit in the local audit trail (Beta Phase E), whatever the verdict —
+      // mirrors ai-service.ts exactly: an unresolved or regressed attempt is part of the history too.
+      // There is no analyzer Finding behind a Proceed edit, so the finding-specific columns get a
+      // synthetic, descriptive value instead of a real finding id/rule/source.
+      const historyId = deps.history.record({
+        workspaceId: deps.workspaceId,
+        findingId: `proceed:${request.file}:${String(scope.startLine)}-${String(scope.endLine)}`,
+        relPath: request.file,
+        symbolName: scope.symbolName,
+        ruleId: 'proceed-edit',
+        source: 'proceed',
+        verdict: report.verdict,
+        rationale: parsed.value.summary,
+        originalCode,
+        repairedCode: parsed.value.editedCode,
+        model: deps.model,
+        confidence: parsed.value.confidence,
+        startLine: scope.startLine,
+        endLine: scope.endLine,
+      });
+
       // 6) Safe apply gate — a regression is refused; the edit is never applied.
       if (report.verdict === 'regression') {
         return done(
@@ -291,6 +316,7 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
           status: 'ok',
           proposal: {
             intent,
+            historyId,
             editedCode: parsed.value.editedCode,
             originalCode,
             summary: parsed.value.summary,

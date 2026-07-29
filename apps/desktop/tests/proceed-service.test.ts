@@ -60,6 +60,8 @@ function deps(over: Partial<ProceedDeps> = {}): ProceedDeps {
     ]),
     model: 'test-model',
     workspaceRoot: '/ws',
+    workspaceId: 'ws-1',
+    history: { record: vi.fn(() => 'history-1') } as unknown as ProceedDeps['history'],
     readSource: () => scope.text,
     detectLanguage: () => 'typescript',
     resolveScope: () => Promise.resolve(scope),
@@ -87,6 +89,7 @@ describe('createProceedService', () => {
       expect(out.proposal.editedCode).toContain('className="green"');
       expect(out.proposal.originalCode).toBe(scope.text);
       expect(out.proposal.verification.verdict).toBe('verified');
+      expect(out.proposal.historyId).toBe('history-1');
       expect(out.proposal.target).toEqual({
         file: 'src/Button.tsx',
         startLine: 1,
@@ -95,6 +98,36 @@ describe('createProceedService', () => {
       });
     }
     expect(d.log).toHaveBeenCalledTimes(1);
+  });
+
+  it('AUDIT TRAIL (B1): a verified edit is recorded in the SAME repair history Repair writes to', async () => {
+    const record = vi.fn((_repair: Record<string, unknown>) => 'history-2');
+    const d = deps({ history: { record } as unknown as ProceedDeps['history'] });
+    const out = await createProceedService(d).run(request, NO_ABORT);
+    expect(out.status).toBe('ok');
+    expect(record).toHaveBeenCalledTimes(1);
+    const entry = record.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(entry['workspaceId']).toBe('ws-1');
+    expect(entry['relPath']).toBe('src/Button.tsx');
+    expect(entry['symbolName']).toBe('Button');
+    expect(entry['ruleId']).toBe('proceed-edit');
+    expect(entry['source']).toBe('proceed');
+    expect(entry['verdict']).toBe('verified');
+    expect(entry['repairedCode']).toContain('className="green"');
+    if (out.status === 'ok') expect(out.proposal.historyId).toBe('history-2');
+  });
+
+  it('AUDIT TRAIL (B1): a REJECTED (regression) edit is recorded too — mirrors Repair, whatever the verdict', async () => {
+    const record = vi.fn((_repair: Record<string, unknown>) => 'history-3');
+    const d = deps({
+      history: { record } as unknown as ProceedDeps['history'],
+      verify: () => Promise.resolve({ report: report('regression', 1), originalCode: scope.text }),
+    });
+    const out = await createProceedService(d).run(request, NO_ABORT);
+    expect(out.status).toBe('rejected');
+    expect(record).toHaveBeenCalledTimes(1);
+    const entry = record.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(entry['verdict']).toBe('regression');
   });
 
   it('UNKNOWN-INTENT: gibberish fails gracefully and never calls the provider', async () => {

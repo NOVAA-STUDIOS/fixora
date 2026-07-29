@@ -6,11 +6,13 @@ import type { KeyStore } from '../../ai/key-store.js';
 import { createProceedService, type ProceedLogEntry } from '../../ai/proceed-service.js';
 import { projectConventions } from '../../ai/repair-context.js';
 import type { AnalysisHost } from '../../analysis/analysis-host.js';
-import type { FindingsRepository } from '../../db/repositories.js';
+import type { FindingsRepository, RepairHistoryRepository } from '../../db/repositories.js';
 import { readTextFile } from '../../services/fs/fs-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import type { VerificationService } from '../../verification/verification-service.js';
 import { registerHandler } from '../router.js';
+
+import { describeRunFailure } from './ai.handlers.js';
 
 /**
  * The Proceed Mode IPC surface (P2.2R). One channel: `proceed:run` takes an instruction + the caret
@@ -33,6 +35,8 @@ export function registerProceedHandlers(deps: {
   verification: VerificationService;
   /** The verification worker — scope selection runs there because the AST does. */
   host: AnalysisHost;
+  /** The SAME repair audit trail Repair writes to — an edit is recorded whatever its verdict. */
+  history: RepairHistoryRepository;
   appMeta?: { url?: string; name?: string };
 }): void {
   // Mirrors `ai-service.ts`'s `active` controller exactly (Q3 Defect #4): held at module-registration
@@ -76,6 +80,8 @@ export function registerProceedHandlers(deps: {
         }),
         model: deps.keyStore.getConfig().model,
         workspaceRoot: workspace.rootPath,
+        workspaceId: workspace.id,
+        history: deps.history,
         readSource: (file) => readTextFile(workspace.rootPath, file).content,
         detectLanguage: languageFor,
         resolveScope: (input) =>
@@ -115,8 +121,10 @@ export function registerProceedHandlers(deps: {
     } catch (error) {
       // A worker crash / scope timeout reaches here. Report it as a typed outcome rather than
       // throwing, so the renderer shows the reason instead of the router's redacted string.
-      const message = error instanceof Error ? error.message : String(error);
-      return { status: 'error', code: 'proceed_failed', message };
+      // `describeRunFailure` is the same wording Repair's `ai:run` uses (P0 Priority 1): an authored
+      // UserFacingError is surfaced verbatim, anything else becomes an actionable, non-generic
+      // sentence — never a raw JS error/stack reaching the renderer.
+      return { status: 'error', code: 'proceed_failed', message: describeRunFailure(error, 'edit') };
     } finally {
       clearTimeout(timer);
       // Only clear `active` if it is STILL this request's controller — a newer `proceed:run` (which

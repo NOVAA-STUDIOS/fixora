@@ -44,6 +44,14 @@ Stripe, or publish step has been performed for any of this.
 
 ### Fixed
 
+- **Proceed Mode (beta audit A6 remediation).** Proceed edits are now recorded in the same
+  `RepairHistoryRepository` audit trail Repair writes to — whatever the verdict, mirroring Repair's
+  "an unresolved or regressed attempt is part of the history too" discipline — closing a real gap
+  given Proceed shares Repair's write path and BUG-002's still-open data-integrity risk. The
+  `proceed:run` unhandled-exception path no longer leaks a raw JS error message to the renderer; it
+  now reuses the same `describeRunFailure()` wording Repair's `ai:run` guarantees (an authored error
+  verbatim, anything else an actionable, non-generic sentence). No change to intent classification,
+  scope resolution, verification, or the apply path.
 - **Repair Engine (beta audit A5 remediation).** The "Verified" verdict's language no longer reads
   as a whole-project guarantee. Verification re-analyzes only the single file a repair changes — a
   fix that breaks a caller in a different file could still show as "Verified" — and the copy
