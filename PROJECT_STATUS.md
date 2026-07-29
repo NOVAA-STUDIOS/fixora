@@ -6,9 +6,9 @@ Phases A–F all done; `pnpm run ci` green at 323 tests). Since that tag, substa
 been built on `sprint-1/ui-stability` and is **not yet released**: Proceed Mode (a second editing
 pipeline alongside Repair), a four-part reliability/validation sequence (H1→Q1→Q2→Q3) hardening both
 Repair and Proceed, the Suggestion System (Sprint F1) and Welcome Experience (Sprint F2, both now
-**COMPLETE**), and a module-by-module pre-launch **Beta Readiness Audit** pass (A1–A9 closed, no
-blockers remaining; A10+ not started). See "Post-beta-tag work" and "Beta Readiness Audits" below for
-the current, authoritative state of that branch.
+**COMPLETE**), and a module-by-module pre-launch **Beta Readiness Audit** pass (A1–A10, **the full
+planned series, now COMPLETE** — no blockers remaining). See "Post-beta-tag work" and "Beta Readiness
+Audits" below for the current, authoritative state of that branch.
 Owner-side launch steps for `v0.9.0-beta.1` (license keypair + Stripe link, installer build on a build
 machine, clean-machine acceptance — [RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)) have not been
 confirmed done and are unaffected by this update.
@@ -159,13 +159,20 @@ no project is open, Quick Actions, and pinnable Recent Projects.
 Architecture: `docs/features/welcome-experience.md`. Does not touch Analyzer, Repair, Proceed, or
 the Suggestion System.
 
-## Beta Readiness Audits (A1 → A9+) — pre-launch hardening pass
+## Beta Readiness Audits (A1 → A10) — pre-launch hardening pass, **SERIES COMPLETE**
 
 A module-by-module audit of the Public Beta surface, each pass reviewing one module against a fixed
 rubric (UX, accessibility, performance, error handling, trustworthiness, production readiness),
 fixing only genuine beta-blocking findings, and explicitly deferring lower-severity/optimization
 findings rather than scope-creeping the pass. Each closed audit's findings, fixes (if any), and
 final score are the authoritative record — this section tracks status only.
+
+**The originally planned A1–A10 series is now complete.** Every major surface of the app has been
+audited: Welcome Experience, File Explorer & Workspace, Analyzer, Problems Panel, Repair Engine,
+Proceed Mode, Suggestion System, Settings & AI Configuration, Repair History Panel, and Licensing.
+Zero genuine beta blockers remain open across all ten audits — every blocker found was remediated,
+re-audited, and closed. Any further module-specific audit (a hypothetical A11+) would be a new,
+separately-scoped pass, not a continuation of this series.
 
 | Audit | Module | Status | Blockers found | Blockers remaining |
 | ----- | ------ | ------ | --------------- | ------------------- |
@@ -178,7 +185,9 @@ final score are the authoritative record — this section tracks status only.
 | **A7** | Suggestion System | ✅ **Closed 2026-07-29** — accepted, no remediation required | 0 — no genuine beta blockers found | 0 — score 8.5/10; several Non-blocking/technical-debt findings (renderer/main max-length validation disagreement; no total mailto-URL length guard; no secret-scanning safeguard on suggestion text; Gmail-fallback has no browser-presence pre-check; history/export capped at 500 rows with no retention policy) **deferred post-beta per instruction**, not implemented, not tracked as defects since none are blocking |
 | **A8** | Settings & AI Configuration | ✅ **Closed 2026-07-29** — accepted, no remediation required | 0 — no genuine beta blockers found | 0 — score 8/10; several Non-blocking/technical-debt/test-coverage findings (decrypt failure indistinguishable from "never configured"; no client-side key-format validation; in-flight request not cancelled on key clear; `setKey`/`clearKey`/`setModel` lack their own `UserFacingError` wrapper; credentials file write not atomic; zero test coverage on the `keychain_unavailable` refusal path and the entire AI-config half of `ai-store.ts`) **deferred post-beta per instruction**, not implemented, not tracked as defects since none are blocking |
 | **A9** | Repair History Panel | ✅ **Closed 2026-07-29** — remediated | 1 (a Proceed-sourced history entry's "Re-run repair" action always failed with the misleading message "That finding is no longer available" — false, since a Proceed edit was never a real analyzer finding — because the panel never distinguished `source: 'proceed'` entries from real Repair entries before offering that action) | 0 — fixed (the action is no longer offered for Proceed-sourced rows; "Open result"/"Copy repaired code" unaffected), re-audited, score 9/10. See `docs/features/history-panel.md` |
-| A10+ | (next module) | ⏳ Not started | — | — |
+| **A10** | Licensing | ✅ **Closed 2026-07-29** — accepted, no remediation required | 0 — no genuine beta blockers found | 0 — score 9.5/10; several Non-blocking/technical-debt/test-coverage findings (no confirmation dialog before deactivating a license; `activate()`'s file write lacks its own `UserFacingError` wrapper; non-atomic `license.json` write, safely mitigated; offline expiry inherently vulnerable to system clock manipulation; no license revocation mechanism; zero test coverage for the IPC handlers, renderer store, and `LicenseSettings` component) **deferred post-beta per instruction**, not implemented, not tracked as defects since none are blocking |
+
+**A1–A10 is the full originally planned Beta Readiness Audit series — now closed in its entirety.**
 
 **A3's deferred (non-blocking) findings, explicitly not implemented per instruction:** analysis
 results are fully buffered before the Problems panel updates (contradicts the engine's own "streams
@@ -235,6 +244,21 @@ component-level test at all prior to the A9 remediation (which added exactly two
 fixed blocker). None of these block Beta; all are candidates for a post-beta hardening pass, or for
 promotion to blocking status if real-world beta usage shows otherwise.
 
+**A10's deferred (non-blocking/technical-debt/test-coverage) findings, explicitly not implemented per
+instruction:** deactivating a license has no confirmation dialog, unlike the app's established
+pattern for other destructive local-state actions (History/Suggestion "Clear") — low stakes, since
+deactivating just reverts to Free and the same key can be re-pasted; `activate()`'s file write isn't
+wrapped in its own `UserFacingError`, mirroring the same accepted gap found in A8's AI key store; the
+`license.json` write is a plain, non-atomic `writeFileSync` (safe by construction — a corrupt file
+degrades to Free via `loadKey()`'s catch-all, never a crash or a false Pro); offline expiry checking
+is inherently vulnerable to system clock manipulation, an unavoidable limitation of any purely-offline
+model rather than a defect; there is no license revocation mechanism, a real constraint for any future
+release that actually gates a paid feature on this entitlement, though irrelevant today since the beta
+gates nothing on it; and there is no test coverage for the license IPC handlers, the renderer store,
+or the `LicenseSettings` component (only the core verification/service logic is tested, thoroughly).
+None of these block Beta; all are candidates for a post-beta hardening pass, or for promotion to
+blocking status if real-world beta usage shows otherwise.
+
 ## Mission pivot (2026-07-16) — BYOK-first Public Beta
 
 Priorities changed to shipping a stable, trustworthy Public Beta. The beta is **BYOK-only** (bring your
@@ -277,7 +301,7 @@ plugins, cloud sync, API platform, analytics/reports, collaboration, org managem
 | **Post-beta** | **Proceed Mode (P2.1–P2.2.1) + reliability sequence (H1→Q3)** | ✅ **Done, unreleased** — Q3 formally frozen 2026-07-27 | Branch `sprint-1/ui-stability`; not in any tagged release. See "Post-beta-tag work" above |
 | **F1**        | **Suggestion System (F1, F1.1, F1.3–F1.5)**                   | ✅ **COMPLETE 2026-07-28**                              | Not workspace-scoped, not in any tagged release yet. See "Sprint F1" above                |
 | **F2**        | **Welcome Experience (splash + Home screen + pin support)**   | ✅ **COMPLETE 2026-07-29**                              | Not in any tagged release yet. See "Sprint F2" above                                      |
-| **A1–A9**     | **Beta Readiness Audits (Welcome Experience, Workspace, Analyzer, Problems Panel, Repair Engine, Proceed Mode, Suggestion System, Settings & AI Configuration, Repair History Panel)** | ✅ **Closed 2026-07-29** — no blockers remaining  | A10+ not started. See "Beta Readiness Audits" above                                        |
+| **A1–A10**    | **Beta Readiness Audits — FULL SERIES COMPLETE (Welcome Experience, Workspace, Analyzer, Problems Panel, Repair Engine, Proceed Mode, Suggestion System, Settings & AI Configuration, Repair History Panel, Licensing)** | ✅ **Closed 2026-07-29** — no blockers remaining | Originally planned series complete. See "Beta Readiness Audits" above                                        |
 | M6+           | Teams / enterprise / marketplace / cloud                      | ⏸ v1.1 backlog                                          | Deferred by the beta pivot                                                                |
 
 ---
