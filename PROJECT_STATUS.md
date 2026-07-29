@@ -6,8 +6,8 @@ Phases A–F all done; `pnpm run ci` green at 323 tests). Since that tag, substa
 been built on `sprint-1/ui-stability` and is **not yet released**: Proceed Mode (a second editing
 pipeline alongside Repair), a four-part reliability/validation sequence (H1→Q1→Q2→Q3) hardening both
 Repair and Proceed, the Suggestion System (Sprint F1) and Welcome Experience (Sprint F2, both now
-**COMPLETE**), and a module-by-module pre-launch **Beta Readiness Audit** pass (A1–A7 closed, no
-blockers remaining; A8+ not started). See "Post-beta-tag work" and "Beta Readiness Audits" below for
+**COMPLETE**), and a module-by-module pre-launch **Beta Readiness Audit** pass (A1–A8 closed, no
+blockers remaining; A9+ not started). See "Post-beta-tag work" and "Beta Readiness Audits" below for
 the current, authoritative state of that branch.
 Owner-side launch steps for `v0.9.0-beta.1` (license keypair + Stripe link, installer build on a build
 machine, clean-machine acceptance — [RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)) have not been
@@ -159,7 +159,7 @@ no project is open, Quick Actions, and pinnable Recent Projects.
 Architecture: `docs/features/welcome-experience.md`. Does not touch Analyzer, Repair, Proceed, or
 the Suggestion System.
 
-## Beta Readiness Audits (A1 → A7+) — pre-launch hardening pass
+## Beta Readiness Audits (A1 → A8+) — pre-launch hardening pass
 
 A module-by-module audit of the Public Beta surface, each pass reviewing one module against a fixed
 rubric (UX, accessibility, performance, error handling, trustworthiness, production readiness),
@@ -176,7 +176,8 @@ final score are the authoritative record — this section tracks status only.
 | **A5** | Repair Engine | ✅ **Closed 2026-07-29** — remediated | 1 (the "Verified" verdict read as an unscoped, whole-project guarantee — "nothing new broke" — when verification actually only re-analyzes the single file a repair changes; a fix breaking a caller in a different file could still show as "Verified") | 0 — fixed (wording-only, no change to verification's scope or gate logic), re-audited, score 9/10. See `docs/features/repair-engine.md` |
 | **A6** | Proceed Mode | ✅ **Closed 2026-07-29** — remediated | 2 (no audit-trail entries for Proceed edits in `RepairHistoryRepository`, unlike Repair, despite sharing the same write path and the same open BUG-002 risk; the `proceed:run` unhandled-exception path leaked a raw JS error message instead of Repair's actionable, non-generic wording) | 0 — both fixed by reusing existing Repair machinery (`history.record()`, `describeRunFailure()`), re-audited, score 9/10. See `docs/features/proceed-mode.md` |
 | **A7** | Suggestion System | ✅ **Closed 2026-07-29** — accepted, no remediation required | 0 — no genuine beta blockers found | 0 — score 8.5/10; several Non-blocking/technical-debt findings (renderer/main max-length validation disagreement; no total mailto-URL length guard; no secret-scanning safeguard on suggestion text; Gmail-fallback has no browser-presence pre-check; history/export capped at 500 rows with no retention policy) **deferred post-beta per instruction**, not implemented, not tracked as defects since none are blocking |
-| A8+ | (next module) | ⏳ Not started | — | — |
+| **A8** | Settings & AI Configuration | ✅ **Closed 2026-07-29** — accepted, no remediation required | 0 — no genuine beta blockers found | 0 — score 8/10; several Non-blocking/technical-debt/test-coverage findings (decrypt failure indistinguishable from "never configured"; no client-side key-format validation; in-flight request not cancelled on key clear; `setKey`/`clearKey`/`setModel` lack their own `UserFacingError` wrapper; credentials file write not atomic; zero test coverage on the `keychain_unavailable` refusal path and the entire AI-config half of `ai-store.ts`) **deferred post-beta per instruction**, not implemented, not tracked as defects since none are blocking |
+| A9+ | (next module) | ⏳ Not started | — | — |
 
 **A3's deferred (non-blocking) findings, explicitly not implemented per instruction:** analysis
 results are fully buffered before the Problems panel updates (contradicts the engine's own "streams
@@ -201,6 +202,25 @@ authors every character here); the Gmail Web fallback has no browser-presence pr
 capped at the 500 most recent rows with no retention policy or truncation indicator. None of these
 block Beta; all are candidates for a post-beta hardening pass, or for promotion to blocking status if
 real-world beta usage shows otherwise.
+
+**A8's deferred (non-blocking/technical-debt/test-coverage) findings, explicitly not implemented per
+instruction:** `KeyStore.getKey()` swallows a decrypt failure to `null`, making a stored key that
+stopped decrypting (e.g. after an OS keychain reset) indistinguishable from "never configured" —
+both report the same generic "Add your provider key" message; there is no client-side key-format
+validation before Save, so a malformed key is only discovered invalid on first real use; clearing or
+replacing the key does not cancel an already-in-flight Repair/Proceed request, which keeps running to
+completion on the old credential (low severity — the user's own valid key, no shared-trust exposure);
+`ai:setKey`/`ai:clearKey`/`ai:setModel` don't wrap the underlying file write in their own
+`UserFacingError`, unlike `ai:getConfig`'s read path, so an unanticipated write failure falls through
+to the router's generic fallback instead of a specific message; the credentials file write is a plain
+`writeFileSync`, not atomic (mitigated — a corrupt file degrades to "start clean," tested, never a
+crash or project data loss); and, most notably, the single most safety-critical branch on this
+surface — `isEncryptionAvailable() === false` → refuse to store the key, never fall back to plaintext
+— has zero automated regression test coverage, as does the entire AI-configuration half of
+`ai-store.ts` and `settings-panel.tsx`'s component-level behavior. None of these block Beta; all are
+candidates for a post-beta hardening pass — the missing `keychain_unavailable` regression test in
+particular is a cheap, high-value follow-up — or for promotion to blocking status if real-world beta
+usage shows otherwise.
 
 ## Mission pivot (2026-07-16) — BYOK-first Public Beta
 
@@ -244,7 +264,7 @@ plugins, cloud sync, API platform, analytics/reports, collaboration, org managem
 | **Post-beta** | **Proceed Mode (P2.1–P2.2.1) + reliability sequence (H1→Q3)** | ✅ **Done, unreleased** — Q3 formally frozen 2026-07-27 | Branch `sprint-1/ui-stability`; not in any tagged release. See "Post-beta-tag work" above |
 | **F1**        | **Suggestion System (F1, F1.1, F1.3–F1.5)**                   | ✅ **COMPLETE 2026-07-28**                              | Not workspace-scoped, not in any tagged release yet. See "Sprint F1" above                |
 | **F2**        | **Welcome Experience (splash + Home screen + pin support)**   | ✅ **COMPLETE 2026-07-29**                              | Not in any tagged release yet. See "Sprint F2" above                                      |
-| **A1–A7**     | **Beta Readiness Audits (Welcome Experience, Workspace, Analyzer, Problems Panel, Repair Engine, Proceed Mode, Suggestion System)** | ✅ **Closed 2026-07-29** — no blockers remaining  | A8+ not started. See "Beta Readiness Audits" above                                        |
+| **A1–A8**     | **Beta Readiness Audits (Welcome Experience, Workspace, Analyzer, Problems Panel, Repair Engine, Proceed Mode, Suggestion System, Settings & AI Configuration)** | ✅ **Closed 2026-07-29** — no blockers remaining  | A9+ not started. See "Beta Readiness Audits" above                                        |
 | M6+           | Teams / enterprise / marketplace / cloud                      | ⏸ v1.1 backlog                                          | Deferred by the beta pivot                                                                |
 
 ---

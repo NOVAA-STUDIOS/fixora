@@ -44,6 +44,16 @@ Stripe, or publish step has been performed for any of this.
 
 ### Fixed
 
+- **Settings & AI Configuration (beta audit A8 — closed, no fix required).** A full engineering
+  audit of the API-key storage/retrieval/settings surface found zero genuine beta blockers: the key
+  is genuinely encrypted at rest via Electron's OS-level `safeStorage`, the app refuses to store the
+  key at all (never falls back to plaintext) when OS encryption is unavailable, and the key never
+  crosses IPC to the renderer or appears in any log. Non-blocking/technical-debt/test-coverage
+  findings (a decrypt failure reading the same as "never configured," no client-side key-format
+  validation, an in-flight request not cancelled on key clear, `setKey`/`clearKey`/`setModel` lacking
+  their own `UserFacingError` wrapper, a non-atomic credentials-file write, and — most notably — zero
+  regression test coverage on the `keychain_unavailable` refusal path) are deferred post-beta per
+  instruction; nothing in this feature changed.
 - **Suggestion System (beta audit A7 — closed, no fix required).** A full engineering audit found
   zero genuine beta blockers — no data-loss, correctness, or trust problem affecting the user's
   actual project. Non-blocking findings (a renderer/main max-length validation disagreement, no
