@@ -177,6 +177,11 @@ function HistoryRow({
   const selectFile = useWorkspaceStore((s) => s.selectFile);
   const runAi = useAiStore((s) => s.run);
   const aiConfigured = useAiStore((s) => s.config?.configured ?? false);
+  // Audit A9 (B1): a Proceed edit has no analyzer Finding behind it — it's recorded with a synthetic
+  // `findingId` (`proceed:<file>:<startLine>-<endLine>`) purely for the audit trail (Audit A6). Re-run
+  // always resolved that id to `null` and showed "That finding is no longer available.", which is
+  // false: it was never a finding to begin with. Only a real Repair entry can be re-run.
+  const isProceedEntry = entry.source === 'proceed';
 
   return (
     <ContextMenu>
@@ -265,15 +270,17 @@ function HistoryRow({
           <CopyIcon className="size-4 text-fg-muted" />
           Copy repaired code
         </ContextMenuItem>
-        <ContextMenuItem
-          disabled={!aiConfigured}
-          onSelect={() => {
-            void runAi('repair', entry.findingId);
-          }}
-        >
-          <RefreshIcon className="size-4 text-fg-muted" />
-          Re-run repair
-        </ContextMenuItem>
+        {!isProceedEntry && (
+          <ContextMenuItem
+            disabled={!aiConfigured}
+            onSelect={() => {
+              void runAi('repair', entry.findingId);
+            }}
+          >
+            <RefreshIcon className="size-4 text-fg-muted" />
+            Re-run repair
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem danger onSelect={onRemove}>
           <CloseIcon className="size-4" />
