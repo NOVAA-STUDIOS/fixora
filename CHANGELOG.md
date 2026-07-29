@@ -44,6 +44,14 @@ Stripe, or publish step has been performed for any of this.
 
 ### Fixed
 
+- **Problems Panel (beta audit A4 remediation).** A failed analysis run now shows a dedicated
+  "Analysis failed" banner with the real error and a "Try again" button, instead of silently
+  falling through to a generic empty state or leaving a previous run's now-stale findings on
+  screen with no indication anything went wrong. The findings list gets the same keyboard fix
+  already applied to the file tree (audit A2): Enter/Space now activate the keyboard-roving row,
+  and rows are no longer individually tabbable. A "Showing N of M problems" disclosure now appears
+  whenever the backend's 500-row cap truncates a result set, so the displayed count can never
+  silently disagree with what the list actually shows.
 - **File Explorer & Workspace (beta audit A2 remediation).** Switching workspaces — via Recent
   Projects, Quick Actions, the Open menu's "Recent" list, reopen-last, or the command palette — no
   longer silently discards unsaved editor changes; every switch path now shares the same
