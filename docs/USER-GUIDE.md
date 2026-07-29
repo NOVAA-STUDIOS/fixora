@@ -37,9 +37,10 @@ Hover a finding and choose an action:
 
 - **Explain** — a plain-English explanation of what's wrong and how to fix it (streamed).
 - **Repair** — a proposed fix. Fixora **verifies** it and shows the result in the AI panel:
-  - a **verdict badge**: **Verified** (the finding is resolved and nothing new broke),
-    **Regression** (the fix broke syntax or introduced a new problem — you can't apply it), or
-    **Unresolved** (nothing broke, but the fix didn't take);
+  - a **verdict badge**: **Verified** (the finding is resolved and this file has no new problems —
+    verification re-checks the file being changed, not the rest of your project), **Regression**
+    (the fix broke syntax or introduced a new problem in this file — you can't apply it), or
+    **Unresolved** (this file has no new problems, but the fix didn't take);
   - a **diff** (original vs. proposed);
   - **Apply** (writes just that symbol into your file), **Copy**, or **Reject**.
 - **Test** — generate a focused test for the finding.

@@ -113,6 +113,19 @@ describe('evaluateApplyGate', () => {
       expect(evaluateApplyGate(proposal({ verdict })).explanation.length).toBeGreaterThan(0);
     }
   });
+
+  /**
+   * Beta audit A5: verification re-analyzes only the one changed file. "Verified" must never read
+   * as a whole-project guarantee — the explanation and the verifier gate's own detail both have to
+   * say "this file", not an unscoped "nothing new broke".
+   */
+  it('scopes the verified explanation and verifier detail to this file, not the whole project', () => {
+    const gate = evaluateApplyGate(proposal({ verdict: 'verified' }));
+    expect(gate.enabled).toBe(true);
+    expect(gate.explanation).toContain('this file');
+    const verifierOutcome = gate.gates.find((g) => g.name === 'verifier');
+    expect(verifierOutcome?.detail).toContain('this file');
+  });
 });
 
 /**
