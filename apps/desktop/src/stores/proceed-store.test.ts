@@ -64,6 +64,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 
 const proposal = {
   intent: 'styling' as const,
+  historyId: 'history-1',
   editedCode: 'export const B = () => <button className="green" />;',
   originalCode: 'export const B = () => <button />;',
   summary: 'Made the button green.',

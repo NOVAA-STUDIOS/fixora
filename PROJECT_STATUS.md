@@ -6,8 +6,8 @@ Phases A–F all done; `pnpm run ci` green at 323 tests). Since that tag, substa
 been built on `sprint-1/ui-stability` and is **not yet released**: Proceed Mode (a second editing
 pipeline alongside Repair), a four-part reliability/validation sequence (H1→Q1→Q2→Q3) hardening both
 Repair and Proceed, the Suggestion System (Sprint F1) and Welcome Experience (Sprint F2, both now
-**COMPLETE**), and a module-by-module pre-launch **Beta Readiness Audit** pass (A1–A5 closed, no
-blockers remaining; A6+ not started). See "Post-beta-tag work" and "Beta Readiness Audits" below for
+**COMPLETE**), and a module-by-module pre-launch **Beta Readiness Audit** pass (A1–A6 closed, no
+blockers remaining; A7+ not started). See "Post-beta-tag work" and "Beta Readiness Audits" below for
 the current, authoritative state of that branch.
 Owner-side launch steps for `v0.9.0-beta.1` (license keypair + Stripe link, installer build on a build
 machine, clean-machine acceptance — [RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)) have not been
@@ -159,7 +159,7 @@ no project is open, Quick Actions, and pinnable Recent Projects.
 Architecture: `docs/features/welcome-experience.md`. Does not touch Analyzer, Repair, Proceed, or
 the Suggestion System.
 
-## Beta Readiness Audits (A1 → A5+) — pre-launch hardening pass
+## Beta Readiness Audits (A1 → A6+) — pre-launch hardening pass
 
 A module-by-module audit of the Public Beta surface, each pass reviewing one module against a fixed
 rubric (UX, accessibility, performance, error handling, trustworthiness, production readiness),
@@ -174,7 +174,8 @@ final score are the authoritative record — this section tracks status only.
 | **A3** | Analyzer | ✅ **Closed 2026-07-29** — accepted, no remediation required | 0 — no genuine beta blockers found | 0 — score 7.5/10; several Medium/High-severity **optimization and test-coverage findings deferred post-beta** (see `docs/BUGLOG.md` if promoted; not tracked as defects since none are blocking) |
 | **A4** | Problems Panel (Findings UI) | ✅ **Closed 2026-07-29** — remediated | 3 (no error state on a failed run; `VirtualList`'s `listbox`/`option` roles had no keyboard implementation, same defect class as A2's file tree; a hardcoded 500-row backend limit could silently disagree with the displayed "N problems" count) | 0 — all fixed, re-audited, score 9/10. See `docs/features/problems-panel.md` |
 | **A5** | Repair Engine | ✅ **Closed 2026-07-29** — remediated | 1 (the "Verified" verdict read as an unscoped, whole-project guarantee — "nothing new broke" — when verification actually only re-analyzes the single file a repair changes; a fix breaking a caller in a different file could still show as "Verified") | 0 — fixed (wording-only, no change to verification's scope or gate logic), re-audited, score 9/10. See `docs/features/repair-engine.md` |
-| A6+ | (next module) | ⏳ Not started | — | — |
+| **A6** | Proceed Mode | ✅ **Closed 2026-07-29** — remediated | 2 (no audit-trail entries for Proceed edits in `RepairHistoryRepository`, unlike Repair, despite sharing the same write path and the same open BUG-002 risk; the `proceed:run` unhandled-exception path leaked a raw JS error message instead of Repair's actionable, non-generic wording) | 0 — both fixed by reusing existing Repair machinery (`history.record()`, `describeRunFailure()`), re-audited, score 9/10. See `docs/features/proceed-mode.md` |
+| A7+ | (next module) | ⏳ Not started | — | — |
 
 **A3's deferred (non-blocking) findings, explicitly not implemented per instruction:** analysis
 results are fully buffered before the Problems panel updates (contradicts the engine's own "streams
@@ -229,7 +230,7 @@ plugins, cloud sync, API platform, analytics/reports, collaboration, org managem
 | **Post-beta** | **Proceed Mode (P2.1–P2.2.1) + reliability sequence (H1→Q3)** | ✅ **Done, unreleased** — Q3 formally frozen 2026-07-27 | Branch `sprint-1/ui-stability`; not in any tagged release. See "Post-beta-tag work" above |
 | **F1**        | **Suggestion System (F1, F1.1, F1.3–F1.5)**                   | ✅ **COMPLETE 2026-07-28**                              | Not workspace-scoped, not in any tagged release yet. See "Sprint F1" above                |
 | **F2**        | **Welcome Experience (splash + Home screen + pin support)**   | ✅ **COMPLETE 2026-07-29**                              | Not in any tagged release yet. See "Sprint F2" above                                      |
-| **A1–A5**     | **Beta Readiness Audits (Welcome Experience, Workspace, Analyzer, Problems Panel, Repair Engine)** | ✅ **Closed 2026-07-29** — no blockers remaining  | A6+ not started. See "Beta Readiness Audits" above                                        |
+| **A1–A6**     | **Beta Readiness Audits (Welcome Experience, Workspace, Analyzer, Problems Panel, Repair Engine, Proceed Mode)** | ✅ **Closed 2026-07-29** — no blockers remaining  | A7+ not started. See "Beta Readiness Audits" above                                        |
 | M6+           | Teams / enterprise / marketplace / cloud                      | ⏸ v1.1 backlog                                          | Deferred by the beta pivot                                                                |
 
 ---

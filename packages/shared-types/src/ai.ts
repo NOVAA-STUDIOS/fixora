@@ -453,6 +453,8 @@ export type ProceedRunRequest = z.infer<typeof ProceedRunRequestSchema>;
 /** A verified Proceed edit, ready to preview + apply. Mirrors the repair proposal's diff-able shape. */
 export const ProceedProposalSchema = z.object({
   intent: EditIntentSchema,
+  /** The id of this edit's row in local history — echoed back on apply to mark it applied. */
+  historyId: z.string(),
   editedCode: z.string(),
   /** The original text of the target scope — the left side of the diff view. */
   originalCode: z.string(),

@@ -151,6 +151,7 @@ if (!gotTheLock) {
         findings: findingsRepo,
         verification,
         host: verificationHost,
+        history: repairHistory,
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
       registerLicenseHandlers({ license });
