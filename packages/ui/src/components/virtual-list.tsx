@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import { cn } from '../lib/cn.js';
 
@@ -29,6 +29,13 @@ export type VirtualListProps<T> = {
   /** Accessible name for the scroll region (e.g. "File tree", "Findings"). */
   label: string;
   overscan?: number;
+  /**
+   * Called when the user activates the current keyboard-focused row (Enter/Space) — never on a
+   * plain click, which is `renderItem`'s own responsibility to wire (beta audit A2, File tree
+   * keyboard-navigation finding). Omit to leave the list read-only from the keyboard beyond moving
+   * the active row.
+   */
+  onActivate?: (item: T, index: number) => void;
 };
 
 /**
@@ -39,6 +46,15 @@ export type VirtualListProps<T> = {
  *
  * It is the presentational primitive only — it knows nothing of files or findings. The feature
  * slice supplies `items`, `renderItem` and a stable `getKey`.
+ *
+ * **Keyboard (beta audit A2):** the container carries `role="listbox"`/`role="option"` rows, which
+ * is a promise to assistive tech that arrow keys move a roving selection — a promise the component
+ * did not keep until now. It does the standard composite-widget thing: one roving "active" index
+ * (not real DOM focus, which stays on the container), moved by Arrow Up/Down/Home/End, announced
+ * via `aria-activedescendant`, and scrolled into view on every move so keyboard navigation works
+ * past whatever the virtualizer currently has rendered. Enter/Space activates the active row via
+ * `onActivate`. Consumers must not make individual rows tab stops (leave them `tabIndex={-1}`) —
+ * the container is the single stop, exactly as a native `<select>` behaves.
  */
 export function VirtualList<T>({
   items,
@@ -50,8 +66,14 @@ export function VirtualList<T>({
   className,
   label,
   overscan = 12,
+  onActivate,
 }: VirtualListProps<T>): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const baseId = useId();
+  const [activeIndex, setActiveIndex] = useState(0);
+  // Clamped, not reset — collapsing a directory or a list shrinking should not throw the active
+  // row back to the top if the previously-active index is still in range.
+  const clampedActive = items.length === 0 ? -1 : Math.min(activeIndex, items.length - 1);
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -66,14 +88,53 @@ export function VirtualList<T>({
     virtualizer.measure();
   }, [virtualizer, estimateRowHeight]);
 
+  const moveActive = (next: number): void => {
+    if (items.length === 0) return;
+    const clamped = Math.max(0, Math.min(next, items.length - 1));
+    setActiveIndex(clamped);
+    virtualizer.scrollToIndex(clamped, { align: 'auto' });
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (items.length === 0) return;
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        moveActive(clampedActive + 1);
+        return;
+      case 'ArrowUp':
+        event.preventDefault();
+        moveActive(clampedActive - 1);
+        return;
+      case 'Home':
+        event.preventDefault();
+        moveActive(0);
+        return;
+      case 'End':
+        event.preventDefault();
+        moveActive(items.length - 1);
+        return;
+      case 'Enter':
+      case ' ': {
+        if (clampedActive === -1) return;
+        const item = items[clampedActive];
+        if (item === undefined) return;
+        event.preventDefault();
+        onActivate?.(item, clampedActive);
+      }
+    }
+  };
+
   return (
     <div
       ref={scrollRef}
       role="listbox"
       aria-label={label}
       tabIndex={0}
+      onKeyDown={onKeyDown}
+      aria-activedescendant={clampedActive === -1 ? undefined : `${baseId}-${String(clampedActive)}`}
       className={cn(
-        'h-full overflow-auto outline-none',
+        'group h-full overflow-auto outline-none',
         'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline',
         className,
       )}
@@ -85,12 +146,26 @@ export function VirtualList<T>({
           return (
             <div
               key={getKey(item, row.index)}
+              id={`${baseId}-${String(row.index)}`}
               role="option"
               aria-selected={isSelected?.(item, row.index) ?? false}
               data-index={row.index}
+              // Mousing over/down on a row moves the roving active index to match, so keyboard
+              // navigation resumes from wherever the pointer last landed rather than the top.
+              onMouseDown={() => {
+                setActiveIndex(row.index);
+              }}
               // `data-index` is not decorative here: the virtualizer reads it back off the measured
               // element to know which row it just measured.
               ref={dynamicRowHeight ? virtualizer.measureElement : undefined}
+              className={cn(
+                // The roving-active indicator — distinct from `isSelected`'s own styling (e.g. the
+                // file tree's solid `bg-active` for the open file) — and shown only while the list
+                // itself actually has focus, via `group-focus`, so it doesn't linger once focus
+                // moves elsewhere.
+                row.index === clampedActive &&
+                  'group-focus:ring-1 group-focus:ring-inset group-focus:ring-focus-ring',
+              )}
               style={{
                 position: 'absolute',
                 top: 0,

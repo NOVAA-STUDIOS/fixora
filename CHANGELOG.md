@@ -44,6 +44,17 @@ Stripe, or publish step has been performed for any of this.
 
 ### Fixed
 
+- **File Explorer & Workspace (beta audit A2 remediation).** Switching workspaces — via Recent
+  Projects, Quick Actions, the Open menu's "Recent" list, reopen-last, or the command palette — no
+  longer silently discards unsaved editor changes; every switch path now shares the same
+  unsaved-changes confirmation "Close folder" already had (`WorkspaceSwitchGuard`, gated centrally
+  in `useWorkspaceStore`). The file tree's `listbox`/`option` ARIA roles now have real keyboard
+  support (Arrow Up/Down, Home/End, Enter/Space, scroll-into-view, a roving
+  `aria-activedescendant`) — previously advertised but unimplemented. Opening a Recent Project whose
+  folder was deleted, moved, or renamed now shows a precise "no longer exists" message instead of
+  the generic "Something went wrong," reusing the existing fs-error translation layer. An empty
+  workspace (or one where everything is `.gitignore`d) now shows an explicit empty state instead of
+  a blank pane, and expanding a directory shows a loading indicator instead of no feedback at all.
 - Four confirmed defects in Proceed Mode, found by a full pipeline audit (Q3): a question-style
   instruction ("explain what this does") no longer reaches the AI provider as if it were an edit
   request; a pending preview is invalidated the instant the active tab changes away from the file it

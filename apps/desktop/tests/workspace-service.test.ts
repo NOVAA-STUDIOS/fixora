@@ -2,6 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { UserFacingError } from '@fixora/shared-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { openDatabase } from '../electron/main/db/database.js';
@@ -51,6 +52,47 @@ describe('workspace service', () => {
   it('refuses to open a file as a workspace', () => {
     const { service, driver } = makeService();
     expect(() => service.open(join(repo, 'src', 'a.ts'))).toThrow(/folder/);
+    driver.close();
+  });
+
+  /**
+   * Beta audit A2, Recent Projects finding: opening a deleted/moved/renamed recent project used to
+   * throw a bare, unwrapped `statSync` ENOENT — which the IPC router redacts to the generic
+   * "Something went wrong handling that action." `open()` now routes through the same fs-error
+   * translation layer (`fsTry`/`toFsError`, fs-errors.ts) every other filesystem operation uses, so
+   * this produces the same kind of precise, actionable `UserFacingError` they do.
+   */
+  it('reports a helpful, authored error — not a raw/generic one — when the folder no longer exists', () => {
+    const { service, driver } = makeService();
+    const vanished = join(repo, 'this-folder-was-deleted');
+
+    let caught: unknown;
+    try {
+      service.open(vanished);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(UserFacingError);
+    const message = (caught as UserFacingError).message;
+    expect(message).not.toMatch(/something went wrong/i);
+    expect(message).toContain('this-folder-was-deleted');
+    expect(message).toMatch(/no longer exists/i);
+    driver.close();
+  });
+
+  it('never leaks the vanished folder\'s absolute path in the error message', () => {
+    const { service, driver } = makeService();
+    const vanished = join(repo, 'this-folder-was-deleted');
+
+    let caught: unknown;
+    try {
+      service.open(vanished);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect((caught as UserFacingError).message).not.toContain(repo);
     driver.close();
   });
 
