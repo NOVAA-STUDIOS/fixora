@@ -44,6 +44,14 @@ Stripe, or publish step has been performed for any of this.
 
 ### Fixed
 
+- **Repair History Panel (beta audit A9 remediation).** "Re-run repair" is no longer offered for a
+  Proceed-sourced history entry. Since Proceed edits started recording into the same repair history
+  (audit A6), a Proceed row has no real analyzer finding behind it (`source: 'proceed'`, a synthetic
+  `findingId`) — re-running it always failed and showed "That finding is no longer available.", which
+  falsely implied the finding used to exist. `HistoryRow` now checks `entry.source` and omits that
+  action for those rows; "Open result" and "Copy repaired code" are unaffected. No change to the diff
+  view gap, delete/clear error handling, the 200-row history cap, or `VirtualList` migration — all
+  explicitly deferred.
 - **Settings & AI Configuration (beta audit A8 — closed, no fix required).** A full engineering
   audit of the API-key storage/retrieval/settings surface found zero genuine beta blockers: the key
   is genuinely encrypted at rest via Electron's OS-level `safeStorage`, the app refuses to store the

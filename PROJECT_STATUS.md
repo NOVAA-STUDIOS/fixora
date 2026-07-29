@@ -6,8 +6,8 @@ Phases A–F all done; `pnpm run ci` green at 323 tests). Since that tag, substa
 been built on `sprint-1/ui-stability` and is **not yet released**: Proceed Mode (a second editing
 pipeline alongside Repair), a four-part reliability/validation sequence (H1→Q1→Q2→Q3) hardening both
 Repair and Proceed, the Suggestion System (Sprint F1) and Welcome Experience (Sprint F2, both now
-**COMPLETE**), and a module-by-module pre-launch **Beta Readiness Audit** pass (A1–A8 closed, no
-blockers remaining; A9+ not started). See "Post-beta-tag work" and "Beta Readiness Audits" below for
+**COMPLETE**), and a module-by-module pre-launch **Beta Readiness Audit** pass (A1–A9 closed, no
+blockers remaining; A10+ not started). See "Post-beta-tag work" and "Beta Readiness Audits" below for
 the current, authoritative state of that branch.
 Owner-side launch steps for `v0.9.0-beta.1` (license keypair + Stripe link, installer build on a build
 machine, clean-machine acceptance — [RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)) have not been
@@ -159,7 +159,7 @@ no project is open, Quick Actions, and pinnable Recent Projects.
 Architecture: `docs/features/welcome-experience.md`. Does not touch Analyzer, Repair, Proceed, or
 the Suggestion System.
 
-## Beta Readiness Audits (A1 → A8+) — pre-launch hardening pass
+## Beta Readiness Audits (A1 → A9+) — pre-launch hardening pass
 
 A module-by-module audit of the Public Beta surface, each pass reviewing one module against a fixed
 rubric (UX, accessibility, performance, error handling, trustworthiness, production readiness),
@@ -177,7 +177,8 @@ final score are the authoritative record — this section tracks status only.
 | **A6** | Proceed Mode | ✅ **Closed 2026-07-29** — remediated | 2 (no audit-trail entries for Proceed edits in `RepairHistoryRepository`, unlike Repair, despite sharing the same write path and the same open BUG-002 risk; the `proceed:run` unhandled-exception path leaked a raw JS error message instead of Repair's actionable, non-generic wording) | 0 — both fixed by reusing existing Repair machinery (`history.record()`, `describeRunFailure()`), re-audited, score 9/10. See `docs/features/proceed-mode.md` |
 | **A7** | Suggestion System | ✅ **Closed 2026-07-29** — accepted, no remediation required | 0 — no genuine beta blockers found | 0 — score 8.5/10; several Non-blocking/technical-debt findings (renderer/main max-length validation disagreement; no total mailto-URL length guard; no secret-scanning safeguard on suggestion text; Gmail-fallback has no browser-presence pre-check; history/export capped at 500 rows with no retention policy) **deferred post-beta per instruction**, not implemented, not tracked as defects since none are blocking |
 | **A8** | Settings & AI Configuration | ✅ **Closed 2026-07-29** — accepted, no remediation required | 0 — no genuine beta blockers found | 0 — score 8/10; several Non-blocking/technical-debt/test-coverage findings (decrypt failure indistinguishable from "never configured"; no client-side key-format validation; in-flight request not cancelled on key clear; `setKey`/`clearKey`/`setModel` lack their own `UserFacingError` wrapper; credentials file write not atomic; zero test coverage on the `keychain_unavailable` refusal path and the entire AI-config half of `ai-store.ts`) **deferred post-beta per instruction**, not implemented, not tracked as defects since none are blocking |
-| A9+ | (next module) | ⏳ Not started | — | — |
+| **A9** | Repair History Panel | ✅ **Closed 2026-07-29** — remediated | 1 (a Proceed-sourced history entry's "Re-run repair" action always failed with the misleading message "That finding is no longer available" — false, since a Proceed edit was never a real analyzer finding — because the panel never distinguished `source: 'proceed'` entries from real Repair entries before offering that action) | 0 — fixed (the action is no longer offered for Proceed-sourced rows; "Open result"/"Copy repaired code" unaffected), re-audited, score 9/10. See `docs/features/history-panel.md` |
+| A10+ | (next module) | ⏳ Not started | — | — |
 
 **A3's deferred (non-blocking) findings, explicitly not implemented per instruction:** analysis
 results are fully buffered before the Problems panel updates (contradicts the engine's own "streams
@@ -222,6 +223,18 @@ candidates for a post-beta hardening pass — the missing `keychain_unavailable`
 particular is a cheap, high-value follow-up — or for promotion to blocking status if real-world beta
 usage shows otherwise.
 
+**A9's deferred (non-blocking/technical-debt/test-coverage) findings, explicitly not implemented per
+instruction:** the panel's empty-state copy promises "the code before and after" is viewable, and
+`entry.originalCode` genuinely is stored in every row, but no diff view exists anywhere in the
+panel — the live Repair/Proceed preview's `DiffEditor` component would fit this data exactly but
+isn't reused here; Delete/Clear silently discard IPC failures with no error surfaced, so a failed
+delete looks identical to a successful one; the entry list is silently capped at 200 rows
+(`ai:history`'s default `list()` limit) with no pagination or truncation indicator; the list doesn't
+reuse the shared `VirtualList` primitive (currently masked by the 200-row cap); and this panel had no
+component-level test at all prior to the A9 remediation (which added exactly two, scoped to the one
+fixed blocker). None of these block Beta; all are candidates for a post-beta hardening pass, or for
+promotion to blocking status if real-world beta usage shows otherwise.
+
 ## Mission pivot (2026-07-16) — BYOK-first Public Beta
 
 Priorities changed to shipping a stable, trustworthy Public Beta. The beta is **BYOK-only** (bring your
@@ -264,7 +277,7 @@ plugins, cloud sync, API platform, analytics/reports, collaboration, org managem
 | **Post-beta** | **Proceed Mode (P2.1–P2.2.1) + reliability sequence (H1→Q3)** | ✅ **Done, unreleased** — Q3 formally frozen 2026-07-27 | Branch `sprint-1/ui-stability`; not in any tagged release. See "Post-beta-tag work" above |
 | **F1**        | **Suggestion System (F1, F1.1, F1.3–F1.5)**                   | ✅ **COMPLETE 2026-07-28**                              | Not workspace-scoped, not in any tagged release yet. See "Sprint F1" above                |
 | **F2**        | **Welcome Experience (splash + Home screen + pin support)**   | ✅ **COMPLETE 2026-07-29**                              | Not in any tagged release yet. See "Sprint F2" above                                      |
-| **A1–A8**     | **Beta Readiness Audits (Welcome Experience, Workspace, Analyzer, Problems Panel, Repair Engine, Proceed Mode, Suggestion System, Settings & AI Configuration)** | ✅ **Closed 2026-07-29** — no blockers remaining  | A9+ not started. See "Beta Readiness Audits" above                                        |
+| **A1–A9**     | **Beta Readiness Audits (Welcome Experience, Workspace, Analyzer, Problems Panel, Repair Engine, Proceed Mode, Suggestion System, Settings & AI Configuration, Repair History Panel)** | ✅ **Closed 2026-07-29** — no blockers remaining  | A10+ not started. See "Beta Readiness Audits" above                                        |
 | M6+           | Teams / enterprise / marketplace / cloud                      | ⏸ v1.1 backlog                                          | Deferred by the beta pivot                                                                |
 
 ---
