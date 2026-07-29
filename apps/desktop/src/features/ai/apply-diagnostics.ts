@@ -98,9 +98,12 @@ export function evaluateApplyGate(
         : {
             name: 'verifier',
             status: 'pass',
+            // Scoped to "this file": verification re-analyzes only the one changed file, not the
+            // whole project — an unscoped "found no new problems" would claim more than was
+            // actually checked (beta audit A5, Validation finding).
             detail: v.targetResolved
-              ? 'The analyzers and type-checker re-ran and found no new problems.'
-              : 'The patch introduces no new problems (the original finding still stands).',
+              ? 'The analyzers and type-checker re-ran on this file and found no new problems in it.'
+              : 'The patch introduces no new problems in this file (the original finding still stands).',
           };
 
   // Gate 3 — FORMATTER.
@@ -176,8 +179,10 @@ export function evaluateApplyGate(
   return {
     enabled: true,
     reason: 'verified',
+    // Scoped to "this file", not the whole project — see the verifier gate's `detail` above for
+    // why (beta audit A5, Validation finding).
     explanation:
-      'Parser, verifier and formatter all passed. The analyzers re-ran against this change and found no new problems.',
+      'Parser, verifier and formatter all passed. The analyzers re-ran on this file and found no new problems in it.',
     gates,
   };
 }

@@ -73,4 +73,16 @@ describe('VerdictBanner', () => {
     );
     expect(screen.getByRole('status').textContent).toContain('does not fix the problem');
   });
+
+  /**
+   * Beta audit A5: verification re-analyzes only the one changed file, never the rest of the
+   * project — a caller elsewhere that a fix breaks would not be caught. The default "Verified"
+   * reason (no explicit `note` from the backend) must say so, not read as a project-wide guarantee.
+   */
+  it('scopes the default "Verified" explanation to this file, not the whole project', () => {
+    render(<VerdictBanner report={report({ verdict: 'verified' })} />);
+    const text = screen.getByRole('status').textContent ?? '';
+    expect(text).toContain('this file');
+    expect(text).not.toMatch(/nothing new broke/i);
+  });
 });

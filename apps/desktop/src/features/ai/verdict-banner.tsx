@@ -31,7 +31,11 @@ export function VerdictBanner({ report }: { report: VerificationReport }): React
   const reason =
     report.note ??
     (verified
-      ? 'The analyzers were re-run against this change and found no new problems.'
+      ? // Scoped deliberately: verification re-runs the analyzers against the ONE changed file, not
+        // the whole project — a caller elsewhere that this change breaks would not show up here. An
+        // unscoped "nothing new broke" reads as a stronger, project-wide guarantee than what was
+        // actually checked (beta audit A5, Validation finding). Say exactly what was checked.
+        'The analyzers were re-run against this file and found no new problems in it.'
       : 'Fixora could not confirm this change is safe.');
 
   return (
