@@ -44,6 +44,13 @@ Stripe, or publish step has been performed for any of this.
 
 ### Fixed
 
+- **Repair Engine (beta audit A5 remediation).** The "Verified" verdict's language no longer reads
+  as a whole-project guarantee. Verification re-analyzes only the single file a repair changes — a
+  fix that breaks a caller in a different file could still show as "Verified" — and the copy
+  ("nothing new broke") didn't disclose that scope. Every place the claim reaches the user (the
+  verdict banner, the Apply-gate explanation, the user guide) now names the file explicitly
+  ("re-run against this file... found no new problems in it"), with no change to what verification
+  actually checks or how Apply is gated.
 - **Problems Panel (beta audit A4 remediation).** A failed analysis run now shows a dedicated
   "Analysis failed" banner with the real error and a "Try again" button, instead of silently
   falling through to a generic empty state or leaving a previous run's now-stale findings on
