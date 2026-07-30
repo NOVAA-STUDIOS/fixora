@@ -98,6 +98,17 @@ export {
   type ProviderFailure,
 } from './provider/failure.js';
 export {
+  buildFailoverChain,
+  FAILOVER_CATEGORIES,
+  runWithFailover,
+  shouldFailover,
+  type FailoverAttemptRecord,
+  type FailoverAttemptResult,
+  type FailoverCandidate,
+  type FailoverOutcome,
+  type FailoverStopReason,
+} from './provider/failover.js';
+export {
   FAILURE_LAYER_LABEL,
   FAILURE_STATUS_LABEL,
   RECOVERY_ACTION_LABEL,
