@@ -19,16 +19,30 @@ export interface GateOutcome {
   detail: string;
 }
 
+/** The only conditions that may ever block Apply — the safety model, and nothing else. */
+export type DisabledReason = 'no-proposal' | 'empty-patch' | 'parser' | 'verifier';
+
 export type ApplyGate =
   | {
       enabled: true;
-      reason: 'verified' | 'unresolved' | 'skipped';
+      /**
+       * `formatter-warning` is enabled ON PURPOSE. Formatting is a style concern, not a correctness
+       * one: the formatter gate only runs on a file that already PARSES, so its failure says nothing
+       * about whether the patch is right. Blocking a verified repair on it meant a correct fix could
+       * not be applied because Prettier hiccuped — reported during manual validation as an Apply
+       * button disabled for no visible reason.
+       */
+      reason: 'verified' | 'unresolved' | 'skipped' | 'formatter-warning';
       explanation: string;
       gates: GateOutcome[];
     }
   | {
       enabled: false;
-      reason: 'no-proposal' | 'empty-patch' | 'parser' | 'verifier' | 'formatter';
+      /**
+       * The safety model, and only the safety model: no proposal, nothing to write, it does not
+       * parse, or it introduces new problems. Nothing stylistic appears here.
+       */
+      reason: DisabledReason;
       explanation: string;
       /** The precise machine diagnostic behind the failure (parser/compiler/formatter message). */
       diagnostic?: string;
@@ -147,12 +161,19 @@ export function evaluateApplyGate(
       gates,
     };
   }
+  /**
+   * A formatter failure is reported, not enforced.
+   *
+   * Parser and verifier are the safety model and still block above. This gate is downstream of both:
+   * it only runs on a file that parses, and reaching here means the verifier also passed. What is
+   * left is a formatting tool declining to format correct code — a style signal, and not a reason to
+   * withhold a fix the user can see is right.
+   */
   if (formatter.status === 'fail') {
     return {
-      enabled: false,
-      reason: 'formatter',
-      explanation: `Formatter failed. ${formatter.detail}`,
-      ...(fmt?.message !== undefined ? { diagnostic: fmt.message } : {}),
+      enabled: true,
+      reason: 'formatter-warning',
+      explanation: `${formatter.detail} The patch parses and introduces no new problems, so you can still apply it — your formatter may reformat it afterwards.`,
       gates,
     };
   }
@@ -257,6 +278,25 @@ export type Remedy = {
 };
 
 /** The failure classes a user can actually be in, collapsed from gate + transport + main. */
+/**
+ * What the user can actually do about a disabled Apply.
+ *
+ * Lives here rather than in the panel because it is the counterpart to `evaluateApplyGate`: every
+ * reason that can block Apply has to have an answer, and keeping the two in one module is what makes
+ * "blocked with no way forward" impossible to add by accident.
+ */
+export function recoveryHintFor(reason: DisabledReason): string {
+  switch (reason) {
+    case 'parser':
+      return 'Re-run Repair — a fresh attempt usually produces code that parses. You can also copy the patch and fix it by hand. Nothing has been written to your file.';
+    case 'verifier':
+      return 'Re-run Repair, try a stronger model in Settings → AI, or copy the patch and adjust it yourself. Nothing has been written to your file.';
+    case 'empty-patch':
+    case 'no-proposal':
+      return 'Re-run Repair to generate a new patch. Nothing has been written to your file.';
+  }
+}
+
 export function remedyFor(attempt: ApplyAttempt | null, gate: ApplyGate): Remedy | null {
   // Gate refusals: the patch itself is the problem, so the answer is always a new patch.
   if (!gate.enabled) {
@@ -275,13 +315,8 @@ export function remedyFor(attempt: ApplyAttempt | null, gate: ApplyGate): Remedy
           reason: 'This repair would introduce a new problem.',
           detail: gate.explanation,
         };
-      case 'formatter':
-        return {
-          kind: 'retry-repair',
-          label: 'Generate new repair',
-          reason: 'The project formatter rejected the repair.',
-          detail: `${gate.explanation} Re-running the repair usually resolves it.`,
-        };
+      // No `formatter` case: a formatting failure no longer blocks Apply, so there is nothing to
+      // recover from. It is surfaced as a warning on the enabled gate instead.
       case 'empty-patch':
         return {
           kind: 'retry-repair',

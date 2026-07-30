@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   evaluateApplyGate,
+  recoveryHintFor,
   remedyFor,
   rootCauseOf,
   type ApplyAttempt,
+  type DisabledReason,
 } from './apply-diagnostics.js';
 
 type Repair = Extract<AiProposal, { profile: 'repair' }>;
@@ -190,7 +192,10 @@ describe('quality gates — parser -> verifier -> formatter', () => {
     expect(gate.explanation).toContain('TS2345');
   });
 
-  it('FORMATTER failure -> Apply disabled, names the formatter gate with its message', () => {
+  it('FORMATTER failure does NOT block Apply — formatting is not the safety model', () => {
+    // Found in manual validation: a verified repair was unappliable because the formatter failed.
+    // The formatter gate only runs on a file that already PARSES, and reaching it means the verifier
+    // passed too — so its failure says nothing about whether the patch is correct.
     const gate = evaluateApplyGate(
       proposal({
         verdict: 'verified',
@@ -198,14 +203,15 @@ describe('quality gates — parser -> verifier -> formatter', () => {
           ran: true,
           ok: false,
           formatter: 'prettier',
-          message: 'a.ts: SyntaxError line 3',
+          message: 'Unexpected token',
         },
       }),
     );
-    expect(gate.enabled).toBe(false);
-    expect(gate.reason).toBe('formatter');
-    expect(gate.explanation).toContain('Formatter failed');
-    if (!gate.enabled) expect(gate.diagnostic).toContain('line 3');
+    expect(gate.enabled).toBe(true);
+    expect(gate.reason).toBe('formatter-warning');
+    // Still REPORTED — downgraded to a warning, not hidden.
+    expect(gate.gates.find((g) => g.name === 'formatter')?.status).toBe('fail');
+    expect(gate.explanation).toMatch(/still apply it/i);
   });
 
   it('a not-run formatter (none installed) does NOT block a verified patch', () => {
@@ -394,6 +400,100 @@ describe('remedyFor', () => {
     );
     for (const term of jargon) {
       expect(r?.reason.toLowerCase(), term).not.toContain(term.toLowerCase());
+    }
+  });
+});
+
+/**
+ * The Apply enable/disable contract, stated as two rules with no exceptions.
+ *
+ * Reported during manual validation as an Apply button disabled with no visible cause. The safety
+ * model — parser, verifier, regression — is unchanged and still blocks; what changed is that nothing
+ * OUTSIDE that model is allowed to.
+ */
+describe('Apply enable/disable contract', () => {
+  it('RULE 1 — a rejected repair always disables Apply', () => {
+    const parserFail = evaluateApplyGate(proposal({ verdict: 'regression', syntaxOk: false }));
+    expect(parserFail.enabled).toBe(false);
+    expect(parserFail.reason).toBe('parser');
+
+    const regressed = evaluateApplyGate(
+      proposal({
+        verdict: 'regression',
+        newFindingCount: 2,
+        newFindings: [
+          { source: 'tsc', ruleId: 'TS2322', line: 3, message: 'x' },
+          { source: 'eslint', ruleId: 'no-undef', line: 4, message: 'y' },
+        ],
+      }),
+    );
+    expect(regressed.enabled).toBe(false);
+    expect(regressed.reason).toBe('verifier');
+
+    const empty = evaluateApplyGate(proposal({ verdict: 'verified', code: '' }));
+    expect(empty.enabled).toBe(false);
+    expect(empty.reason).toBe('empty-patch');
+
+    expect(evaluateApplyGate(null).enabled).toBe(false);
+  });
+
+  it('RULE 2 — a verified repair ALWAYS enables Apply, whatever else happened', () => {
+    // Every combination of non-safety conditions on top of a passing verification.
+    const cases = [
+      proposal({ verdict: 'verified' }),
+      proposal({ verdict: 'verified', formatter: { ran: true, ok: true, formatter: 'prettier' } }),
+      proposal({ verdict: 'verified', formatter: { ran: true, ok: false, formatter: 'prettier' } }),
+      proposal({ verdict: 'verified', formatter: { ran: false, ok: false } }),
+    ];
+    for (const p of cases) {
+      const gate = evaluateApplyGate(p);
+      expect(gate.enabled, JSON.stringify(p.verification.formatter)).toBe(true);
+    }
+  });
+
+  it('only the safety model can ever disable Apply', () => {
+    // Pinned as an allow-list: a future gate cannot start blocking without changing this test.
+    const BLOCKING = ['no-proposal', 'empty-patch', 'parser', 'verifier'];
+    const disabling = [
+      evaluateApplyGate(null),
+      evaluateApplyGate(proposal({ verdict: 'verified', code: '' })),
+      evaluateApplyGate(proposal({ syntaxOk: false, verdict: 'regression' })),
+      evaluateApplyGate(proposal({ verdict: 'regression', newFindingCount: 1 })),
+    ];
+    for (const gate of disabling) {
+      expect(gate.enabled).toBe(false);
+      expect(BLOCKING).toContain(gate.reason);
+    }
+  });
+
+  it('an unverifiable patch stays appliable, labelled honestly as unchecked', () => {
+    // `skipped` means verification could not run — never a silent pass, and never a block either.
+    const gate = evaluateApplyGate(proposal({ verdict: 'skipped' }));
+    expect(gate.enabled).toBe(true);
+    expect(gate.reason).toBe('skipped');
+    expect(gate.explanation).toMatch(/unverified|unchecked/i);
+  });
+
+  it('every gate outcome is reported regardless of the verdict, so the UI can show all four', () => {
+    const gate = evaluateApplyGate(proposal({ verdict: 'verified' }));
+    expect(gate.gates.map((g) => g.name)).toEqual(['parser', 'verifier', 'formatter']);
+    for (const g of gate.gates) expect(g.detail.length).toBeGreaterThan(10);
+  });
+});
+
+describe('recoveryHintFor', () => {
+  /**
+   * Every blocking reason must have an answer. A disabled control with no stated way forward is a
+   * dead end, and this is the test that stops a new reason from being added without one.
+   */
+  it('gives a concrete next step for every reason that can disable Apply', () => {
+    const reasons: DisabledReason[] = ['no-proposal', 'empty-patch', 'parser', 'verifier'];
+    for (const reason of reasons) {
+      const hint = recoveryHintFor(reason);
+      expect(hint.length, reason).toBeGreaterThan(20);
+      // Always reassure that nothing was written — the user's first worry on seeing a refusal.
+      expect(hint, reason).toContain('Nothing has been written to your file.');
+      expect(hint, reason).toContain('Repair');
     }
   });
 });
