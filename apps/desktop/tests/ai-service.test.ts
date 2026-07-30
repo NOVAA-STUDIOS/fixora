@@ -145,6 +145,41 @@ describe('AI service (BYOK run orchestration)', () => {
     });
   });
 
+  // Bug-fix sprint, Phase 1: `languageFor`'s extension map used to be missing `json`/`pyi`, so a
+  // `.json` finding (the Analyzer's own `JsonAnalyzer` produces real findings for `.json` files, and
+  // `repair-eligibility.ts`'s `REPAIRABLE_LANGUAGES` already listed `json` as repairable) was
+  // rejected here as "unsupported" before eligibility was even consulted.
+  it('no longer rejects a .json finding as an unsupported file type', async () => {
+    const jsonFinding: Finding = {
+      ...makeFinding(),
+      location: { file: 'src/config.json', startLine: 1, startCol: 1, endLine: 1, endCol: 1 },
+      repair: 'ai-required',
+    };
+    const explanation = 'This key is misspelled.';
+    const service = createAiService(
+      deps({ finding: jsonFinding, provider: scriptedProvider([textEvents(explanation)]) }),
+    );
+    const result = await service.run({ profile: 'explain', findingId: 'find-1' }, null);
+    expect(result).toEqual({
+      status: 'ok',
+      proposal: { profile: 'explain', explanation },
+    });
+  });
+
+  it('reports a genuinely unsupported file type with the same friendly wording Proceed uses', async () => {
+    const rubyFinding: Finding = {
+      ...makeFinding(),
+      location: { file: 'src/thing.rb', startLine: 1, startCol: 1, endLine: 1, endCol: 1 },
+    };
+    const service = createAiService(deps({ finding: rubyFinding, provider: scriptedProvider([]) }));
+    const result = await service.run({ profile: 'explain', findingId: 'find-1' }, null);
+    expect(result).toEqual({
+      status: 'error',
+      code: 'not_found',
+      message: "This file type isn't supported for AI actions yet.",
+    });
+  });
+
   it('runs a repair and grounds the target on the finding’s enclosing symbol', async () => {
     const json = JSON.stringify({
       repairedCode: 'export function greet(name: string): string {\n  return `hi ${name}`;\n}',

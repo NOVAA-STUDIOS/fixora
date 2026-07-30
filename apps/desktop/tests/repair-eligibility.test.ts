@@ -54,6 +54,42 @@ describe('evaluateRepairEligibility', () => {
     expect(d.reason).toContain('TypeScript');
   });
 
+  it('every language the Analyzer analyzes is repairable — no analyzable-but-unrepairable gap', () => {
+    // The gap this closes: a language could be analyzed (producing findings the user can see) while
+    // being refused by Repair, so the panel offered a fix for something the engine would not touch.
+    // CSS/HTML were exactly that until they were added here; JSON was too, via a stale extension map.
+    for (const language of [
+      'typescript',
+      'javascript',
+      'python',
+      'go',
+      'json',
+      'css',
+      'html',
+    ] as const) {
+      const d = evaluateRepairEligibility(input({ language }));
+      expect(d, `${language} must be repairable`).toMatchObject({
+        repairable: true,
+        method: 'ai',
+        reason: null,
+      });
+    }
+  });
+
+  it('a CSS missing-semicolon autofix is repairable deterministically, with no model at all', () => {
+    // The highest-confidence repair the engine can offer: a one-character edit at a known offset,
+    // classified `safe-auto`, so it never reaches a provider.
+    const d = evaluateRepairEligibility(
+      input({
+        language: 'css',
+        ruleId: 'css-missing-semicolon',
+        repairability: 'safe-auto',
+        model: null,
+      }),
+    );
+    expect(d).toMatchObject({ repairable: true, method: 'deterministic', reason: null });
+  });
+
   it('ai-required with no model selected explains where to choose one', () => {
     const d = evaluateRepairEligibility(input({ model: null }));
     expect(d.repairable).toBe(false);

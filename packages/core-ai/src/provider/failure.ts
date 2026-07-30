@@ -112,6 +112,55 @@ export function describeProviderFailure(input: {
   };
 }
 
+/**
+ * The one re-ask message, after a parse failure — shared so Repair and Proceed can never drift
+ * (bug-fix sprint, Phase 1: they were two hand-duplicated copies of the same generic sentence,
+ * regardless of WHY parsing failed). Reason-specific where that actually raises the odds of the
+ * retry succeeding: a `truncated` response needs "be shorter", not "remove surrounding text" (which
+ * it likely didn't have); a `schema-mismatch` already carries the exact offending field in `detail`
+ * — echoing it back is strictly more actionable than a generic reminder. Every other reason (empty,
+ * no-json-object, malformed-json) keeps the original, still-correct generic instruction.
+ */
+export function buildReAskMessage(failure: { reason: string; detail: string }): string {
+  if (failure.reason === 'truncated') {
+    return (
+      'Your previous response was cut off before it finished — it looked like valid JSON but was ' +
+      'incomplete. Return the SAME JSON object again, complete this time, and nothing else. Keep ' +
+      'any free-text fields (rationale, summary) brief so the whole object fits.'
+    );
+  }
+  if (failure.reason === 'schema-mismatch' && failure.detail.trim() !== '') {
+    return (
+      `Your previous response was valid JSON but did not match the required schema: ${failure.detail.trim()}. ` +
+      'Return ONLY a corrected JSON object, with no surrounding text.'
+    );
+  }
+  return (
+    'Your previous response was not valid JSON matching the required schema. ' +
+    'Return ONLY the JSON object, with no surrounding text.'
+  );
+}
+
+/**
+ * What the USER is told when the model's answer never matched the required shape, after the retry.
+ *
+ * Deliberately says nothing about schemas, field paths, or JSON. Those are real and useful — to a
+ * maintainer, in a log — but to the person trying to fix their code they are noise that reads like the
+ * tool broke. The old message pasted the raw zod diagnostic ("The response was valid JSON but did not
+ * match the required shape — repairedCode: Required") plus an absolute path to a debug dump straight
+ * into the panel, which leaked implementation detail and filesystem paths at the same time.
+ *
+ * What replaces it names the one thing the user can act on: the model, not their code, is the problem,
+ * and a different model is the fix.
+ */
+export function describeSchemaFailureForUser(profile: string): string {
+  return (
+    `The model could not produce a usable ${profile} for this file, even after Fixora asked it again. ` +
+    'This is a limitation of the selected model rather than a problem with your code — try again, or ' +
+    'choose a stronger model in Settings → AI.'
+  );
+}
+
 /** The model replied, but not with usable output. Distinct from the provider failing to reply. */
 export function describeModelOutputFailure(reason: string, detail = ''): ProviderFailure {
   const trimmed = detail.trim();

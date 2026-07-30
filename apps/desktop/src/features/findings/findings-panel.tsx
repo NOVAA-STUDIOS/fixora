@@ -1,4 +1,12 @@
-import type { Finding, Severity, TaskProfile } from '@fixora/shared-types';
+import {
+  isRepairAttemptable,
+  repairStateFor,
+  REPAIR_STATE_LABEL,
+  REPAIR_STATE_REASON,
+  type Finding,
+  type Severity,
+  type TaskProfile,
+} from '@fixora/shared-types';
 import { AlertIcon, Button, CheckIcon, FolderIcon, VirtualList, cn } from '@fixora/ui';
 import { useEffect } from 'react';
 
@@ -162,7 +170,8 @@ export function FindingsPanel(): React.JSX.Element {
       */}
       {isTruncated && (
         <p className="shrink-0 border-b border-border-subtle bg-inset px-3 py-1.5 text-[11px] text-fg-muted">
-          Showing {findings.length} of {totalForFilter} problems. Narrow by severity to see the rest.
+          Showing {findings.length} of {totalForFilter} problems. Narrow by severity to see the
+          rest.
         </p>
       )}
 
@@ -260,9 +269,12 @@ function FindingRow({
   const setActiveView = useUiStore((s) => s.setActiveView);
   const capabilities = {
     explain: useCapability('explain'),
-    repair: useCapability('repair'),
+    repair: useCapability('repair', finding.repair),
     test: useCapability('test'),
   };
+  // The four-state model (Issue 2/5). `finding.repair` alone could not distinguish "no fix for this
+  // rule" from "no support for this file type"; both rendered as the same dead control.
+  const repairState = repairStateFor(finding);
 
   return (
     <div
@@ -326,32 +338,62 @@ function FindingRow({
         they stop shouting just makes them look disabled instead (which is exactly how they read).
         Revealing them is the pattern Linear uses for row actions and VS Code for tree actions.
       */}
+      {/*
+        ISSUE 2/6: this row used to be `opacity-0` until hover, focus, or selection. A mouse user who
+        was not hovering saw NO Repair button at all — the reported "missing Repair button". It is
+        permanently visible now. The buttons still de-emphasise until the row is engaged (muted, not
+        hidden), so a long list does not become three buttons of visual weight per row, but the
+        control is always THERE and always says what it will do.
+      */}
       <div
         className={cn(
           'flex flex-wrap items-center gap-1 pl-4',
           'transition-opacity duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
-          'opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100',
-          isSelected && 'opacity-100',
+          isSelected
+            ? 'opacity-100'
+            : 'opacity-70 group-hover/row:opacity-100 group-focus-within/row:opacity-100',
         )}
       >
+        {/* The repair state, always readable without hovering anything. */}
+        <span
+          title={REPAIR_STATE_REASON[repairState]}
+          className={cn(
+            'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
+            repairState === 'repairable' && 'bg-success-subtle text-success-text',
+            repairState === 'ai-repairable' && 'bg-accent-subtle text-accent-text',
+            repairState === 'manual-only' && 'bg-inset text-fg-muted',
+            repairState === 'unsupported' && 'bg-inset text-fg-muted',
+          )}
+        >
+          {REPAIR_STATE_LABEL[repairState]}
+        </span>
         {aiConfigured ? (
-          AI_ACTIONS.map((action) => (
-            <button
-              key={action.profile}
-              type="button"
-              // Gated on provider-reported capability, so an impossible action is never offered.
-              disabled={aiBusy || !capabilities[action.profile].enabled}
-              title={
-                capabilities[action.profile].enabled
-                  ? undefined
-                  : capabilities[action.profile].reason
-              }
-              onClick={() => void runAi(action.profile, finding.id)}
-              className="shrink-0 rounded-md border border-border-strong bg-raised px-2 py-0.5 text-[11px] font-medium text-fg-secondary transition-colors duration-(--fx-motion-duration-fast) hover:border-accent-border hover:bg-hover hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
-            >
-              {action.label}
-            </button>
-          ))
+          AI_ACTIONS.map((action) => {
+            // Repair carries the four-state reason; the other profiles keep the model-capability one.
+            const blockedByState = action.profile === 'repair' && !isRepairAttemptable(repairState);
+            const capability = capabilities[action.profile];
+            const disabled = aiBusy || !capability.enabled || blockedByState;
+            return (
+              <button
+                key={action.profile}
+                type="button"
+                // Disabled — never hidden. A control that vanishes cannot explain itself; a disabled
+                // one with a reason can, which is the distinction Issue 2 turns on.
+                disabled={disabled}
+                title={
+                  blockedByState
+                    ? REPAIR_STATE_REASON[repairState]
+                    : capability.enabled
+                      ? undefined
+                      : capability.reason
+                }
+                onClick={() => void runAi(action.profile, finding.id)}
+                className="shrink-0 rounded-md border border-border-strong bg-raised px-2 py-0.5 text-[11px] font-medium text-fg-secondary transition-colors duration-(--fx-motion-duration-fast) hover:border-accent-border hover:bg-hover hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+              >
+                {action.label}
+              </button>
+            );
+          })
         ) : (
           <button
             type="button"

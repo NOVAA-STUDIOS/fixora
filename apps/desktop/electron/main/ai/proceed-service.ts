@@ -1,5 +1,6 @@
 import {
   buildEditContext,
+  buildReAskMessage,
   classifyIntent,
   describeModelOutputFailure,
   describeProviderFailure,
@@ -82,17 +83,21 @@ export interface ProceedService {
   run(request: ProceedRunRequest, signal: AbortSignal): Promise<ProceedOutcome>;
 }
 
-/** The app's exact schema re-ask (shared discipline with repair): demand JSON only, once. */
-function reAsk(request: ProviderRequest, previous: string): ProviderRequest {
+/**
+ * The app's exact schema re-ask (shared discipline with repair): demand JSON only, once — the
+ * message itself comes from the SAME `buildReAskMessage` Repair uses (bug-fix sprint, Phase 1: these
+ * were two independent, hand-duplicated copies of the same generic sentence that could silently
+ * drift apart; now there is exactly one place that wording lives).
+ */
+function reAsk(
+  request: ProviderRequest,
+  previous: string,
+  failure: { reason: string; detail: string },
+): ProviderRequest {
   const messages: ProviderMessage[] = [
     ...request.messages,
     { role: 'assistant', content: previous },
-    {
-      role: 'user',
-      content:
-        'Your previous response was not valid JSON matching the required schema. ' +
-        'Return ONLY the JSON object, with no surrounding text.',
-    },
+    { role: 'user', content: buildReAskMessage(failure) },
   ];
   return { ...request, messages };
 }
@@ -146,7 +151,9 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
           {
             status: 'error',
             code: 'unsupported_language',
-            message: 'This file type is not supported for editing.',
+            // Same wording pattern Repair uses for the identical condition (`ai-service.ts`) — a
+            // bug-fix-sprint fix: these used to read differently for the same underlying cause.
+            message: "This file type isn't supported for editing yet.",
           },
           'unsupported-language',
         );
@@ -234,7 +241,11 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
         return done(failed(out.failure), `${out.failure.kind}:${out.failure.providerCode}`);
       let parsed = parseEditOutput(out.text);
       if (!parsed.ok) {
-        out = await stream(deps.provider, reAsk(prepared.request, out.text), signal);
+        out = await stream(
+          deps.provider,
+          reAsk(prepared.request, out.text, { reason: parsed.reason, detail: parsed.detail }),
+          signal,
+        );
         if (!out.ok)
           return done(failed(out.failure), `${out.failure.kind}:${out.failure.providerCode}`);
         parsed = parseEditOutput(out.text);

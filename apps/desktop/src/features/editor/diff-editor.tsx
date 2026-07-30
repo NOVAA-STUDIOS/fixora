@@ -22,14 +22,35 @@ export function DiffEditor({
   original,
   modified,
   language,
+  startLine = 1,
+  sideBySide,
+  onLineClick,
 }: {
   original: string;
   modified: string;
   language: string | null;
+  /**
+   * The real file line the patch starts at.
+   *
+   * Both models hold a SLICE of the file, so Monaco numbers them from 1 — which means a repair to
+   * lines 120-140 displayed as "1-21", and every line number in the review surface was wrong. The
+   * gutter is offset by this so it reads the file's own numbering.
+   */
+  startLine?: number;
+  /** Force two columns / one column. Omitted means responsive: two columns only when they fit. */
+  sideBySide?: boolean | undefined;
+  /** Called with the REAL file line when a line in the diff is clicked. */
+  onLineClick?: (fileLine: number) => void;
 }): React.JSX.Element {
   const container = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const theme = useUiStore((s) => s.theme);
+  // Read through refs inside Monaco's listeners: the editor is created once, so a callback captured
+  // at creation would keep calling the first render's closure for the life of the component.
+  const startLineRef = useRef(startLine);
+  startLineRef.current = startLine;
+  const onLineClickRef = useRef(onLineClick);
+  onLineClickRef.current = onLineClick;
 
   useEffect(() => {
     const el = container.current;
@@ -41,6 +62,9 @@ export function DiffEditor({
       theme: themeForAppearance(useUiStore.getState().theme),
       automaticLayout: true,
       renderSideBySide: true,
+      // The gutter shows the file's real lines, not the slice's. Monaco accepts a formatter, which is
+      // the only way to renumber without shipping the whole file into the model.
+      lineNumbers: (n: number) => String(n + startLineRef.current - 1),
       // The repair preview lives in the AI pane, which is 26% of the window by default and can be
       // dragged to 240px. Two code columns plus a gutter do not fit in that: side-by-side at this
       // width gives each side ~100px, which is a column of ellipses, not a diff. So fall back to
@@ -62,7 +86,17 @@ export function DiffEditor({
       wordWrap: 'on',
     });
     editorRef.current = editor;
+
+    // Click a line, land on it in the editor. Without this the diff is a picture of the change; with
+    // it, it is a way into the code — which is what makes it a review surface rather than a preview.
+    const clickable = editor.getModifiedEditor().onMouseDown((event) => {
+      const line = event.target.position?.lineNumber;
+      if (line === undefined) return;
+      onLineClickRef.current?.(line + startLineRef.current - 1);
+    });
+
     return () => {
+      clickable.dispose();
       const models = editor.getModel();
       editor.dispose();
       models?.original.dispose();
@@ -87,6 +121,17 @@ export function DiffEditor({
   useEffect(() => {
     setupMonaco().editor.setTheme(themeForAppearance(theme));
   }, [theme]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (editor === null) return;
+    // `undefined` hands control back to the responsive rule; a boolean pins it to the user's choice.
+    editor.updateOptions(
+      sideBySide === undefined
+        ? { useInlineViewWhenSpaceIsLimited: true }
+        : { renderSideBySide: sideBySide, useInlineViewWhenSpaceIsLimited: false },
+    );
+  }, [sideBySide]);
 
   // min-w-0 + overflow-hidden: Monaco measures its container, so a container allowed to be sized by
   // its content would let the editor argue with the pane it lives in during a drag.

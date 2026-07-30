@@ -269,6 +269,16 @@ export function docsLinkFor(finding: Finding): DocsLink | null {
         : null;
     case 'json':
       return { href: 'https://www.json.org/', label: 'JSON grammar' };
+    case 'css':
+      return {
+        href: 'https://developer.mozilla.org/en-US/docs/Web/CSS/Syntax',
+        label: 'CSS syntax',
+      };
+    case 'html':
+      return {
+        href: 'https://developer.mozilla.org/en-US/docs/Web/HTML',
+        label: 'HTML reference',
+      };
     // TypeScript has no official per-error page, and complexity/ai findings are ours — nothing to
     // link that would tell the reader more than the panel already does.
     case 'tsc':
@@ -288,5 +298,7 @@ export const SOURCE_LABEL: Record<FindingSource, string> = {
   semgrep: 'Semgrep',
   complexity: 'Complexity',
   json: 'JSON',
+  css: 'CSS',
+  html: 'HTML',
   ai: 'AI',
 };

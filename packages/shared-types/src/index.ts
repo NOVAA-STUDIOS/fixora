@@ -104,6 +104,10 @@ export {
   AiProposalSchema,
   AiRunRequestSchema,
   AiRunResponseSchema,
+  AiRunStageSchema,
+  RepairModeSchema,
+  RepairSummarySchema,
+  RepairSummaryEntrySchema,
   AiRunStateSchema,
   ApplyRepairRequestSchema,
   UNRESOLVED_MODEL,
@@ -145,6 +149,10 @@ export {
   type AiProposal,
   type AiRunRequest,
   type AiRunResponse,
+  type AiRunStage,
+  type RepairMode,
+  type RepairSummary,
+  type RepairSummaryEntry,
   type AiRunState,
   type ApplyRepairRequest,
   type GateMatchInfo,
@@ -160,3 +168,24 @@ export {
   type Verdict,
   type VerificationReport,
 } from './ai.js';
+
+export {
+  isRepairSupportedPath,
+  isRepairAttemptable,
+  repairStateFor,
+  REPAIR_STATE_LABEL,
+  REPAIR_STATE_REASON,
+  type RepairState,
+} from './repair-support.js';
+
+export {
+  REPAIR_METRICS_LIMIT,
+  RepairMetricSchema,
+  RepairOutcomeSchema,
+  RepairFailureReasonSchema,
+  ValidationResultSchema,
+  type RepairMetric,
+  type RepairOutcome,
+  type RepairFailureReason,
+  type ValidationResult,
+} from './repair-metrics.js';

@@ -3,8 +3,10 @@ import { join } from 'node:path';
 
 import {
   buildContext,
+  buildReAskMessage,
   createOpenRouterProvider,
   describeProviderFailure,
+  describeSchemaFailureForUser,
   DEFAULT_BUDGETS,
   OPENROUTER_ENDPOINT,
   parseRepairOutput,
@@ -17,18 +19,29 @@ import {
 } from '@fixora/core-ai';
 import type { MicroRepairResult } from '@fixora/core-analysis';
 import { isUserFacingError } from '@fixora/shared-types';
-import type { AiRunRequest, AiRunResponse, Finding, Language } from '@fixora/shared-types';
+import type {
+  AiRunRequest,
+  AiRunResponse,
+  AiRunStage,
+  Finding,
+  Language,
+  RepairMode,
+  RepairSummary,
+  RepairSummaryEntry,
+} from '@fixora/shared-types';
 import { app, type BrowserWindow } from 'electron';
 
 import type { FindingsRepository, RepairHistoryRepository } from '../db/repositories.js';
 import { emitToWindow } from '../ipc/emit.js';
 import { readTextFile } from '../services/fs/fs-service.js';
 import type { WorkspaceService } from '../services/workspace-service.js';
+import { spliceLines } from '../verification/patch.js';
 import type { VerificationService } from '../verification/verification-service.js';
 
 import type { KeyStore } from './key-store.js';
 import { projectConventions, repairNeighbours } from './repair-context.js';
 import { evaluateRepairEligibility } from './repair-eligibility.js';
+import { RepairTraceBuilder } from './repair-trace.js';
 
 /**
  * The AI run orchestrator (AI-Pipeline). It is the only thing in main that talks to a provider, and it
@@ -38,6 +51,12 @@ import { evaluateRepairEligibility } from './repair-eligibility.js';
  * proposal the user sees already carries its verdict (ADR-003).
  */
 
+// Kept in sync with `packages/core-analysis/src/language.ts`'s `EXTENSION_LANGUAGE` by hand, not by
+// import: that package is ESM (tree-sitter-WASM) and cannot be `require`d into this CJS main process
+// (see the `deterministicRepair` comment below — the same constraint routes that call through the
+// analysis worker instead). A prior drift here (missing `pyi`/`json`) meant a file the Analyzer
+// happily produced findings for was rejected by Repair/Proceed as "unsupported" — bug-fix sprint,
+// Phase 1: this map must list every extension `languageForPath` does, or that gap reopens silently.
 const EXT_LANGUAGE: Record<string, Language> = {
   ts: 'typescript',
   tsx: 'typescript',
@@ -48,7 +67,12 @@ const EXT_LANGUAGE: Record<string, Language> = {
   mjs: 'javascript',
   cjs: 'javascript',
   py: 'python',
+  pyi: 'python',
   go: 'go',
+  json: 'json',
+  css: 'css',
+  html: 'html',
+  htm: 'html',
 };
 
 /** Path → language. Exported so Proceed Mode uses the SAME mapping the repair path does. */
@@ -108,6 +132,38 @@ type ParseFailureInfo = {
   text: string;
 };
 
+/**
+ * What the patch fixed and what it left alone, for the panel's Repair Summary.
+ *
+ * `skipped` is the part that matters: a minimal patch that silently leaves other problems in the file
+ * untouched looks identical to one that missed them. Naming each skipped problem with its reason is
+ * what makes minimality read as a deliberate choice rather than an incomplete job.
+ */
+function buildRepairSummary(input: {
+  finding: Finding;
+  related: readonly Finding[];
+  others: readonly Finding[];
+}): RepairSummary {
+  const entry = (f: Finding, reason?: string): RepairSummaryEntry => ({
+    ruleId: f.ruleId,
+    line: f.location.startLine,
+    message: f.message,
+    ...(reason !== undefined ? { reason } : {}),
+  });
+  return {
+    fixed: [entry(input.finding)],
+    related: input.related.map((f) => entry(f)),
+    skipped: input.others.map((f) =>
+      entry(
+        f,
+        f.repair === 'manual'
+          ? 'Needs your judgment — no automatic or AI fix exists for this rule.'
+          : 'Outside the repair scope. Repair it separately to keep this patch minimal.',
+      ),
+    ),
+  };
+}
+
 export function createAiService(deps: AiServiceDeps): AiService {
   const makeProvider =
     deps.providerFactory ??
@@ -161,15 +217,17 @@ export function createAiService(deps: AiServiceDeps): AiService {
     return { ok: true, text };
   }
 
-  function reAskRequest(request: ProviderRequest, previous: string): ProviderRequest {
+  function reAskRequest(
+    request: ProviderRequest,
+    previous: string,
+    failure: ParseFailureInfo | null,
+  ): ProviderRequest {
     const messages: ProviderMessage[] = [
       ...request.messages,
       { role: 'assistant', content: previous },
       {
         role: 'user',
-        content:
-          'Your previous response was not valid JSON matching the required schema. ' +
-          'Return ONLY the JSON object, with no surrounding text.',
+        content: buildReAskMessage(failure ?? { reason: 'unknown', detail: '' }),
       },
     ];
     return { ...request, messages };
@@ -182,6 +240,18 @@ export function createAiService(deps: AiServiceDeps): AiService {
     },
 
     async run(request, window): Promise<AiRunResponse> {
+      /**
+       * Report which phase the run is in. A repair is several seconds of work across context
+       * assembly, the provider, and the verification worker; emitting all of it as one "running"
+       * made a slow repair indistinguishable from a hung one, for the user and for a bug report
+       * alike. Fire-and-forget by design — progress reporting must never be able to fail a run.
+       */
+      const stage = (name: AiRunStage): void => {
+        if (window !== null)
+          emitToWindow(window, 'ai:runState', { status: 'running', stage: name });
+      };
+
+      stage('preparing');
       const key = deps.keyStore.getKey();
       if (key === null) {
         return {
@@ -202,12 +272,15 @@ export function createAiService(deps: AiServiceDeps): AiService {
           message: 'That finding is no longer available.',
         };
       }
+      stage('analyzing');
       const language = languageFor(finding.location.file);
       if (language === null) {
         return {
           status: 'error',
           code: 'not_found',
-          message: 'Unsupported file type for AI actions.',
+          // Same wording Proceed uses for the identical condition (`proceed-service.ts`) — a
+          // bug-fix-sprint fix: these used to read differently for the same underlying cause.
+          message: "This file type isn't supported for AI actions yet.",
         };
       }
 
@@ -302,6 +375,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
           };
         }
         const lineCount = content.split(/\r?\n/).length;
+        stage('validating');
         const { report, originalCode } = await deps.verification.verify({
           finding,
           repairedCode: micro.patched,
@@ -333,6 +407,16 @@ export function createAiService(deps: AiServiceDeps): AiService {
           proposal: {
             profile: 'repair',
             historyId,
+            // The deterministic path applies one tool-authored autofix and never merges: the edit is
+            // the tool's own, and widening it would make it ours.
+            mode: 'finding' as const,
+            repairSummary: buildRepairSummary({
+              finding,
+              related: [],
+              others: deps.findings
+                .list(workspace.id, { relPath: finding.location.file })
+                .filter((f) => f.id !== finding.id),
+            }),
             repairedCode: micro.patched,
             originalCode,
             rationale,
@@ -371,6 +455,43 @@ export function createAiService(deps: AiServiceDeps): AiService {
               endLine: finding.location.endLine,
             };
 
+      /**
+       * Mode decides the SPLICE RANGE, and the splice range is the blast radius.
+       *
+       *  - `finding` / `related-scope` keep the resolved scope exactly. `related-scope` does not widen
+       *    the patch; it only lets the same patch resolve everything already inside it. That is what
+       *    makes the merge safe: minimality is unchanged, only thoroughness improves.
+       *  - `ai-file` replaces the whole file. That is the largest edit the app can make, which is why
+       *    it is advanced-only, warned before it runs, and never selected automatically.
+       */
+      const mode: RepairMode = request.mode ?? 'finding';
+      const fileLineCount = content.split(/\r?\n/).length;
+      const patchTarget: Target =
+        mode === 'ai-file' ? { symbolName: null, startLine: 1, endLine: fileLineCount } : target;
+
+      // Every other finding in this file, split by whether it falls inside the patch range. Only
+      // those inside can be fixed by this patch — anything outside would need a wider splice, which
+      // is exactly what the mode ladder exists to keep the user in control of.
+      const siblings = deps.findings
+        .list(workspace.id, { relPath: finding.location.file })
+        .filter((f) => f.id !== finding.id);
+      const withinPatch = (f: Finding): boolean =>
+        f.location.startLine >= patchTarget.startLine &&
+        f.location.startLine <= patchTarget.endLine;
+      // `manual` findings are never merged in: the analyzer already judged that no machine should
+      // guess them, and bundling one into a patch would launder that refusal.
+      const mergeable =
+        mode === 'finding' ? [] : siblings.filter((f) => withinPatch(f) && f.repair !== 'manual');
+      const skipped = siblings.filter((f) => !mergeable.includes(f));
+
+      // Manual Validation Phase 2 instrumentation. Observes only — every stage is recorded so a
+      // rejected repair can be traced to the step that produced the wrong thing, rather than being
+      // reported as a bare verdict.
+      const trace = new RepairTraceBuilder(String(Date.now()), mode)
+        .finding(finding, language)
+        .target(patchTarget, content)
+        .related(mergeable);
+
       // v3 context layers: the Semantic + Dependency neighbours the analyzer selected (sliced from the
       // current file), and the Project Metadata conventions detected from the project itself.
       const context = buildContext({
@@ -378,7 +499,8 @@ export function createAiService(deps: AiServiceDeps): AiService {
         language,
         fileContent: content,
         finding,
-        target,
+        target: patchTarget,
+        relatedFindings: mergeable,
         neighbours: repairNeighbours(content, finding),
         conventions: projectConventions({
           language,
@@ -396,11 +518,12 @@ export function createAiService(deps: AiServiceDeps): AiService {
         if (window !== null) emitToWindow(window, 'ai:runState', { status: 'blocked' });
         return { status: 'blocked', matches: prepared.blocked.map((m) => ({ ...m })) };
       }
+      trace.prompt(prepared.request.messages.map((m) => `[${m.role}]\n${m.content}`).join('\n\n'));
 
       const controller = new AbortController();
       active?.abort();
       active = controller;
-      if (window !== null) emitToWindow(window, 'ai:runState', { status: 'running' });
+      stage('generating');
 
       const provider = makeProvider(key);
       const wantsStructured = profileWantsStructuredOutput(request.profile);
@@ -435,8 +558,10 @@ export function createAiService(deps: AiServiceDeps): AiService {
             },
           };
         }
+        trace.rawResponse(text);
         const parsed = parseRepairOutput(text);
         if (!parsed.ok) {
+          trace.parsed({ ok: false, reason: parsed.reason, detail: parsed.detail });
           lastFailure.current = {
             reason: parsed.reason,
             detail: parsed.detail,
@@ -445,6 +570,20 @@ export function createAiService(deps: AiServiceDeps): AiService {
           };
           return SCHEMA_ERROR;
         }
+        trace.parsed({
+          ok: true,
+          repairedCode: parsed.value.repairedCode,
+          rationale: parsed.value.rationale,
+          confidence: parsed.value.confidence,
+        });
+        trace.spliced(
+          spliceLines(
+            content,
+            patchTarget.startLine,
+            patchTarget.endLine,
+            parsed.value.repairedCode,
+          ),
+        );
         // Recovery is reported, never silent — that is the whole justification for unwrapping.
         if (parsed.recovery.length > 0 && parsed.recovery[0] !== 'none') {
           console.error('[ai] recovered model output', {
@@ -453,26 +592,38 @@ export function createAiService(deps: AiServiceDeps): AiService {
             recovery: parsed.recovery,
           });
         }
+        stage('validating');
         const { report, originalCode } = await deps.verification.verify({
           finding,
           repairedCode: parsed.value.repairedCode,
           target: {
             file: finding.location.file,
-            startLine: target.startLine,
-            endLine: target.endLine,
+            startLine: patchTarget.startLine,
+            endLine: patchTarget.endLine,
             language,
           },
           workspaceRoot: workspace.rootPath,
           originalContent: content,
           originalFindings: deps.findings.list(workspace.id, { relPath: finding.location.file }),
         });
+        trace.verified(report);
+        // A rejected repair is exactly the case worth keeping evidence for. A verified one is not:
+        // dumping source to disk on every success would be a privacy cost with no diagnostic return.
+        if (report.verdict === 'regression' || !report.syntaxOk) {
+          const tracePath = trace.write();
+          console.error('[ai:run] REPAIR REJECTED — trace written', {
+            ...trace.summary(),
+            trace: tracePath,
+          });
+        }
+
         // Record every reviewed repair in the local audit trail (Beta Phase E), whatever the verdict —
         // an unresolved or regressed attempt is part of the history too. Apply stamps it later.
         const historyId = deps.history.record({
           workspaceId: workspace.id,
           findingId: finding.id,
           relPath: finding.location.file,
-          symbolName: target.symbolName,
+          symbolName: patchTarget.symbolName,
           ruleId: finding.ruleId,
           source: finding.source,
           verdict: report.verdict,
@@ -481,23 +632,27 @@ export function createAiService(deps: AiServiceDeps): AiService {
           repairedCode: parsed.value.repairedCode,
           model: deps.keyStore.getConfig().model,
           confidence: parsed.value.confidence,
-          startLine: target.startLine,
-          endLine: target.endLine,
+          startLine: patchTarget.startLine,
+          endLine: patchTarget.endLine,
         });
         return {
           status: 'ok',
           proposal: {
             profile: 'repair',
             historyId,
+            mode,
+            // What this patch actually covered, and what it deliberately did not — each skip with a
+            // reason, so a minimal patch reads as a choice rather than an oversight.
+            repairSummary: buildRepairSummary({ finding, related: mergeable, others: skipped }),
             repairedCode: parsed.value.repairedCode,
             originalCode,
             rationale: parsed.value.rationale,
             confidence: parsed.value.confidence,
             target: {
               file: finding.location.file,
-              startLine: target.startLine,
-              endLine: target.endLine,
-              symbolName: target.symbolName,
+              startLine: patchTarget.startLine,
+              endLine: patchTarget.endLine,
+              symbolName: patchTarget.symbolName,
             },
             verification: report,
           },
@@ -529,7 +684,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
         if (response === SCHEMA_ERROR && wantsStructured) {
           stream = await streamOnce(
             provider,
-            reAskRequest(prepared.request, stream.text),
+            reAskRequest(prepared.request, stream.text, lastFailure.current),
             controller.signal,
             window,
             false,
@@ -550,19 +705,26 @@ export function createAiService(deps: AiServiceDeps): AiService {
             profile: request.profile,
             failure,
           });
+          // `detail` belongs HERE and only here. It was previously omitted from this log and used as
+          // the user's error message instead — exactly backwards: the field-level schema diagnostic
+          // ("repairedCode: Required") is the most useful thing a maintainer can have and the least
+          // useful thing a user can read.
           console.error('[ai] parse failed', {
             model: prepared.request.model,
             profile: request.profile,
             reason: failure.reason,
+            detail: failure.detail,
             recovery: failure.recovery,
             textLength: failure.text.length,
             dump: debugPath,
           });
-          const message =
-            failure.detail +
-            (debugPath === null ? '' : ` The raw response was saved to ${debugPath}.`);
+          // What the USER sees: what happened, and what to do. No schema vocabulary, no field paths,
+          // and above all no absolute filesystem path — this codebase treats those as user data
+          // (Security §9), and the old message pasted one straight into the panel. The dump still
+          // exists for a bug report; the log above names it.
+          const message = describeSchemaFailureForUser(request.profile);
           if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message });
-          return { status: 'error', code: 'schema_error', message };
+          return { status: 'error', code: 'schema_error', message, retryable: true };
         }
 
         if (window !== null) {

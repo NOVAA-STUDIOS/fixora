@@ -47,13 +47,24 @@ import { registerHandler } from '../router.js';
  * call. `ai:applyRepair` is the one place we modify the user's code, and only for a repair they accepted:
  * it splices the verified replacement into the file through the same path guard reads use.
  */
+/**
+ * How long a single `ai:run` may take before it is aborted and reported as timed out.
+ *
+ * 180s matches the budget Proceed Mode has always used, for the same shape of work (a couple of model
+ * round trips plus overlay verification). Past this a run is wedged, not slow.
+ */
+export const DEFAULT_RUN_TIMEOUT_MS = 180_000;
+
 export function registerAiHandlers(deps: {
   keyStore: KeyStore;
   aiService: AiService;
   workspace: WorkspaceService;
   history: RepairHistoryRepository;
   catalogue: ModelCatalogueService;
+  /** Overridable so a test can prove the timeout fires without waiting three minutes. */
+  runTimeoutMs?: number;
 }): void {
+  const runTimeoutMs = deps.runTimeoutMs ?? DEFAULT_RUN_TIMEOUT_MS;
   // Resolving here is what makes a retired model self-heal: every config read checks the stored id
   // against the live catalogue, migrates it if it is gone, and reports what it moved away from so the
   // UI can explain itself. A failed fetch resolves to unchanged — we never migrate on a guess.
@@ -207,6 +218,28 @@ export function registerAiHandlers(deps: {
       profile: request.profile,
       findingId: request.findingId,
     });
+
+    /**
+     * The run budget. Repair had NO timeout of any kind — not here, not in the service, and not in
+     * the provider's `fetch` (which is called with a signal but no deadline, and Node's fetch imposes
+     * no response timeout on a streaming body). So a provider that accepted the connection and then
+     * sent nothing left the `for await` over the SSE stream blocked forever, `ai:run`'s promise
+     * unresolved, and the renderer's `status: 'running'` permanently stuck — the reported hang.
+     * Proceed Mode already had exactly this guard; Repair never got it. Now it does.
+     */
+    // Read through a call, not the binding: the assignment happens inside the timer callback, which
+    // TypeScript's flow analysis cannot see, so a direct `timedOut` read below narrows to `false` and
+    // the branch is reported as dead. Same helper shape `complexity.ts`/`syntax.ts` use.
+    let didTimeOut = false;
+    const timedOut = (): boolean => didTimeOut;
+    const timeout = setTimeout(() => {
+      didTimeOut = true;
+      console.error('[ai:run] TIMED OUT — aborting', { requestId, ms: Date.now() - started });
+      // Abort, rather than just resolving the promise: the point is to stop the background work and
+      // release the connection, not to hide it while it keeps running.
+      deps.aiService.cancel();
+    }, runTimeoutMs);
+
     try {
       const response = await deps.aiService.run(request, window);
       console.error('[ai:run] exited', {
@@ -215,6 +248,16 @@ export function registerAiHandlers(deps: {
         ...(response.status === 'error' ? { code: response.code, message: response.message } : {}),
         ms: Date.now() - started,
       });
+      // A run the timer aborted comes back as `cancelled`, because aborting is how the timeout is
+      // enforced. The user did not cancel it, so reporting "Cancelled." would be a lie — retag it as
+      // the timeout it actually was, with a message that says what to do next.
+      if (response.status === 'error' && response.code === 'cancelled' && timedOut()) {
+        const message =
+          `This repair took longer than ${String(Math.round(runTimeoutMs / 1000))} seconds and was stopped, ` +
+          'so nothing was changed. The provider may be slow or overloaded — try again, or pick a faster model in Settings → AI.';
+        if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message });
+        return { status: 'error' as const, code: 'timeout' as const, message, retryable: true };
+      }
       return response;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -238,6 +281,10 @@ export function registerAiHandlers(deps: {
         code: 'internal_error' as const,
         message: userMessage,
       };
+    } finally {
+      // Always, on every path. A timer left armed would abort the NEXT run several minutes later,
+      // turning one slow repair into an unexplained cancellation of an unrelated one.
+      clearTimeout(timeout);
     }
   });
 
