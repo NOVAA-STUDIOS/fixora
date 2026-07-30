@@ -1,6 +1,6 @@
 # Manual Validation — Fixora-TestSuite
 
-**Status:** IN PROGRESS · started 2026-07-30
+**Status:** PASSED · 2026-07-30. No release-blocking defects. Layers 2–5 confirmed by the user in the running app.
 **Under test:** `main` @ `bdcb7c3` (9-commit series from `6a6df25`)
 **Corpus:** `C:/dev/Projects/Fixora-TestSuite` — 164 files, 13,240 lines, 7 languages
 **Implementation is FROZEN.** No new features. Only verified release blockers may be fixed.
@@ -156,7 +156,7 @@ ever mismatches it fails closed with `write_verification_failed`.
 
 ## Failure log
 
-_None recorded yet from Layers 2–5._
+No release-blocking defects were found in Layers 2–5. The two Layer 1 items below stand as recorded — neither blocks the release.
 
 | ID | Bucket | File / finding | What happened | Blocker? | Status |
 |---|---|---|---|---|---|
