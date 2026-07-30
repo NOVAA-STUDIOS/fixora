@@ -19,15 +19,31 @@ export type { RepairStrategy };
  * autofix, `deterministicRepair` returns null and the finding is left to the AI or to the developer.
  */
 
-/** Rules for which no machine can know the intent, so neither an autofix nor an AI guess is offered. */
-const MANUAL_ONLY_RULES = new Set<string>([
-  'TS2304', // "Cannot find name X" — the correct identifier is a guess only the author can make
-  'F821', // Ruff undefined name — same
+/**
+ * Rules whose intent a machine cannot know *from the rule alone* — an undefined identifier could be
+ * anything until you look at what is actually in scope.
+ *
+ * These were once refused outright. That was too blunt: when the file imports `useState` and the code
+ * says `useSate`, the intended name is not a guess, it is the only symbol one edit away, and refusing
+ * sent the user to fix by hand something the engine could see. `symbol-resolution.ts` now answers the
+ * narrower question — is there exactly one overwhelmingly likely candidate in scope? — and attaches
+ * what it found to the finding, so classification below reads that evidence instead of assuming the
+ * worst. With no candidate in scope, the original judgement still holds and the finding stays manual.
+ */
+const CONTEXT_DEPENDENT_RULES = new Set<string>([
+  'TS2304', // "Cannot find name X"
+  'F821', // Ruff undefined name
 ]);
 
 export function classifyRepair(finding: Finding): RepairStrategy {
+  // A resolved rename arrives as a real autofix, so it is `safe-auto` by the same rule an ESLint fix
+  // is — no special case needed, and no model involved.
   if (finding.autofix !== undefined) return 'safe-auto';
-  if (MANUAL_ONLY_RULES.has(finding.ruleId)) return 'manual';
+  if (CONTEXT_DEPENDENT_RULES.has(finding.ruleId)) {
+    // Candidates found in scope are recorded as related locations by the resolver. Their presence is
+    // the evidence that a fix is knowable; their absence is the evidence that it is not.
+    return finding.evidence.relatedLocations.length > 0 ? 'ai-required' : 'manual';
+  }
   return 'ai-required';
 }
 
