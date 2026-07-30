@@ -32,7 +32,8 @@ async function runHandler(
   const { getHandler } = await import('../electron/main/ipc/router.js');
   const { registerAiHandlers } = await import('../electron/main/ipc/handlers/ai.handlers.js');
   registerAiHandlers({
-    keyStore: {} as never,
+    // The timeout report names the model on its status card, so the stub has to answer.
+    keyStore: { getConfig: () => ({ model: 'test/model' }) } as never,
     aiService: aiService as never,
     workspace: { getCurrent: () => null } as never,
     history: {} as never,

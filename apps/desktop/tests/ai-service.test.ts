@@ -132,7 +132,20 @@ describe('AI service (BYOK run orchestration)', () => {
   it('refuses with no_key when no key is configured', async () => {
     const service = createAiService(deps({ hasKey: false, provider: scriptedProvider([[]]) }));
     const result = await service.run({ profile: 'explain', findingId: 'find-1' }, null);
-    expect(result).toEqual({ status: 'error', code: 'no_key', message: expect.any(String) });
+    // A missing key is a CONFIGURATION failure, and it carries a card: it is the failure the panel
+    // can resolve most directly, and a bare sentence left the user with nothing to click.
+    expect(result).toEqual({
+      status: 'error',
+      code: 'no_key',
+      message: expect.any(String),
+      failure: {
+        category: 'invalid-api-key',
+        layer: 'configuration',
+        actions: ['open-settings'],
+        provider: 'OpenRouter',
+        model: expect.any(String),
+      },
+    });
   });
 
   it('runs an explain and returns the streamed prose', async () => {

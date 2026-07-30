@@ -7,6 +7,7 @@ import { useUiStore } from '../../stores/ui-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { ProblemDetails } from '../findings/problem-details.js';
 
+import { ProviderErrorCard } from './provider-error-card.js';
 import { RepairResult } from './repair-result.js';
 import { VerdictBadge } from './verdict-badge.js';
 
@@ -35,6 +36,8 @@ export function AiPanel(): React.JSX.Element {
   const blocked = useAiStore((s) => s.blocked);
   const errorMessage = useAiStore((s) => s.errorMessage);
   const retryable = useAiStore((s) => s.retryable);
+  const failure = useAiStore((s) => s.failure);
+  const goToSettings = useUiStore((s) => s.setActiveView);
   const configured = useAiStore((s) => s.config?.configured ?? false);
   const cancel = useAiStore((s) => s.cancel);
   const dismiss = useAiStore((s) => s.dismiss);
@@ -111,20 +114,19 @@ export function AiPanel(): React.JSX.Element {
             </div>
           )}
 
+          {/* A failed run is a status card, not a red sentence. The card names the layer, the
+              provider and the model, and always offers at least one recovery action — see
+              `provider-error-card.tsx` for why a bare sentence was not enough. */}
           {status === 'error' && errorMessage !== null && (
-            <div className="flex flex-col items-start gap-2">
-              {/* overflow-wrap:anywhere, not break-words: a provider error can contain a bare URL,
-                  which has no break opportunity and would otherwise force the pane to scroll sideways. */}
-              <p className="text-danger-text [overflow-wrap:anywhere]">{errorMessage}</p>
-              {/* Mirrors Proceed's Retry (P2.2.1): shown only when the same failure classifier says
-                  this could plausibly succeed again — quota reset, provider blip — never for a
-                  deterministic refusal like a missing key or an unsupported file. */}
-              {retryable && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => void retry()}>
-                  Retry
-                </Button>
-              )}
-            </div>
+            <ProviderErrorCard
+              failure={failure}
+              reason={errorMessage}
+              retryable={retryable}
+              onRetry={() => void retry()}
+              onOpenSettings={() => {
+                goToSettings('settings');
+              }}
+            />
           )}
 
           {/* overflow-wrap:anywhere as well as pre-wrap: pre-wrap breaks at whitespace, and model

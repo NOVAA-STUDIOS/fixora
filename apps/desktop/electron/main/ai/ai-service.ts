@@ -5,15 +5,16 @@ import {
   buildContext,
   buildReAskMessage,
   createOpenRouterProvider,
+  describeModelOutputFailure,
   describeProviderFailure,
   describeSchemaFailureForUser,
   DEFAULT_BUDGETS,
-  OPENROUTER_ENDPOINT,
   parseRepairOutput,
   parseTestOutput,
   prepareRequest,
   profileWantsStructuredOutput,
   type AIProvider,
+  type ProviderFailure,
   type ProviderMessage,
   type ProviderRequest,
 } from '@fixora/core-ai';
@@ -38,6 +39,7 @@ import type { WorkspaceService } from '../services/workspace-service.js';
 import { spliceLines } from '../verification/patch.js';
 import type { VerificationService } from '../verification/verification-service.js';
 
+import { logProviderFailure, missingKeyFailure, toWireFailure } from './failure-report.js';
 import type { KeyStore } from './key-store.js';
 import { projectConventions, repairNeighbours } from './repair-context.js';
 import { evaluateRepairEligibility } from './repair-eligibility.js';
@@ -111,7 +113,14 @@ export interface AiService {
   cancel(): void;
 }
 
-type StreamResult = { ok: true; text: string } | { ok: false; message: string; retryable: boolean };
+type StreamResult =
+  | { ok: true; text: string }
+  /**
+   * The failure travels classified, not as a sentence. The service used to keep only `message` and
+   * `retryable`, which meant every caller that wanted to say *what kind* of failure it was had to
+   * re-derive it from the prose — or, in practice, not say at all.
+   */
+  | { ok: false; message: string; retryable: boolean; failure: ProviderFailure };
 
 interface Target {
   symbolName: string | null;
@@ -187,31 +196,40 @@ export function createAiService(deps: AiServiceDeps): AiService {
     emitDeltas: boolean,
   ): Promise<StreamResult> {
     let text = '';
+    const startedAt = Date.now();
     for await (const event of provider.stream(request, signal)) {
       if (event.type === 'text_delta') {
         text += event.text;
         if (emitDeltas && window !== null) emitToWindow(window, 'ai:delta', { text: event.text });
       } else if (event.type === 'error') {
-        // Carry the provider's own explanation through. Reporting only the code turned every
-        // failure into "Provider error (HTTP 404)" — technically true, and useless: the reason
-        // ("model not found", "insufficient credits") was already in hand and was being dropped here.
-        // The exact URL and model, alongside the provider's own words. Never the key or the payload.
-        console.error('[ai] provider error', {
-          url: OPENROUTER_ENDPOINT,
-          model: request.model,
-          code: event.providerCode,
-          message: event.message,
-        });
         // Classified, not echoed (P2.2.1). The raw string — "429 Too Many Requests — Rate limit
-        // exceeded: free-models-per-day…" — is correct for the log above and useless in a panel.
-        // Repair and Proceed share this classifier so they can never disagree about what a 429 means,
-        // or whether it's worth retrying.
+        // exceeded: free-models-per-day…" — is correct for a log and useless in a panel. Repair and
+        // Proceed share this classifier so they can never disagree about what a 429 means, or
+        // whether it's worth retrying. The provider's own words are an INPUT to the classification
+        // (they are what separates a throttle from an exhausted quota) and never an output.
         const failure = describeProviderFailure({
           providerCode: event.providerCode,
           detail: event.message,
           retryable: event.retryable,
         });
-        return { ok: false, message: failure.message, retryable: failure.retryable };
+        // The diagnostic half, to the developer log only: status, request id, latency, the raw text.
+        // Never the key and never the payload.
+        logProviderFailure(failure, {
+          provider: 'openrouter',
+          model: request.model,
+          status: event.status,
+          errorCode: event.providerCode,
+          latencyMs: Date.now() - startedAt,
+          requestId: event.requestId,
+          retryable: failure.retryable,
+          detail: event.message,
+        });
+        return {
+          ok: false,
+          message: failure.message,
+          retryable: failure.retryable,
+          failure,
+        };
       }
     }
     return { ok: true, text };
@@ -252,12 +270,16 @@ export function createAiService(deps: AiServiceDeps): AiService {
       };
 
       stage('preparing');
+      const modelId = deps.keyStore.getConfig().model;
       const key = deps.keyStore.getKey();
       if (key === null) {
         return {
           status: 'error',
           code: 'no_key',
-          message: 'Add your provider key in Settings → AI.',
+          message:
+            'Fixora has no provider key yet, so it cannot reach an AI model. Add your key in Settings → AI.',
+          // A configuration failure, and the one the card explains best — it is fixable in one click.
+          failure: missingKeyFailure(modelId),
         };
       }
       const workspace = deps.workspace.getCurrent();
@@ -677,6 +699,9 @@ export function createAiService(deps: AiServiceDeps): AiService {
             code: 'provider_error',
             message: stream.message,
             retryable: stream.retryable,
+            // The classification the panel renders as a status card. Without it the panel has only
+            // the sentence, which is what left provider outages looking like Fixora defects.
+            failure: toWireFailure(stream.failure, { provider: 'openrouter', model: modelId }),
           };
         }
 
@@ -724,7 +749,18 @@ export function createAiService(deps: AiServiceDeps): AiService {
           // exists for a bug report; the log above names it.
           const message = describeSchemaFailureForUser(request.profile);
           if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message });
-          return { status: 'error', code: 'schema_error', message, retryable: true };
+          return {
+            status: 'error',
+            code: 'schema_error',
+            message,
+            retryable: true,
+            // The model, not the engine and not the user's code. Attributing this to Fixora is the
+            // specific mistake the layer field exists to prevent.
+            failure: toWireFailure(describeModelOutputFailure('schema-mismatch'), {
+              provider: 'openrouter',
+              model: modelId,
+            }),
+          };
         }
 
         if (window !== null) {

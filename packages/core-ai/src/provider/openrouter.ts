@@ -86,14 +86,18 @@ export function createOpenRouterProvider(options: OpenRouterOptions): AIProvider
 
     if (!response.ok) {
       // Read the body. OpenRouter explains *why* it rejected the call ("model not found", "insufficient
-      // credits", "invalid api key"); discarding it and reporting only the status leaves the user with
-      // "HTTP 404" and nothing to act on — which is exactly the dead end this branch used to create.
+      // credits", "invalid api key"). That text no longer reaches the user — the classifier upstream
+      // decides the wording — but it is what separates a 429 that means "slow down" from one that
+      // means "you are out of credits", so it still travels, to be classified and logged.
+      const requestId = response.headers.get('x-request-id') ?? undefined;
       yield {
         type: 'error',
         // 429 and 5xx are worth a retry/failover; 4xx (bad key, bad request, unknown model) is not.
         retryable: response.status === 429 || response.status >= 500,
         providerCode: `HTTP_${String(response.status)}`,
         message: await describeErrorResponse(response, request.model),
+        status: response.status,
+        ...(requestId === undefined ? {} : { requestId }),
       };
       return;
     }

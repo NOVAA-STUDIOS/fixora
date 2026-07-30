@@ -46,6 +46,15 @@ export type ProviderEvent =
       readonly retryable: boolean;
       readonly providerCode: string;
       readonly message: string;
+      /**
+       * Diagnostics for the developer log only. Never rendered.
+       *
+       * `requestId` is the provider's correlation id — the one field that turns "a 429 sometimes"
+       * into a ticket the provider can actually answer. It was previously discarded at the adapter,
+       * so it was unavailable to every layer above.
+       */
+      readonly status?: number;
+      readonly requestId?: string;
     };
 
 export interface ProviderCapabilities {
