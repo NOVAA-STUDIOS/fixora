@@ -254,7 +254,7 @@ describe('createProceedService', () => {
     expect(reAskMessage).not.toMatch(/surrounding text/);
   });
 
-  it('ERROR: a provider 429 becomes the quota sentence, never a raw HTTP string', async () => {
+  it('ERROR: a provider 429 becomes a classified sentence, never a raw HTTP string', async () => {
     const provider = fakeProvider([
       [
         {
@@ -270,7 +270,11 @@ describe('createProceedService', () => {
     if (out.status === 'error') {
       expect(out.code).toBe('quota');
       expect(out.retryable).toBe(true);
-      expect(out.message).toContain('Your OpenRouter quota has been exhausted');
+      // A bare 429 is a BURST limit, not an exhausted allowance — the two share a status code and
+      // have opposite answers, and Proceed reads them the same way Repair does because both go
+      // through the one classifier.
+      expect(out.message).toMatch(/limiting how fast/);
+      expect(out.message.toLowerCase()).not.toContain('quota');
       expect(out.message).not.toMatch(/429|Too Many Requests/);
     }
   });

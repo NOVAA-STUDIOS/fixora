@@ -444,6 +444,56 @@ export const GateMatchInfoSchema = z.object({
 export type GateMatchInfo = z.infer<typeof GateMatchInfoSchema>;
 
 /**
+ * A classified provider failure, as the renderer receives it.
+ *
+ * Mirrors `ProviderFailure` in core-ai rather than importing it: shared-types is the IPC contract and
+ * must not depend on the AI package. The duplication is checked by a test that walks the category and
+ * action sets in both directions, so the two cannot drift silently.
+ *
+ * Everything here is safe to render. The diagnostic half of a failure — status code, request id,
+ * latency, the provider's raw text — deliberately does NOT travel: it is written to the developer log
+ * in the main process and never crosses the IPC boundary, because there is no UI that should show it
+ * and every field that crosses is a field that can leak.
+ */
+export const AiFailureSchema = z.object({
+  category: z.enum([
+    'quota-exceeded',
+    'rate-limited',
+    'timeout',
+    'invalid-api-key',
+    'auth-failed',
+    'provider-unavailable',
+    'network-offline',
+    'model-unavailable',
+    'context-too-large',
+    'invalid-response',
+    'unknown-provider-error',
+  ]),
+  /** Whose problem this is. The card leads with it so a provider outage is never read as a Fixora bug. */
+  layer: z.enum(['provider', 'configuration', 'engine']),
+  /** Ordered, most useful first. Non-empty by construction — a failure always has a way forward. */
+  actions: z
+    .array(
+      z.enum([
+        'retry',
+        'retry-later',
+        'open-settings',
+        'change-model',
+        'check-credits',
+        'check-connection',
+      ]),
+    )
+    .min(1),
+  /** Which provider was called, for the card's Provider row. */
+  provider: z.string(),
+  /** The model id that was asked. Shown as-is; it is the thing the user would change. */
+  model: z.string(),
+});
+export type AiFailure = z.infer<typeof AiFailureSchema>;
+export type AiFailureCategory = AiFailure['category'];
+export type AiRecoveryAction = AiFailure['actions'][number];
+
+/**
  * The outcome of an AI run, as a value (TDD §9). `blocked` carries the gate matches so the UI can say
  * exactly which file and which rule stopped the send; `error` names the next step.
  */
@@ -475,6 +525,14 @@ export const AiRunResponseSchema = z.discriminatedUnion('status', [
     // classified by the provider-failure pipeline (e.g. `no_key`, `not_found`), which are not
     // meaningfully "retryable" in the first place.
     retryable: z.boolean().optional(),
+    /**
+     * The classified failure, when one was produced.
+     *
+     * Optional because not every error path goes through the provider classifier — `cancelled` and
+     * `not_found` are Fixora's own terminal states and have no provider to describe. The panel falls
+     * back to the plain message for those, which is why `message` stays required.
+     */
+    failure: AiFailureSchema.optional(),
   }),
 ]);
 export type AiRunResponse = z.infer<typeof AiRunResponseSchema>;

@@ -5,6 +5,10 @@ import {
   describeModelOutputFailure,
   describeProviderFailure,
   describeSchemaFailureForUser,
+  describeTimeoutFailure,
+  severityOf,
+  type FailureCategory,
+  type ProviderFailure,
 } from './failure.js';
 
 /**
@@ -15,15 +19,34 @@ import {
  */
 
 describe('describeProviderFailure', () => {
-  it('429 → the exact quota wording, retryable', () => {
+  /**
+   * A bare 429 is a BURST limit until the provider says otherwise.
+   *
+   * We used to report every 429 as "your quota has been exhausted", which sent users to top up an
+   * account that was merely being throttled for a few seconds. The two share a status code and have
+   * opposite answers, so the split is driven by the provider's own words and defaults to the reading
+   * that costs the user nothing if we are wrong.
+   */
+  it('a bare 429 is rate limiting — retryable, and never claims the quota is gone', () => {
     const f = describeProviderFailure({ providerCode: 'HTTP_429', detail: 'Rate limit exceeded' });
-    expect(f.kind).toBe('quota');
-    expect(f.message).toBe(
-      'Your OpenRouter quota has been exhausted. Please wait until the quota resets or select another model.',
-    );
+    expect(f.category).toBe('rate-limited');
     expect(f.retryable).toBe(true);
+    expect(f.actions).toContain('retry');
+    expect(f.message.toLowerCase()).not.toContain('quota');
     expect(f.message).not.toMatch(/429|HTTP|Too Many Requests/); // no raw transport in the headline
     expect(f.providerCode).toBe('HTTP_429'); // still available for logs
+  });
+
+  it('a 429 the provider explains as an exhausted daily allowance is quota, not throttling', () => {
+    const f = describeProviderFailure({
+      providerCode: 'HTTP_429',
+      detail: 'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 requests',
+    });
+    expect(f.category).toBe('quota-exceeded');
+    // Not retryable: hammering Retry cannot bring the allowance back.
+    expect(f.retryable).toBe(false);
+    expect(f.actions).toContain('check-credits');
+    expect(f.actions).not.toContain('retry');
   });
 
   it('separates auth, credit, model and provider-side failures', () => {
@@ -48,9 +71,48 @@ describe('describeProviderFailure', () => {
     }
   });
 
-  it('carries the provider’s own words for an unrecognised code rather than inventing a cause', () => {
-    const f = describeProviderFailure({ providerCode: 'WEIRD', detail: 'model is cold' });
-    expect(f.message).toContain('model is cold');
+  /**
+   * Reversed deliberately by the Provider Error UX sprint. Quoting the provider's own words was the
+   * safe choice while the alternative was inventing a cause — but the unrecognised branch is by
+   * definition the text we have no classification for, which makes it the string most likely to be a
+   * raw transport dump. It goes to the developer log, where it is useful, and not to the panel.
+   */
+  it('an unrecognised code never quotes the provider’s raw text at the user', () => {
+    const f = describeProviderFailure({ providerCode: 'WEIRD', detail: '500 tcp reset by peer' });
+    expect(f.category).toBe('unknown-provider-error');
+    expect(f.message).not.toContain('tcp reset by peer');
+    expect(f.message).toContain('developer log');
+    expect(f.providerCode).toBe('WEIRD'); // preserved for that log
+  });
+
+  it('separates the two 4xx auth failures — a bad key and a key without access differ', () => {
+    expect(describeProviderFailure({ providerCode: 'HTTP_401' }).category).toBe('invalid-api-key');
+    expect(describeProviderFailure({ providerCode: 'HTTP_403' }).category).toBe('auth-failed');
+    // A wrong key cannot be fixed by picking a different model; a forbidden one often can.
+    expect(describeProviderFailure({ providerCode: 'HTTP_403' }).actions).toContain('change-model');
+  });
+
+  it('classifies context overflow only when the provider’s own message says so', () => {
+    expect(describeProviderFailure({ providerCode: 'HTTP_413' }).category).toBe('context-too-large');
+    expect(
+      describeProviderFailure({
+        providerCode: 'HTTP_400',
+        detail: 'This model maximum context length is 8192 tokens',
+      }).category,
+    ).toBe('context-too-large');
+    // A plain 400 is not assumed to be an oversized request.
+    expect(describeProviderFailure({ providerCode: 'HTTP_400' }).category).toBe(
+      'unknown-provider-error',
+    );
+  });
+
+  it('treats a stalled provider as a timeout, whoever clock ran out', () => {
+    for (const code of ['HTTP_408', 'HTTP_504', 'TIMEOUT']) {
+      const f = describeProviderFailure({ providerCode: code });
+      expect(f.category, code).toBe('timeout');
+      expect(f.retryable, code).toBe(true);
+    }
+    expect(describeTimeoutFailure().category).toBe('timeout');
   });
 });
 
@@ -63,10 +125,12 @@ describe('describeModelOutputFailure', () => {
     expect(f.message).toMatch(/stronger model/);
   });
 
-  it('a schema mismatch names the reason and keeps the detail', () => {
+  it('is attributed to the model, never to the repair engine or the user code', () => {
     const f = describeModelOutputFailure('schema-mismatch', 'editedCode: too small');
-    expect(f.message).toContain('schema-mismatch');
-    expect(f.message).toContain('editedCode: too small');
+    expect(f.category).toBe('invalid-response');
+    expect(f.layer).toBe('provider');
+    expect(f.message).toMatch(/limitation of the selected model/);
+    expect(f.message).toMatch(/not of your code/);
   });
 });
 
@@ -154,5 +218,87 @@ describe('describeSchemaFailureForUser', () => {
     expect(message).not.toContain('internal error');
     expect(message).not.toContain('unknown error');
     expect(message).not.toContain('something went wrong');
+  });
+});
+
+/**
+ * The two promises the status card depends on, checked exhaustively over the category set rather than
+ * case by case. Case-by-case tests pass while a NEW category slips through with no recovery action or
+ * with the blame pointed at Fixora - which is precisely the regression worth preventing.
+ */
+describe('failure invariants - hold for every category', () => {
+  const ALL: { category: FailureCategory; failure: ProviderFailure }[] = [
+    'HTTP_429',
+    'HTTP_402',
+    'HTTP_401',
+    'HTTP_403',
+    'HTTP_404',
+    'HTTP_413',
+    'HTTP_408',
+    'HTTP_500',
+    'HTTP_503',
+    'NETWORK',
+    'NO_BODY',
+    'STREAM',
+    'TIMEOUT',
+    'WEIRD',
+  ]
+    .map((providerCode) => describeProviderFailure({ providerCode }))
+    .concat(
+      describeProviderFailure({ providerCode: 'HTTP_429', detail: 'quota exhausted' }),
+      describeModelOutputFailure('empty'),
+      describeModelOutputFailure('schema-mismatch', 'x'),
+    )
+    .map((failure) => ({ category: failure.category, failure }));
+
+  it('covers all eleven categories', () => {
+    const covered = [...new Set(ALL.map((f) => f.category))].sort();
+    expect(covered).toEqual(
+      [
+        'auth-failed',
+        'context-too-large',
+        'invalid-api-key',
+        'invalid-response',
+        'model-unavailable',
+        'network-offline',
+        'provider-unavailable',
+        'quota-exceeded',
+        'rate-limited',
+        'timeout',
+        'unknown-provider-error',
+      ].sort(),
+    );
+  });
+
+  it('every failure offers at least one recovery action', () => {
+    for (const { category, failure } of ALL) {
+      expect(failure.actions.length, category).toBeGreaterThan(0);
+    }
+  });
+
+  it('never blames the repair engine for a provider problem', () => {
+    for (const { category, failure } of ALL) {
+      expect(failure.layer, category).not.toBe('engine');
+    }
+  });
+
+  it('never leaks raw transport strings into the user-facing message', () => {
+    for (const { category, failure } of ALL) {
+      expect(failure.message, category).not.toMatch(/HTTP[_ ]?\d{3}|\bstack\b/);
+      expect(failure.message.length, category).toBeGreaterThan(20);
+    }
+  });
+
+  it('only offers Retry where a retry could actually succeed', () => {
+    for (const { category, failure } of ALL) {
+      if (failure.actions.includes('retry')) expect(failure.retryable, category).toBe(true);
+    }
+  });
+
+  it('styles configuration failures as danger and recoverable ones as warning', () => {
+    expect(severityOf(describeProviderFailure({ providerCode: 'HTTP_401' }))).toBe('danger');
+    expect(severityOf(describeProviderFailure({ providerCode: 'HTTP_402' }))).toBe('danger');
+    expect(severityOf(describeProviderFailure({ providerCode: 'HTTP_503' }))).toBe('warning');
+    expect(severityOf(describeProviderFailure({ providerCode: 'NETWORK' }))).toBe('warning');
   });
 });

@@ -42,6 +42,7 @@ beforeEach(() => {
     blocked: null,
     errorMessage: null,
     retryable: false,
+    failure: null,
   });
 });
 
@@ -172,5 +173,60 @@ describe('ai store — applyRepair: write-verification failure propagates to the
     // dismissed), and `fs:readFile` — the "reflect the applied edit" step — was never reached.
     expect(useAiStore.getState().proposal).toEqual(proposal);
     expect(invoke).toHaveBeenCalledTimes(1); // ai:applyRepair only — no fs:readFile follow-up
+  });
+});
+
+/**
+ * Provider Error UX. The classification is computed in the main process and is useless unless it
+ * survives the IPC boundary intact — a dropped field degrades the status card to its reduced form
+ * silently, which looks like a design choice rather than a bug.
+ */
+describe('ai store — the classified failure reaches the panel', () => {
+  it('carries the failure through verbatim', async () => {
+    invoke.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        status: 'error',
+        code: 'provider_error',
+        message: 'Your provider allowance for this model is used up for now.',
+        retryable: false,
+        failure: {
+          category: 'quota-exceeded',
+          layer: 'provider',
+          actions: ['change-model', 'check-credits'],
+          provider: 'OpenRouter',
+          model: 'x/y',
+        },
+      },
+    });
+    await useAiStore.getState().run('repair', 'f1');
+    const state = useAiStore.getState();
+    expect(state.status).toBe('error');
+    expect(state.failure?.category).toBe('quota-exceeded');
+    expect(state.failure?.layer).toBe('provider');
+    expect(state.failure?.actions).toEqual(['change-model', 'check-credits']);
+  });
+
+  it('an unclassified failure leaves `failure` null but still sets a message', async () => {
+    // The panel must never be empty: the card renders its reduced form from `errorMessage` alone.
+    invoke.mockResolvedValueOnce({ ok: false, error: { message: 'The AI service is unavailable.' } });
+    await useAiStore.getState().run('repair', 'f1');
+    expect(useAiStore.getState().failure).toBeNull();
+    expect(useAiStore.getState().errorMessage).toBe('The AI service is unavailable.');
+  });
+
+  it('a stale failure never survives into the next run', async () => {
+    useAiStore.setState({
+      failure: {
+        category: 'invalid-api-key',
+        layer: 'configuration',
+        actions: ['open-settings'],
+        provider: 'OpenRouter',
+        model: 'x/y',
+      },
+    });
+    invoke.mockResolvedValueOnce({ ok: true, value: { status: 'ok', proposal } });
+    await useAiStore.getState().run('repair', 'f1');
+    expect(useAiStore.getState().failure).toBeNull();
   });
 });

@@ -92,9 +92,20 @@ export {
   describeModelOutputFailure,
   describeProviderFailure,
   describeSchemaFailureForUser,
+  describeTimeoutFailure,
+  severityOf,
   type FailureKind,
   type ProviderFailure,
 } from './provider/failure.js';
+export {
+  FAILURE_LAYER_LABEL,
+  FAILURE_STATUS_LABEL,
+  RECOVERY_ACTION_LABEL,
+  type FailureCategory,
+  type FailureLayer,
+  type FailureSeverity,
+  type RecoveryAction,
+} from './provider/failure-model.js';
 export {
   capabilitiesFor,
   suggestCapableModel,

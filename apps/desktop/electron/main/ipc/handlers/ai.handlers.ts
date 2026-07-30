@@ -31,6 +31,7 @@ export function describeRunFailure(error: unknown, profile: string): string {
 }
 
 import type { AiService } from '../../ai/ai-service.js';
+import { timeoutFailure } from '../../ai/failure-report.js';
 import type { KeyStore, StoredAiConfig } from '../../ai/key-store.js';
 import type { ModelCatalogueService } from '../../ai/model-catalogue.js';
 import type { RepairHistoryRepository } from '../../db/repositories.js';
@@ -256,7 +257,18 @@ export function registerAiHandlers(deps: {
           `This repair took longer than ${String(Math.round(runTimeoutMs / 1000))} seconds and was stopped, ` +
           'so nothing was changed. The provider may be slow or overloaded — try again, or pick a faster model in Settings → AI.';
         if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message });
-        return { status: 'error' as const, code: 'timeout' as const, message, retryable: true };
+        return {
+          status: 'error' as const,
+          code: 'timeout' as const,
+          message,
+          retryable: true,
+          // Attributed to the provider, not to Fixora: the deadline is ours, but the silence that
+          // ran it out is theirs. A user who reads this as a Fixora hang files the wrong bug.
+          failure: timeoutFailure({
+            provider: 'openrouter',
+            model: deps.keyStore.getConfig().model,
+          }),
+        };
       }
       return response;
     } catch (error) {

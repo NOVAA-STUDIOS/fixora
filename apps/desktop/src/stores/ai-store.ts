@@ -1,4 +1,5 @@
 import type {
+  AiFailure,
   AiConfig,
   AiRunStage,
   RepairMode,
@@ -54,6 +55,15 @@ type AiState = {
   /** True when the failure could plausibly succeed on a retry (quota reset, provider blip). Mirrors
    *  Proceed's `retryable` (P2.2.1) so the two panels behave consistently for the same failure. */
   retryable: boolean;
+  /**
+   * The classified provider failure behind `errorMessage`, when the run produced one.
+   *
+   * Null for failures that never reached the classifier — a renderer↔main transport drop, a workspace
+   * that closed. Those still set `errorMessage`, so the panel always has something to say; the card
+   * simply renders in its reduced form. `errorMessage` staying required is what guarantees the panel
+   * is never empty.
+   */
+  failure: AiFailure | null;
   /** The last apply attempt, in full. Rendered by the diagnostics panel; never persisted. */
   lastApplyAttempt: ApplyAttempt | null;
 
@@ -115,6 +125,7 @@ export const useAiStore = create<AiState>((set, get) => ({
   blocked: null,
   errorMessage: null,
   retryable: false,
+  failure: null,
 
   run: async (profile, findingId, mode) => {
     set({
@@ -128,6 +139,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       blocked: null,
       errorMessage: null,
       retryable: false,
+      failure: null,
     });
 
     const result = await invoke(
@@ -137,7 +149,15 @@ export const useAiStore = create<AiState>((set, get) => ({
     if (!result.ok) {
       // Transport failure between renderer and main — a UI-layer failure, retryable by nature (same
       // treatment Proceed gives the equivalent case).
-      set({ status: 'error', stage: null, errorMessage: result.error.message, retryable: true });
+      // A renderer↔main transport failure. Genuinely Fixora's layer, and the only place in this
+      // store that says so — everything below is the provider's or the user's configuration.
+      set({
+        status: 'error',
+        stage: null,
+        errorMessage: result.error.message,
+        retryable: true,
+        failure: null,
+      });
       return;
     }
     const response = result.value;
@@ -151,6 +171,7 @@ export const useAiStore = create<AiState>((set, get) => ({
         stage: null,
         errorMessage: response.message,
         retryable: response.retryable === true,
+        failure: response.failure ?? null,
       });
     }
   },
@@ -260,6 +281,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       blocked: null,
       errorMessage: null,
       retryable: false,
+      failure: null,
     });
   },
 
