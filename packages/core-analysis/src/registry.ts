@@ -6,6 +6,7 @@ import { createJsonAnalyzer } from './analyzers/json.js';
 import { createMypyAnalyzer } from './analyzers/mypy.js';
 import { createRuffAnalyzer } from './analyzers/ruff.js';
 import { createSemgrepAnalyzer } from './analyzers/semgrep.js';
+import { createSyntaxAnalyzer } from './analyzers/syntax.js';
 import { createTscAnalyzer } from './analyzers/tsc.js';
 
 /**
@@ -23,6 +24,10 @@ export function defaultAnalyzers(): Analyzer[] {
     createGoVetAnalyzer(),
     createSemgrepAnalyzer(),
     createJsonAnalyzer(),
+    // Tier-B syntax validators. Like the JSON one they need no tool, so they always apply — which is
+    // what makes CSS/HTML analyzable (and therefore repairable) at all.
+    createSyntaxAnalyzer('css'),
+    createSyntaxAnalyzer('html'),
   ];
 }
 

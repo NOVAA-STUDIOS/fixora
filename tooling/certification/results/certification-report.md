@@ -1,6 +1,6 @@
 # Fixora — Certification Report
 
-Generated 2026-07-28T04:56:04.572Z from a REAL execution of the engine over samples/certification.
+Generated 2026-07-30T16:02:31.647Z from a REAL execution of the engine over samples/certification.
 Every number is measured. AI-only repairs are reported as deferred (a provider key is required to
 execute them) — never counted as a success. CSS/HTML have no analyzer and are marked unsupported.
 
@@ -8,21 +8,21 @@ execute them) — never counted as a success. CSS/HTML have no analyzer and are 
 
 | Metric | Value |
 | --- | ---: |
-| Samples passed | 21 / 21 scored |
+| Samples passed | 22 / 22 scored |
 | Detection precision | 100.0% |
 | Detection recall | 100.0% |
 | False positives | 0 |
 | False negatives | 0 |
 | Deterministic repairs succeeded | 2 / 2 (100.0%) |
-| AI repairs deferred (provider key required) | 20 |
+| AI repairs deferred (provider key required) | 21 |
 | Regressions introduced by repair | 0 |
-| Average pipeline time / sample | 4978 ms |
+| Average pipeline time / sample | 4151 ms |
 
 ## Per language
 
 | Language | Passed | Precision | Recall | FP | FN | Det.repair | AI-deferred | Unsupported |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| css | 0/0 | n/a | n/a | 0 | 0 | — | 0 | 1 |
+| css | 1/1 | 100.0% | 100.0% | 0 | 0 | — | 1 | 0 |
 | html | 0/0 | n/a | n/a | 0 | 0 | — | 0 | 1 |
 | javascript | 5/5 | 100.0% | 100.0% | 0 | 0 | — | 6 | 0 |
 | json | 4/4 | 100.0% | 100.0% | 0 | 0 | — | 2 | 0 |

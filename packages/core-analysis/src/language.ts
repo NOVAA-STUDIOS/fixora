@@ -19,6 +19,9 @@ const EXTENSION_LANGUAGE: Record<string, Language> = {
   pyi: 'python',
   go: 'go',
   json: 'json',
+  css: 'css',
+  html: 'html',
+  htm: 'html',
 };
 
 /** The analysis language for a path, or `null` if it is not one of the three we analyze. */

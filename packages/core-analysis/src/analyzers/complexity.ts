@@ -7,10 +7,11 @@ import { parse } from '../parser/tree-sitter.js';
 
 /**
  * The languages this analyzer measures: the tree-sitter "deep" set, excluding validation-only
- * languages like JSON that have no functions to measure. Typing the node maps to this subset keeps a
- * new validation language out of them by construction.
+ * languages (JSON/CSS/HTML) that have no functions to measure. Typing the node maps to this subset
+ * keeps a new validation language out of them by construction — adding one to `Language` surfaces
+ * here as a type error only if it genuinely belongs, which is exactly the intended friction.
  */
-type CodeLanguage = Exclude<Language, 'json'>;
+type CodeLanguage = Exclude<Language, 'json' | 'css' | 'html'>;
 
 /**
  * The complexity analyzer: cyclomatic and cognitive complexity from tree-sitter, no external tool
@@ -313,10 +314,10 @@ export const complexityAnalyzer: Analyzer = {
     const aborted = (): boolean => signal.aborted;
     for (const analysisFile of context.files) {
       if (aborted()) return;
-      // Validation-only languages (JSON) have no functions to measure — skip before parsing, which
-      // also narrows the language to the code set the node maps are keyed by.
+      // Validation-only languages (JSON/CSS/HTML) have no functions to measure — skip before parsing,
+      // which also narrows the language to the code set the node maps are keyed by.
       const language = analysisFile.language;
-      if (language === 'json') continue;
+      if (language === 'json' || language === 'css' || language === 'html') continue;
       const source = context.readSource(analysisFile.absPath);
       if (source === null) continue;
       const parsed = await parse(language, source, analysisFile.file);

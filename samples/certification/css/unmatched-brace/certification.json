@@ -2,12 +2,23 @@
   "id": "unmatched-brace",
   "language": "css",
   "category": "broken",
-  "support": "unsupported",
+  "support": "supported",
   "requiresTools": [],
-  "note": "No CSS analyzer implemented — languageForPath returns null. A gap, never scored.",
+  "note": "CSS Tier-B syntax validator (tree-sitter grammar). No linter or type checker for CSS ships in this stack, so a repair here is verified by syntax + regression checks only.",
   "expected": {
-    "findings": [],
+    "findings": [
+      {
+        "file": "styles.css",
+        "line": 4,
+        "ruleId": "css-syntax",
+        "severity": "error",
+        "source": "css",
+        "repair": "ai-required"
+      }
+    ],
     "deterministicRepairable": 0
   },
-  "sourceHashes": {}
+  "sourceHashes": {
+    "styles.css": "75cfd1bfe513f8820b71c3103a419a77d86f7bfd8870ac3a915289e5d872981c"
+  }
 }
