@@ -1,6 +1,6 @@
 # Fixora — Certification Report
 
-Generated 2026-07-30T16:02:31.647Z from a REAL execution of the engine over samples/certification.
+Generated 2026-07-30T18:54:03.251Z from a REAL execution of the engine over samples/certification.
 Every number is measured. AI-only repairs are reported as deferred (a provider key is required to
 execute them) — never counted as a success. CSS/HTML have no analyzer and are marked unsupported.
 
@@ -16,7 +16,7 @@ execute them) — never counted as a success. CSS/HTML have no analyzer and are 
 | Deterministic repairs succeeded | 2 / 2 (100.0%) |
 | AI repairs deferred (provider key required) | 21 |
 | Regressions introduced by repair | 0 |
-| Average pipeline time / sample | 4151 ms |
+| Average pipeline time / sample | 3691 ms |
 
 ## Per language
 

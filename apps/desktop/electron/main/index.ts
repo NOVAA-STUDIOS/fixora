@@ -4,8 +4,11 @@ import { app, BrowserWindow } from 'electron';
 
 import { createAiService } from './ai/ai-service.js';
 import { safeStorageCipher } from './ai/cipher.js';
+import { createCredentialStore } from './ai/credentials/credential-store.js';
 import { createKeyStore } from './ai/key-store.js';
 import { createModelCatalogue } from './ai/model-catalogue.js';
+import { createOrchestrator } from './ai/providers/orchestrator.js';
+import { createProviderRegistry } from './ai/providers/provider-registry.js';
 import { createAnalysisHost } from './analysis/analysis-host.js';
 import { createAnalysisService } from './analysis/analysis-service.js';
 import { openDatabase } from './db/database.js';
@@ -99,6 +102,27 @@ if (!gotTheLock) {
       // user has configured anything, and a failure to reach it never blocks launch.
       const modelCatalogue = createModelCatalogue();
 
+      // The provider platform. Credentials, preferences and selection are three separate concerns
+      // on purpose: secrets never enter the registry, and the orchestrator reads both without
+      // owning either.
+      const credentials = createCredentialStore({
+        dir: app.getPath('userData'),
+        cipher: safeStorageCipher,
+      });
+      const providerRegistry = createProviderRegistry({ dir: app.getPath('userData') });
+      const orchestrator = createOrchestrator({
+        registry: providerRegistry,
+        credentials,
+        // Per-model capability metadata, where the provider publishes it. OpenRouter does; nobody
+        // else does, and `resolveCapabilities` falls back to the provider's declared guarantee.
+        modelFacts: async (providerId, model) => {
+          if (providerId !== 'openrouter') return null;
+          const models = await modelCatalogue.models();
+          return models.find((entry) => entry.id === model) ?? null;
+        },
+        appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
+      });
+
       const aiService = createAiService({
         keyStore,
         findings: findingsRepo,
@@ -123,10 +147,7 @@ if (!gotTheLock) {
             });
           }),
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
-        // Provider failover candidates. Served from the catalogue's session cache, so a repair pays
-        // for no extra fetch; an unreachable catalogue yields no fallbacks, which degrades failover
-        // to the previous single-model behaviour rather than to a guess.
-        failoverCatalogue: () => modelCatalogue.models(),
+        orchestrator,
       });
 
       // Licensing (Beta): offline Ed25519-verified entitlement. BYOK is free; a valid key is Pro.
@@ -151,6 +172,7 @@ if (!gotTheLock) {
       // a Proceed edit goes through `ai:applyRepair` — the one verified write path.
       registerProceedHandlers({
         keyStore,
+        orchestrator,
         workspace: workspaceService,
         findings: findingsRepo,
         verification,

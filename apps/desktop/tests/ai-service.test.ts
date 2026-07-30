@@ -2,6 +2,7 @@ import type { AIProvider, ProviderEvent } from '@fixora/core-ai';
 import { UserFacingError, type Finding } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
+import { singleProvider } from './support/fake-orchestrator.js';
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
 import type { KeyStore } from '../electron/main/ai/key-store.js';
 import type {
@@ -120,7 +121,7 @@ function deps(overrides: {
     workspace,
     verification,
     history,
-    providerFactory: () => overrides.provider,
+    orchestrator: singleProvider(overrides.provider),
     readFile: overrides.readFile ?? (() => overrides.fileContent ?? CLEAN_FILE),
     // Real deps route this through the analysis worker (Q2 Fix #2A); the default here answers "no
     // autofix" so tests that don't care about deterministic repair are unaffected.

@@ -24,7 +24,11 @@ import type { Finding } from '@fixora/shared-types';
 import { app, safeStorage } from 'electron';
 
 import { createAiService } from '../main/ai/ai-service.js';
+import { safeStorageCipher } from '../main/ai/cipher.js';
+import { createCredentialStore } from '../main/ai/credentials/credential-store.js';
 import type { KeyStore, StoredAiConfig } from '../main/ai/key-store.js';
+import { createOrchestrator } from '../main/ai/providers/orchestrator.js';
+import { createProviderRegistry } from '../main/ai/providers/provider-registry.js';
 import { createAnalysisHost, type AnalysisTargetRef } from '../main/analysis/analysis-host.js';
 import type { FindingsRepository, RepairHistoryRepository } from '../main/db/repositories.js';
 import type { WorkspaceService } from '../main/services/workspace-service.js';
@@ -289,8 +293,17 @@ async function main(): Promise<number> {
         clearWorkspace: () => undefined,
       } as unknown as RepairHistoryRepository;
 
-      // No providerFactory: the default is the real OpenRouter adapter.
+      // A real orchestrator over the acceptance run's own registry and credentials, so the
+      // acceptance path exercises the same selection code the app does.
+      const acceptanceOrchestrator = createOrchestrator({
+        registry: createProviderRegistry({ dir: app.getPath('userData') }),
+        credentials: createCredentialStore({
+          dir: app.getPath('userData'),
+          cipher: safeStorageCipher,
+        }),
+      });
       const ai = createAiService({
+        orchestrator: acceptanceOrchestrator,
         keyStore,
         findings,
         workspace,
