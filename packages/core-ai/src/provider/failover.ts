@@ -87,9 +87,6 @@ export type FailoverAttemptResult<T> =
  *  - `invalid-api-key`, `auth-failed` — a rejected key is rejected identically by every candidate on
  *    that adapter. Failing over would turn one clear "fix your key" into N confusing failures.
  *  - `network-offline` — no candidate is reachable. See above.
- *  - `quota-exceeded` — an exhausted account fails everywhere; and per-model allowance exhaustion was
- *    classified non-retryable by an earlier, explicit product decision. Left out on purpose rather
- *    than by omission (see the sprint notes — this is the one case worth revisiting).
  *  - `context-too-large` — a larger-context model WOULD fix it, but that is capability selection, not
  *    failure recovery, and picking one blind is a guess.
  *  - `invalid-response` — the model answered. The pipeline already re-asks once; making unusable
@@ -101,11 +98,34 @@ export const FAILOVER_CATEGORIES: ReadonlySet<FailureCategory> = new Set<Failure
   // 5xx of every flavour — "temporary server errors" and "provider unavailable" are one category.
   'provider-unavailable',
   'model-unavailable',
+  // Quota exhaustion, but only the per-model kind — see `shouldFailover` for why the layer decides.
+  'quota-exceeded',
 ]);
 
-/** Could a different provider plausibly survive this? */
-export function shouldFailover(failure: Pick<ProviderFailure, 'category'>): boolean {
-  return FAILOVER_CATEGORIES.has(failure.category);
+/**
+ * Could a different provider plausibly survive this?
+ *
+ * Category alone is not enough for quota, which is the one failure that arrives in two shapes with
+ * opposite answers:
+ *
+ *  - **Per-model allowance exhausted** (HTTP 429 whose body names a daily/free-tier limit) is
+ *    `layer: 'provider'`. Another model has its own allowance, so moving on is exactly the fix — this
+ *    is the case automatic failover exists for.
+ *  - **The account is out of credits** (HTTP 402) is `layer: 'configuration'`. Every candidate draws
+ *    on the same balance, so a walk would spend N requests to rediscover one fact and bury the only
+ *    thing that helps — add credits — under a pile of identical failures.
+ *
+ * Reusing `layer` here rather than adding a flag is deliberate: it already encodes "whose problem is
+ * this", and "the user's configuration" is precisely the case no other provider can rescue.
+ */
+export function shouldFailover(failure: Pick<ProviderFailure, 'category' | 'layer'>): boolean {
+  if (!FAILOVER_CATEGORIES.has(failure.category)) return false;
+  // The layer check applies to QUOTA ONLY, and deliberately not to the rest of the set.
+  // `model-unavailable` is also `layer: 'configuration'` — the user picked a model that no longer
+  // exists — yet it is the category another model most obviously rescues. Generalising this guard
+  // to every category silently disabled exactly that case.
+  if (failure.category === 'quota-exceeded') return failure.layer !== 'configuration';
+  return true;
 }
 
 /**

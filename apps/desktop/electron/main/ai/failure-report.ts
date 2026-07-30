@@ -24,7 +24,12 @@ export function providerLabel(id: string): string {
 /** The renderable half: classification, blame, and recovery. Never a status code or raw text. */
 export function toWireFailure(
   failure: ProviderFailure,
-  context: { provider: string; model: string },
+  context: {
+    provider: string;
+    model: string;
+    /** Models tried before this failure, when automatic failover walked a chain. */
+    attempts?: readonly { model: string; category: AiFailure['category'] }[];
+  },
 ): AiFailure {
   return {
     category: failure.category,
@@ -36,6 +41,9 @@ export function toWireFailure(
     actions: failure.actions.length > 0 ? [...failure.actions] : (['open-settings'] as const),
     provider: providerLabel(context.provider),
     model: context.model,
+    // The whole walk, so a total failure is ONE card listing what was tried rather than a sequence
+    // of errors the user has to reassemble.
+    attempts: context.attempts === undefined ? [] : [...context.attempts],
   };
 }
 
@@ -96,6 +104,7 @@ export function missingKeyFailure(model: string): AiFailure {
     actions: ['open-settings'],
     provider: providerLabel('openrouter'),
     model,
+    attempts: [],
   };
 }
 

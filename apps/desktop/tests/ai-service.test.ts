@@ -144,6 +144,8 @@ describe('AI service (BYOK run orchestration)', () => {
         actions: ['open-settings'],
         provider: 'OpenRouter',
         model: expect.any(String),
+        // No provider was contacted, so nothing was tried.
+        attempts: [],
       },
     });
   });

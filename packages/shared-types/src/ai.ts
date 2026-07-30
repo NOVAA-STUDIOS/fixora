@@ -455,6 +455,21 @@ export type GateMatchInfo = z.infer<typeof GateMatchInfoSchema>;
  * in the main process and never crosses the IPC boundary, because there is no UI that should show it
  * and every field that crosses is a field that can leak.
  */
+/** The classification vocabulary, extracted so an attempt entry can reuse it. */
+export const FailureCategorySchema = z.enum([
+  'quota-exceeded',
+  'rate-limited',
+  'timeout',
+  'invalid-api-key',
+  'auth-failed',
+  'provider-unavailable',
+  'network-offline',
+  'model-unavailable',
+  'context-too-large',
+  'invalid-response',
+  'unknown-provider-error',
+]);
+
 export const AiFailureSchema = z.object({
   category: z.enum([
     'quota-exceeded',
@@ -488,6 +503,17 @@ export const AiFailureSchema = z.object({
   provider: z.string(),
   /** The model id that was asked. Shown as-is; it is the thing the user would change. */
   model: z.string(),
+  /**
+   * Every model tried before this failure, in order, when automatic failover walked a chain.
+   *
+   * Empty for a failure on the first candidate — the overwhelmingly common case — so the card stays
+   * a plain status card and only grows the attempt list when there is genuinely something to show.
+   * Carries the classification per attempt rather than a status code, for the same reason nothing
+   * else on this schema does: it is rendered.
+   */
+  attempts: z
+    .array(z.object({ model: z.string(), category: FailureCategorySchema }))
+    .default([]),
 });
 export type AiFailure = z.infer<typeof AiFailureSchema>;
 export type AiFailureCategory = AiFailure['category'];
@@ -550,6 +576,10 @@ export type AiDelta = z.infer<typeof AiDeltaSchema>;
  * tell progress from a stall, and neither did a bug report.
  */
 export const AiRunStageSchema = z.enum([
+  // Automatic provider failover is walking to the next model. A distinct stage because the panel
+  // would otherwise sit on "Generating…" through several seconds of silent recovery, which reads as
+  // a hang — the exact confusion the failover feature is supposed to remove.
+  'failing-over',
   'preparing',
   'analyzing',
   'generating',

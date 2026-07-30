@@ -136,6 +136,21 @@ export function ProviderErrorCard({
             <code className="font-mono text-[11px] [overflow-wrap:anywhere]">{failure.model}</code>
           </Field>
           <Field label="Status">{STATUS_LABEL[failure.category]}</Field>
+          {/* One consolidated card for a whole failed walk. Without this the user sees a single
+              model named and has no idea Fixora already tried several on their behalf — which makes
+              automatic failover look like it never happened. */}
+          {failure.attempts.length > 0 && (
+            <Field label={`Also tried (${String(failure.attempts.length)})`}>
+              <ul className="flex flex-col gap-0.5">
+                {failure.attempts.map((attempt) => (
+                  <li key={attempt.model} className="[overflow-wrap:anywhere]">
+                    <code className="font-mono text-[11px]">{attempt.model}</code>
+                    <span className="text-fg-muted"> — {STATUS_LABEL[attempt.category]}</span>
+                  </li>
+                ))}
+              </ul>
+            </Field>
+          )}
         </>
       )}
 
