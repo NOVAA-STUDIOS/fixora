@@ -95,6 +95,10 @@ if (!gotTheLock) {
       // Verification runs on its OWN worker (ADR-003 overlay), isolated from workspace analysis.
       const verificationHost = createAnalysisHost(join(__dirname, 'analysis-worker.mjs'));
       const verification = createVerificationService({ host: verificationHost });
+      // The live OpenRouter catalogue. Public endpoint, no key — it is safe to consult before the
+      // user has configured anything, and a failure to reach it never blocks launch.
+      const modelCatalogue = createModelCatalogue();
+
       const aiService = createAiService({
         keyStore,
         findings: findingsRepo,
@@ -119,6 +123,10 @@ if (!gotTheLock) {
             });
           }),
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
+        // Provider failover candidates. Served from the catalogue's session cache, so a repair pays
+        // for no extra fetch; an unreachable catalogue yields no fallbacks, which degrades failover
+        // to the previous single-model behaviour rather than to a guess.
+        failoverCatalogue: () => modelCatalogue.models(),
       });
 
       // Licensing (Beta): offline Ed25519-verified entitlement. BYOK is free; a valid key is Pro.
@@ -131,10 +139,6 @@ if (!gotTheLock) {
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerAnalysisHandlers(analysisService);
-      // The live OpenRouter catalogue. Public endpoint, no key — it is safe to consult before the
-      // user has configured anything, and a failure to reach it never blocks launch.
-      const modelCatalogue = createModelCatalogue();
-
       registerAiHandlers({
         keyStore,
         aiService,

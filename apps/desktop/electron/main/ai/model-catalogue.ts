@@ -31,6 +31,15 @@ export interface ModelCatalogueService {
   /** The catalogue for the picker. `refresh` forces a re-fetch, ignoring the TTL. */
   list(refresh?: boolean): Promise<AiModelList>;
   /**
+   * The raw catalogue, for callers that need capability metadata rather than picker rows.
+   *
+   * Failover uses this to drop a fallback that cannot do structured output before spending a request
+   * to rediscover it. Serves the cache, so a repair does not pay for a fetch; empty when the
+   * catalogue has never loaded, which correctly degrades failover to "no fallbacks" rather than to a
+   * guess about what a model can do.
+   */
+  models(): Promise<readonly CatalogueModel[]>;
+  /**
    * Resolve a stored model id against the live catalogue.
    *
    * Returns the id to use plus, when the stored one was retired, the id it replaced — so the caller
@@ -71,6 +80,10 @@ export function createModelCatalogue(fetchImpl?: FetchLike): ModelCatalogueServi
   }
 
   return {
+    async models(): Promise<readonly CatalogueModel[]> {
+      return (await load(false)) ?? [];
+    },
+
     async list(refresh = false): Promise<AiModelList> {
       const models = await load(refresh);
       if (models === null) {

@@ -5,6 +5,7 @@ import {
   buildContext,
   buildReAskMessage,
   createOpenRouterProvider,
+  buildFailoverChain,
   describeModelOutputFailure,
   describeProviderFailure,
   describeSchemaFailureForUser,
@@ -12,8 +13,11 @@ import {
   parseRepairOutput,
   parseTestOutput,
   prepareRequest,
+  PREFERRED_FREE_CODE_MODELS,
   profileWantsStructuredOutput,
+  runWithFailover,
   type AIProvider,
+  type CatalogueModel,
   type ProviderFailure,
   type ProviderMessage,
   type ProviderRequest,
@@ -106,6 +110,14 @@ export interface AiServiceDeps {
     filePath: string;
   }) => Promise<MicroRepairResult | null>;
   appMeta?: { url?: string; name?: string };
+  /**
+   * Candidate models for provider failover, with their capability metadata.
+   *
+   * Optional: absent means no fallbacks, so the chain is the configured model alone and behaviour is
+   * exactly what it was before failover existed. That is the right default for a dependency whose
+   * only job is to make failure recovery better — never a prerequisite for a repair to run at all.
+   */
+  failoverCatalogue?: () => Promise<readonly CatalogueModel[]>;
 }
 
 export interface AiService {
@@ -682,13 +694,57 @@ export function createAiService(deps: AiServiceDeps): AiService {
       };
 
       try {
-        let stream = await streamOnce(
-          provider,
-          prepared.request,
-          controller.signal,
-          window,
-          !wantsStructured,
+        // Provider failover. The chain is the user's model first, then capability-checked fallbacks;
+        // a candidate that ANSWERS ends the walk, and everything downstream — parse, verify, Apply —
+        // is unchanged and runs exactly once, on that answer.
+        const chain = buildFailoverChain({
+          provider: 'openrouter',
+          configured: modelId,
+          preferred: PREFERRED_FREE_CODE_MODELS,
+          catalogue: (await deps.failoverCatalogue?.()) ?? [],
+          profile: request.profile,
+        });
+
+        const walk = await runWithFailover(
+          chain,
+          async (candidate) => {
+            const result = await streamOnce(
+              provider,
+              // Same prepared request, different model. The budget was computed for the configured
+              // model; a fallback with a smaller window answers `context-too-large`, which is not a
+              // failover category, so the walk stops and reports it honestly rather than looping.
+              { ...prepared.request, model: candidate.model },
+              controller.signal,
+              window,
+              !wantsStructured,
+            );
+            return result.ok
+              ? { ok: true as const, value: result }
+              : { ok: false as const, failure: result.failure };
+          },
+          {
+            signal: controller.signal,
+            onFailover: (record) => {
+              console.error('[ai] failing over', {
+                from: record.candidate.model,
+                category: record.failure.category,
+                providerCode: record.failure.providerCode,
+              });
+              // Keep the progress label alive. A silent multi-second walk is indistinguishable from
+              // the hang this pipeline already has a timeout for.
+              stage('generating');
+            },
+          },
         );
+
+        // The model that actually answered — or the one that finally failed. Everything downstream
+        // reports against this rather than the configured id, so a card that says "Model: X" names
+        // the model the user's failure actually came from.
+        const usedModel = walk.candidate.model;
+        let stream: StreamResult = walk.ok
+          ? walk.value
+          : { ok: false, message: walk.failure.message, retryable: walk.failure.retryable, failure: walk.failure };
+
         if (controller.signal.aborted)
           return { status: 'error', code: 'cancelled', message: 'Cancelled.' };
         if (!stream.ok) {
@@ -701,15 +757,17 @@ export function createAiService(deps: AiServiceDeps): AiService {
             retryable: stream.retryable,
             // The classification the panel renders as a status card. Without it the panel has only
             // the sentence, which is what left provider outages looking like Fixora defects.
-            failure: toWireFailure(stream.failure, { provider: 'openrouter', model: modelId }),
+            failure: toWireFailure(stream.failure, { provider: 'openrouter', model: usedModel }),
           };
         }
 
         let response = await finalize(stream.text);
         if (response === SCHEMA_ERROR && wantsStructured) {
+          // Re-ask the SAME model that answered. Switching mid-conversation would send a
+          // correction about one model's output to a different model, which is incoherent.
           stream = await streamOnce(
             provider,
-            reAskRequest(prepared.request, stream.text, lastFailure.current),
+            { ...reAskRequest(prepared.request, stream.text, lastFailure.current), model: usedModel },
             controller.signal,
             window,
             false,
@@ -758,7 +816,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
             // specific mistake the layer field exists to prevent.
             failure: toWireFailure(describeModelOutputFailure('schema-mismatch'), {
               provider: 'openrouter',
-              model: modelId,
+              model: usedModel,
             }),
           };
         }
