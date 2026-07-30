@@ -4,6 +4,7 @@ import type { Node } from 'web-tree-sitter';
 import type { Analyzer } from '../analyzer.js';
 import { findingId } from '../finding-id.js';
 import { parse } from '../parser/tree-sitter.js';
+import { outermostConstructContaining } from '../repair/balanced-scope.js';
 import { classifyRepair } from '../repair/micro-repair.js';
 
 /**
@@ -92,6 +93,30 @@ function locateFromMessage(
  * message gives no position. Returns the first ERROR/MISSING node as 1-based line/column, or null if
  * the grammar somehow found nothing (in which case the caller uses line 1).
  */
+/**
+ * The outermost construct containing a line — the repair target (Root Cause A).
+ *
+ * JSON findings carried no enclosing range, so the repair target collapsed to the single line the
+ * parser gave up on. For an unbalanced brace that line is not where the defect is, so no in-scope
+ * patch could fix the file.
+ */
+async function enclosingRangeFor(
+  source: string,
+  filePath: string,
+  line: number,
+): Promise<{ startLine: number; endLine: number } | null> {
+  try {
+    const tree = await parse('json', source, filePath);
+    try {
+      return outermostConstructContaining(tree.root, line);
+    } finally {
+      tree.dispose();
+    }
+  } catch {
+    return null;
+  }
+}
+
 async function locateWithTreeSitter(
   source: string,
   filePath: string,
@@ -169,6 +194,9 @@ export function createJsonAnalyzer(): Analyzer {
             .replace(/\s+is not valid JSON.*$/i, '')
             .trim();
           const snippet = source.split(/\r?\n/)[line - 1] ?? '';
+          // Root Cause A: without this the repair target collapses to the single line the parser gave
+          // up on, which for an unbalanced brace is not where the defect is.
+          const enclosing = await enclosingRangeFor(source, file.file, line);
 
           const finding: Finding = {
             id: findingId({ source: 'json', ruleId: RULE_ID, file: file.file, snippet }),
@@ -184,7 +212,12 @@ export function createJsonAnalyzer(): Analyzer {
               endCol: column,
             },
             message: `Invalid JSON: ${message}.`,
-            evidence: { snippet, relatedLocations: [], toolOutput: { raw } },
+            evidence: {
+              ...(enclosing !== null ? { enclosingRange: enclosing } : {}),
+              snippet,
+              relatedLocations: [],
+              toolOutput: { raw },
+            },
             fixable: false,
             repair: 'ai-required',
             confidence: 1,

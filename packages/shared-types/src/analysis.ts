@@ -14,11 +14,27 @@ import { z } from 'zod';
 
 /**
  * The languages Fixora analyzes. `typescript`/`javascript`/`python`/`go` get the full deep pipeline
- * (tree-sitter symbols, external tools). `json` is a Tier-B validation language (ADR-025): it has a
- * validator but no symbol/complexity analysis, so code that walks symbols must scope itself to the
- * deep set rather than the whole enum.
+ * (tree-sitter symbols, external tools). `json`/`css`/`html` are Tier-B validation languages
+ * (ADR-025): they have a validator but no symbol/complexity analysis, so code that walks symbols must
+ * scope itself to the deep set rather than the whole enum.
+ *
+ * `css`/`html` were previously absent, which meant they were silently skipped by analysis and then
+ * refused by Repair/Proceed as "unsupported" — the two languages a user is most likely to expect a
+ * web tool to handle. They are Tier-B for the same reason `json` is: their authoritative defect is
+ * *invalidity* (an unclosed block, a mis-nested tag), which the grammar itself judges, and no linter
+ * or type checker for them ships in this stack. So a css/html repair is validated by syntax +
+ * regression checks only — real gates, but narrower than the tsc/eslint/ruff ones, and the UI must
+ * never imply otherwise.
  */
-export const LanguageSchema = z.enum(['typescript', 'javascript', 'python', 'go', 'json']);
+export const LanguageSchema = z.enum([
+  'typescript',
+  'javascript',
+  'python',
+  'go',
+  'json',
+  'css',
+  'html',
+]);
 export type Language = z.infer<typeof LanguageSchema>;
 
 /**
@@ -44,6 +60,10 @@ export const FindingSourceSchema = z.enum([
   'semgrep',
   'complexity',
   'json',
+  // Tier-B syntax validators, like `json`: the grammar itself is the authority on validity, so these
+  // need no external tool and always apply to their language.
+  'css',
+  'html',
   'ai',
 ]);
 export type FindingSource = z.infer<typeof FindingSourceSchema>;

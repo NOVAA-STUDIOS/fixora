@@ -50,8 +50,12 @@ export function detectLanguage(filename: string): string | null {
 
 /**
  * Languages the analysis pipeline runs on. The four launch languages get the full deterministic
- * pipeline (tree-sitter symbols + external tools, ADR-025); `json` is Tier B — validation-only, no
- * symbols — but still an analysis target so its validator sees the file.
+ * pipeline (tree-sitter symbols + external tools, ADR-025); `json`/`css`/`html` are Tier B —
+ * validation-only, no symbols — but still analysis targets so their validators see the file.
+ *
+ * `css`/`html` were absent here, which is what made them invisible end to end: `collectTargets`
+ * filters on this, so their files were never even enumerated, so no finding could exist for them, so
+ * Repair had nothing to act on. Both are analysis targets now.
  */
 export function isDeepLanguage(language: string | null): boolean {
   return (
@@ -59,6 +63,8 @@ export function isDeepLanguage(language: string | null): boolean {
     language === 'javascript' ||
     language === 'python' ||
     language === 'go' ||
-    language === 'json'
+    language === 'json' ||
+    language === 'css' ||
+    language === 'html'
   );
 }

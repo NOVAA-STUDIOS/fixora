@@ -34,6 +34,12 @@ const GRAMMAR_FILE: Record<GrammarId, string> = {
   python: 'tree-sitter-python.wasm',
   go: 'tree-sitter-go.wasm',
   json: 'tree-sitter-json.wasm',
+  // Already vendored by `tree-sitter-wasms` — no new dependency was needed to support them, only
+  // this wiring. These are what make a css/html repair verifiable at all: the worker's verify step
+  // re-parses the patched file with the grammar for its language, so a repair that does not parse
+  // becomes a `regression` and is refused rather than offered.
+  css: 'tree-sitter-css.wasm',
+  html: 'tree-sitter-html.wasm',
 };
 
 /**
