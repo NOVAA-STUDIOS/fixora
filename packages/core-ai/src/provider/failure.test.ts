@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeModelOutputFailure, describeProviderFailure } from './failure.js';
+import {
+  buildReAskMessage,
+  describeModelOutputFailure,
+  describeProviderFailure,
+  describeSchemaFailureForUser,
+} from './failure.js';
 
 /**
  * P2.2.1. Users were shown raw transport strings — "429 Too Many Requests — Rate limit exceeded:
@@ -62,5 +67,92 @@ describe('describeModelOutputFailure', () => {
     const f = describeModelOutputFailure('schema-mismatch', 'editedCode: too small');
     expect(f.message).toContain('schema-mismatch');
     expect(f.message).toContain('editedCode: too small');
+  });
+});
+
+/**
+ * Bug-fix sprint, Phase 1: Repair and Proceed used to each hand-write their own re-ask message,
+ * always the same generic sentence regardless of WHY the first attempt failed — even when the
+ * computed failure reason/detail (already known at that point) could make the retry more likely to
+ * succeed. `buildReAskMessage` is now the ONE place this wording lives, shared by both pipelines.
+ */
+describe('buildReAskMessage', () => {
+  it('a truncated response is asked to be complete and brief, not "remove surrounding text"', () => {
+    const message = buildReAskMessage({ reason: 'truncated', detail: '' });
+    expect(message).toMatch(/cut off|incomplete/i);
+    expect(message).toMatch(/brief|shorter|fit/i);
+    expect(message).not.toMatch(/surrounding text/);
+  });
+
+  it('a schema mismatch echoes the specific offending field back to the model', () => {
+    const message = buildReAskMessage({
+      reason: 'schema-mismatch',
+      detail: 'confidence: Required',
+    });
+    expect(message).toContain('confidence: Required');
+  });
+
+  it('a schema mismatch with no detail falls back to the generic instruction', () => {
+    const message = buildReAskMessage({ reason: 'schema-mismatch', detail: '' });
+    expect(message).toBe(
+      'Your previous response was not valid JSON matching the required schema. ' +
+        'Return ONLY the JSON object, with no surrounding text.',
+    );
+  });
+
+  it('every other reason (empty, no-json-object, malformed-json, unknown) uses the generic instruction', () => {
+    for (const reason of ['empty', 'no-json-object', 'malformed-json', 'unknown']) {
+      const message = buildReAskMessage({ reason, detail: 'irrelevant' });
+      expect(message).toBe(
+        'Your previous response was not valid JSON matching the required schema. ' +
+          'Return ONLY the JSON object, with no surrounding text.',
+      );
+    }
+  });
+});
+
+/**
+ * ISSUE 3 regression: the user was shown the raw zod diagnostic — "The response was valid JSON but did
+ * not match the required shape — repairedCode: Required" — plus an ABSOLUTE path to a debug dump. Two
+ * leaks at once: internal schema vocabulary, and a filesystem path this codebase treats as user data
+ * (Security §9). The field-level detail was simultaneously NOT being logged, so the one audience it
+ * helps never saw it.
+ */
+describe('describeSchemaFailureForUser', () => {
+  it('never leaks schema vocabulary, field paths, or JSON internals', () => {
+    const message = describeSchemaFailureForUser('repair');
+    for (const forbidden of [
+      'schema',
+      'JSON',
+      'shape',
+      'required',
+      'zod',
+      'parse',
+      'undefined',
+      'repairedCode',
+    ]) {
+      expect(message.toLowerCase()).not.toContain(forbidden.toLowerCase());
+    }
+  });
+
+  it('never contains a filesystem path', () => {
+    const message = describeSchemaFailureForUser('repair');
+    expect(message).not.toMatch(/[A-Za-z]:\\/); // Windows drive, e.g. C:\Users\…
+    expect(message).not.toMatch(/\/(?:home|tmp|var|Users)\//); // POSIX
+    expect(message).not.toContain('.json');
+  });
+
+  it('names the operation and points at the actionable fix — the model, not the user code', () => {
+    const message = describeSchemaFailureForUser('repair');
+    expect(message).toContain('repair');
+    expect(message).toMatch(/stronger model|Settings/);
+    expect(message).toMatch(/rather than a problem with your code/i);
+  });
+
+  it('is not one of the forbidden generic strings', () => {
+    const message = describeSchemaFailureForUser('repair').toLowerCase();
+    expect(message).not.toContain('internal error');
+    expect(message).not.toContain('unknown error');
+    expect(message).not.toContain('something went wrong');
   });
 });

@@ -1,18 +1,14 @@
-import type { AiProposal } from '@fixora/shared-types';
+import type { AiRunStage } from '@fixora/shared-types';
 import { Button } from '@fixora/ui';
 import { useEffect } from 'react';
 
-import { copyToClipboard } from '../../lib/clipboard.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
-import { DiffEditor } from '../editor/diff-editor.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { ProblemDetails } from '../findings/problem-details.js';
 
-import { evaluateApplyGate } from './apply-diagnostics.js';
-import { RepairDiagnosticsPanel } from './repair-diagnostics-panel.js';
+import { RepairResult } from './repair-result.js';
 import { VerdictBadge } from './verdict-badge.js';
-import { VerdictBanner } from './verdict-banner.js';
 
 /**
  * The AI result surface (M5), mounted in the workbench's AI pane. It shows the active run: streamed
@@ -21,25 +17,18 @@ import { VerdictBanner } from './verdict-banner.js';
  * (ADR-003). It also owns loading the BYOK config + the delta subscription, since it is always mounted.
  */
 
-const MONACO_LANG: Record<string, string> = {
-  ts: 'typescript',
-  tsx: 'typescript',
-  mts: 'typescript',
-  cts: 'typescript',
-  js: 'javascript',
-  jsx: 'javascript',
-  mjs: 'javascript',
-  cjs: 'javascript',
-  py: 'python',
-  go: 'go',
+/** What each phase is called in the header while a run is in flight. */
+const STAGE_LABEL: Record<AiRunStage, string> = {
+  preparing: 'Preparing repair…',
+  analyzing: 'Analyzing…',
+  generating: 'Generating patch…',
+  validating: 'Validating…',
+  applying: 'Applying…',
 };
-
-function monacoLanguage(file: string): string {
-  return MONACO_LANG[file.split('.').pop()?.toLowerCase() ?? ''] ?? 'plaintext';
-}
 
 export function AiPanel(): React.JSX.Element {
   const status = useAiStore((s) => s.status);
+  const stage = useAiStore((s) => s.stage);
   const profile = useAiStore((s) => s.activeProfile);
   const streamText = useAiStore((s) => s.streamText);
   const proposal = useAiStore((s) => s.proposal);
@@ -77,7 +66,11 @@ export function AiPanel(): React.JSX.Element {
               ? 'Problem details'
               : 'Assistant'
             : (profile ?? 'AI')}
-          {status === 'running' && <span className="text-fg-muted">running…</span>}
+          {status === 'running' && (
+            // Names the phase, not just "running". An undifferentiated spinner made a slow repair
+            // indistinguishable from a hung one — the reported symptom behind the P0 hang.
+            <span className="text-fg-muted">{STAGE_LABEL[stage ?? 'preparing']}</span>
+          )}
           {repair !== null && <VerdictBadge verdict={repair.verification.verdict} />}
         </h2>
         {status === 'running' ? (
@@ -100,7 +93,7 @@ export function AiPanel(): React.JSX.Element {
           <IdleGuide configured={configured} />
         )
       ) : repair !== null ? (
-        <RepairResult proposal={repair} />
+        <RepairResult proposal={repair} finding={selected} />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto p-3 text-xs text-fg-secondary">
           {status === 'blocked' && blocked !== null && (
@@ -213,100 +206,6 @@ function IdleGuide({ configured }: { configured: boolean }): React.JSX.Element {
       >
         Go to Problems
       </Button>
-    </div>
-  );
-}
-
-/** A labelled fact. Reads as a value, not as prose, which is what confidence and tool names are. */
-function Chip({ label, value }: { label: string; value: string }): React.JSX.Element {
-  return (
-    <span className="flex items-center gap-1 rounded-md bg-inset px-1.5 py-0.5 text-[10px] ring-1 ring-border-subtle ring-inset">
-      <span className="uppercase tracking-wide text-fg-muted">{label}</span>
-      <span className="font-medium text-fg-secondary">{value}</span>
-    </span>
-  );
-}
-
-function RepairResult({
-  proposal,
-}: {
-  proposal: Extract<AiProposal, { profile: 'repair' }>;
-}): React.JSX.Element {
-  const applyRepair = useAiStore((s) => s.applyRepair);
-  const dismiss = useAiStore((s) => s.dismiss);
-  const report = proposal.verification;
-  const gate = evaluateApplyGate(proposal);
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <VerdictBanner report={report} />
-
-      {/*
-        The explanation. Previously two undifferentiated grey lines: the model's reasoning and the
-        verification metadata set in the same size and colour, so neither was scannable. Now the
-        rationale is body text at readable leading, and the metadata is a row of discrete chips —
-        confidence and the tools that ran are *facts*, and facts read better as labelled values than
-        as a comma-separated sentence.
-      */}
-      <div className="flex shrink-0 flex-col gap-2 border-b border-border-subtle px-3 py-2.5">
-        <p className="text-xs leading-relaxed text-fg-secondary [overflow-wrap:anywhere]">
-          {proposal.rationale}
-        </p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Chip label="Confidence" value={`${String(Math.round(proposal.confidence * 100))}%`} />
-          {report.ran.map((tool) => (
-            <Chip key={tool} label="Checked" value={tool} />
-          ))}
-        </div>
-      </div>
-
-      {/* The diff gets every pixel left over. It is the artifact under review; everything above it
-          is context for reading it. */}
-      <div className="min-h-0 flex-1 border-b border-border-subtle">
-        <DiffEditor
-          original={proposal.originalCode}
-          modified={proposal.repairedCode}
-          language={monacoLanguage(proposal.target.file)}
-        />
-      </div>
-
-      {/*
-        The action bar. Apply is the primary and sits alone on the right where the eye finishes;
-        the secondary actions group left. It gets its own surface and real padding, because a row of
-        buttons crammed against a diff reads as part of the diff.
-      */}
-      <div className="flex shrink-0 flex-wrap items-center gap-2 bg-inset px-3 py-2.5">
-        {/* Was "Reject", which read as a verdict rather than an action — and sat inches from a
-            "Rejected patch" badge that means something else entirely. */}
-        <Button variant="ghost" size="sm" className="shrink-0" onClick={dismiss}>
-          Dismiss
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          // Disabled when there is genuinely nothing to copy, so the button's state matches what
-          // pressing it would do — rather than looking live and silently failing.
-          disabled={proposal.repairedCode.length === 0}
-          onClick={() => void copyToClipboard(proposal.repairedCode, { label: 'Repair copied' })}
-        >
-          Copy
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          className="ml-auto shrink-0"
-          disabled={!gate.enabled}
-          // The exact reason, always — not a generic sentence, and never silence. A disabled
-          // control that cannot say why is indistinguishable from a broken one.
-          title={gate.enabled ? gate.explanation : `Apply is disabled: ${gate.explanation}`}
-          onClick={() => void applyRepair()}
-        >
-          Apply
-        </Button>
-      </div>
-
-      <RepairDiagnosticsPanel proposal={proposal} />
     </div>
   );
 }

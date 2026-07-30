@@ -1,4 +1,4 @@
-import type { AIProvider, ProviderEvent } from '@fixora/core-ai';
+import type { AIProvider, ProviderEvent, ProviderRequest } from '@fixora/core-ai';
 import type { VerificationReport } from '@fixora/shared-types';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -130,6 +130,18 @@ describe('createProceedService', () => {
     expect(entry['verdict']).toBe('regression');
   });
 
+  it('UNSUPPORTED FILE: reports the same friendly wording Repair uses for the identical condition (bug-fix sprint)', async () => {
+    const out = await createProceedService(deps({ detectLanguage: () => null })).run(
+      request,
+      NO_ABORT,
+    );
+    expect(out.status).toBe('error');
+    if (out.status === 'error') {
+      expect(out.code).toBe('unsupported_language');
+      expect(out.message).toBe("This file type isn't supported for editing yet.");
+    }
+  });
+
   it('UNKNOWN-INTENT: gibberish fails gracefully and never calls the provider', async () => {
     const provider = { ...fakeProvider([]), stream: vi.fn() };
     const out = await createProceedService(
@@ -214,6 +226,32 @@ describe('createProceedService', () => {
       expect(out.message).toContain('language: typescript');
       expect(out.message).toMatch(/stronger model/);
     }
+  });
+
+  it('RE-ASK (bug-fix sprint): a truncated first attempt is re-asked to be complete and brief, not told to "remove surrounding text"', async () => {
+    const truncated = '{"editedCode": "export function Button() {"'; // cut off mid-object, no closing brace
+    const complete = JSON.stringify({
+      editedCode: 'ok',
+      summary: 'did the thing',
+      confidence: 0.9,
+    });
+    const requests: ProviderRequest[] = [];
+    const provider: AIProvider = {
+      id: 'fake',
+      capabilities: { structuredOutput: true, maxContext: 32_000 },
+      stream(req: ProviderRequest) {
+        requests.push(req);
+        const text = requests.length === 1 ? truncated : complete;
+        return (async function* () {
+          yield { type: 'text_delta', text } as ProviderEvent;
+        })();
+      },
+    };
+    await createProceedService(deps({ provider })).run(request, NO_ABORT);
+    expect(requests).toHaveLength(2);
+    const reAskMessage = requests[1]?.messages.at(-1)?.content;
+    expect(reAskMessage).toMatch(/cut off|incomplete/i);
+    expect(reAskMessage).not.toMatch(/surrounding text/);
   });
 
   it('ERROR: a provider 429 becomes the quota sentence, never a raw HTTP string', async () => {

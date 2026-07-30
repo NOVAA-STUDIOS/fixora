@@ -1,3 +1,5 @@
+import type { RepairStrategy } from '@fixora/shared-types';
+
 import { useAiStore } from '../../stores/ai-store.js';
 
 /**
@@ -19,8 +21,30 @@ export type Capability = {
   readonly suggestion: { id: string; name: string; free: boolean } | null;
 };
 
-export function useCapability(profile: 'explain' | 'repair' | 'test'): Capability {
+/**
+ * Bug-fix sprint, Phase 1: a `'manual'`-repair finding (its own correct change needs a human
+ * judgment call — `repair-eligibility.ts`'s `evaluateRepairEligibility` already refuses it,
+ * server-side, before any model call) used to render its Repair button exactly like any other
+ * finding's — enabled, no tooltip — because this hook only ever checked MODEL capability, never the
+ * finding's own repairability. The user could click it and only then learn, after a round trip,
+ * that it was never going to work. `repairability` lets the button say so up front, the same way an
+ * incapable model already does.
+ */
+export function useCapability(
+  profile: 'explain' | 'repair' | 'test',
+  repairability?: RepairStrategy,
+): Capability {
   const config = useAiStore((s) => s.config);
+
+  if (profile === 'repair' && repairability === 'manual') {
+    return {
+      enabled: false,
+      reason:
+        'This finding has no automatic or AI fix — the correct change needs your judgment, not a model.',
+      // A model switch cannot help here, unlike an incapable-model refusal — never suggest one.
+      suggestion: null,
+    };
+  }
 
   // No key is a different problem from an incapable model, and the UI already handles it
   // separately ("Set up AI to repair"). Report enabled so this hook does not double up on it.

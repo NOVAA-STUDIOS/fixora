@@ -31,6 +31,14 @@ export interface ContextInput {
   readonly fileContent: string;
   readonly finding: Finding;
   readonly target: TargetRange;
+  /**
+   * Further problems INSIDE the target range, fixed by the same patch (scope-bounded merge).
+   *
+   * These never widen the splice range — that is the whole point. The patch covers exactly the lines
+   * it always would; it simply resolves everything wrong within them rather than stepping over
+   * problems the model can plainly see.
+   */
+  readonly relatedFindings?: readonly Finding[];
   /** Ranked, droppable extra context (imports, referenced symbols) — best first. */
   readonly neighbours?: readonly GatePart[];
   /** Detected project conventions, e.g. 'TypeScript strict mode', 'test framework: vitest'. */
@@ -67,16 +75,30 @@ function sliceLines(content: string, startLine: number, endLine: number): string
   return lines.slice(from, to).join('\n');
 }
 
-function formatEvidence(finding: Finding): string {
+function formatEvidence(finding: Finding, related: readonly Finding[] = []): string {
   const { location } = finding;
   const where = `${location.file}:${String(location.startLine)}:${String(location.startCol)}`;
-  return [
+  const lines = [
     `Finding [${finding.source}] ${finding.ruleId} (${finding.severity}, ${finding.category})`,
     `at ${where}`,
     `message: ${finding.message}`,
     'code in question:',
     finding.evidence.snippet,
-  ].join('\n');
+  ];
+  // Framed as additional problems to resolve within the SAME replacement, never as separate tasks:
+  // the model returns one block of code for one range, so presenting these as extra jobs would
+  // invite several edits it has no way to express.
+  if (related.length > 0) {
+    lines.push(
+      '',
+      'Also fix these problems, which are inside the same code you are replacing.',
+      'Return ONE corrected version of that code that resolves all of them together:',
+      ...related.map(
+        (f) => `- line ${String(f.location.startLine)} [${f.source}] ${f.ruleId}: ${f.message}`,
+      ),
+    );
+  }
+  return lines.join('\n');
 }
 
 export function buildContext(input: ContextInput): BuiltContext {
@@ -90,7 +112,7 @@ export function buildContext(input: ContextInput): BuiltContext {
     endLine: input.target.endLine,
     text: targetText,
   };
-  const evidenceText = formatEvidence(input.finding);
+  const evidenceText = formatEvidence(input.finding, input.relatedFindings ?? []);
 
   // Target + evidence are never dropped, even if they alone exceed the cap (we never truncate them).
   const parts: GatePart[] = [

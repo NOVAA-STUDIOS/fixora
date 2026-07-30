@@ -88,8 +88,10 @@ export {
   type PreparedEdit,
 } from './edit/edit-request.js';
 export {
+  buildReAskMessage,
   describeModelOutputFailure,
   describeProviderFailure,
+  describeSchemaFailureForUser,
   type FailureKind,
   type ProviderFailure,
 } from './provider/failure.js';

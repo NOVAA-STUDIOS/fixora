@@ -157,9 +157,27 @@ export type AiModelList = z.infer<typeof AiModelListSchema>;
  */
 export const UNRESOLVED_MODEL = '';
 
+/**
+ * How much of the file a repair is allowed to change.
+ *
+ * The default is the smallest thing that works, and that is a safety property, not a limitation: the
+ * splice range IS the blast radius, so widening it widens what a wrong patch can damage. Each step up
+ * this ladder is therefore an explicit user choice, never an automatic escalation.
+ *
+ *  - `finding`       — the smallest validated patch: the enclosing scope of the selected finding.
+ *  - `related-scope` — the SAME range, but other problems inside it are fixed by the same patch.
+ *                      Minimality is preserved: the patch does not grow, it just does more within it.
+ *  - `ai-file`       — the whole file. The largest possible blast radius, so it is advanced-only:
+ *                      warned before running, never auto-run, and always previewed before Apply.
+ */
+export const RepairModeSchema = z.enum(['finding', 'related-scope', 'ai-file']);
+export type RepairMode = z.infer<typeof RepairModeSchema>;
+
 export const AiRunRequestSchema = z.object({
   profile: TaskProfileSchema,
   findingId: z.string().min(1),
+  /** Absent means `finding` — the safe default, so an older caller keeps the old behaviour exactly. */
+  mode: RepairModeSchema.optional(),
 });
 export type AiRunRequest = z.infer<typeof AiRunRequestSchema>;
 
@@ -263,11 +281,42 @@ export const VerificationReportSchema = z.object({
 });
 export type VerificationReport = z.infer<typeof VerificationReportSchema>;
 
+/** One problem named in the repair summary, with why it was skipped when it was. */
+export const RepairSummaryEntrySchema = z.object({
+  ruleId: z.string(),
+  line: z.number().int().nonnegative(),
+  message: z.string(),
+  /** Present only on `skipped` entries: the specific reason, never a generic one. */
+  reason: z.string().optional(),
+});
+export type RepairSummaryEntry = z.infer<typeof RepairSummaryEntrySchema>;
+
+/**
+ * What a repair actually did, and — just as importantly — what it deliberately did not do.
+ *
+ * A patch that silently leaves problems untouched is indistinguishable from one that missed them.
+ * Naming the skipped problems AND the reason for each is what makes a minimal patch legible as a
+ * deliberate choice rather than an incomplete job.
+ */
+export const RepairSummarySchema = z.object({
+  /** The finding the user asked to repair. */
+  fixed: z.array(RepairSummaryEntrySchema),
+  /** Further problems inside the same repair scope, fixed by the same patch. */
+  related: z.array(RepairSummaryEntrySchema),
+  /** Problems seen and deliberately left alone, each with its reason. */
+  skipped: z.array(RepairSummaryEntrySchema),
+});
+export type RepairSummary = z.infer<typeof RepairSummarySchema>;
+
 export const AiProposalSchema = z.discriminatedUnion('profile', [
   z.object({
     profile: z.literal('repair'),
     /** The id of this repair's row in local history — echoed back on apply to mark it applied. */
     historyId: z.string(),
+    /** What the patch fixed, merged, and skipped. Optional so an older proposal still validates. */
+    repairSummary: RepairSummarySchema.optional(),
+    /** Which mode produced this patch, so the panel can state the scope it actually covers. */
+    mode: RepairModeSchema.optional(),
     repairedCode: z.string(),
     /** The original text of the target symbol — the left side of the diff view. */
     originalCode: z.string(),
@@ -413,6 +462,11 @@ export const AiRunResponseSchema = z.discriminatedUnion('status', [
       'schema_error',
       'not_found',
       'cancelled',
+      // A run that exceeded its budget and was aborted. Distinct from `cancelled` (the user asked)
+      // and from `provider_error` (the provider answered): nobody answered at all. Repair had no
+      // timeout of any kind, so a stalled provider stream left the UI running forever — this code is
+      // what makes "timed out" a reportable terminal state rather than an infinite spinner.
+      'timeout',
       'internal_error',
     ]),
     message: z.string(),
@@ -429,9 +483,28 @@ export type AiRunResponse = z.infer<typeof AiRunResponseSchema>;
 export const AiDeltaSchema = z.object({ text: z.string() });
 export type AiDelta = z.infer<typeof AiDeltaSchema>;
 
+/**
+ * The phases a repair passes through, so "Running…" can say what it is actually doing.
+ *
+ * A repair is several seconds of work in at least four distinct systems (context assembly, the
+ * provider, the verification worker, the formatter). Reporting all of that as one undifferentiated
+ * "running" is what made a slow repair indistinguishable from a hung one — the user had no way to
+ * tell progress from a stall, and neither did a bug report.
+ */
+export const AiRunStageSchema = z.enum([
+  'preparing',
+  'analyzing',
+  'generating',
+  'validating',
+  'applying',
+]);
+export type AiRunStage = z.infer<typeof AiRunStageSchema>;
+
 export const AiRunStateSchema = z.object({
   status: z.enum(['running', 'done', 'error', 'blocked']),
   message: z.string().optional(),
+  /** Which phase the run is in. Optional so an older emitter (or a terminal state) can omit it. */
+  stage: AiRunStageSchema.optional(),
 });
 export type AiRunState = z.infer<typeof AiRunStateSchema>;
 

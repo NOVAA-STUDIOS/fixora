@@ -1,5 +1,7 @@
 import type {
   AiConfig,
+  AiRunStage,
+  RepairMode,
   AiModelList,
   AiProposal,
   GateMatchInfo,
@@ -39,8 +41,12 @@ type AiState = {
   setModel: (model: string) => Promise<void>;
 
   status: AiRunStatus;
+  /** Which phase a running repair is in, for the progress label. Null when not running. */
+  stage: AiRunStage | null;
   activeFindingId: string | null;
   activeProfile: TaskProfile | null;
+  /** The mode the active run used, so Retry replays it rather than falling back to the default. */
+  activeMode: RepairMode | null;
   streamText: string;
   proposal: AiProposal | null;
   blocked: readonly GateMatchInfo[] | null;
@@ -51,7 +57,7 @@ type AiState = {
   /** The last apply attempt, in full. Rendered by the diagnostics panel; never persisted. */
   lastApplyAttempt: ApplyAttempt | null;
 
-  run: (profile: TaskProfile, findingId: string) => Promise<void>;
+  run: (profile: TaskProfile, findingId: string, mode?: RepairMode) => Promise<void>;
   /** Re-run the last attempted profile/finding — Proceed's Retry, mirrored for Repair/Explain/Test. */
   retry: () => Promise<void>;
   cancel: () => Promise<void>;
@@ -65,6 +71,7 @@ export const useAiStore = create<AiState>((set, get) => ({
   config: null,
   models: null,
   lastApplyAttempt: null,
+  stage: null,
 
   loadModels: async (refresh = false) => {
     const result = await invoke('ai:listModels', refresh ? { refresh: true } : {});
@@ -102,17 +109,20 @@ export const useAiStore = create<AiState>((set, get) => ({
   status: 'idle',
   activeFindingId: null,
   activeProfile: null,
+  activeMode: null,
   streamText: '',
   proposal: null,
   blocked: null,
   errorMessage: null,
   retryable: false,
 
-  run: async (profile, findingId) => {
+  run: async (profile, findingId, mode) => {
     set({
       status: 'running',
+      stage: 'preparing',
       activeFindingId: findingId,
       activeProfile: profile,
+      activeMode: mode ?? null,
       streamText: '',
       proposal: null,
       blocked: null,
@@ -120,21 +130,25 @@ export const useAiStore = create<AiState>((set, get) => ({
       retryable: false,
     });
 
-    const result = await invoke('ai:run', { profile, findingId });
+    const result = await invoke(
+      'ai:run',
+      mode === undefined ? { profile, findingId } : { profile, findingId, mode },
+    );
     if (!result.ok) {
       // Transport failure between renderer and main — a UI-layer failure, retryable by nature (same
       // treatment Proceed gives the equivalent case).
-      set({ status: 'error', errorMessage: result.error.message, retryable: true });
+      set({ status: 'error', stage: null, errorMessage: result.error.message, retryable: true });
       return;
     }
     const response = result.value;
     if (response.status === 'ok') {
-      set({ status: 'done', proposal: response.proposal });
+      set({ status: 'done', stage: null, proposal: response.proposal });
     } else if (response.status === 'blocked') {
-      set({ status: 'blocked', blocked: response.matches });
+      set({ status: 'blocked', stage: null, blocked: response.matches });
     } else {
       set({
         status: 'error',
+        stage: null,
         errorMessage: response.message,
         retryable: response.retryable === true,
       });
@@ -142,14 +156,16 @@ export const useAiStore = create<AiState>((set, get) => ({
   },
 
   retry: async () => {
-    const { activeProfile, activeFindingId, run } = get();
+    const { activeProfile, activeFindingId, activeMode, run } = get();
     if (activeProfile === null || activeFindingId === null) return;
-    await run(activeProfile, activeFindingId);
+    // Replays the SAME mode. Retrying a scoped repair as a whole-file one would widen the blast
+    // radius behind a button that only says "Retry".
+    await run(activeProfile, activeFindingId, activeMode ?? undefined);
   },
 
   cancel: async () => {
     await invoke('ai:cancel', {});
-    set({ status: 'idle' });
+    set({ status: 'idle', stage: null });
   },
 
   applyRepair: async () => {
@@ -236,6 +252,7 @@ export const useAiStore = create<AiState>((set, get) => ({
   dismiss: () => {
     set({
       status: 'idle',
+      stage: null,
       activeFindingId: null,
       activeProfile: null,
       streamText: '',
@@ -251,8 +268,17 @@ export const useAiStore = create<AiState>((set, get) => ({
     const offDelta = subscribe('ai:delta', ({ text }) => {
       if (get().status === 'running') set((s) => ({ streamText: s.streamText + text }));
     });
+    // Progress. Only the `stage` of a still-running run is taken from here: the TERMINAL state is
+    // owned by `run()`'s awaited result, and letting an event set it too would be two sources of
+    // truth for the same fact. Guarded on `status === 'running'` so a late event from an
+    // already-finished run cannot resurrect the spinner.
+    const offState = subscribe('ai:runState', (state) => {
+      if (state.status !== 'running' || state.stage === undefined) return;
+      if (get().status === 'running') set({ stage: state.stage });
+    });
     return () => {
       offDelta();
+      offState();
     };
   },
 }));

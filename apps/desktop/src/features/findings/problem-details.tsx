@@ -1,8 +1,17 @@
-import type { Finding, TaskProfile } from '@fixora/shared-types';
-import { Button, cn } from '@fixora/ui';
+import {
+  isRepairAttemptable,
+  repairStateFor,
+  REPAIR_STATE_REASON,
+  type Finding,
+  type RepairMode,
+  type TaskProfile,
+} from '@fixora/shared-types';
+import { Button, ConfirmDialog, cn } from '@fixora/ui';
+import { useId, useState } from 'react';
 
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
+import { DEFAULT_REPAIR_MODE, REPAIR_MODES, repairModeInfo } from '../ai/repair-mode.js';
 import { useCapability } from '../ai/use-capability.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
@@ -47,9 +56,15 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
   // One lookup per profile, read from provider metadata via the config.
   const capabilities = {
     explain: useCapability('explain'),
-    repair: useCapability('repair'),
+    repair: useCapability('repair', finding.repair),
     test: useCapability('test'),
   };
+
+  const modeId = useId();
+  const [mode, setMode] = useState<RepairMode>(DEFAULT_REPAIR_MODE);
+  const [confirmAdvanced, setConfirmAdvanced] = useState(false);
+  const repairState = repairStateFor(finding);
+  const repairBlocked = !isRepairAttemptable(repairState);
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto">
@@ -169,11 +184,13 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
         )}
       </div>
 
-      {/* An incapable model is explained here, once, rather than in three tooltips. */}
+      {/* Why Repair is unavailable, explained here once, rather than in three tooltips — whether the
+          cause is an incapable model (bug-fix sprint: wording no longer assumes it always is) or a
+          finding this tool can never auto-fix, like a manual-only rule. */}
       {aiConfigured && !capabilities.repair.enabled && (
         <div className="sticky bottom-[52px] flex flex-col gap-2 border-t border-border-subtle bg-warn-subtle/30 px-3 py-2.5">
           <p className="text-[11px] leading-relaxed text-fg-secondary [overflow-wrap:anywhere]">
-            <span className="font-semibold text-fg">Repair is unavailable on this model.</span>{' '}
+            <span className="font-semibold text-fg">Repair is unavailable for this finding.</span>{' '}
             {capabilities.repair.reason}
           </p>
           {capabilities.repair.suggestion !== null && (
@@ -190,6 +207,35 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
         </div>
       )}
 
+      {/*
+        The repair mode. Ordered by blast radius, defaulting to the smallest — every step up is an
+        explicit choice, never an escalation the app performs for you.
+      */}
+      {aiConfigured && !repairBlocked && (
+        <div className="sticky bottom-[52px] flex flex-col gap-1 border-t border-border-subtle bg-canvas px-3 pt-2.5">
+          <label htmlFor={modeId} className="text-[10px] uppercase tracking-wide text-fg-muted">
+            Repair scope
+          </label>
+          <select
+            id={modeId}
+            value={mode}
+            onChange={(e) => {
+              setMode(e.target.value as RepairMode);
+            }}
+            className="w-full rounded border border-border-strong bg-inset px-2 py-1 text-xs text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+          >
+            {REPAIR_MODES.map((m) => (
+              <option key={m.mode} value={m.mode}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-[10px] leading-snug text-fg-muted">
+            {repairModeInfo(mode).description}
+          </p>
+        </div>
+      )}
+
       {/* Actions pinned to the bottom: understand first, then act. */}
       <div className="sticky bottom-0 mt-auto flex flex-wrap items-center gap-1.5 border-t border-border-subtle bg-canvas p-3">
         {aiConfigured ? (
@@ -202,9 +248,28 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
                 size="sm"
                 // Disabled BEFORE it is pressed, not after it fails. `title` carries the reason so
                 // a disabled control is never silent about why.
-                disabled={aiBusy || !cap.enabled}
-                title={cap.enabled ? undefined : cap.reason}
-                onClick={() => void runAi(action.profile, finding.id)}
+                disabled={aiBusy || !cap.enabled || (action.profile === 'repair' && repairBlocked)}
+                title={
+                  action.profile === 'repair' && repairBlocked
+                    ? REPAIR_STATE_REASON[repairState]
+                    : cap.enabled
+                      ? undefined
+                      : cap.reason
+                }
+                onClick={() => {
+                  if (action.profile !== 'repair') {
+                    void runAi(action.profile, finding.id);
+                    return;
+                  }
+                  // The advanced mode is never run on a click. It states what it will replace and
+                  // waits for a second, deliberate confirmation — the whole-file splice is the
+                  // largest edit the app can make.
+                  if (repairModeInfo(mode).advanced) {
+                    setConfirmAdvanced(true);
+                    return;
+                  }
+                  void runAi('repair', finding.id, mode);
+                }}
               >
                 {action.label}
               </Button>
@@ -221,6 +286,22 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
             Set up AI to repair
           </Button>
         )}
+        {/*
+        The advanced mode's gate. It is never run by a click — the whole-file splice is the largest
+        edit the app can make, so it states exactly what it will replace and waits for a second,
+        deliberate confirmation. Everything after this is still fully verified and previewed.
+      */}
+        <ConfirmDialog
+          open={confirmAdvanced}
+          onOpenChange={setConfirmAdvanced}
+          title="Run AI File Repair on this whole file?"
+          description={repairModeInfo('ai-file').warning ?? ''}
+          confirmLabel="Analyze whole file"
+          onConfirm={() => {
+            void runAi('repair', finding.id, 'ai-file');
+          }}
+        />
+
         <button
           type="button"
           onClick={() => {

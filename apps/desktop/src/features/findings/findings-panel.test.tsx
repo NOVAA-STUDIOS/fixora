@@ -37,10 +37,12 @@ vi.mock('../workspace/workspace-store.js', () => ({
       revealAt: typeof revealAt;
       pickAndOpen: typeof pickAndOpen;
     }) => unknown,
-  ) => selector({ workspace: { id: 'w1', rootPath: '/repo', name: 'repo' }, revealAt, pickAndOpen }),
+  ) =>
+    selector({ workspace: { id: 'w1', rootPath: '/repo', name: 'repo' }, revealAt, pickAndOpen }),
 }));
 
 const { FindingsPanel } = await import('./findings-panel.js');
+const { useAiStore } = await import('../../stores/ai-store.js');
 
 function finding(overrides: Partial<Finding> = {}): Finding {
   return {
@@ -75,11 +77,16 @@ beforeEach(() => {
   // real refresh can never race with / clobber the fixture a test set up before rendering.
   invoke.mockImplementation((channel: string) => {
     const state = useFindingsStore.getState();
-    if (channel === 'analysis:list') return Promise.resolve({ ok: true, value: { findings: state.findings } });
+    if (channel === 'analysis:list')
+      return Promise.resolve({ ok: true, value: { findings: state.findings } });
     if (channel === 'analysis:summary') {
       return Promise.resolve({
         ok: true,
-        value: state.summary ?? { total: 0, bySeverity: { error: 0, warning: 0, info: 0 }, bySource: {} },
+        value: state.summary ?? {
+          total: 0,
+          bySeverity: { error: 0, warning: 0, info: 0 },
+          bySource: {},
+        },
       });
     }
     return Promise.resolve({ ok: true, value: undefined });
@@ -137,7 +144,9 @@ describe('FindingsPanel — truncation disclosure (beta audit A4)', () => {
       summary: { total: 812, bySeverity: { error: 812, warning: 0, info: 0 }, bySource: {} },
     });
     render(<FindingsPanel />);
-    expect(screen.getByText('Showing 1 of 812 problems. Narrow by severity to see the rest.')).toBeTruthy();
+    expect(
+      screen.getByText('Showing 1 of 812 problems. Narrow by severity to see the rest.'),
+    ).toBeTruthy();
   });
 
   it('compares against the filtered severity total, not the grand total, when a severity filter is active', () => {
@@ -147,14 +156,20 @@ describe('FindingsPanel — truncation disclosure (beta audit A4)', () => {
       summary: { total: 900, bySeverity: { error: 5, warning: 600, info: 0 }, bySource: {} },
     });
     render(<FindingsPanel />);
-    expect(screen.getByText('Showing 1 of 600 problems. Narrow by severity to see the rest.')).toBeTruthy();
+    expect(
+      screen.getByText('Showing 1 of 600 problems. Narrow by severity to see the rest.'),
+    ).toBeTruthy();
   });
 });
 
 describe('FindingsPanel — keyboard operability (beta audit A4)', () => {
   const two: Finding[] = [
     finding({ id: 'f1', message: 'First problem' }),
-    finding({ id: 'f2', message: 'Second problem', location: { file: 'src/b.ts', startLine: 9, startCol: 1, endLine: 9, endCol: 5 } }),
+    finding({
+      id: 'f2',
+      message: 'Second problem',
+      location: { file: 'src/b.ts', startLine: 9, startCol: 1, endLine: 9, endCol: 5 },
+    }),
   ];
 
   it('rows are not individually tab stops', () => {
@@ -192,5 +207,93 @@ describe('FindingsPanel — keyboard operability (beta audit A4)', () => {
     await userEvent.click(screen.getByText('First problem'));
     expect(revealAt).toHaveBeenCalledWith(two[0]?.location);
     expect(useFindingsStore.getState().selectedId).toBe('f1');
+  });
+});
+
+/**
+ * ISSUE 2/6 regression: "some findings do not show the Repair button".
+ *
+ * Root cause was visibility, not state: the actions row was `opacity-0` until hover, focus, or
+ * selection, so a mouse user who was not hovering saw no Repair button at all. The button must be
+ * present and readable at rest, and when it cannot run it must be DISABLED WITH A REASON — never
+ * hidden, because a control that vanishes cannot explain itself.
+ */
+describe('Repair button visibility and the four repair states', () => {
+  beforeEach(() => {
+    // The three action buttons only render once a key is configured — the not-configured branch
+    // deliberately replaces them with "Set up AI to repair". That substitution is intentional and is
+    // NOT the reported bug, so these tests exercise the configured case.
+    useAiStore.setState({
+      config: {
+        configured: true,
+        model: 'test-model',
+        keyHint: null,
+        migratedFrom: null,
+        capabilities: null,
+        suggestedModel: null,
+      },
+      status: 'idle',
+    });
+  });
+
+  it('renders Repair at rest, with no hover or selection', async () => {
+    useFindingsStore.setState({
+      findings: [finding({ repair: 'ai-required' })],
+      status: 'done',
+    });
+    render(<FindingsPanel />);
+    const repair = await screen.findByRole('button', { name: 'Repair' });
+    expect(repair).toBeInTheDocument();
+    expect(repair).toBeEnabled();
+  });
+
+  it('a manual-only finding still SHOWS Repair, disabled, explaining it needs judgment', async () => {
+    useFindingsStore.setState({
+      findings: [finding({ repair: 'manual' })],
+      status: 'done',
+    });
+    render(<FindingsPanel />);
+    const repair = await screen.findByRole('button', { name: 'Repair' });
+    expect(repair).toBeDisabled();
+    expect(repair.getAttribute('title')).toMatch(/judgment|judgement/i);
+    expect(await screen.findByText('Manual')).toBeInTheDocument();
+  });
+
+  it('an unsupported file type is a DIFFERENT state with a DIFFERENT reason', async () => {
+    useFindingsStore.setState({
+      findings: [
+        finding({
+          repair: 'ai-required',
+          location: { file: 'notes.md', startLine: 1, startCol: 1, endLine: 1, endCol: 1 },
+        }),
+      ],
+      status: 'done',
+    });
+    render(<FindingsPanel />);
+    const repair = await screen.findByRole('button', { name: 'Repair' });
+    expect(repair).toBeDisabled();
+    expect(repair.getAttribute('title')).toMatch(/file type/i);
+    expect(await screen.findByText('Unsupported')).toBeInTheDocument();
+  });
+
+  it('every finding exposes exactly one of the four states as a visible label', async () => {
+    const cases: [Parameters<typeof finding>[0], string][] = [
+      [{ repair: 'safe-auto' }, 'Auto-fix'],
+      [{ repair: 'ai-required' }, 'AI fix'],
+      [{ repair: 'manual' }, 'Manual'],
+      [
+        {
+          repair: 'ai-required',
+          location: { file: 'a.rb', startLine: 1, startCol: 1, endLine: 1, endCol: 1 },
+        },
+        'Unsupported',
+      ],
+    ];
+    for (const [over, label] of cases) {
+      useFindingsStore.setState({ findings: [finding(over)], status: 'done' });
+      const view = render(<FindingsPanel />);
+      expect(await screen.findByText(label)).toBeInTheDocument();
+      view.unmount();
+    }
   });
 });

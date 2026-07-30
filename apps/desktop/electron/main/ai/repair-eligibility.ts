@@ -52,6 +52,11 @@ const REPAIRABLE_LANGUAGES = new Set<Language>([
   'python',
   'json',
   'go',
+  // Tier-B validation languages. Their repairs are verified by syntax + regression checks only (no
+  // linter or type checker for either ships in this stack), which are real gates — a css/html repair
+  // that does not parse is refused — but narrower than the tsc/eslint/ruff ones.
+  'css',
+  'html',
 ]);
 
 export function evaluateRepairEligibility(input: RepairEligibilityInput): RepairEligibility {
@@ -69,7 +74,7 @@ export function evaluateRepairEligibility(input: RepairEligibilityInput): Repair
       capability: null,
       method: null,
       reason:
-        'Unsupported file type — Fixora repairs TypeScript, JavaScript, Python, JSON and Go. This file is none of those.',
+        'Unsupported file type — Fixora repairs TypeScript, JavaScript, React, Python, Go, JSON, CSS and HTML. This file is none of those.',
     };
   }
 
