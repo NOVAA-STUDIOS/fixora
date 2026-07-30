@@ -22,7 +22,7 @@ export {
   OPENROUTER_ENDPOINT,
   type FetchLike,
   type OpenRouterOptions,
-} from './provider/openrouter.js';
+} from './provider/adapters/openrouter.js';
 export {
   CATALOGUE_ENDPOINT,
   NO_FREE_MODELS_MESSAGE,
@@ -97,6 +97,43 @@ export {
   type FailureKind,
   type ProviderFailure,
 } from './provider/failure.js';
+export {
+  allDescriptors,
+  allProviders,
+  DEFAULT_PROVIDER_ID,
+  providerDescriptor,
+  providerRegistration,
+} from './provider/catalog.js';
+export {
+  createOpenAiCompatibleProvider,
+  type OpenAiCompatibleOptions,
+} from './provider/adapters/openai-compatible.js';
+export {
+  createOpenAiProvider,
+  openAiDescriptor,
+  openAiRegistration,
+} from './provider/adapters/openai.js';
+export {
+  openRouterDescriptor,
+  openRouterRegistration,
+} from './provider/adapters/openrouter.js';
+export {
+  MIN_REPAIR_CONTEXT,
+  resolveCapabilities,
+  supportsCodeRepair,
+  supportsProfile,
+  type CapabilitySupport,
+  type JsonStrategy,
+  type ModelFacts,
+  type ProviderCapabilityMatrix,
+  type ResolvedCapabilities,
+} from './provider/capability.js';
+export type {
+  ModelDiscovery,
+  ProviderAuthKind,
+  ProviderDescriptor,
+  ProviderRegistration,
+} from './provider/descriptor.js';
 export {
   buildFailoverChain,
   FAILOVER_CATEGORIES,

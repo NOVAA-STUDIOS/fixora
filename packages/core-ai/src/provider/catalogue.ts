@@ -1,4 +1,4 @@
-import type { FetchLike } from './openrouter.js';
+import type { FetchLike } from './adapters/openai-compatible.js';
 
 /**
  * The live OpenRouter model catalogue.

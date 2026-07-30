@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createOpenRouterProvider, type FetchLike } from './openrouter.js';
+import { createOpenRouterProvider, type FetchLike } from './adapters/openrouter.js';
 import type { ProviderEvent, ProviderRequest } from './types.js';
 
 const REQUEST: ProviderRequest = {

@@ -11,6 +11,8 @@
  * system that writes to people's source files.
  */
 
+import type { ProviderFailure } from './failure.js';
+
 export type ProviderRole = 'system' | 'user' | 'assistant';
 
 export interface ProviderMessage {
@@ -62,8 +64,39 @@ export interface ProviderCapabilities {
   readonly maxContext: number;
 }
 
+/**
+ * The result of a Test Connection.
+ *
+ * Deliberately reports each check separately instead of one boolean. "It doesn't work" is the least
+ * useful thing a diagnostic can say: a valid key against an unreachable host, and a reachable host
+ * rejecting the key, need opposite fixes, and a single red cross sends the user to check the wrong
+ * one.
+ */
+export interface ProviderTestResult {
+  /** The host answered at all — separates "no network / wrong URL" from every credential problem. */
+  readonly reachable: boolean;
+  /** The credential was accepted. Null when the provider needs none (local). */
+  readonly authenticated: boolean | null;
+  /** The named model exists and is usable. Null when not checked. */
+  readonly modelAvailable: boolean | null;
+  /** Round-trip time in ms, for the slowest check that ran. */
+  readonly latencyMs: number;
+  /** Classified failure when something did not pass. Absent on full success. */
+  readonly failure?: ProviderFailure;
+  /** Models the provider reported, when the check discovered them (Ollama, OpenAI). */
+  readonly models?: readonly string[];
+}
+
 export interface AIProvider {
   readonly id: string;
   readonly capabilities: ProviderCapabilities;
   stream(request: ProviderRequest, signal: AbortSignal): AsyncIterable<ProviderEvent>;
+  /**
+   * Check reachability, credentials and model availability without running a repair.
+   *
+   * Every adapter must implement it: a provider that cannot be tested is a provider whose failures
+   * can only be discovered by failing a real repair on the user's code, which is precisely the
+   * experience this platform exists to remove.
+   */
+  test(model: string, signal: AbortSignal): Promise<ProviderTestResult>;
 }

@@ -93,6 +93,10 @@ function capture() {
   const provider: AIProvider = {
     id: 'fake',
     capabilities: { structuredOutput: true, maxContext: 100_000 },
+    // Test Connection is part of the AIProvider contract; a fake that omits it would not be a
+    // provider. Answers "healthy" because these tests exercise streaming, not diagnostics.
+    test: () =>
+      Promise.resolve({ reachable: true, authenticated: true, modelAvailable: true, latencyMs: 1 }),
     stream(request) {
       prompts.push(request.messages.map((m) => m.content).join('\n'));
       return (async function* () {
