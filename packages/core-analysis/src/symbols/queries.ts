@@ -58,6 +58,8 @@ export const SYMBOL_QUERIES: Record<Language, string> = {
     (type_declaration (type_spec name: (type_identifier) @interface type: (interface_type))) @symbol
   `,
   json: '', // JSON has no symbols; present only to satisfy the type — never queried at runtime.
+  css: '', // Tier-B: no symbols; present only to satisfy the type — never queried at runtime.
+  html: '', // Tier-B: no symbols; present only to satisfy the type — never queried at runtime.
 };
 
 /**
@@ -83,6 +85,8 @@ export const CALL_QUERIES: Record<Language, string> = {
     (call_expression function: (selector_expression field: (field_identifier) @callee))
   `,
   json: '', // JSON has no symbols; present only to satisfy the type — never queried at runtime.
+  css: '', // Tier-B: no symbols; present only to satisfy the type — never queried at runtime.
+  html: '', // Tier-B: no symbols; present only to satisfy the type — never queried at runtime.
 };
 
 /** Queries capturing an import's module specifier as `@source` (a string literal). */
@@ -96,4 +100,6 @@ export const IMPORT_QUERIES: Record<Language, string> = {
   `,
   go: `(import_spec path: (interpreted_string_literal) @source)`,
   json: '', // JSON has no symbols; present only to satisfy the type — never queried at runtime.
+  css: '', // Tier-B: no symbols; present only to satisfy the type — never queried at runtime.
+  html: '', // Tier-B: no symbols; present only to satisfy the type — never queried at runtime.
 };
