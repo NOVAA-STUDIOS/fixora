@@ -18,10 +18,75 @@ export function dominantEol(content: string): '\r\n' | '\n' {
   return total > 0 && crlf * 2 >= total ? '\r\n' : '\n';
 }
 
+/** The leading whitespace of the first non-blank line — the block's base indentation. */
+function baseIndent(text: string): string | null {
+  for (const line of text.split(/\r?\n/)) {
+    if (line.trim() === '') continue;
+    return /^[\t ]*/.exec(line)?.[0] ?? '';
+  }
+  return null;
+}
+
 /**
- * Replace a 1-based inclusive line range with `replacement`, returning the new file content. Line
- * endings are normalised to the file's dominant ending, so a model reply (always LF) spliced into a
- * CRLF file produces a uniformly-CRLF result, never a mixed-ending file.
+ * Re-base a replacement block's indentation onto the original's.
+ *
+ * Models routinely dedent: asked to return "the corrected code" for a target that begins at column 4,
+ * they reply flush left. Splicing that verbatim wrote real damage into users' files — observed during
+ * validation, where an applied repair turned `    const [x] = useState(0);` into an unindented line,
+ * and a JSON member lost its two spaces. In Python that is not cosmetic at all; it changes what the
+ * code means.
+ *
+ * The shift is uniform, so *relative* indentation inside the replacement is preserved exactly — only
+ * the block's alignment to its surroundings is corrected. This is deliberately conservative:
+ *
+ *  - blank lines are never given trailing indentation;
+ *  - when the two indents are not prefix-compatible (spaces vs tabs), nothing is changed, because
+ *    guessing the author's whitespace convention is how you corrupt a file rather than fix one;
+ *  - when the model already matched the original indent, this is a no-op.
+ *
+ * It cannot alter semantics beyond alignment: no non-whitespace character is touched, and a repair
+ * that legitimately restructures nesting keeps its internal shape.
+ */
+export function reindentToMatch(original: string, replacement: string): string {
+  const target = baseIndent(original);
+  const actual = baseIndent(replacement);
+  if (target === null || actual === null || target === actual) return replacement;
+
+  const shift = (line: string, apply: (l: string) => string): string =>
+    line.trim() === '' ? line : apply(line);
+
+  // The model dedented (the common case): put the missing prefix back on every line.
+  if (actual === '' || target.startsWith(actual)) {
+    const add = target.slice(actual.length);
+    return replacement
+      .split(/\r?\n/)
+      .map((line) => shift(line, (l) => add + l))
+      .join('\n');
+  }
+  // The model over-indented: remove the excess, but only if every line actually carries it.
+  if (actual.startsWith(target)) {
+    const excess = actual.slice(target.length);
+    const lines = replacement.split(/\r?\n/);
+    if (lines.every((l) => l.trim() === '' || l.startsWith(excess))) {
+      return lines.map((line) => shift(line, (l) => l.slice(excess.length))).join('\n');
+    }
+  }
+  // Incompatible whitespace conventions — leave it exactly as the model wrote it.
+  return replacement;
+}
+
+/**
+ * Replace a 1-based inclusive line range with `replacement`, returning the new file content.
+ *
+ * Two normalisations happen here, and both must happen HERE rather than at the call sites, because
+ * this function is the single point both verification and apply go through. Anything done to the
+ * patch in one place and not the other would mean the bytes that were verified are not the bytes that
+ * get written — the one property the whole verification story depends on.
+ *
+ *  - **Line endings** are normalised to the file's dominant ending, so a model reply (always LF)
+ *    spliced into a CRLF file produces a uniformly-CRLF result, never a mixed-ending file.
+ *  - **Indentation** is re-based onto the original block's, so a dedented reply does not silently
+ *    strip the leading whitespace of the code it replaces.
  */
 export function spliceLines(
   content: string,
@@ -33,7 +98,9 @@ export function spliceLines(
   const lines = content.split(/\r?\n/);
   const before = lines.slice(0, Math.max(0, startLine - 1));
   const after = lines.slice(endLine);
-  return [...before, ...replacement.split(/\r?\n/), ...after].join(eol);
+  const original = lines.slice(Math.max(0, startLine - 1), endLine).join('\n');
+  const aligned = reindentToMatch(original, replacement);
+  return [...before, ...aligned.split(/\r?\n/), ...after].join(eol);
 }
 
 /**
