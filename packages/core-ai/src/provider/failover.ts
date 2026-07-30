@@ -35,8 +35,8 @@ export interface FailoverCandidate {
 }
 
 /** A candidate that was tried and failed, kept in order so the log can show the whole walk. */
-export interface FailoverAttemptRecord {
-  readonly candidate: FailoverCandidate;
+export interface FailoverAttemptRecord<C extends FailoverCandidate = FailoverCandidate> {
+  readonly candidate: C;
   readonly failure: ProviderFailure;
 }
 
@@ -49,12 +49,12 @@ export type FailoverStopReason =
   /** The caller aborted mid-walk. */
   | 'cancelled';
 
-export type FailoverOutcome<T> =
+export type FailoverOutcome<T, C extends FailoverCandidate = FailoverCandidate> =
   | {
       readonly ok: true;
       readonly value: T;
       /** Which candidate answered. Not necessarily the first. */
-      readonly candidate: FailoverCandidate;
+      readonly candidate: C;
       /** What was tried and failed before it. Empty when the first candidate worked. */
       readonly attempts: readonly FailoverAttemptRecord[];
     }
@@ -63,7 +63,7 @@ export type FailoverOutcome<T> =
       readonly reason: FailoverStopReason;
       /** The failure to report — the LAST one, which is the one the user's next action must address. */
       readonly failure: ProviderFailure;
-      readonly candidate: FailoverCandidate;
+      readonly candidate: C;
       /** Every failed attempt, including the one that ended the walk. */
       readonly attempts: readonly FailoverAttemptRecord[];
     };
@@ -135,17 +135,19 @@ export function shouldFailover(failure: Pick<ProviderFailure, 'category' | 'laye
  * provider is contacted. Stops equally hard on a non-retryable failure, which is what keeps a bad key
  * from being re-offered to five providers in a row.
  */
-export async function runWithFailover<T>(
-  candidates: readonly [FailoverCandidate, ...FailoverCandidate[]],
-  attempt: (candidate: FailoverCandidate) => Promise<FailoverAttemptResult<T>>,
-  options: { signal?: AbortSignal; onFailover?: (record: FailoverAttemptRecord) => void } = {},
-): Promise<FailoverOutcome<T>> {
-  const attempts: FailoverAttemptRecord[] = [];
+export async function runWithFailover<T, C extends FailoverCandidate = FailoverCandidate>(
+  candidates: readonly [C, ...C[]],
+  attempt: (candidate: C) => Promise<FailoverAttemptResult<T>>,
+  options: { signal?: AbortSignal; onFailover?: (record: FailoverAttemptRecord<C>) => void } = {},
+): Promise<FailoverOutcome<T, C>> {
+  // Generic over the candidate type so a caller carrying richer candidates — the orchestrator's,
+  // which hold a live adapter — gets them back unwidened, with no casts at either end.
+  const attempts: FailoverAttemptRecord<C>[] = [];
   // Read through a call: `signal.aborted` is mutated outside this function's control flow, which
   // TypeScript narrows away on a direct read. Same helper shape used across the codebase.
   const aborted = (): boolean => options.signal?.aborted === true;
 
-  let last: FailoverAttemptRecord | null = null;
+  let last: FailoverAttemptRecord<C> | null = null;
 
   for (const candidate of candidates) {
     if (aborted()) {
@@ -165,7 +167,7 @@ export async function runWithFailover<T>(
       return { ok: true, value: result.value, candidate, attempts };
     }
 
-    const record: FailoverAttemptRecord = { candidate, failure: result.failure };
+    const record: FailoverAttemptRecord<C> = { candidate, failure: result.failure };
     last = record;
     // Recorded before the branch, so `attempts` is the complete list of what failed in every
     // outcome. A record that omitted the failure which ENDED the walk would be the one case a
@@ -183,7 +185,7 @@ export async function runWithFailover<T>(
 
   // Everything was tried. Report the LAST failure: it is the most recent state of the world, and it
   // is what the user's next action has to address.
-  const final = last as FailoverAttemptRecord;
+  const final = last as FailoverAttemptRecord<C>;
   return {
     ok: false,
     reason: 'exhausted',

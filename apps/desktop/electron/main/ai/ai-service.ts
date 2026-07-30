@@ -4,8 +4,6 @@ import { join } from 'node:path';
 import {
   buildContext,
   buildReAskMessage,
-  createOpenRouterProvider,
-  buildFailoverChain,
   describeModelOutputFailure,
   describeProviderFailure,
   describeSchemaFailureForUser,
@@ -13,14 +11,10 @@ import {
   parseRepairOutput,
   parseTestOutput,
   prepareRequest,
-  PREFERRED_FREE_CODE_MODELS,
   profileWantsStructuredOutput,
-  runWithFailover,
-  type AIProvider,
-  type CatalogueModel,
   type ProviderFailure,
   type ProviderMessage,
-  type ProviderRequest,
+  type ProviderRequest, type AIProvider 
 } from '@fixora/core-ai';
 import type { MicroRepairResult } from '@fixora/core-analysis';
 import { isUserFacingError } from '@fixora/shared-types';
@@ -45,6 +39,7 @@ import type { VerificationService } from '../verification/verification-service.j
 
 import { logProviderFailure, missingKeyFailure, toWireFailure } from './failure-report.js';
 import type { KeyStore } from './key-store.js';
+import type { ChainRefusal, Orchestrator } from './providers/orchestrator.js';
 import { projectConventions, repairNeighbours } from './repair-context.js';
 import { evaluateRepairEligibility } from './repair-eligibility.js';
 import { RepairTraceBuilder } from './repair-trace.js';
@@ -93,8 +88,13 @@ export interface AiServiceDeps {
   workspace: WorkspaceService;
   verification: VerificationService;
   history: RepairHistoryRepository;
-  /** Injected so tests can drive a fake provider; defaults to the real OpenRouter adapter. */
-  providerFactory?: (key: string) => AIProvider;
+  /**
+   * Decides which provider answers, in the user's priority order, and owns failover.
+   *
+   * The service no longer constructs a provider at all: it asks for text and gets text. That is what
+   * keeps the repair pipeline provider-blind now that there is more than one to choose between.
+   */
+  orchestrator: Orchestrator;
   /** Injected for tests; defaults to the path-guarded, secret-denylisted reader. */
   readFile?: (rootPath: string, relPath: string) => string;
   /**
@@ -110,15 +110,23 @@ export interface AiServiceDeps {
     filePath: string;
   }) => Promise<MicroRepairResult | null>;
   appMeta?: { url?: string; name?: string };
-  /**
-   * Candidate models for provider failover, with their capability metadata.
-   *
-   * Optional: absent means no fallbacks, so the chain is the configured model alone and behaviour is
-   * exactly what it was before failover existed. That is the right default for a dependency whose
-   * only job is to make failure recovery better — never a prerequisite for a repair to run at all.
-   */
-  failoverCatalogue?: () => Promise<readonly CatalogueModel[]>;
 }
+
+/**
+ * What the user is told when there is nothing to try.
+ *
+ * Three causes with three different fixes. Collapsing them into "no key configured" — which is what
+ * a single-provider world could get away with — would send a user with a perfectly good key to
+ * re-enter it because their only enabled provider could not do structured output.
+ */
+const CHAIN_REFUSAL_MESSAGE: Record<ChainRefusal, string> = {
+  'none-enabled':
+    'No AI provider is enabled yet. Turn one on in Settings to use AI repairs — analysis works without one.',
+  'no-credentials':
+    'Your enabled AI providers have no API key yet. Add a key in Settings to use AI repairs.',
+  'no-capable-provider':
+    'None of your enabled providers can produce a structured repair with their selected model. Choose a different model in Settings.',
+};
 
 export interface AiService {
   run(request: AiRunRequest, window: BrowserWindow | null): Promise<AiRunResponse>;
@@ -186,14 +194,7 @@ function buildRepairSummary(input: {
 }
 
 export function createAiService(deps: AiServiceDeps): AiService {
-  const makeProvider =
-    deps.providerFactory ??
-    ((key: string): AIProvider =>
-      createOpenRouterProvider({
-        apiKey: key,
-        ...(deps.appMeta?.url !== undefined ? { appUrl: deps.appMeta.url } : {}),
-        ...(deps.appMeta?.name !== undefined ? { appName: deps.appMeta.name } : {}),
-      }));
+  const orchestrator = deps.orchestrator;
 
   const readFile =
     deps.readFile ?? ((root: string, rel: string) => readTextFile(root, rel).content);
@@ -559,7 +560,6 @@ export function createAiService(deps: AiServiceDeps): AiService {
       active = controller;
       stage('generating');
 
-      const provider = makeProvider(key);
       const wantsStructured = profileWantsStructuredOutput(request.profile);
       // A ref rather than a `let`: finalize() assigns it from inside a closure, and TypeScript's
       // control-flow analysis cannot see that, so it narrows a plain `let` to `null` at every read.
@@ -694,24 +694,17 @@ export function createAiService(deps: AiServiceDeps): AiService {
       };
 
       try {
-        // Provider failover. The chain is the user's model first, then capability-checked fallbacks;
-        // a candidate that ANSWERS ends the walk, and everything downstream — parse, verify, Apply —
-        // is unchanged and runs exactly once, on that answer.
-        const chain = buildFailoverChain({
-          provider: 'openrouter',
-          configured: modelId,
-          preferred: PREFERRED_FREE_CODE_MODELS,
-          catalogue: (await deps.failoverCatalogue?.()) ?? [],
-          profile: request.profile,
-        });
-
-        const walk = await runWithFailover(
-          chain,
+        // Provider failover, now across PROVIDERS rather than models on one key. The chain is the
+        // user's registry order, filtered to what is enabled, credentialed and capable; a candidate
+        // that ANSWERS ends the walk, and everything downstream — parse, verify, Apply — is
+        // unchanged and runs exactly once, on that answer.
+        const walk = await orchestrator.run(
+          request.profile,
           async (candidate) => {
             const result = await streamOnce(
-              provider,
-              // Same prepared request, different model. The budget was computed for the configured
-              // model; a fallback with a smaller window answers `context-too-large`, which is not a
+              candidate.adapter,
+              // Same prepared request, this candidate's model. The budget was computed for the first
+              // candidate; one with a smaller window answers `context-too-large`, which is not a
               // failover category, so the walk stops and reports it honestly rather than looping.
               { ...prepared.request, model: candidate.model },
               controller.signal,
@@ -726,7 +719,8 @@ export function createAiService(deps: AiServiceDeps): AiService {
             signal: controller.signal,
             onFailover: (record) => {
               console.error('[ai] failing over', {
-                from: record.candidate.model,
+                fromProvider: record.candidate.provider,
+                fromModel: record.candidate.model,
                 category: record.failure.category,
                 providerCode: record.failure.providerCode,
               });
@@ -738,10 +732,25 @@ export function createAiService(deps: AiServiceDeps): AiService {
           },
         );
 
-        // The model that actually answered — or the one that finally failed. Everything downstream
-        // reports against this rather than the configured id, so a card that says "Model: X" names
-        // the model the user's failure actually came from.
+        // Nothing to try at all — distinct from every candidate failing, and with a different fix.
+        if ('refused' in walk) {
+          const message = CHAIN_REFUSAL_MESSAGE[walk.reason];
+          if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message });
+          return {
+            status: 'error',
+            code: 'no_key',
+            message,
+            failure: missingKeyFailure(modelId),
+          };
+        }
+
+        // The provider and model that actually answered — or that finally failed. Everything
+        // downstream reports against these rather than the configured ones, so a card saying
+        // "Provider: X · Model: Y" names where the user's failure actually came from.
+        const usedProvider = walk.candidate.provider;
         const usedModel = walk.candidate.model;
+        // The adapter that answered, kept for the re-ask below.
+        const usedAdapter = walk.candidate.adapter;
         // Every model tried before the one being reported, so a total failure renders as ONE
         // consolidated card instead of a sequence the user has to piece together.
         const walkAttempts = walk.attempts.map((record) => ({
@@ -765,7 +774,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
             // The classification the panel renders as a status card. Without it the panel has only
             // the sentence, which is what left provider outages looking like Fixora defects.
             failure: toWireFailure(stream.failure, {
-              provider: 'openrouter',
+              provider: usedProvider,
               model: usedModel,
               // Drop the final failure from the list: it is already the card's headline, and
               // repeating it as an "also tried" line reads as two separate failures.
@@ -776,10 +785,10 @@ export function createAiService(deps: AiServiceDeps): AiService {
 
         let response = await finalize(stream.text);
         if (response === SCHEMA_ERROR && wantsStructured) {
-          // Re-ask the SAME model that answered. Switching mid-conversation would send a
-          // correction about one model's output to a different model, which is incoherent.
+          // Re-ask the SAME provider and model that answered. Switching mid-conversation would
+          // send a correction about one model's output to a different model, which is incoherent.
           stream = await streamOnce(
-            provider,
+            usedAdapter,
             { ...reAskRequest(prepared.request, stream.text, lastFailure.current), model: usedModel },
             controller.signal,
             window,
@@ -828,7 +837,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
             // The model, not the engine and not the user's code. Attributing this to Fixora is the
             // specific mistake the layer field exists to prevent.
             failure: toWireFailure(describeModelOutputFailure('schema-mismatch'), {
-              provider: 'openrouter',
+              provider: usedProvider,
               model: usedModel,
               attempts: walkAttempts,
             }),

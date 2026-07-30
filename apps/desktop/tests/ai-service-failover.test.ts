@@ -3,6 +3,7 @@ import type { AIProvider, CatalogueModel, ProviderEvent, ProviderRequest } from 
 import type { Finding } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
+import { fakeOrchestrator } from './support/fake-orchestrator.js';
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
 import type { KeyStore } from '../electron/main/ai/key-store.js';
 import type { FindingsRepository, RepairHistoryRepository } from '../electron/main/db/repositories.js';
@@ -154,10 +155,17 @@ function deps(provider: AIProvider, catalogue: readonly CatalogueModel[]): AiSer
       list: () => [],
       clearWorkspace: () => undefined,
     } as unknown as RepairHistoryRepository,
-    providerFactory: () => provider,
     readFile: () => CLEAN_FILE,
     microRepair: () => Promise.resolve(null),
-    failoverCatalogue: () => Promise.resolve(catalogue),
+    // One adapter, several candidates — which is exactly the shape the real orchestrator produces
+    // for a chain of models, and now also for a chain of providers.
+    orchestrator: fakeOrchestrator(
+      [CONFIGURED, ...catalogue.map((m) => m.id)].map((model) => ({
+        provider: 'openrouter',
+        model,
+        adapter: provider,
+      })),
+    ),
   };
 }
 

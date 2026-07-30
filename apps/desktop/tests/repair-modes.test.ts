@@ -2,6 +2,7 @@ import type { AIProvider, ProviderEvent } from '@fixora/core-ai';
 import type { Finding, RepairMode } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
+import { singleProvider } from './support/fake-orchestrator.js';
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
 import type {
   FindingsRepository,
@@ -140,7 +141,7 @@ function deps(all: Finding[], captured: ReturnType<typeof capture>): AiServiceDe
       dispose: () => undefined,
     } as VerificationService,
     history: { record: () => 'h1' } as unknown as RepairHistoryRepository,
-    providerFactory: () => captured.provider,
+    orchestrator: singleProvider(captured.provider),
     readFile: () => CONTENT,
     microRepair: () => Promise.resolve(null),
   };

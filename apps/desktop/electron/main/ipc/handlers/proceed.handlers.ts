@@ -1,9 +1,9 @@
-import { createOpenRouterProvider } from '@fixora/core-ai';
 import type { ProceedOutcome } from '@fixora/shared-types';
 
 import { languageFor } from '../../ai/ai-service.js';
 import type { KeyStore } from '../../ai/key-store.js';
 import { createProceedService, type ProceedLogEntry } from '../../ai/proceed-service.js';
+import type { Orchestrator } from '../../ai/providers/orchestrator.js';
 import { projectConventions } from '../../ai/repair-context.js';
 import type { AnalysisHost } from '../../analysis/analysis-host.js';
 import type { FindingsRepository, RepairHistoryRepository } from '../../db/repositories.js';
@@ -30,6 +30,8 @@ const RUN_TIMEOUT_MS = 180_000;
 
 export function registerProceedHandlers(deps: {
   keyStore: KeyStore;
+  /** Owns provider selection, so Proceed and Repair can never disagree about who answers. */
+  orchestrator: Orchestrator;
   workspace: WorkspaceService;
   findings: FindingsRepository;
   verification: VerificationService;
@@ -51,14 +53,6 @@ export function registerProceedHandlers(deps: {
   });
 
   registerHandler('proceed:run', async (request): Promise<ProceedOutcome> => {
-    const key = deps.keyStore.getKey();
-    if (key === null) {
-      return {
-        status: 'error',
-        code: 'no_key',
-        message: 'Add your provider key in Settings → AI.',
-      };
-    }
     const workspace = deps.workspace.getCurrent();
     if (workspace === null) {
       return { status: 'error', code: 'not_found', message: 'Open a workspace first.' };
@@ -71,14 +65,38 @@ export function registerProceedHandlers(deps: {
       controller.abort();
     }, RUN_TIMEOUT_MS);
 
+    // Provider SELECTION comes from the orchestrator, so Proceed and Repair can never disagree
+    // about which provider is active, which credential it uses, or whether it is capable — the
+    // duplicated construction here was the drift risk this platform exists to remove.
+    //
+    // Proceed does not yet FAIL OVER: `createProceedService` takes one provider, and threading the
+    // walk through it is a change to that service rather than to provider orchestration. Selection
+    // is unified now; failover for Proceed is a follow-up, and is called out rather than implied.
+    // Asks for `repair` capability: a Proceed edit is schema-constrained output that lands in a
+    // source file, so it needs exactly what a repair needs. There is no separate `edit` profile and
+    // inventing one would let a provider qualify for edits while being unfit to write code.
+    const chain = await deps.orchestrator.resolveChain('repair');
+    if (!chain.ok) {
+      return {
+        status: 'error',
+        code: 'no_key',
+        message:
+          chain.reason === 'none-enabled'
+            ? 'No AI provider is enabled yet. Turn one on in Settings.'
+            : chain.reason === 'no-credentials'
+              ? 'Your enabled AI providers have no API key yet. Add one in Settings.'
+              : 'None of your enabled providers can make this edit with their selected model.',
+      };
+    }
+    const candidate = chain.candidates[0];
+    if (candidate === undefined) {
+      return { status: 'error', code: 'no_key', message: 'No AI provider is available.' };
+    }
+
     try {
       const service = createProceedService({
-        provider: createOpenRouterProvider({
-          apiKey: key,
-          ...(deps.appMeta?.url !== undefined ? { appUrl: deps.appMeta.url } : {}),
-          ...(deps.appMeta?.name !== undefined ? { appName: deps.appMeta.name } : {}),
-        }),
-        model: deps.keyStore.getConfig().model,
+        provider: candidate.adapter,
+        model: candidate.model,
         workspaceRoot: workspace.rootPath,
         workspaceId: workspace.id,
         history: deps.history,

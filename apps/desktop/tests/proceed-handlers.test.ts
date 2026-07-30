@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { ProceedOutcome, ProceedRunRequest } from '@fixora/shared-types';
 import { UserFacingError } from '@fixora/shared-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fakeOrchestrator } from './support/fake-orchestrator.js';
 
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
@@ -39,6 +40,30 @@ async function proceedHandler(
     workspace: { getCurrent: () => ({ id: 'ws-1', rootPath: root, name: 'p', ignore: [] }) } as never,
     findings: { list: () => [] } as never,
     verification: { verify: vi.fn() } as never,
+    // Provider selection now comes from the orchestrator. These tests never reach a provider call —
+    // they exercise the scope-worker failure paths — but the chain must resolve for the handler to
+    // get that far, so a single stub candidate stands in.
+    orchestrator: fakeOrchestrator([
+      {
+        provider: 'openrouter',
+        model: 'test-model',
+        adapter: {
+          id: 'stub',
+          capabilities: { structuredOutput: true, maxContext: 100_000 },
+          stream: () =>
+            (async function* () {
+              yield { type: 'text_delta' as const, text: '' };
+            })(),
+          test: () =>
+            Promise.resolve({
+              reachable: true,
+              authenticated: true,
+              modelAvailable: true,
+              latencyMs: 1,
+            }),
+        },
+      },
+    ]),
     history: { record: vi.fn(() => 'history-1'), markApplied: vi.fn() } as never,
     host: (overrides.host ?? {
       resolveScope: (job: { onError: (message: string) => void }) => {
