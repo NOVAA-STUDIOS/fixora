@@ -47,6 +47,10 @@ function scriptedProvider(scripts: ProviderEvent[][]): AIProvider {
   return {
     id: 'fake',
     capabilities: { structuredOutput: true, maxContext: 100_000 },
+    // Test Connection is part of the AIProvider contract; a fake that omits it would not be a
+    // provider. Answers "healthy" because these tests exercise streaming, not diagnostics.
+    test: () =>
+      Promise.resolve({ reachable: true, authenticated: true, modelAvailable: true, latencyMs: 1 }),
     stream(_request, _signal) {
       const events = scripts[Math.min(call, scripts.length - 1)] ?? [];
       call += 1;
@@ -249,6 +253,10 @@ describe('AI service (BYOK run orchestration)', () => {
         provider: {
           id: 'fake',
           capabilities: { structuredOutput: true, maxContext: 100 },
+    // Test Connection is part of the AIProvider contract; a fake that omits it would not be a
+    // provider. Answers "healthy" because these tests exercise streaming, not diagnostics.
+    test: () =>
+      Promise.resolve({ reachable: true, authenticated: true, modelAvailable: true, latencyMs: 1 }),
           stream() {
             called = true;
             return (async function* () {})();
@@ -418,6 +426,10 @@ describe('AI service (BYOK run orchestration)', () => {
     const provider: AIProvider = {
       id: 'fake',
       capabilities: { structuredOutput: true, maxContext: 100 },
+    // Test Connection is part of the AIProvider contract; a fake that omits it would not be a
+    // provider. Answers "healthy" because these tests exercise streaming, not diagnostics.
+    test: () =>
+      Promise.resolve({ reachable: true, authenticated: true, modelAvailable: true, latencyMs: 1 }),
       stream() {
         called = true;
         return (async function* () {})();
@@ -441,6 +453,10 @@ describe('AI service (BYOK run orchestration)', () => {
     const provider: AIProvider = {
       id: 'fake',
       capabilities: { structuredOutput: true, maxContext: 100 },
+    // Test Connection is part of the AIProvider contract; a fake that omits it would not be a
+    // provider. Answers "healthy" because these tests exercise streaming, not diagnostics.
+    test: () =>
+      Promise.resolve({ reachable: true, authenticated: true, modelAvailable: true, latencyMs: 1 }),
       stream() {
         called = true;
         return (async function* () {})();

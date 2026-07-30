@@ -8,7 +8,7 @@ import { buildContext } from '../context/context-builder.js';
 import { prepareRequest } from '../pipeline/prepare.js';
 import { parseRepairOutput } from '../profiles/schemas.js';
 
-import { createOpenRouterProvider, type FetchLike } from './openrouter.js';
+import { createOpenRouterProvider, type FetchLike } from './adapters/openrouter.js';
 import type { ProviderEvent } from './types.js';
 
 /**

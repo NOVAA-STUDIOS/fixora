@@ -17,6 +17,10 @@ function fakeProvider(events: ProviderEvent[][]): AIProvider {
   return {
     id: 'fake',
     capabilities: { structuredOutput: true, maxContext: 32_000 },
+    // Test Connection is part of the AIProvider contract; a fake that omits it would not be a
+    // provider. Answers "healthy" because these tests exercise streaming, not diagnostics.
+    test: () =>
+      Promise.resolve({ reachable: true, authenticated: true, modelAvailable: true, latencyMs: 1 }),
     stream() {
       const evs = events[call] ?? [];
       call += 1;
@@ -239,6 +243,10 @@ describe('createProceedService', () => {
     const provider: AIProvider = {
       id: 'fake',
       capabilities: { structuredOutput: true, maxContext: 32_000 },
+    // Test Connection is part of the AIProvider contract; a fake that omits it would not be a
+    // provider. Answers "healthy" because these tests exercise streaming, not diagnostics.
+    test: () =>
+      Promise.resolve({ reachable: true, authenticated: true, modelAvailable: true, latencyMs: 1 }),
       stream(req: ProviderRequest) {
         requests.push(req);
         const text = requests.length === 1 ? truncated : complete;

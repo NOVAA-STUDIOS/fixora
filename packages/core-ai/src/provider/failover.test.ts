@@ -213,9 +213,9 @@ describe('failover — cancellation and reporting', () => {
     await runWithFailover(CHAIN, attempt, { onFailover });
 
     expect(onFailover).toHaveBeenCalledOnce();
-    expect(onFailover.mock.calls[0][0]).toMatchObject({
-      candidate: { model: 'model-a' },
-    });
+    expect(onFailover).toHaveBeenCalledWith(
+      expect.objectContaining({ candidate: { provider: 'openrouter', model: 'model-a' } }),
+    );
   });
 
   it('a single-candidate chain still reports a clean exhausted outcome', async () => {
