@@ -35,6 +35,7 @@ function failure(over: Partial<AiFailure> = {}): AiFailure {
     actions: ['change-model', 'check-credits'],
     provider: 'OpenRouter',
     model: 'anthropic/claude-3.5-sonnet',
+    attempts: [],
     ...over,
   };
 }
@@ -203,5 +204,38 @@ describe('ProviderErrorCard — severity styling', () => {
   it('uses warning styling for a failure that may clear on its own', () => {
     renderCard({ layer: 'provider', category: 'rate-limited', actions: ['retry'] });
     expect(screen.getByRole('alert').className).toContain('warn');
+  });
+});
+
+/**
+ * One consolidated card for a whole failed walk.
+ *
+ * Without the attempt list the card names a single model, and a user whose repair just spent fifteen
+ * seconds trying four of them has no idea that happened — which makes automatic failover look like
+ * it never ran.
+ */
+describe('ProviderErrorCard — a failed failover walk', () => {
+  it('lists every model that was tried, with its own reason', () => {
+    renderCard({
+      category: 'quota-exceeded',
+      model: 'last/model',
+      attempts: [
+        { model: 'first/model', category: 'quota-exceeded' },
+        { model: 'second/model', category: 'provider-unavailable' },
+      ],
+    });
+    const card = screen.getByRole('alert');
+    expect(card).toHaveTextContent('Also tried (2)');
+    expect(card).toHaveTextContent('first/model');
+    expect(card).toHaveTextContent('Quota exceeded');
+    expect(card).toHaveTextContent('second/model');
+    expect(card).toHaveTextContent('Provider unavailable');
+    // The headline model is the one that failed last, and is not repeated in the list.
+    expect(card).toHaveTextContent('last/model');
+  });
+
+  it('stays a plain status card when nothing was failed over', () => {
+    renderCard({ attempts: [] });
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Also tried');
   });
 });

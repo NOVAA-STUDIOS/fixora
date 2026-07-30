@@ -730,9 +730,10 @@ export function createAiService(deps: AiServiceDeps): AiService {
                 category: record.failure.category,
                 providerCode: record.failure.providerCode,
               });
-              // Keep the progress label alive. A silent multi-second walk is indistinguishable from
-              // the hang this pipeline already has a timeout for.
-              stage('generating');
+              // A silent multi-second walk is indistinguishable from the hang this pipeline already
+              // has a timeout for. Says "trying a backup model", so automatic recovery reads as
+              // recovery rather than as a stall.
+              stage('failing-over');
             },
           },
         );
@@ -741,6 +742,12 @@ export function createAiService(deps: AiServiceDeps): AiService {
         // reports against this rather than the configured id, so a card that says "Model: X" names
         // the model the user's failure actually came from.
         const usedModel = walk.candidate.model;
+        // Every model tried before the one being reported, so a total failure renders as ONE
+        // consolidated card instead of a sequence the user has to piece together.
+        const walkAttempts = walk.attempts.map((record) => ({
+          model: record.candidate.model,
+          category: record.failure.category,
+        }));
         let stream: StreamResult = walk.ok
           ? walk.value
           : { ok: false, message: walk.failure.message, retryable: walk.failure.retryable, failure: walk.failure };
@@ -757,7 +764,13 @@ export function createAiService(deps: AiServiceDeps): AiService {
             retryable: stream.retryable,
             // The classification the panel renders as a status card. Without it the panel has only
             // the sentence, which is what left provider outages looking like Fixora defects.
-            failure: toWireFailure(stream.failure, { provider: 'openrouter', model: usedModel }),
+            failure: toWireFailure(stream.failure, {
+              provider: 'openrouter',
+              model: usedModel,
+              // Drop the final failure from the list: it is already the card's headline, and
+              // repeating it as an "also tried" line reads as two separate failures.
+              attempts: walkAttempts.slice(0, -1),
+            }),
           };
         }
 
@@ -817,6 +830,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
             failure: toWireFailure(describeModelOutputFailure('schema-mismatch'), {
               provider: 'openrouter',
               model: usedModel,
+              attempts: walkAttempts,
             }),
           };
         }

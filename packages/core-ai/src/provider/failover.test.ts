@@ -8,7 +8,7 @@ import {
   type FailoverAttemptResult,
   type FailoverCandidate,
 } from './failover.js';
-import { describeProviderFailure } from './failure.js';
+import { describeModelOutputFailure, describeProviderFailure } from './failure.js';
 
 /**
  * Provider failover.
@@ -154,13 +154,34 @@ describe('which failures are worth trying elsewhere', () => {
   });
 
   it('stops for failures every candidate would reproduce', () => {
-    for (const code of ['HTTP_402', 'NETWORK', 'HTTP_413']) {
+    for (const code of ['NETWORK', 'HTTP_413']) {
       expect(shouldFailover(describeProviderFailure({ providerCode: code })), code).toBe(false);
     }
-    // An exhausted allowance is not shopped around — an explicit product decision, not an oversight.
-    const quota = describeProviderFailure({ providerCode: 'HTTP_429', detail: 'quota exhausted' });
-    expect(quota.category).toBe('quota-exceeded');
-    expect(shouldFailover(quota)).toBe(false);
+  });
+
+  /**
+   * Quota arrives in two shapes with opposite answers, and the layer is what separates them.
+   *
+   * A per-model allowance (429 naming a daily or free-tier limit) is the case automatic failover
+   * exists for: the next model has its own allowance. An account out of credits (402) follows the
+   * ACCOUNT, so every candidate draws on the same empty balance and a walk would bury the one thing
+   * that helps under N identical failures.
+   */
+  it('fails over for per-model quota exhaustion', () => {
+    const perModel = describeProviderFailure({
+      providerCode: 'HTTP_429',
+      detail: 'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 requests',
+    });
+    expect(perModel.category).toBe('quota-exceeded');
+    expect(perModel.layer).toBe('provider');
+    expect(shouldFailover(perModel)).toBe(true);
+  });
+
+  it('does NOT fail over when the account itself is out of credits', () => {
+    const outOfCredits = describeProviderFailure({ providerCode: 'HTTP_402' });
+    expect(outOfCredits.category).toBe('quota-exceeded');
+    expect(outOfCredits.layer).toBe('configuration');
+    expect(shouldFailover(outOfCredits)).toBe(false);
   });
 });
 
@@ -301,5 +322,120 @@ describe('buildFailoverChain', () => {
       profile: 'repair',
     });
     expect(chain.map((c) => c.model)).toEqual(['fallback-1', 'fallback-2']);
+  });
+});
+
+/**
+ * The safety boundary, stated as a test rather than as a comment.
+ *
+ * Failover recovers from a provider that would not ANSWER. It must never re-run a repair that was
+ * answered and then rejected by the parser, the verifier, the regression check or the Apply gate:
+ * shopping a rejection around until some model gets past it is precisely how a safety gate stops
+ * being a safety gate.
+ *
+ * Structurally this holds because those rejections happen downstream of a SUCCESSFUL attempt, and a
+ * success ends the walk. The tests below pin that structure from both directions.
+ */
+describe('failover never re-runs a repair-safety rejection', () => {
+  it('a provider that answers ends the walk, whatever happens to the answer afterwards', async () => {
+    // The attempt resolves ok. The repair may later fail to parse, fail verification, or be refused
+    // by the Apply gate, and none of that is visible here BY DESIGN.
+    const attempt = vi
+      .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
+      .mockResolvedValue(ok('a patch that will later be rejected'));
+
+    const outcome = await runWithFailover(CHAIN, attempt);
+
+    expect(outcome.ok).toBe(true);
+    // One call. Nothing downstream can cause a second candidate to be tried.
+    expect(attempt).toHaveBeenCalledTimes(1);
+  });
+
+  it('only provider-availability failures can trigger a walk, nothing else', () => {
+    const availability = new Set([
+      'rate-limited',
+      'timeout',
+      'provider-unavailable',
+      'model-unavailable',
+      'quota-exceeded',
+    ]);
+    for (const code of [
+      'HTTP_401',
+      'HTTP_402',
+      'HTTP_403',
+      'HTTP_413',
+      'HTTP_400',
+      'NETWORK',
+      'NO_BODY',
+      'STREAM',
+      'WEIRD',
+    ]) {
+      const failure = describeProviderFailure({ providerCode: code });
+      if (!availability.has(failure.category) || failure.layer === 'configuration') {
+        expect(shouldFailover(failure), code + ' -> ' + failure.category).toBe(false);
+      }
+    }
+    // Unusable model output is an ANSWER, not an availability failure. It must not walk.
+    expect(shouldFailover(describeModelOutputFailure('empty'))).toBe(false);
+    expect(shouldFailover(describeModelOutputFailure('schema-mismatch', 'x'))).toBe(false);
+  });
+});
+
+describe('mixed failures across a chain', () => {
+  it('walks past availability failures and stops dead on a configuration one', async () => {
+    const attempt = vi
+      .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
+      // Quota on the first model. The new behaviour: keep going.
+      .mockResolvedValueOnce(fail('HTTP_429', 'free-models-per-day exhausted'))
+      // A transient outage on the second. Keep going.
+      .mockResolvedValueOnce(fail('HTTP_503'))
+      // The account is out of credits. No candidate can escape that, so stop here.
+      .mockResolvedValueOnce(fail('HTTP_402'));
+
+    const outcome = await runWithFailover(CHAIN, attempt);
+
+    expect(attempt).toHaveBeenCalledTimes(3);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toBe('non-retryable');
+    expect(outcome.failure.category).toBe('quota-exceeded');
+    expect(outcome.failure.layer).toBe('configuration');
+    // The whole walk is available for one consolidated card.
+    expect(outcome.attempts.map((a) => a.failure.category)).toEqual([
+      'quota-exceeded',
+      'provider-unavailable',
+      'quota-exceeded',
+    ]);
+  });
+
+  it('quota on the first model, success on the second, and the user never sees an error', async () => {
+    const attempt = vi
+      .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
+      .mockResolvedValueOnce(fail('HTTP_429', 'free-models-per-day exhausted'))
+      .mockResolvedValueOnce(ok('repaired'));
+
+    const outcome = await runWithFailover(CHAIN, attempt);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.value).toBe('repaired');
+    expect(outcome.candidate.model).toBe('model-b');
+  });
+
+  it('every model exhausted, one outcome carrying the complete list of what was tried', async () => {
+    const attempt = vi
+      .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
+      .mockResolvedValue(fail('HTTP_429', 'free-models-per-day exhausted'));
+
+    const outcome = await runWithFailover(CHAIN, attempt);
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toBe('exhausted');
+    expect(outcome.attempts.map((a) => a.candidate.model)).toEqual([
+      'model-a',
+      'model-b',
+      'model-c',
+    ]);
   });
 });

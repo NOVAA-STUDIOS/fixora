@@ -47,8 +47,11 @@ describe('toWireFailure — what crosses the boundary', () => {
       }),
       context,
     );
+    // Six keys, all renderable. `attempts` was added when automatic failover shipped: it carries
+    // model ids and classifications for the consolidated card, and — like every other field here —
+    // has no room for a status code, a request id, a latency or the provider's own words.
     expect(Object.keys(wire).sort()).toEqual(
-      ['actions', 'category', 'layer', 'model', 'provider'].sort(),
+      ['actions', 'attempts', 'category', 'layer', 'model', 'provider'].sort(),
     );
     expect(JSON.stringify(wire)).not.toContain('429');
     expect(JSON.stringify(wire)).not.toContain('Too Many Requests');
@@ -111,5 +114,28 @@ describe('failures Fixora detects itself', () => {
     // send users to file a hang bug against a component that was waiting correctly.
     expect(wire.layer).toBe('provider');
     expect(wire.actions.length).toBeGreaterThan(0);
+  });
+});
+
+describe('the failover walk on the wire', () => {
+  it('carries each attempted model with its classification, and nothing else', () => {
+    const wire = toWireFailure(describeProviderFailure({ providerCode: 'HTTP_429' }), {
+      ...context,
+      attempts: [
+        { model: 'first/model', category: 'quota-exceeded' },
+        { model: 'second/model', category: 'provider-unavailable' },
+      ],
+    });
+    expect(wire.attempts).toHaveLength(2);
+    // Exactly two keys per entry — no status codes, no request ids, no provider prose.
+    for (const attempt of wire.attempts) {
+      expect(Object.keys(attempt).sort()).toEqual(['category', 'model']);
+    }
+    expect(AiFailureSchema.safeParse(wire).success).toBe(true);
+  });
+
+  it('is empty when there was no walk — the common case stays a plain card', () => {
+    const wire = toWireFailure(describeProviderFailure({ providerCode: 'HTTP_503' }), context);
+    expect(wire.attempts).toEqual([]);
   });
 });

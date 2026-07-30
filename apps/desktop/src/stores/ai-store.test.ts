@@ -223,6 +223,7 @@ describe('ai store — the classified failure reaches the panel', () => {
         actions: ['open-settings'],
         provider: 'OpenRouter',
         model: 'x/y',
+        attempts: [],
       },
     });
     invoke.mockResolvedValueOnce({ ok: true, value: { status: 'ok', proposal } });

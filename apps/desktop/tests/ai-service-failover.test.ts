@@ -91,6 +91,18 @@ function recordingProvider(script: Script): { provider: AIProvider; asked: strin
   return { provider, asked };
 }
 
+const quota = (): ProviderEvent[] => [
+  {
+    type: 'error',
+    retryable: true,
+    providerCode: 'HTTP_429',
+    message: 'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 requests',
+    status: 429,
+  },
+];
+const outOfCredits = (): ProviderEvent[] => [
+  { type: 'error', retryable: false, providerCode: 'HTTP_402', message: 'insufficient credits', status: 402 },
+];
 const down = (): ProviderEvent[] => [
   { type: 'error', retryable: true, providerCode: 'HTTP_503', message: 'upstream is down', status: 503 },
 ];
@@ -212,5 +224,130 @@ describe('ai service — provider failover is wired, not just implemented', () =
 
     expect(asked).toEqual([CONFIGURED]);
     expect(result.status).toBe('error');
+  });
+});
+
+/**
+ * Quota exhaustion, end to end.
+ *
+ * This is the failure the user actually hit, and the one automatic failover was enabled for: a free
+ * model's daily allowance runs out, and the repair should simply succeed on a backup model without
+ * the user learning anything went wrong.
+ */
+describe('ai service — quota exhaustion recovers automatically', () => {
+  it('a quota-exhausted model fails over and the user sees a repair, not an error', async () => {
+    const { provider, asked } = recordingProvider((model) =>
+      model === CONFIGURED ? quota() : answers(),
+    );
+    const service = createAiService(deps(provider, preferredCatalogue()));
+
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    expect(asked[0]).toBe(CONFIGURED);
+    expect(asked.length).toBeGreaterThan(1);
+    expect(result.status).toBe('ok');
+  });
+
+  it('an account out of credits stops immediately — every model shares that balance', async () => {
+    const { provider, asked } = recordingProvider(() => outOfCredits());
+    const service = createAiService(deps(provider, preferredCatalogue()));
+
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    expect(asked).toEqual([CONFIGURED]);
+    expect(result.status).toBe('error');
+    if (result.status !== 'error') return;
+    expect(result.failure?.category).toBe('quota-exceeded');
+    expect(result.failure?.layer).toBe('configuration');
+  });
+
+  it('when every model is exhausted, ONE failure carries every model that was tried', async () => {
+    const { provider, asked } = recordingProvider(() => quota());
+    const service = createAiService(deps(provider, preferredCatalogue()));
+
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    expect(result.status).toBe('error');
+    if (result.status !== 'error') return;
+    const failure = result.failure;
+    expect(failure).toBeDefined();
+    if (failure === undefined) return;
+
+    // The headline names the model that failed last; `attempts` carries the rest. Together they are
+    // every model contacted, exactly once each - one consolidated card rather than a pile of errors.
+    const listed = [...failure.attempts.map((a) => a.model), failure.model];
+    expect(listed).toEqual(asked);
+    expect(new Set(listed).size).toBe(listed.length);
+    expect(failure.attempts.every((a) => a.category === 'quota-exceeded')).toBe(true);
+  });
+
+  it('mixed availability failures all walk, and each is reported with its own reason', async () => {
+    const seen: string[] = [];
+    const { provider } = recordingProvider((model) => {
+      seen.push(model);
+      // quota, then an outage, then a dead model - three different reasons, one walk.
+      if (seen.length === 1) return quota();
+      if (seen.length === 2) return down();
+      return [
+        {
+          type: 'error' as const,
+          retryable: false,
+          providerCode: 'HTTP_404',
+          message: 'no such model',
+          status: 404,
+        },
+      ];
+    });
+    const service = createAiService(deps(provider, preferredCatalogue()));
+
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    expect(seen.length).toBeGreaterThanOrEqual(3);
+    expect(result.status).toBe('error');
+    if (result.status !== 'error') return;
+    const categories = result.failure?.attempts.map((a) => a.category) ?? [];
+    expect(categories.slice(0, 2)).toEqual(['quota-exceeded', 'provider-unavailable']);
+  });
+});
+
+/**
+ * The safety boundary at the service level.
+ *
+ * `failover.test.ts` proves the loop stops on a successful attempt. This proves the consequence that
+ * matters: a model that ANSWERS ends the walk, so a patch later rejected by the verifier is never
+ * re-attempted on a different model. A rejection that could be shopped around until some model got
+ * past it would not be a safety gate at all.
+ */
+describe('ai service — a rejected repair is never retried on another model', () => {
+  it('a regression verdict returns as a regression, with no second model contacted', async () => {
+    const { provider, asked } = recordingProvider(() => answers());
+    const base = deps(provider, preferredCatalogue());
+    const service = createAiService({
+      ...base,
+      verification: {
+        // The provider answered fine; the VERIFIER refuses the patch.
+        verify: () =>
+          Promise.resolve({
+            report: {
+              verdict: 'regression' as const,
+              targetResolved: true,
+              newFindingCount: 2,
+              syntaxOk: true,
+              ran: ['syntax'],
+            },
+            originalCode: "function greet(name) {\n  const msg = 'hi ' + name;\n  return msg;\n}",
+          }),
+        dispose: () => undefined,
+      } as typeof base.verification,
+    });
+
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    // Exactly one model contacted. The verdict is reported honestly rather than shopped around.
+    expect(asked).toEqual([CONFIGURED]);
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok') return;
+    if (result.proposal.profile !== 'repair') return;
+    expect(result.proposal.verification.verdict).toBe('regression');
   });
 });
