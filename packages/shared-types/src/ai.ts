@@ -170,7 +170,7 @@ export const UNRESOLVED_MODEL = '';
  *  - `ai-file`       — the whole file. The largest possible blast radius, so it is advanced-only:
  *                      warned before running, never auto-run, and always previewed before Apply.
  */
-export const RepairModeSchema = z.enum(['finding', 'related-scope', 'ai-file']);
+export const RepairModeSchema = z.enum(['finding', 'related-scope', 'ai-file', 'advanced']);
 export type RepairMode = z.infer<typeof RepairModeSchema>;
 
 export const AiRunRequestSchema = z.object({
@@ -308,6 +308,24 @@ export const RepairSummarySchema = z.object({
 });
 export type RepairSummary = z.infer<typeof RepairSummarySchema>;
 
+/**
+ * The Root Cause View (Advanced Repair only). Present only when `mode: 'advanced'` — every other
+ * mode targets exactly the finding the user clicked, so there is no "root cause, possibly a
+ * different finding" to report.
+ */
+export const RootCauseInfoSchema = z.object({
+  /** How the group was formed — shown so "why grouped" is never a black box. */
+  basis: z.enum(['identifier', 'scope', 'singleton']),
+  ruleId: z.string(),
+  message: z.string(),
+  line: z.number().int().nonnegative(),
+  /** True when the root cause is a different finding from the one the user clicked Repair on. */
+  differsFromSelection: z.boolean(),
+  /** Findings expected to clear as a side effect — an ESTIMATE. Verification decides what actually did. */
+  affected: z.array(RepairSummaryEntrySchema),
+});
+export type RootCauseInfo = z.infer<typeof RootCauseInfoSchema>;
+
 export const AiProposalSchema = z.discriminatedUnion('profile', [
   z.object({
     profile: z.literal('repair'),
@@ -317,6 +335,8 @@ export const AiProposalSchema = z.discriminatedUnion('profile', [
     repairSummary: RepairSummarySchema.optional(),
     /** Which mode produced this patch, so the panel can state the scope it actually covers. */
     mode: RepairModeSchema.optional(),
+    /** Set only for Advanced Repair. */
+    rootCause: RootCauseInfoSchema.optional(),
     repairedCode: z.string(),
     /** The original text of the target symbol — the left side of the diff view. */
     originalCode: z.string(),

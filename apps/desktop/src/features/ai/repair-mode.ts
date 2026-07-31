@@ -47,6 +47,16 @@ export const REPAIR_MODES: readonly RepairModeInfo[] = [
     warning:
       'This replaces the WHOLE FILE, not just the code around one problem — the largest change Fixora can make, and the most that can go wrong in one step. It is still verified before you can apply it, and you will review the full diff first. Nothing is written until you press Apply.',
   },
+  {
+    mode: 'advanced',
+    label: 'Advanced Repair',
+    description:
+      'Finds the ROOT CAUSE behind this problem — which may be a different finding elsewhere — and fixes it with one coherent, minimal patch. Not a bigger rewrite: the same verification, applied to a smarter target.',
+    scopeLabel: 'Root cause + directly related findings',
+    advanced: true,
+    warning:
+      'Advanced Repair may target a different location than the one you selected, when the analyzer traces this problem to a root cause elsewhere in the file. It never rewrites the whole file blindly, and it is still verified before you can apply it — nothing is written until you press Apply.',
+  },
 ];
 
 export const DEFAULT_REPAIR_MODE: RepairMode = 'finding';
