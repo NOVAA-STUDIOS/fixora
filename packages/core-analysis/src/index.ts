@@ -35,6 +35,12 @@ export {
 } from './repair/micro-repair.js';
 export { formatGate, resolveFormatter, type FormatGateResult } from './repair/format-gate.js';
 export {
+  groupByRootCause,
+  scopeRangeOf,
+  type RootCauseGroup,
+  type ScopeRange,
+} from './repair/root-cause-grouping.js';
+export {
   selectRepairContext,
   type ContextRange,
   type ImportLike,
