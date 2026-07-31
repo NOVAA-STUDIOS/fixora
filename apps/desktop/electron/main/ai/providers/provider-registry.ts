@@ -44,6 +44,8 @@ export interface ProviderRegistry {
   /** Enabled providers only, in priority order. This is what the orchestrator walks. */
   enabled(): readonly ProviderSettings[];
   get(id: string): ProviderSettings | null;
+  /** True when the user has never picked a model for this provider — it is on the descriptor default. */
+  modelIsAuto(id: string): boolean;
   setEnabled(id: string, enabled: boolean): void;
   setModel(id: string, model: string): void;
   setBaseUrl(id: string, baseUrl: string): void;
@@ -166,6 +168,7 @@ export function createProviderRegistry(options: ProviderRegistryOptions): Provid
       return this.list().filter((entry) => entry.enabled);
     },
     get: resolve,
+    modelIsAuto: (id) => (state.settings[id]?.model ?? '') === '',
     setEnabled: (id, enabled) => {
       update(id, { enabled });
     },

@@ -37,7 +37,7 @@ import type { ModelCatalogueService } from '../../ai/model-catalogue.js';
 import type { RepairHistoryRepository } from '../../db/repositories.js';
 import { readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
-import { sliceLines, spliceLines } from '../../verification/patch.js';
+import { locateRange, sliceLines, spliceLines } from '../../verification/patch.js';
 import { emitToWindow } from '../emit.js';
 import { registerHandler } from '../router.js';
 
@@ -397,7 +397,40 @@ export function registerAiHandlers(deps: {
         return outcome;
       }
 
+      let applyStartLine = startLine;
+      let applyEndLine = endLine;
+      let finalRangeCheck = staleRangeCheck;
+      let relocated = false;
+
       if (!staleRangeCheck.passed) {
+        // The target may simply have MOVED — an edit elsewhere shifted line numbers without
+        // touching the target text. Relocation only succeeds on an EXACT byte match, so the code
+        // being spliced is still exactly what verification ran against; nothing unverified is ever
+        // written. A near-miss (the block moved AND changed) still refuses below, unchanged.
+        const moved = locateRange(current, expectedOriginal, startLine);
+        if (moved !== null) {
+          const relocatedCheck = compareRange({
+            expected: expectedOriginal,
+            actual: sliceLines(current, moved.startLine, moved.endLine),
+            startLine: moved.startLine,
+            endLine: moved.endLine,
+            fileLineCount: staleRangeCheck.fileLineCount,
+          });
+          if (relocatedCheck.passed) {
+            applyStartLine = moved.startLine;
+            applyEndLine = moved.endLine;
+            finalRangeCheck = relocatedCheck;
+            relocated = true;
+            console.error('[apply] relocated', {
+              file,
+              fromLine: startLine,
+              toLine: moved.startLine,
+            });
+          }
+        }
+      }
+
+      if (!finalRangeCheck.passed) {
         const outcome: ApplyOutcome = {
           applied: false,
           reason: 'stale-range',
@@ -414,7 +447,7 @@ export function registerAiHandlers(deps: {
         return outcome;
       }
 
-      const patched = spliceLines(current, startLine, endLine, code);
+      const patched = spliceLines(current, applyStartLine, applyEndLine, code);
       // TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause). Captures spliceLines'
       // own output — this is the exact string `writeTextFile` is about to receive.
       if (file.includes('proceed-diag')) {
@@ -442,7 +475,7 @@ export function registerAiHandlers(deps: {
           applied: false,
           reason: 'write-failed',
           message: error.message,
-          staleRangeCheck,
+          staleRangeCheck: finalRangeCheck,
         };
         console.error('[apply] refused', { reason: outcome.reason, message: outcome.message });
         return outcome;
@@ -471,8 +504,8 @@ export function registerAiHandlers(deps: {
         }
       }
       if (historyId !== undefined) deps.history.markApplied(historyId);
-      console.error('[apply] applied', { file, bytesWritten: patched.length });
-      return { applied: true, staleRangeCheck, bytesWritten: patched.length };
+      console.error('[apply] applied', { file, bytesWritten: patched.length, relocated });
+      return { applied: true, staleRangeCheck: finalRangeCheck, bytesWritten: patched.length, relocated };
     },
   );
 

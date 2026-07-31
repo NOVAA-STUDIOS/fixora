@@ -1,7 +1,12 @@
 import type { Finding } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
-import { computeVerdict, sliceLines, spliceLines } from '../electron/main/verification/patch.js';
+import {
+  computeVerdict,
+  locateRange,
+  sliceLines,
+  spliceLines,
+} from '../electron/main/verification/patch.js';
 
 const FILE = ['line1', 'line2', 'line3', 'line4', 'line5'].join('\n');
 
@@ -79,6 +84,48 @@ describe('splice / slice', () => {
 function out_has_cr(s: string): boolean {
   return s.includes('\r');
 }
+
+/**
+ * Apply reliability: a target that MOVED (an unrelated edit shifted line numbers) but did not
+ * CHANGE is still relocatable, because the located text is byte-identical to what was verified.
+ * This is exact matching only — never fuzzy — so relocation carries no correctness risk.
+ */
+describe('locateRange — exact relocation of a moved target', () => {
+  it('finds the target shifted down after lines were inserted above it', () => {
+    const before = ['a', 'target1', 'target2', 'b'].join('\n');
+    const after = ['NEW1', 'NEW2', 'a', 'target1', 'target2', 'b'].join('\n');
+    const expected = 'target1\ntarget2';
+    expect(locateRange(after, expected, 2)).toEqual({ startLine: 4, endLine: 5 });
+    // Sanity: unmoved case still resolves to itself.
+    expect(locateRange(before, expected, 2)).toEqual({ startLine: 2, endLine: 3 });
+  });
+
+  it('finds the target shifted up after lines were removed above it', () => {
+    const after = ['target1', 'target2', 'b'].join('\n');
+    expect(locateRange(after, 'target1\ntarget2', 5)).toEqual({ startLine: 1, endLine: 2 });
+  });
+
+  it('returns null when the text no longer exists anywhere — a real conflict, not a move', () => {
+    const after = ['a', 'CHANGED1', 'target2', 'b'].join('\n');
+    expect(locateRange(after, 'target1\ntarget2', 2)).toBeNull();
+  });
+
+  it('prefers the occurrence nearest the original line when the text repeats', () => {
+    const content = ['dup', 'x', 'dup', 'y', 'dup'].join('\n');
+    // Three occurrences of "dup" at lines 1, 3, 5 — nearest to line 5 is line 5 itself.
+    expect(locateRange(content, 'dup', 5)).toEqual({ startLine: 5, endLine: 5 });
+    expect(locateRange(content, 'dup', 1)).toEqual({ startLine: 1, endLine: 1 });
+  });
+
+  it('is a no-op relocation (same range) when nothing moved', () => {
+    expect(locateRange(FILE, 'line2\nline3', 2)).toEqual({ startLine: 2, endLine: 3 });
+  });
+
+  it('never matches on an empty/whitespace-only expected block', () => {
+    expect(locateRange(FILE, '', 1)).toBeNull();
+    expect(locateRange(FILE, '   \n  ', 1)).toBeNull();
+  });
+});
 
 describe('computeVerdict (ADR-003)', () => {
   const target = finding({ rule: 'no-unused', symbol: 'greet' });

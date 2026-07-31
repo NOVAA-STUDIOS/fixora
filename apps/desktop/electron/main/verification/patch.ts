@@ -104,6 +104,51 @@ export function spliceLines(
 }
 
 /**
+ * Find where an exact target block moved to, when it is no longer at its recorded line range.
+ *
+ * Deliberately EXACT, never fuzzy. A small edit elsewhere in the file (an import added above, a
+ * blank line removed) shifts every line number below it without changing the target text itself —
+ * the repair is still valid, just stale on line numbers. Since the located text is byte-identical to
+ * what verification ran against, relocating it and splicing carries no more risk than the original
+ * apply: nothing unverified is ever written.
+ *
+ * Returns the match nearest `nearLine` (by start-of-block distance) when the block appears more than
+ * once, since the same snippet can legitimately repeat in a file and the closest occurrence is the
+ * one that actually moved rather than a coincidental duplicate elsewhere.
+ */
+export function locateRange(
+  content: string,
+  expected: string,
+  nearLine: number,
+): { startLine: number; endLine: number } | null {
+  if (expected.trim() === '') return null;
+  const lines = content.split(/\r?\n/);
+  const expectedLines = expected.split(/\r?\n/);
+  const span = expectedLines.length;
+
+  let best: { startLine: number; endLine: number } | null = null;
+  let bestDistance = Infinity;
+
+  for (let i = 0; i + span <= lines.length; i += 1) {
+    let matches = true;
+    for (let j = 0; j < span; j += 1) {
+      if (lines[i + j] !== expectedLines[j]) {
+        matches = false;
+        break;
+      }
+    }
+    if (!matches) continue;
+    const startLine = i + 1;
+    const distance = Math.abs(startLine - nearLine);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = { startLine, endLine: i + span };
+    }
+  }
+  return best;
+}
+
+/**
  * Extract a 1-based inclusive line range (the original target text). Line endings are stripped (split
  * on `/\r?\n/`, join on `\n`) so the stale-range comparison is on content, not on whether the file
  * happens to use CRLF — the same text must compare equal regardless of ending.

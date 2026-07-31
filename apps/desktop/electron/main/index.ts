@@ -120,6 +120,11 @@ if (!gotTheLock) {
           const models = await modelCatalogue.models();
           return models.find((entry) => entry.id === model) ?? null;
         },
+        // Smart model routing's catalogue source. Only meaningful for a provider left on "auto" —
+        // see `orchestrator.ts` — so this has zero effect on any user who has picked a model, which
+        // migration guarantees for every existing OpenRouter user.
+        modelCatalogue: async (providerId) =>
+          providerId === 'openrouter' ? modelCatalogue.models() : [],
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
 
