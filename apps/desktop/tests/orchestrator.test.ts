@@ -328,3 +328,122 @@ describe('failure fixtures match the real classifier', () => {
     expect(fail('HTTP_401').failure.layer).toBe('configuration');
   });
 });
+
+/**
+ * Smart model routing. The two guarantees that matter: it NEVER overrides a model the user actually
+ * picked, and provider ORDER — the thing "always follows user priority" was written about — is
+ * completely untouched by any of this.
+ */
+describe('smart model routing', () => {
+  function catalogueModel(id: string, contextLength: number, name = id) {
+    return { id, name, free: true, codeCapable: true, structuredOutput: true, contextLength };
+  }
+
+  it('picks a task-appropriate model when the provider is left on auto', async () => {
+    const registry = createProviderRegistry({ dir });
+    const credentials = createCredentialStore({ dir, cipher: fakeCipher() });
+    registry.setEnabled('openrouter', true);
+    credentials.setKey('openrouter', 'k');
+    // Never called setModel — this provider is "auto".
+    expect(registry.modelIsAuto('openrouter')).toBe(true);
+
+    const orchestrator = createOrchestrator({
+      registry,
+      credentials,
+      modelFacts: (_id, model) => Promise.resolve({ id: model, structuredOutput: true, contextLength: 400_000 }),
+      modelCatalogue: () =>
+        Promise.resolve([
+          catalogueModel('small-model', 8_000),
+          catalogueModel('big-reasoning-r1', 400_000, 'Big Reasoning R1'),
+        ]),
+    });
+
+    const chain = await orchestrator.resolveChain('repair', {
+      complexity: 'high',
+      estimatedTokens: 50_000,
+    });
+    expect(chain.ok).toBe(true);
+    if (!chain.ok) return;
+    // The small model cannot even fit the request; the reasoning model wins on top.
+    expect(chain.candidates[0]?.model).toBe('big-reasoning-r1');
+  });
+
+  it('NEVER overrides a model the user explicitly chose', async () => {
+    const registry = createProviderRegistry({ dir });
+    const credentials = createCredentialStore({ dir, cipher: fakeCipher() });
+    registry.setEnabled('openrouter', true);
+    registry.setModel('openrouter', 'my-explicit-choice');
+    credentials.setKey('openrouter', 'k');
+    expect(registry.modelIsAuto('openrouter')).toBe(false);
+
+    const orchestrator = createOrchestrator({
+      registry,
+      credentials,
+      modelFacts: (_id, model) => Promise.resolve({ id: model, structuredOutput: true, contextLength: 128_000 }),
+      modelCatalogue: () => Promise.resolve([catalogueModel('some-other-model', 999_999)]),
+    });
+
+    const chain = await orchestrator.resolveChain('repair', {
+      complexity: 'high',
+      estimatedTokens: 50_000,
+    });
+    expect(chain.ok && chain.candidates[0]?.model).toBe('my-explicit-choice');
+  });
+
+  it('is fully inert when no task is passed — identical to pre-routing behaviour', async () => {
+    const registry = createProviderRegistry({ dir });
+    const credentials = createCredentialStore({ dir, cipher: fakeCipher() });
+    registry.setEnabled('openrouter', true);
+    credentials.setKey('openrouter', 'k');
+    const orchestrator = createOrchestrator({
+      registry,
+      credentials,
+      modelFacts: (_id, model) => Promise.resolve({ id: model, structuredOutput: true, contextLength: 128_000 }),
+      modelCatalogue: () => Promise.resolve([catalogueModel('would-be-picked', 999_999)]),
+    });
+    const chain = await orchestrator.resolveChain('repair'); // no task argument
+    expect(chain.ok && chain.candidates[0]?.model).toBe(
+      (await import('@fixora/core-ai')).openRouterDescriptor.defaultModel,
+    );
+  });
+
+  it('never touches PROVIDER order — routing only ever changes which model, never who is first', async () => {
+    const registry = createProviderRegistry({ dir });
+    const credentials = createCredentialStore({ dir, cipher: fakeCipher() });
+    for (const id of ['openrouter', 'openai']) {
+      registry.setEnabled(id, true);
+      credentials.setKey(id, 'k');
+    }
+    registry.moveUp('openai'); // openai now has priority
+    const orchestrator = createOrchestrator({
+      registry,
+      credentials,
+      modelFacts: (_id, model) => Promise.resolve({ id: model, structuredOutput: true, contextLength: 128_000 }),
+      modelCatalogue: (id) =>
+        Promise.resolve(id === 'openrouter' ? [catalogueModel('or-model', 400_000)] : []),
+    });
+    const chain = await orchestrator.resolveChain('repair', {
+      complexity: 'high',
+      estimatedTokens: 1_000,
+    });
+    expect(chain.ok && chain.candidates.map((c) => c.provider)).toEqual(['openai', 'openrouter']);
+  });
+
+  it('falls back to the resolved default when nothing in the catalogue is viable', async () => {
+    const registry = createProviderRegistry({ dir });
+    const credentials = createCredentialStore({ dir, cipher: fakeCipher() });
+    registry.setEnabled('openrouter', true);
+    credentials.setKey('openrouter', 'k');
+    const orchestrator = createOrchestrator({
+      registry,
+      credentials,
+      modelFacts: (_id, model) => Promise.resolve({ id: model, structuredOutput: true, contextLength: 128_000 }),
+      modelCatalogue: () => Promise.resolve([]), // unreachable/empty catalogue
+    });
+    const chain = await orchestrator.resolveChain('repair', {
+      complexity: 'high',
+      estimatedTokens: 1_000,
+    });
+    expect(chain.ok).toBe(true); // still resolves — never a hard failure from routing alone
+  });
+});

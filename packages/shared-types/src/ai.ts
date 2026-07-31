@@ -402,6 +402,12 @@ export const ApplyOutcomeSchema = z.discriminatedUnion('applied', [
     applied: z.literal(true),
     staleRangeCheck: StaleRangeCheckSchema,
     bytesWritten: z.number().int(),
+    /**
+     * True when the target text had moved to a different line range (an edit elsewhere shifted line
+     * numbers) and was relocated by an EXACT match before splicing. The spliced bytes are always
+     * exactly what verification ran against — relocation only ever changes WHERE, never WHAT.
+     */
+    relocated: z.boolean().default(false),
   }),
   z.object({
     applied: z.literal(false),

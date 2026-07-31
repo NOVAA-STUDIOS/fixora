@@ -7,6 +7,7 @@ import {
   describeModelOutputFailure,
   describeProviderFailure,
   describeSchemaFailureForUser,
+  estimateComplexity,
   DEFAULT_BUDGETS,
   parseRepairOutput,
   parseTestOutput,
@@ -14,7 +15,8 @@ import {
   profileWantsStructuredOutput,
   type ProviderFailure,
   type ProviderMessage,
-  type ProviderRequest, type AIProvider 
+  type ProviderRequest,
+  type AIProvider,
 } from '@fixora/core-ai';
 import type { MicroRepairResult } from '@fixora/core-analysis';
 import { isUserFacingError } from '@fixora/shared-types';
@@ -698,6 +700,20 @@ export function createAiService(deps: AiServiceDeps): AiService {
         // user's registry order, filtered to what is enabled, credentialed and capable; a candidate
         // that ANSWERS ends the walk, and everything downstream — parse, verify, Apply — is
         // unchanged and runs exactly once, on that answer.
+        //
+        // Smart model routing: a size/complexity hint for providers the user left on "auto". This
+        // NEVER reorders providers and NEVER overrides a model the user actually picked — see
+        // `orchestrator.ts`. Complexity is estimated from what is actually being sent, not guessed.
+        const promptChars = prepared.request.messages.reduce((n, m) => n + m.content.length, 0);
+        const routingTask = {
+          complexity: estimateComplexity({
+            language,
+            contentChars: promptChars,
+            findingCount: mergeable.length + 1,
+          }),
+          estimatedTokens: Math.ceil(promptChars / 4),
+        };
+
         const walk = await orchestrator.run(
           request.profile,
           async (candidate) => {
@@ -717,6 +733,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
           },
           {
             signal: controller.signal,
+            task: routingTask,
             onFailover: (record) => {
               console.error('[ai] failing over', {
                 fromProvider: record.candidate.provider,

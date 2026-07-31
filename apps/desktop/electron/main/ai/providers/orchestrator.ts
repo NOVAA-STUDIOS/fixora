@@ -2,13 +2,16 @@ import {
   providerRegistration,
   resolveCapabilities,
   runWithFailover,
+  selectBestModel,
   supportsProfile,
   type AIProvider,
+  type CatalogueModel,
   type FailoverAttemptRecord,
   type FailoverAttemptResult,
   type FailoverCandidate,
   type FailoverOutcome,
   type ModelFacts,
+  type RoutingTask,
 } from '@fixora/core-ai';
 import type { TaskProfile } from '@fixora/shared-types';
 
@@ -45,6 +48,13 @@ export interface OrchestratorDeps {
   credentials: CredentialStore;
   /** Per-model metadata, where the provider publishes it (OpenRouter). Absent elsewhere. */
   modelFacts?: (providerId: string, model: string) => Promise<ModelFacts | null>;
+  /**
+   * Full model listing for a provider, when it exposes one (`discovery: 'catalogue'`). Used ONLY to
+   * pick a model for a provider the user left on "auto" — an explicit user model is never replaced.
+   */
+  modelCatalogue?: (providerId: string) => Promise<readonly CatalogueModel[]>;
+  /** Per-model repair-metrics success rate (0–1), for routing's tiebreak. Absent means no history. */
+  successRate?: (providerId: string, model: string) => number | null;
   appMeta?: { url?: string; name?: string };
 }
 
@@ -66,13 +76,19 @@ export interface Orchestrator {
    */
   resolveChain(
     profile: TaskProfile,
+    task?: RoutingTask,
   ): Promise<{ ok: true; candidates: ResolvedCandidate[] } | { ok: false; reason: ChainRefusal }>;
 
   /** Walk the chain. Identical failover semantics to the single-provider implementation. */
   run<T>(
     profile: TaskProfile,
     attempt: (candidate: ResolvedCandidate) => Promise<FailoverAttemptResult<T>>,
-    options?: { signal?: AbortSignal; onFailover?: (record: FailoverAttemptRecord<ResolvedCandidate>) => void },
+    options?: {
+      signal?: AbortSignal;
+      onFailover?: (record: FailoverAttemptRecord<ResolvedCandidate>) => void;
+      /** Complexity/size hint for smart model routing on "auto" providers. Optional; safe to omit. */
+      task?: RoutingTask;
+    },
   ): Promise<OrchestratorOutcome<T>>;
 }
 
@@ -84,6 +100,7 @@ export type OrchestratorOutcome<T> =
 export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
   async function resolveChain(
     profile: TaskProfile,
+    task?: RoutingTask,
   ): Promise<{ ok: true; candidates: ResolvedCandidate[] } | { ok: false; reason: ChainRefusal }> {
     const enabled = deps.registry.enabled();
     if (enabled.length === 0) return { ok: false, reason: 'none-enabled' };
@@ -102,16 +119,27 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
       if (descriptor.auth === 'api-key' && apiKey === null) continue;
       sawCredential = true;
 
+      // Smart model routing — ONLY when the user left this provider's model on "auto". An explicit
+      // pick (the state migration puts every existing user in, and what a manual choice always
+      // produces) is never overridden: "the orchestrator always follows user priority" extends to
+      // the user's own model choice, not just provider order.
+      let model = settings.model;
+      if (task !== undefined && registration.descriptor.discovery === 'catalogue' && deps.registry.modelIsAuto(settings.id)) {
+        const catalogue = (await deps.modelCatalogue?.(settings.id)) ?? [];
+        const best = selectBestModel(catalogue, task, (id) => deps.successRate?.(settings.id, id) ?? null);
+        if (best !== null) model = best.id;
+      }
+
       // Capability gate. A provider that cannot honour a schema would return prose where a patch is
       // expected, and repair writes to source files — so it is excluded here rather than discovered
       // by spending a request and failing the parse.
-      const facts = (await deps.modelFacts?.(settings.id, settings.model)) ?? null;
+      const facts = (await deps.modelFacts?.(settings.id, model)) ?? null;
       const resolved = resolveCapabilities(descriptor.capabilities, facts);
       if (!supportsProfile(profile, resolved)) continue;
 
       candidates.push({
         provider: settings.id,
-        model: settings.model,
+        model,
         adapter: registration.create({
           apiKey,
           baseUrl: settings.baseUrl,
@@ -135,9 +163,10 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
       options: {
         signal?: AbortSignal;
         onFailover?: (record: FailoverAttemptRecord<ResolvedCandidate>) => void;
+        task?: RoutingTask;
       } = {},
     ): Promise<OrchestratorOutcome<T>> {
-      const chain = await resolveChain(profile);
+      const chain = await resolveChain(profile, options.task);
       if (!chain.ok) return { ok: false, refused: true, reason: chain.reason };
 
       const [head, ...rest] = chain.candidates;

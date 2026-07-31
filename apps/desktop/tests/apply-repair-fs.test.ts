@@ -189,3 +189,77 @@ describe('ai:applyRepair — filesystem failures travel as contract data', () =>
     })();
   });
 });
+
+/**
+ * Apply reliability: a small, unrelated edit above the target must not force a re-run. The target
+ * text itself is unchanged, so relocating to it and splicing carries no more risk than applying at
+ * the original (unmoved) line range — the bytes written are still exactly what was verified.
+ */
+describe('ai:applyRepair — survives a target that moved but did not change', () => {
+  it('relocates when a line was inserted above the target and applies exactly', async () => {
+    writeFileSync(
+      join(root, 'src', 'm.ts'),
+      // A new import was added above the target after the repair was generated — the target
+      // (`const b = 2;`) shifted from line 2 to line 3, unchanged.
+      'import { x } from "./x";\nconst a = 1;\nconst b = 2;\nconst c = 3;\n',
+    );
+    const handler = await applyHandler(root);
+    const outcome = handler(
+      {
+        file: 'src/m.ts',
+        startLine: 2, // stale — recorded before the import was added
+        endLine: 2,
+        code: 'const b = 20;',
+        expectedOriginal: 'const b = 2;',
+      },
+      { requestId: 'r1', window: null },
+    );
+    expect(outcome.applied).toBe(true);
+    if (outcome.applied) expect(outcome.relocated).toBe(true);
+    expect(readFileSync(join(root, 'src', 'm.ts'), 'utf8')).toBe(
+      'import { x } from "./x";\nconst a = 1;\nconst b = 20;\nconst c = 3;\n',
+    );
+  });
+
+  it('does NOT relocate when the target text itself changed — still refuses as stale-range', async () => {
+    writeFileSync(
+      join(root, 'src', 'm.ts'),
+      // The target line changed (not just moved) — no exact match exists anywhere, so this must
+      // still refuse rather than guess at a "close enough" location.
+      'import { x } from "./x";\nconst a = 1;\nconst b = 999;\nconst c = 3;\n',
+    );
+    const handler = await applyHandler(root);
+    const outcome = handler(
+      {
+        file: 'src/m.ts',
+        startLine: 2,
+        endLine: 2,
+        code: 'const b = 20;',
+        expectedOriginal: 'const b = 2;',
+      },
+      { requestId: 'r2', window: null },
+    );
+    expect(outcome.applied).toBe(false);
+    if (!outcome.applied) expect(outcome.reason).toBe('stale-range');
+    expect(readFileSync(join(root, 'src', 'm.ts'), 'utf8')).toBe(
+      'import { x } from "./x";\nconst a = 1;\nconst b = 999;\nconst c = 3;\n',
+    );
+  });
+
+  it('an unmoved target applies normally with relocated: false', async () => {
+    writeFileSync(join(root, 'src', 'm.ts'), 'const a = 1;\nconst b = 2;\nconst c = 3;\n');
+    const handler = await applyHandler(root);
+    const outcome = handler(
+      {
+        file: 'src/m.ts',
+        startLine: 2,
+        endLine: 2,
+        code: 'const b = 20;',
+        expectedOriginal: 'const b = 2;',
+      },
+      { requestId: 'r3', window: null },
+    );
+    expect(outcome.applied).toBe(true);
+    if (outcome.applied) expect(outcome.relocated).toBe(false);
+  });
+});

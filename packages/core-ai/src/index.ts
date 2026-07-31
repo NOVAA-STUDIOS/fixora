@@ -128,6 +128,14 @@ export {
   type ProviderCapabilityMatrix,
   type ResolvedCapabilities,
 } from './provider/capability.js';
+export {
+  estimateComplexity,
+  rankModelsForTask,
+  selectBestModel,
+  type ComplexityInput,
+  type RepairComplexity,
+  type RoutingTask,
+} from './provider/routing.js';
 export type {
   ModelDiscovery,
   ProviderAuthKind,
