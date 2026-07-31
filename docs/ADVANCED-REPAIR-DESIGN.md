@@ -34,13 +34,21 @@ Two strategies, both narrow and defensible, never a generic "these seem related"
    else by severity). This is the same "scope" concept `related-scope` mode already uses, just also
    used to pick which member is the root cause.
 
-**The target range is the root cause's own scope, never a union spanning scattered usages.** Members
-whose scope is *contained inside* that range are `mergeable` (genuinely rewritten by the patch,
-exactly like `related-scope`'s existing merge rule, including: never absorb a `manual`-repair
-finding). Everything else in the group is `affected` — reported to the model as context and checked
-by re-analysis afterward, never spliced. `estimatedDiagnosticsRemoved` is the affected count, labeled
-as an estimate everywhere it is shown, because whether it actually clears is what verification, not
-the grouping, decides.
+**The target range starts at the root cause's own scope, and how far it may widen depends on WHY the
+group was formed** — the two strategies earn different trust:
+
+- **Identifier groups**: members merge only if already *contained inside* the root cause's own scope
+  (mirrors `related-scope`'s merge rule exactly, including never absorbing a `manual`-repair finding).
+  Independent, scattered occurrences of the same name are not proof the code *between* them is safe
+  to rewrite, so the target never widens to reach them — they stay `affected`, reported to the model
+  as context and checked by re-analysis afterward, never spliced.
+- **Scope groups**: membership itself is the proof — findings only end up in the same scope group
+  because their ranges transitively overlap, i.e. they already sit in one contiguous, adjacent region.
+  The whole group merges and the target unions across it, which is the coherent, non-fragmented patch
+  the design calls for rather than an unproven guess.
+
+`estimatedDiagnosticsRemoved` is the `affected` count, labeled as an estimate everywhere it is shown,
+because whether it actually clears is what verification, not the grouping, decides.
 
 **Known, stated limitation:** grouping does not infer cross-rule causality (e.g. "this type error was
 probably caused by that missing import elsewhere"). Only same-identifier and same-scope relationships
