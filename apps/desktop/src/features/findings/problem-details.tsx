@@ -294,11 +294,15 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
         <ConfirmDialog
           open={confirmAdvanced}
           onOpenChange={setConfirmAdvanced}
-          title="Run AI File Repair on this whole file?"
-          description={repairModeInfo('ai-file').warning ?? ''}
-          confirmLabel="Analyze whole file"
+          title={
+            mode === 'advanced'
+              ? 'Run Advanced Repair on this problem?'
+              : 'Run AI File Repair on this whole file?'
+          }
+          description={repairModeInfo(mode).warning ?? ''}
+          confirmLabel={mode === 'advanced' ? 'Find root cause' : 'Analyze whole file'}
           onConfirm={() => {
-            void runAi('repair', finding.id, 'ai-file');
+            void runAi('repair', finding.id, mode);
           }}
         />
 
