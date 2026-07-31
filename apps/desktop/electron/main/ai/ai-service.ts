@@ -18,7 +18,7 @@ import {
   type ProviderRequest,
   type AIProvider,
 } from '@fixora/core-ai';
-import { groupByRootCause, type MicroRepairResult, type RootCauseGroup } from '@fixora/core-analysis';
+import type { MicroRepairResult, RootCauseGroup } from '@fixora/core-analysis';
 import { isUserFacingError } from '@fixora/shared-types';
 import type {
   AiRunRequest,
@@ -535,9 +535,18 @@ export function createAiService(deps: AiServiceDeps): AiService {
       // Computed here, before `patchTarget`, because the group DECIDES the target for this mode —
       // the splice range is the root cause's own scope, possibly widened by its group, never the
       // whole file and never a union spanning independent scattered occurrences.
+      // Dynamic import, not a static one: `@fixora/core-analysis` publishes ESM only (no `require`
+      // export condition), and this file is the CJS main process — a static value-import compiles
+      // fine but throws ERR_PACKAGE_PATH_NOT_EXPORTED at startup, on EVERY run, whether or not
+      // Advanced Repair is ever used. Every other reference to this package in `main/` is already
+      // type-only for exactly this reason (erased at compile time, never reaches `require`);
+      // `groupByRootCause` is the first VALUE this process needs from it, so it needs the escape
+      // hatch instead: `import()` goes through the ESM loader even from inside a CJS module, which
+      // resolves the package's `import` condition correctly. Paid only on an actual Advanced Repair
+      // run, not on every launch.
       const advancedGroup: RootCauseGroup | null =
         mode === 'advanced'
-          ? (groupByRootCause([finding, ...siblings]).find(
+          ? ((await import('@fixora/core-analysis')).groupByRootCause([finding, ...siblings]).find(
               (g) =>
                 g.rootCause.id === finding.id ||
                 g.mergeable.some((f) => f.id === finding.id) ||
