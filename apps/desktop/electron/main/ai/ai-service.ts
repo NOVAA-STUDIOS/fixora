@@ -18,7 +18,7 @@ import {
   type ProviderRequest,
   type AIProvider,
 } from '@fixora/core-ai';
-import type { MicroRepairResult } from '@fixora/core-analysis';
+import { groupByRootCause, type MicroRepairResult, type RootCauseGroup } from '@fixora/core-analysis';
 import { isUserFacingError } from '@fixora/shared-types';
 import type {
   AiRunRequest,
@@ -30,6 +30,7 @@ import type {
   RepairMode,
   RepairSummary,
   RepairSummaryEntry,
+  RootCauseInfo,
 } from '@fixora/shared-types';
 import { app, type BrowserWindow } from 'electron';
 
@@ -193,6 +194,24 @@ function buildRepairSummary(input: {
           : 'Outside the repair scope. Repair it separately to keep this patch minimal.',
       ),
     ),
+  };
+}
+
+/** The Root Cause View (Advanced Repair only) — null when the mode is anything else. */
+function buildRootCauseInfo(input: {
+  mode: RepairMode;
+  selected: Finding;
+  group: RootCauseGroup | null;
+}): RootCauseInfo | undefined {
+  if (input.mode !== 'advanced' || input.group === null) return undefined;
+  const { rootCause, affected } = input.group;
+  return {
+    basis: input.group.basis,
+    ruleId: rootCause.ruleId,
+    message: rootCause.message,
+    line: rootCause.location.startLine,
+    differsFromSelection: rootCause.id !== input.selected.id,
+    affected: affected.map((f) => ({ ruleId: f.ruleId, line: f.location.startLine, message: f.message })),
   };
 }
 
@@ -504,8 +523,6 @@ export function createAiService(deps: AiServiceDeps): AiService {
        */
       const mode: RepairMode = request.mode ?? 'finding';
       const fileLineCount = content.split(/\r?\n/).length;
-      const patchTarget: Target =
-        mode === 'ai-file' ? { symbolName: null, startLine: 1, endLine: fileLineCount } : target;
 
       // Every other finding in this file, split by whether it falls inside the patch range. Only
       // those inside can be fixed by this patch — anything outside would need a wider splice, which
@@ -513,13 +530,49 @@ export function createAiService(deps: AiServiceDeps): AiService {
       const siblings = deps.findings
         .list(workspace.id, { relPath: finding.location.file })
         .filter((f) => f.id !== finding.id);
+
+      // Advanced Repair: root-cause grouping (pure, no model call — see root-cause-grouping.ts).
+      // Computed here, before `patchTarget`, because the group DECIDES the target for this mode —
+      // the splice range is the root cause's own scope, possibly widened by its group, never the
+      // whole file and never a union spanning independent scattered occurrences.
+      const advancedGroup: RootCauseGroup | null =
+        mode === 'advanced'
+          ? (groupByRootCause([finding, ...siblings]).find(
+              (g) =>
+                g.rootCause.id === finding.id ||
+                g.mergeable.some((f) => f.id === finding.id) ||
+                g.affected.some((f) => f.id === finding.id),
+            ) ?? null)
+          : null;
+
+      const patchTarget: Target =
+        mode === 'ai-file'
+          ? { symbolName: null, startLine: 1, endLine: fileLineCount }
+          : mode === 'advanced' && advancedGroup !== null
+            ? {
+                symbolName: advancedGroup.rootCause.evidence.enclosingSymbol?.name ?? null,
+                startLine: advancedGroup.targetRange.startLine,
+                endLine: advancedGroup.targetRange.endLine,
+              }
+            : target;
+
       const withinPatch = (f: Finding): boolean =>
         f.location.startLine >= patchTarget.startLine &&
         f.location.startLine <= patchTarget.endLine;
       // `manual` findings are never merged in: the analyzer already judged that no machine should
       // guess them, and bundling one into a patch would launder that refusal.
+      //
+      // Advanced Repair uses the GROUP's own merge decision (root-cause-grouping.ts already applied
+      // the manual exclusion, and — critically — the identifier/scope distinction that decides how
+      // far a patch may safely widen) rather than the generic "anything on a line inside the range"
+      // rule, which would sweep in loosely-adjacent findings the grouping deliberately did not vouch
+      // for.
       const mergeable =
-        mode === 'finding' ? [] : siblings.filter((f) => withinPatch(f) && f.repair !== 'manual');
+        mode === 'finding'
+          ? []
+          : mode === 'advanced'
+            ? (advancedGroup?.mergeable ?? [])
+            : siblings.filter((f) => withinPatch(f) && f.repair !== 'manual');
       const skipped = siblings.filter((f) => !mergeable.includes(f));
 
       // Manual Validation Phase 2 instrumentation. Observes only — every stage is recorded so a
@@ -690,6 +743,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
             // What this patch actually covered, and what it deliberately did not — each skip with a
             // reason, so a minimal patch reads as a choice rather than an oversight.
             repairSummary: buildRepairSummary({ finding, related: mergeable, others: skipped }),
+            rootCause: buildRootCauseInfo({ mode, selected: finding, group: advancedGroup }),
             repairedCode: parsed.value.repairedCode,
             originalCode,
             rationale: parsed.value.rationale,
@@ -716,11 +770,17 @@ export function createAiService(deps: AiServiceDeps): AiService {
         // `orchestrator.ts`. Complexity is estimated from what is actually being sent, not guessed.
         const promptChars = prepared.request.messages.reduce((n, m) => n + m.content.length, 0);
         const routingTask = {
-          complexity: estimateComplexity({
-            language,
-            contentChars: promptChars,
-            findingCount: mergeable.length + 1,
-          }),
+          // Advanced Repair is definitionally the complex case — it coordinates a root cause with
+          // its group rather than a single finding — so complexity is never re-estimated down for
+          // it, the same way a small file with one lint nit is.
+          complexity:
+            mode === 'advanced'
+              ? ('high' as const)
+              : estimateComplexity({
+                  language,
+                  contentChars: promptChars,
+                  findingCount: mergeable.length + 1,
+                }),
           estimatedTokens: Math.ceil(promptChars / 4),
         };
 

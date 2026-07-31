@@ -15,13 +15,35 @@ describe('repair modes', () => {
     expect(repairModeInfo(undefined).mode).toBe('finding');
   });
 
-  it('offers exactly the three modes, ordered by blast radius', () => {
-    expect(REPAIR_MODES.map((m) => m.mode)).toEqual(['finding', 'related-scope', 'ai-file']);
+  it('offers exactly the four modes, ordered by blast radius', () => {
+    expect(REPAIR_MODES.map((m) => m.mode)).toEqual([
+      'finding',
+      'related-scope',
+      'ai-file',
+      'advanced',
+    ]);
   });
 
-  it('only the whole-file mode is advanced, and it is named as such', () => {
-    expect(REPAIR_MODES.filter((m) => m.advanced).map((m) => m.mode)).toEqual(['ai-file']);
+  it('ai-file and advanced are both marked advanced, and named as such', () => {
+    expect(REPAIR_MODES.filter((m) => m.advanced).map((m) => m.mode)).toEqual([
+      'ai-file',
+      'advanced',
+    ]);
     expect(repairModeInfo('ai-file').label).toBe('AI File Repair (Advanced)');
+    expect(repairModeInfo('advanced').label).toBe('Advanced Repair');
+  });
+
+  /**
+   * Advanced Repair is a STANDALONE engine, not a bigger version of `ai-file` — it targets a
+   * root-cause-computed range, never the whole file blindly, and it can land on a different
+   * location than the one selected. Its own warning must say so, distinctly from ai-file's.
+   */
+  it('Advanced Repair warns that it may retarget, and never claims to touch the whole file', () => {
+    const warning = repairModeInfo('advanced').warning ?? '';
+    expect(warning).toMatch(/different location|root cause/i);
+    expect(warning).toMatch(/verified/i);
+    // Reassures it will NOT blindly touch the whole file — must never instead CLAIM to replace it.
+    expect(warning.toLowerCase()).not.toContain('replaces the whole file');
   });
 
   it('the advanced mode warns, in plain words, that it replaces the whole file', () => {
