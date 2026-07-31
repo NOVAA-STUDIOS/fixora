@@ -329,3 +329,67 @@ describe('RepairResult — the patch card', () => {
     expect(screen.getByText('Repair Finding')).toBeInTheDocument();
   });
 });
+
+/**
+ * The Root Cause View — Advanced Repair only. Answers "why is this touching a different line than
+ * the one I selected", and must never look like a second source of truth competing with the
+ * validation badges, which is what actually confirms anything.
+ */
+describe('RepairResult — Root Cause View', () => {
+  it('renders nothing extra when the proposal carries no rootCause (every other mode)', () => {
+    render(<RepairResult proposal={proposal({ mode: 'finding' })} finding={finding()} />);
+    expect(screen.queryByText('Root cause')).not.toBeInTheDocument();
+  });
+
+  it('shows the root-cause finding, its basis, and flags a different location', () => {
+    render(
+      <RepairResult
+        proposal={proposal({
+          mode: 'advanced',
+          rootCause: {
+            basis: 'identifier',
+            ruleId: 'TS2304',
+            message: "Cannot find name 'config'.",
+            line: 5,
+            differsFromSelection: true,
+            affected: [
+              { ruleId: 'TS2304', line: 40, message: "Cannot find name 'config'." },
+              { ruleId: 'TS2304', line: 80, message: "Cannot find name 'config'." },
+            ],
+          },
+        })}
+        finding={finding()}
+      />,
+    );
+    expect(screen.getByText('Root cause')).toBeInTheDocument();
+    expect(screen.getByText('different location')).toBeInTheDocument();
+    expect(screen.getByText('TS2304')).toBeInTheDocument();
+    expect(screen.getByText(/Same missing name, found elsewhere/)).toBeInTheDocument();
+    expect(screen.getByText(/Estimated 2 diagnostics may clear/)).toBeInTheDocument();
+    // Never presented as confirmed — the validation badges are what confirm anything.
+    expect(screen.getByText(/confirmed by validation below, not by this estimate/)).toBeInTheDocument();
+  });
+
+  it('does not claim a different location when the user selected the root cause itself', () => {
+    render(
+      <RepairResult
+        proposal={proposal({
+          mode: 'advanced',
+          rootCause: {
+            basis: 'scope',
+            ruleId: 'json-parse',
+            message: 'Invalid JSON',
+            line: 3,
+            differsFromSelection: false,
+            affected: [],
+          },
+        })}
+        finding={finding()}
+      />,
+    );
+    expect(screen.getByText('Root cause')).toBeInTheDocument();
+    expect(screen.queryByText('different location')).not.toBeInTheDocument();
+    // No affected findings — no fabricated estimate line.
+    expect(screen.queryByText(/may clear as a side effect/)).not.toBeInTheDocument();
+  });
+});
