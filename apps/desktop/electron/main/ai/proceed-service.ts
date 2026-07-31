@@ -52,6 +52,8 @@ export interface ProceedLogEntry {
 
 export interface ProceedDeps {
   provider: AIProvider;
+  /** The registry id for `provider`, e.g. `openrouter`. Optional so an ad-hoc test double compiles. */
+  providerId?: string;
   model: string;
   maxOutputTokens?: number;
   workspaceRoot: string;
@@ -305,6 +307,7 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
         originalCode,
         repairedCode: parsed.value.editedCode,
         model: deps.model,
+        provider: deps.providerId ?? null,
         confidence: parsed.value.confidence,
         startLine: scope.startLine,
         endLine: scope.endLine,

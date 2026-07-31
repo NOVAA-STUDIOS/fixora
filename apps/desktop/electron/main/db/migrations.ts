@@ -170,4 +170,18 @@ export const migrations: readonly Migration[] = [
       d.exec(`ALTER TABLE workspaces ADD COLUMN pinned_at INTEGER`);
     },
   },
+  {
+    version: 7,
+    name: 'repairs_provider_history',
+    up: (d) => {
+      // Provider History (Public Beta stabilization). Nullable/defaulted so every existing row reads
+      // back unchanged — an old repair simply has no provider recorded and an empty attempt list,
+      // which is the honest answer for a repair from before providers other than OpenRouter existed.
+      d.exec(`ALTER TABLE repairs ADD COLUMN provider TEXT`);
+      // JSON array of {provider, model, category} — the walk that led to this repair's final
+      // provider, for the same reason `AiFailure.attempts` exists on the failure card: without it,
+      // a user has no way to see that Fixora already tried other providers on their behalf.
+      d.exec(`ALTER TABLE repairs ADD COLUMN attempts TEXT NOT NULL DEFAULT '[]'`);
+    },
+  },
 ];

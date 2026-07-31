@@ -96,6 +96,7 @@ export function registerProceedHandlers(deps: {
     try {
       const service = createProceedService({
         provider: candidate.adapter,
+        providerId: candidate.provider,
         model: candidate.model,
         workspaceRoot: workspace.rootPath,
         workspaceId: workspace.id,

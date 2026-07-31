@@ -26,6 +26,7 @@ import type {
   AiRunStage,
   Finding,
   Language,
+  RepairHistoryAttempt,
   RepairMode,
   RepairSummary,
   RepairSummaryEntry,
@@ -566,6 +567,13 @@ export function createAiService(deps: AiServiceDeps): AiService {
       // A ref rather than a `let`: finalize() assigns it from inside a closure, and TypeScript's
       // control-flow analysis cannot see that, so it narrows a plain `let` to `null` at every read.
       const lastFailure: { current: ParseFailureInfo | null } = { current: null };
+      // Same ref pattern, same reason: `finalize` is defined before the walk runs, so it cannot see
+      // `const`s the walk introduces later in the same function. Filled in once the walk resolves,
+      // read inside `finalize` when it records history — Provider History (the final provider plus
+      // what was tried before it).
+      const usedCandidate: {
+        current: { provider: string; model: string; attempts: RepairHistoryAttempt[] } | null;
+      } = { current: null };
 
       // Turn a raw completion into a response. `repair` verifies on an overlay before returning; a
       // schema violation returns the SCHEMA_ERROR sentinel so run() can re-ask exactly once.
@@ -666,7 +674,9 @@ export function createAiService(deps: AiServiceDeps): AiService {
           rationale: parsed.value.rationale,
           originalCode,
           repairedCode: parsed.value.repairedCode,
-          model: deps.keyStore.getConfig().model,
+          model: usedCandidate.current?.model ?? deps.keyStore.getConfig().model,
+          provider: usedCandidate.current?.provider ?? null,
+          attempts: usedCandidate.current?.attempts ?? [],
           confidence: parsed.value.confidence,
           startLine: patchTarget.startLine,
           endLine: patchTarget.endLine,
@@ -771,9 +781,12 @@ export function createAiService(deps: AiServiceDeps): AiService {
         // Every model tried before the one being reported, so a total failure renders as ONE
         // consolidated card instead of a sequence the user has to piece together.
         const walkAttempts = walk.attempts.map((record) => ({
+          provider: record.candidate.provider,
           model: record.candidate.model,
           category: record.failure.category,
         }));
+        // For Provider History: which providers were tried and failed before this one, if any.
+        usedCandidate.current = { provider: usedProvider, model: usedModel, attempts: walkAttempts };
         let stream: StreamResult = walk.ok
           ? walk.value
           : { ok: false, message: walk.failure.message, retryable: walk.failure.retryable, failure: walk.failure };

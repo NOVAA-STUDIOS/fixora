@@ -165,6 +165,89 @@ describe('repositories', () => {
     driver.close();
   });
 
+  /**
+   * Provider History: which provider actually answered, and what was tried before it, round-trips
+   * through real SQLite — not just through the schema. A repair recorded without provider info
+   * (the deterministic micro-repair path, or a pre-migration row) must read back as `null`/`[]`
+   * rather than crashing or fabricating a value.
+   */
+  it('records and reads back the provider and the attempt history', () => {
+    const { driver } = openDatabase({ dir });
+    const workspaces = createWorkspaceRepository(driver);
+    const ws = workspaces.upsertByRootPath('/repo', 'repo');
+    const history = createRepairHistoryRepository(driver);
+
+    const base: Omit<NewRepair, 'ruleId' | 'verdict'> = {
+      workspaceId: ws.id,
+      findingId: 'f1',
+      relPath: 'src/a.ts',
+      symbolName: 'greet',
+      source: 'eslint',
+      rationale: 'use a template literal',
+      originalCode: 'a + b',
+      repairedCode: '`${a}${b}`',
+      model: 'gpt-4.1-mini',
+      confidence: 0.9,
+      startLine: 1,
+      endLine: 3,
+    };
+
+    const withRetriesId = history.record({
+      ...base,
+      ruleId: 'prefer-template',
+      verdict: 'verified',
+      provider: 'openai',
+      attempts: [
+        { provider: 'openrouter', model: 'openai/gpt-oss-20b:free', category: 'quota-exceeded' },
+      ],
+    });
+    const noProviderId = history.record({
+      ...base,
+      findingId: 'f2',
+      ruleId: 'no-unused',
+      verdict: 'verified',
+      model: null,
+      // provider/attempts omitted entirely — the deterministic (safe-auto) path shape.
+    });
+
+    const entries = history.list(ws.id);
+    const withRetries = entries.find((e) => e.id === withRetriesId);
+    const noProvider = entries.find((e) => e.id === noProviderId);
+
+    expect(withRetries?.provider).toBe('openai');
+    expect(withRetries?.attempts).toEqual([
+      { provider: 'openrouter', model: 'openai/gpt-oss-20b:free', category: 'quota-exceeded' },
+    ]);
+    // The honest default for a repair that used no AI provider at all — never a fabricated "openrouter".
+    expect(noProvider?.provider).toBeNull();
+    expect(noProvider?.attempts).toEqual([]);
+    driver.close();
+  });
+
+  it('an existing v6 row (before Provider History) reads back as unattributed, not corrupted', () => {
+    const { driver } = openDatabase({ dir });
+    const workspaces = createWorkspaceRepository(driver);
+    const ws = workspaces.upsertByRootPath('/repo', 'repo');
+    // Simulate a row from before migration 7 by inserting directly, bypassing the repository's own
+    // (now provider-aware) INSERT — this is what an upgraded user's existing data actually looks like.
+    driver
+      .prepare(
+        `INSERT INTO repairs
+           (id, workspace_id, finding_id, rel_path, symbol_name, rule_id, source, verdict, applied,
+            rationale, original_code, repaired_code, model, confidence, start_line, end_line, created_at)
+         VALUES ('legacy-1', ?, 'f1', 'src/a.ts', 'a', 'prefer-const', 'eslint', 'verified', 0,
+                 'r', 'old', 'new', 'gpt-4', 0.9, 1, 1, 1000)`,
+      )
+      .run(ws.id);
+
+    const history = createRepairHistoryRepository(driver);
+    const entry = history.list(ws.id).find((e) => e.id === 'legacy-1');
+    expect(entry).toBeDefined();
+    expect(entry?.provider).toBeNull();
+    expect(entry?.attempts).toEqual([]); // the column default ('[]'), parsed cleanly
+    driver.close();
+  });
+
   it('replaces a workspace file index transactionally', () => {
     const { driver } = openDatabase({ dir });
     const workspaces = createWorkspaceRepository(driver);
