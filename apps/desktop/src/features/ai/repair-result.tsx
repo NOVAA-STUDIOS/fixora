@@ -154,6 +154,60 @@ function PatchCard({
   );
 }
 
+type RootCause = NonNullable<Extract<AiProposal, { profile: 'repair' }>['rootCause']>;
+
+const ROOT_CAUSE_BASIS_LABEL: Record<RootCause['basis'], string> = {
+  identifier: 'Same missing name, found elsewhere in this file',
+  scope: 'Grouped with nearby findings in the same code block',
+  singleton: 'No other findings grouped with it',
+};
+
+/**
+ * The Root Cause View — Advanced Repair only. Answers the question a coordinated, possibly-retargeted
+ * patch raises immediately: "why is this touching a different line than the one I selected?"
+ *
+ * Rendered only when `proposal.rootCause` is present (additive on the wire; every other mode has no
+ * such field). `estimatedDiagnosticsRemoved` is stated as an estimate here too, on purpose — the
+ * validation row above it is what actually confirms anything, and this card must never look like a
+ * second source of truth competing with it.
+ */
+function RootCauseCard({ rootCause }: { rootCause: RootCause }): React.JSX.Element {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-md border border-accent-border bg-accent-subtle px-2.5 py-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-accent-text">
+          Root cause
+        </span>
+        {rootCause.differsFromSelection && (
+          <span
+            className="shrink-0 rounded bg-inset px-1 py-px text-[9px] font-medium text-fg-muted"
+            title="Advanced Repair traced this problem to a different location than the one you selected."
+          >
+            different location
+          </span>
+        )}
+      </div>
+      <p className="text-[11px] leading-snug text-fg-secondary [overflow-wrap:anywhere]">
+        <code className="font-mono text-[10px] text-fg">{rootCause.ruleId}</code>
+        {' at line '}
+        <span className="font-mono tabular-nums">{rootCause.line}</span>
+        {': '}
+        {rootCause.message}
+      </p>
+      <p className="text-[10px] text-fg-muted">
+        {ROOT_CAUSE_BASIS_LABEL[rootCause.basis]}
+      </p>
+      {rootCause.affected.length > 0 && (
+        <p className="text-[10px] text-fg-muted [overflow-wrap:anywhere]">
+          Estimated {rootCause.affected.length}{' '}
+          {rootCause.affected.length === 1 ? 'diagnostic' : 'diagnostics'} may clear as a side
+          effect — confirmed by validation below, not by this estimate.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * The four validation badges. `title` carries the full sentence, so a badge is never a bare mark the
  * user has to interpret — and `not-run` is styled neutrally so it cannot be mistaken for a pass.
@@ -311,6 +365,7 @@ export function RepairResult({
           />
         </div>
         <PatchCard proposal={proposal} badges={badges} />
+        {proposal.rootCause !== undefined && <RootCauseCard rootCause={proposal.rootCause} />}
       </div>
 
       {/*
