@@ -5,6 +5,7 @@ import type {
   FindingSource,
   FindingsFilter,
   FindingsSummary,
+  RepairHistoryAttempt,
   RepairHistoryEntry,
   Severity,
   Verdict,
@@ -294,9 +295,24 @@ export interface NewRepair {
   originalCode: string;
   repairedCode: string;
   model: string | null;
+  /** The provider that ultimately answered. Null when the run predates Provider History. */
+  provider?: string | null;
+  /** Providers tried and failed before the final one — empty when it succeeded on the first try. */
+  attempts?: readonly RepairHistoryAttempt[];
   confidence: number;
   startLine: number;
   endLine: number;
+}
+
+/** A row from before Provider History (or a corrupt value) reads back as no attempts, never a crash. */
+function parseAttempts(value: unknown): RepairHistoryAttempt[] {
+  if (typeof value !== 'string' || value === '') return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as RepairHistoryAttempt[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 function toHistoryEntry(row: Row): RepairHistoryEntry {
@@ -313,6 +329,8 @@ function toHistoryEntry(row: Row): RepairHistoryEntry {
     originalCode: row['original_code'] as string,
     repairedCode: row['repaired_code'] as string,
     model: (row['model'] as string | null) ?? null,
+    provider: (row['provider'] as string | null) ?? null,
+    attempts: parseAttempts(row['attempts']),
     confidence: row['confidence'] as number,
     startLine: row['start_line'] as number,
     endLine: row['end_line'] as number,
@@ -334,8 +352,9 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
         .prepare(
           `INSERT INTO repairs
              (id, workspace_id, finding_id, rel_path, symbol_name, rule_id, source, verdict, applied,
-              rationale, original_code, repaired_code, model, confidence, start_line, end_line, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              rationale, original_code, repaired_code, model, provider, attempts, confidence,
+              start_line, end_line, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -350,6 +369,8 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
           repair.originalCode,
           repair.repairedCode,
           repair.model,
+          repair.provider ?? null,
+          JSON.stringify(repair.attempts ?? []),
           repair.confidence,
           repair.startLine,
           repair.endLine,

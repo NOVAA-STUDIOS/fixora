@@ -420,6 +420,29 @@ export const ApplyOutcomeSchema = z.discriminatedUnion('applied', [
 export type ApplyOutcome = z.infer<typeof ApplyOutcomeSchema>;
 
 /** One recorded repair in the local, private audit trail (Beta Phase E). */
+/** The classification vocabulary, extracted so an attempt entry can reuse it. */
+export const FailureCategorySchema = z.enum([
+  'quota-exceeded',
+  'rate-limited',
+  'timeout',
+  'invalid-api-key',
+  'auth-failed',
+  'provider-unavailable',
+  'network-offline',
+  'model-unavailable',
+  'context-too-large',
+  'invalid-response',
+  'unknown-provider-error',
+]);
+
+/** One provider tried before the final one, for Provider History. Mirrors AiFailure.attempts. */
+export const RepairHistoryAttemptSchema = z.object({
+  provider: z.string(),
+  model: z.string(),
+  category: FailureCategorySchema,
+});
+export type RepairHistoryAttempt = z.infer<typeof RepairHistoryAttemptSchema>;
+
 export const RepairHistoryEntrySchema = z.object({
   id: z.string(),
   findingId: z.string(),
@@ -433,6 +456,10 @@ export const RepairHistoryEntrySchema = z.object({
   originalCode: z.string(),
   repairedCode: z.string(),
   model: z.string().nullable(),
+  /** Which provider ultimately answered. Null for repairs recorded before Provider History shipped. */
+  provider: z.string().nullable().default(null),
+  /** Providers tried and failed before the final one — empty when it succeeded on the first try. */
+  attempts: z.array(RepairHistoryAttemptSchema).default([]),
   confidence: z.number().min(0).max(1),
   startLine: z.number().int().positive(),
   endLine: z.number().int().positive(),
@@ -461,21 +488,6 @@ export type GateMatchInfo = z.infer<typeof GateMatchInfoSchema>;
  * in the main process and never crosses the IPC boundary, because there is no UI that should show it
  * and every field that crosses is a field that can leak.
  */
-/** The classification vocabulary, extracted so an attempt entry can reuse it. */
-export const FailureCategorySchema = z.enum([
-  'quota-exceeded',
-  'rate-limited',
-  'timeout',
-  'invalid-api-key',
-  'auth-failed',
-  'provider-unavailable',
-  'network-offline',
-  'model-unavailable',
-  'context-too-large',
-  'invalid-response',
-  'unknown-provider-error',
-]);
-
 export const AiFailureSchema = z.object({
   category: z.enum([
     'quota-exceeded',

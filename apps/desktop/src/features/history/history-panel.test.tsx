@@ -34,6 +34,8 @@ function entry(overrides: Partial<RepairHistoryEntry> = {}): RepairHistoryEntry 
     originalCode: 'const a = 1;',
     repairedCode: 'const a = 2;',
     model: 'test-model',
+    provider: null,
+    attempts: [],
     confidence: 0.9,
     startLine: 1,
     endLine: 1,
@@ -98,5 +100,53 @@ describe('HistoryPanel — Repair vs Proceed entries (Audit A9, B1)', () => {
     fireEvent.contextMenu(await screen.findByText('Removed the unused variable.'));
 
     expect(screen.getByText('Re-run repair')).toBeInTheDocument();
+  });
+});
+
+describe('HistoryPanel — Provider History', () => {
+  it('shows the final provider and model for an AI repair', async () => {
+    const withProvider = entry({
+      id: 'h-provider',
+      rationale: 'Fixed the type error.',
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+    });
+    useHistoryStore.setState({ entries: [withProvider], loaded: true });
+
+    render(<HistoryPanel />);
+    await screen.findByText('Fixed the type error.');
+    expect(screen.getByText('openai · gpt-4.1-mini')).toBeInTheDocument();
+  });
+
+  it('shows a retry badge only when a provider was actually tried and failed first', async () => {
+    const retried = entry({
+      id: 'h-retried',
+      rationale: 'Recovered after a quota failure.',
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      attempts: [
+        { provider: 'openrouter', model: 'openai/gpt-oss-20b:free', category: 'quota-exceeded' },
+      ],
+    });
+    useHistoryStore.setState({ entries: [retried], loaded: true });
+
+    render(<HistoryPanel />);
+    await screen.findByText('Recovered after a quota failure.');
+    expect(screen.getByText('retried 1×')).toBeInTheDocument();
+  });
+
+  it('omits the provider line entirely for a deterministic repair with no provider', async () => {
+    const noProvider = entry({
+      id: 'h-none',
+      rationale: 'Removed an unused import.',
+      provider: null,
+      attempts: [],
+    });
+    useHistoryStore.setState({ entries: [noProvider], loaded: true });
+
+    render(<HistoryPanel />);
+    await screen.findByText('Removed an unused import.');
+    // Nothing fabricated for a repair that never touched a provider — no "· undefined", no badge.
+    expect(screen.queryByText(/retried/)).not.toBeInTheDocument();
   });
 });

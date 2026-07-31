@@ -23,9 +23,10 @@ const STAGE_LABEL: Record<AiRunStage, string> = {
   preparing: 'Preparing repair…',
   analyzing: 'Analyzing…',
   generating: 'Generating patch…',
-  // Automatic failover. Named plainly so a several-second recovery reads as Fixora working, not
-  // as Fixora stuck — the user is never asked to switch models by hand.
-  'failing-over': 'Trying a backup model…',
+  // Automatic failover — now across providers, not just models on one key. Named plainly so a
+  // several-second recovery reads as Fixora working, not as Fixora stuck — the user is never asked
+  // to switch providers or models by hand.
+  'failing-over': 'Provider unavailable — trying another…',
   validating: 'Validating…',
   applying: 'Applying…',
 };

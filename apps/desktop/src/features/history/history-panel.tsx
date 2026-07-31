@@ -233,6 +233,30 @@ function HistoryRow({
               </span>
               <span className="min-w-0 truncate">{entry.ruleId}</span>
             </span>
+
+            {/* Provider History: which provider actually answered, and — only when it matters —
+                that Fixora tried others first. Absent for entries recorded before this shipped, so
+                an old row simply omits the line rather than showing a false "unknown". */}
+            {entry.provider !== null && (
+              <span
+                className="flex min-w-0 items-center gap-1.5 text-[10px] text-fg-muted"
+                title={
+                  entry.attempts.length > 0
+                    ? `Also tried: ${entry.attempts.map((a) => `${a.provider}/${a.model}`).join(', ')}`
+                    : undefined
+                }
+              >
+                <span className="min-w-0 truncate">
+                  {entry.provider}
+                  {entry.model !== null ? ` · ${entry.model}` : ''}
+                </span>
+                {entry.attempts.length > 0 && (
+                  <span className="shrink-0 rounded-full bg-warn-subtle px-1.5 py-px text-warn-text">
+                    retried {entry.attempts.length}×
+                  </span>
+                )}
+              </span>
+            )}
           </button>
 
           <button

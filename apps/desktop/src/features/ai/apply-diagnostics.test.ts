@@ -270,6 +270,7 @@ describe('rootCauseOf', () => {
       response: {
         applied: true,
         bytesWritten: 10,
+        relocated: false,
         staleRangeCheck: {
           passed: true,
           startLine: 1,
@@ -368,6 +369,7 @@ describe('remedyFor', () => {
         response: {
           applied: true,
           bytesWritten: 10,
+          relocated: false,
           staleRangeCheck: {
             passed: true,
             startLine: 1,
