@@ -439,3 +439,63 @@ describe('mixed failures across a chain', () => {
     ]);
   });
 });
+
+/**
+ * The failover contract, stated as the product requires it.
+ *
+ * Two halves, and the negative half is the one that matters: an availability problem should move to
+ * the next provider, and a CONFIGURATION problem must not — failing a bad key over to five providers
+ * turns one clear "fix your key" into five confusing failures and spends five requests proving it.
+ */
+describe('failover policy — availability moves on, configuration does not', () => {
+  const cloud = { provider: 'openrouter', model: 'm', local: false };
+  const local = { provider: 'ollama', model: 'm', local: true };
+
+  it('fails over for provider AVAILABILITY failures', () => {
+    for (const category of ['rate-limited', 'timeout', 'provider-unavailable', 'model-unavailable'] as const) {
+      expect(shouldFailover({ category, layer: 'provider' }, cloud), category).toBe(true);
+    }
+  });
+
+  it('fails over for a per-model quota exhaustion — another model has its own allowance', () => {
+    expect(shouldFailover({ category: 'quota-exceeded', layer: 'provider' }, cloud)).toBe(true);
+  });
+
+  it('does NOT fail over for a rejected credential', () => {
+    // Every candidate on that adapter rejects the same key identically.
+    for (const category of ['invalid-api-key', 'auth-failed'] as const) {
+      expect(shouldFailover({ category, layer: 'configuration' }, cloud), category).toBe(false);
+    }
+  });
+
+  it('does NOT fail over for an account out of credits', () => {
+    // Every candidate draws on the same balance; a walk buries the one fix under N identical errors.
+    expect(shouldFailover({ category: 'quota-exceeded', layer: 'configuration' }, cloud)).toBe(false);
+  });
+
+  it('does NOT fail over for a prompt or response problem', () => {
+    // The model answered, or the request was malformed. Neither is another provider's to rescue.
+    expect(shouldFailover({ category: 'context-too-large', layer: 'configuration' }, cloud)).toBe(false);
+    expect(shouldFailover({ category: 'invalid-response', layer: 'provider' }, cloud)).toBe(false);
+  });
+});
+
+describe('failover policy — an unreachable LOCAL daemon is not an offline internet', () => {
+  const cloud = { provider: 'openrouter', model: 'm', local: false };
+  const local = { provider: 'ollama', model: 'm', local: true };
+
+  it('fails over when a LOCAL endpoint refuses the connection', () => {
+    // Ollama is not running. That says nothing about whether OpenRouter is reachable, and without
+    // this the whole chain stops at a process that was never started.
+    expect(shouldFailover({ category: 'network-offline', layer: 'provider' }, local)).toBe(true);
+  });
+
+  it('does NOT fail over when a CLOUD endpoint is unreachable', () => {
+    // The machine is offline. Trying five more cloud candidates is five more ways to fail slowly.
+    expect(shouldFailover({ category: 'network-offline', layer: 'provider' }, cloud)).toBe(false);
+  });
+
+  it('treats an unknown candidate as cloud — the safe default', () => {
+    expect(shouldFailover({ category: 'network-offline', layer: 'provider' })).toBe(false);
+  });
+});

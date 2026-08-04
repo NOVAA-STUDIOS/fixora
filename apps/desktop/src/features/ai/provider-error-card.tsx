@@ -1,4 +1,5 @@
 import type { AiFailure, AiRecoveryAction } from '@fixora/shared-types';
+import { diagnoseFailure, formatResetIn } from '@fixora/shared-types';
 import { Button, cn } from '@fixora/ui';
 
 /**
@@ -58,6 +59,8 @@ const ACTION_LABEL: Record<AiRecoveryAction, string> = {
   'change-model': 'Select another configured model',
   'check-credits': 'Check your API credits with the provider',
   'check-connection': 'Check your internet connection or VPN',
+  'switch-provider': 'Switch to another configured provider',
+  'open-dashboard': 'Open the provider dashboard to check quota or add credits',
 };
 
 /** Severity drives styling only. Configuration problems need a decision; the rest may clear alone. */
@@ -75,6 +78,14 @@ export interface ProviderErrorCardProps {
   retryable: boolean;
   onRetry: () => void;
   onOpenSettings: () => void;
+  /**
+   * Open the provider's own dashboard in the system browser.
+   *
+   * Optional: the button only renders when BOTH the classification asks for it and the provider has
+   * a real dashboard URL, so a host that cannot open links simply does not offer it rather than
+   * rendering a button that does nothing.
+   */
+  onOpenDashboard?: (url: string) => void;
 }
 
 export function ProviderErrorCard({
@@ -83,6 +94,7 @@ export function ProviderErrorCard({
   retryable,
   onRetry,
   onOpenSettings,
+  onOpenDashboard,
 }: ProviderErrorCardProps): React.JSX.Element {
   const severity = failure === null ? 'warning' : severityOf(failure);
   const danger = severity === 'danger';
@@ -92,13 +104,17 @@ export function ProviderErrorCard({
   // than two buttons that do the same thing — a distinction the suggestion list still makes, because
   // there the wording is the advice.
   const actions = failure?.actions ?? [];
+  // Derived, never passed in — the card and the diagnosis must never disagree about what failed.
+  const diagnosis = failure === null ? null : diagnoseFailure(failure);
+  const resetIn =
+    failure?.rateLimit?.resetAt === undefined ? null : formatResetIn(failure.rateLimit.resetAt);
+
   const showRetry = retryable || actions.includes('retry');
   const showSettings =
     failure === null ||
     actions.includes('open-settings') ||
     actions.includes('change-model') ||
     actions.includes('check-credits');
-  const changesModel = actions.includes('change-model') && !actions.includes('open-settings');
 
   return (
     <div
@@ -123,6 +139,42 @@ export function ProviderErrorCard({
         </p>
       </div>
 
+      {/*
+        What this failure PROVES, not just what it denies.
+        A 429 is unusually informative: to be rate limited you must have authenticated (a bad key is
+        401) and you must have reached the provider. Saying so converts "Quota exceeded" — true and
+        useless — into a narrow, understandable problem, and stops the user suspecting their key or
+        their network when neither is at fault.
+      */}
+      {diagnosis !== null && diagnosis.checks.length > 0 && (
+        <ul className="flex flex-col gap-1" aria-label="Diagnosis">
+          {diagnosis.checks.map((check) => (
+            <li key={check.label} className="flex items-start gap-1.5 text-[11px]">
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'mt-px shrink-0 font-bold',
+                  check.status === 'pass' && 'text-success-text',
+                  check.status === 'fail' && 'text-danger-text',
+                  check.status === 'unknown' && 'text-fg-muted',
+                )}
+              >
+                {check.status === 'pass' ? '✓' : check.status === 'fail' ? '✗' : '–'}
+              </span>
+              <span className="sr-only">
+                {check.status === 'pass' ? 'Passed: ' : check.status === 'fail' ? 'Failed: ' : 'Unknown: '}
+              </span>
+              <span className="min-w-0">
+                <span className={cn('font-medium', check.status === 'fail' ? 'text-danger-text' : 'text-fg')}>
+                  {check.label}
+                </span>
+                <span className="text-fg-muted"> — {check.detail}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <Field label="Reason">
         <span className="[overflow-wrap:anywhere]">{reason}</span>
       </Field>
@@ -136,6 +188,31 @@ export function ProviderErrorCard({
             <code className="font-mono text-[11px] [overflow-wrap:anywhere]">{failure.model}</code>
           </Field>
           <Field label="Status">{STATUS_LABEL[failure.category]}</Field>
+          {/*
+            The provider's OWN numbers. Every row is conditional because every field is optional at
+            the schema: a provider that sent no reset time gets no reset row, rather than a fabricated
+            one the user would plan around.
+          */}
+          {failure.rateLimit?.remaining !== undefined && (
+            <Field label="Remaining">
+              {String(failure.rateLimit.remaining)}
+              {failure.rateLimit.limit === undefined
+                ? ''
+                : ` of ${String(failure.rateLimit.limit)}`}
+            </Field>
+          )}
+          {resetIn !== null && (
+            <Field label="Resets">
+              {resetIn}
+              <span className="text-fg-muted">
+                {' '}
+                ({new Date(failure.rateLimit?.resetAt ?? 0).toLocaleString()})
+              </span>
+            </Field>
+          )}
+          {failure.rateLimit?.retryAfterSeconds !== undefined && (
+            <Field label="Retry after">{String(failure.rateLimit.retryAfterSeconds)}s</Field>
+          )}
           {/* One consolidated card for a whole failed walk. Without this the user sees a single
               model named and has no idea Fixora already tried several on their behalf — which makes
               automatic failover look like it never happened. */}
@@ -159,7 +236,10 @@ export function ProviderErrorCard({
           <p className="text-[10px] font-medium uppercase tracking-wide text-fg-muted">
             Suggested actions
           </p>
-          <ul className="flex list-disc flex-col gap-0.5 pl-4 text-[11px] text-fg-secondary">
+          <ul
+            aria-label="Suggested actions"
+            className="flex list-disc flex-col gap-0.5 pl-4 text-[11px] text-fg-secondary"
+          >
             {actions.map((action) => (
               <li key={action}>{ACTION_LABEL[action]}</li>
             ))}
@@ -173,9 +253,38 @@ export function ProviderErrorCard({
             Retry
           </Button>
         )}
-        {showSettings && (
+        {actions.includes('change-model') && (
           <Button type="button" size="sm" variant="ghost" onClick={onOpenSettings}>
-            {changesModel ? 'Change Model' : 'Open Settings'}
+            Switch Model
+          </Button>
+        )}
+        {/*
+          Switch Provider is offered whenever the classification says another provider could survive
+          this. It routes to Settings rather than silently reordering the chain: changing which
+          provider answers is the user's decision, and doing it behind their back is how "why is it
+          using THAT model" starts.
+        */}
+        {actions.includes('switch-provider') && (
+          <Button type="button" size="sm" variant="ghost" onClick={onOpenSettings}>
+            Switch Provider
+          </Button>
+        )}
+        {/* Only when we have a real URL for THIS provider — never a guessed one. */}
+        {actions.includes('open-dashboard') && failure?.dashboardUrl !== undefined && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              onOpenDashboard?.(failure.dashboardUrl ?? '');
+            }}
+          >
+            Open Provider Dashboard
+          </Button>
+        )}
+        {showSettings && !actions.includes('change-model') && (
+          <Button type="button" size="sm" variant="ghost" onClick={onOpenSettings}>
+            Open Settings
           </Button>
         )}
       </div>

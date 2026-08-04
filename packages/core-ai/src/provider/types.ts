@@ -1,3 +1,4 @@
+import type { RateLimitFacts } from './rate-limit.js';
 /**
  * The provider abstraction (AI-Pipeline §3, ADR-012).
  *
@@ -48,6 +49,13 @@ export type ProviderEvent =
       readonly retryable: boolean;
       readonly providerCode: string;
       readonly message: string;
+      /**
+       * The provider's own rate-limit numbers, when the refusal carried them.
+       *
+       * Unlike the diagnostics below, this IS rendered: it is the difference between "quota
+       * exceeded" and "0 of 50 left, back in 6h 52m", and the second is the one a user can act on.
+       */
+      readonly rateLimit?: RateLimitFacts;
       /**
        * Diagnostics for the developer log only. Never rendered.
        *

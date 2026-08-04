@@ -32,6 +32,13 @@ export interface FailoverCandidate {
   /** Adapter id — `openrouter` today. Kept distinct from the model so a second adapter needs no rework. */
   readonly provider: string;
   readonly model: string;
+  /**
+   * True when this candidate runs on the user's own machine (Ollama, LM Studio).
+   *
+   * It changes what an unreachable endpoint MEANS, which is the one place locality affects the
+   * failover decision — see `shouldFailover`. Optional so existing cloud-only callers are unchanged.
+   */
+  readonly local?: boolean;
 }
 
 /** A candidate that was tried and failed, kept in order so the log can show the whole walk. */
@@ -118,7 +125,21 @@ export const FAILOVER_CATEGORIES: ReadonlySet<FailureCategory> = new Set<Failure
  * Reusing `layer` here rather than adding a flag is deliberate: it already encodes "whose problem is
  * this", and "the user's configuration" is precisely the case no other provider can rescue.
  */
-export function shouldFailover(failure: Pick<ProviderFailure, 'category' | 'layer'>): boolean {
+export function shouldFailover(
+  failure: Pick<ProviderFailure, 'category' | 'layer'>,
+  candidate?: { readonly local?: boolean },
+): boolean {
+  /**
+   * An unreachable LOCAL endpoint is not evidence that the internet is down.
+   *
+   * `network-offline` is excluded from the set above because, for a cloud provider, it is the
+   * clearest case where trying five more candidates is five more ways to fail slowly. That reasoning
+   * inverts for a daemon on 127.0.0.1: a connection refused there means Ollama or LM Studio is not
+   * running, which says precisely nothing about whether OpenRouter is reachable. Without this, a
+   * user who puts a local provider first and has not started it gets the whole chain stopped by a
+   * process that was never running — the cloud providers below it are never even tried.
+   */
+  if (failure.category === 'network-offline') return candidate?.local === true;
   if (!FAILOVER_CATEGORIES.has(failure.category)) return false;
   // The layer check applies to QUOTA ONLY, and deliberately not to the rest of the set.
   // `model-unavailable` is also `layer: 'configuration'` — the user picked a model that no longer
@@ -174,7 +195,7 @@ export async function runWithFailover<T, C extends FailoverCandidate = FailoverC
     // support log most needs.
     attempts.push(record);
 
-    if (!shouldFailover(result.failure)) {
+    if (!shouldFailover(result.failure, candidate)) {
       // A failure the rest of the chain would reproduce. Report it now, against the candidate that
       // actually produced it, so the guidance names the right key and the right model.
       return { ok: false, reason: 'non-retryable', failure: result.failure, candidate, attempts };

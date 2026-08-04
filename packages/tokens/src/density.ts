@@ -27,6 +27,22 @@ export type DensityMetrics = {
   stackGap: string;
   /** Font size for control labels, so text scales with the control at compact. */
   controlFontSize: string;
+  /**
+   * Vertical padding inside a list CARD — a problem row, a history entry.
+   *
+   * Distinct from `rowHeight`, which sizes a single-line row. A card is a stack (title, location,
+   * actions), so its density comes from its own padding and internal gap rather than from a fixed
+   * height it would overflow. Without these, cards kept comfortable spacing at every density and the
+   * toggle visibly changed the chrome around the list while doing nothing to the list itself.
+   */
+  cardPaddingY: string;
+  cardPaddingX: string;
+  /** Gap between the stacked parts of a card (title → location → actions). */
+  cardGap: string;
+  /** Gap between items in a sidebar/nav list. */
+  sidebarGap: string;
+  /** Status bar height. Trimmed at compact, where every row of vertical space is contested. */
+  statusBarHeight: string;
 };
 
 export type DensityName = 'comfortable' | 'compact';
@@ -39,6 +55,11 @@ export const comfortable: DensityMetrics = {
   rowHeight: '2rem',
   stackGap: '0.75rem',
   controlFontSize: '0.875rem',
+  cardPaddingY: '0.5rem',
+  cardPaddingX: '0.75rem',
+  cardGap: '0.375rem',
+  sidebarGap: '0.25rem',
+  statusBarHeight: '1.75rem',
 };
 
 export const compact: DensityMetrics = {
@@ -49,6 +70,15 @@ export const compact: DensityMetrics = {
   rowHeight: '1.5rem',
   stackGap: '0.5rem',
   controlFontSize: '0.8125rem',
+  // 28.6% less vertical space per card than comfortable: padding 0.5→0.375, gap 0.375→0.25, so the
+  // non-content height of a three-part card falls from 1.75rem to 1.25rem. Deliberately mid-band
+  // rather than as tight as possible — past roughly a third, rows stop reading as separate cards and
+  // the list becomes a wall of text, which costs more scanning time than the space saves.
+  cardPaddingY: '0.375rem',
+  cardPaddingX: '0.625rem',
+  cardGap: '0.25rem',
+  sidebarGap: '0.125rem',
+  statusBarHeight: '1.5rem',
 };
 
 export const densities: Record<DensityName, DensityMetrics> = { comfortable, compact };

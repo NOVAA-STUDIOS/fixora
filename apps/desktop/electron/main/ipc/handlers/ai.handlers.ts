@@ -229,9 +229,37 @@ export function registerAiHandlers(deps: {
   });
 
   registerHandler('ai:clearKey', async () => {
-    deps.credentials.clearKey(DEFAULT_PROVIDER_ID);
+    /**
+     * Removal has to clear BOTH stores, and a failure in one must not leave the other holding a key.
+     *
+     * The v2 store is what the provider is built from; the v1 file is the downgrade path. But v1 is
+     * also the RESURRECTION path: `credential-store.ts`'s `migrateLegacy` adopts the v1 key whenever
+     * the v2 file is absent or unreadable. So a removal that cleared v2 and then threw before
+     * clearing v1 would look successful, and the next launch that could not read the v2 file would
+     * hand the deleted key straight back. "Remove Key" has to mean the key is gone, permanently and
+     * on every path.
+     *
+     * Both clears are therefore attempted regardless of the first one's outcome, and the failure is
+     * only re-thrown after that — so the worst case is a reported error with nothing left behind,
+     * never a silent partial removal.
+     */
+    let failure: Error | null = null;
+    try {
+      deps.credentials.clearKey(DEFAULT_PROVIDER_ID);
+    } catch (error) {
+      failure = error instanceof Error ? error : new Error(String(error));
+    }
     deps.aiService.cancel();
-    return enrich(deps.keyStore.clearKey());
+    let config;
+    try {
+      config = deps.keyStore.clearKey();
+    } catch (error) {
+      // v1 could not be cleared. It is the resurrection path, so this cannot be swallowed. The
+      // FIRST failure wins when both stores failed: it is the one that started the cascade.
+      throw failure ?? (error instanceof Error ? error : new Error(String(error)));
+    }
+    if (failure !== null) throw failure;
+    return enrich(config);
   });
 
   /**
@@ -352,7 +380,23 @@ export function registerAiHandlers(deps: {
 
   registerHandler(
     'ai:applyRepair',
-    ({ file, startLine, endLine, code, expectedOriginal, historyId }): ApplyOutcome => {
+    ({ file, startLine, endLine, code, expectedOriginal, historyId, forced }): ApplyOutcome => {
+      /**
+       * Audit: an UNVERIFIED patch is entering the user's source tree at their explicit request.
+       *
+       * Logged before any work so the record exists even if the write is then refused — which it
+       * still can be. `forced` is recorded, never acted on: every guard below runs identically
+       * whether it is set or not, so this line documents an override of the VERIFICATION gate and
+       * nothing more. Reconstructing this after the fact is impossible once the file has changed.
+       */
+      if (forced === true) {
+        console.error('[apply] FORCED — verification was overridden by the user', {
+          file,
+          range: `${String(startLine)}-${String(endLine)}`,
+          codeLength: code.length,
+          historyId: historyId ?? null,
+        });
+      }
       // TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause). Gated on the
       // disposable repro filename so no other file's content is ever logged. Captures `code` and
       // `expectedOriginal` exactly as they arrived over the `ai:applyRepair` IPC boundary.

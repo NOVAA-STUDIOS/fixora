@@ -59,7 +59,11 @@ export type RecoveryAction =
   | 'open-settings'
   | 'change-model'
   | 'check-credits'
-  | 'check-connection';
+  | 'check-connection'
+  /** Move to the next configured provider without leaving the repair. */
+  | 'switch-provider'
+  /** Open the provider's own dashboard, where quota and billing actually live. */
+  | 'open-dashboard';
 
 export const RECOVERY_ACTION_LABEL: Record<RecoveryAction, string> = {
   retry: 'Retry',
@@ -68,6 +72,8 @@ export const RECOVERY_ACTION_LABEL: Record<RecoveryAction, string> = {
   'change-model': 'Select another configured model',
   'check-credits': 'Check API credits',
   'check-connection': 'Check your network connection',
+  'switch-provider': 'Switch provider',
+  'open-dashboard': 'Open provider dashboard',
 };
 
 /** Short status words for the card's Status row — the category, said in the user's language. */

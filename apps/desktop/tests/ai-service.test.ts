@@ -965,3 +965,160 @@ describe('AI service — dependent failures expand the repair scope', () => {
     expect(result.proposal.verification.verdict).toBe('regression');
   });
 });
+
+/**
+ * Lint-only rejections earn one more targeted attempt before Apply is written off.
+ *
+ * A patch that parses, type-checks and resolves the reported problem can still be rejected for
+ * `prefer-const` on a line it touched. That is a real regression and the gate is right to fail it —
+ * but it is the most trivially fixable kind, and spending the user's Accept on it is a poor trade.
+ *
+ * The gate is NOT relaxed by any of this. The retry is verified by the same pipeline, and the verdict
+ * it produces is the one the panel receives. These pin both halves: the retry happens for lint, and a
+ * failure that is not lint-only still goes straight to a disabled Apply.
+ */
+describe('AI service — lint-only rejections get one targeted retry', () => {
+  const REPAIR = JSON.stringify({ repairedCode: 'const a = 2;', rationale: 'fix', confidence: 0.9 });
+
+  /** Rejects with lint findings `failures` times, then verifies. Records the prompts it caused. */
+  function lintVerifier(failures: number): VerificationService & { calls: () => number } {
+    let calls = 0;
+    return {
+      calls: () => calls,
+      verify: () => {
+        calls += 1;
+        const failing = calls <= failures;
+        return Promise.resolve({
+          report: failing
+            ? {
+                verdict: 'regression' as const,
+                targetResolved: true,
+                newFindingCount: 1,
+                // Parses and type-checks: the ONLY problem is a lint rule.
+                syntaxOk: true,
+                ran: ['syntax', 'eslint', 'tsc'],
+                newFindings: [
+                  {
+                    source: 'eslint',
+                    ruleId: 'prefer-const',
+                    line: 3,
+                    message: "'a' is never reassigned. Use 'const' instead.",
+                  },
+                ],
+              }
+            : {
+                verdict: 'verified' as const,
+                targetResolved: true,
+                newFindingCount: 0,
+                syntaxOk: true,
+                ran: ['syntax', 'eslint', 'tsc'],
+              },
+          originalCode: 'ORIGINAL',
+        });
+      },
+      dispose: () => undefined,
+    };
+  }
+
+  /** Captures the prompts sent, so the targeted instruction can be inspected. */
+  function capturing(scripts: ProviderEvent[][]): AIProvider & { prompts: () => string[] } {
+    const seen: string[] = [];
+    let call = 0;
+    return {
+      id: 'fake',
+      capabilities: { structuredOutput: true, maxContext: 100_000 },
+      test: () =>
+        Promise.resolve({ reachable: true, authenticated: true, modelAvailable: true, latencyMs: 1 }),
+      prompts: () => seen,
+      stream(request, _signal) {
+        seen.push(request.messages.map((m) => m.content).join('\n'));
+        const events = scripts[Math.min(call, scripts.length - 1)] ?? [];
+        call += 1;
+        return (async function* () {
+          for (const event of events) yield event;
+        })();
+      },
+    };
+  }
+
+  it('retries once and returns the attempt that passes, so Accept is enabled', async () => {
+    const verifier = lintVerifier(1); // fails on lint once, then verifies
+    const provider = capturing([textEvents(REPAIR), textEvents(REPAIR)]);
+    const service = createAiService(deps({ provider, verification: verifier }));
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    if (result.status !== 'ok' || result.proposal.profile !== 'repair') throw new Error('no repair');
+    // The verdict comes from the same verifier that rejected the first attempt — not from a bypass.
+    expect(result.proposal.verification.verdict).toBe('verified');
+    expect(verifier.calls()).toBe(2);
+  });
+
+  it('asks for the NARROWEST possible follow-up, naming the rule and nothing else', async () => {
+    const provider = capturing([textEvents(REPAIR), textEvents(REPAIR)]);
+    const service = createAiService(deps({ provider, verification: lintVerifier(1) }));
+    await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    const second = provider.prompts()[1] ?? '';
+    expect(second).toMatch(/prefer-const/);
+    // The distinguishing instruction: keep the fix, fix only the lint.
+    expect(second).toMatch(/Keep the fix exactly as it is/i);
+    expect(second).toMatch(/resolve ONLY these lint diagnostics/i);
+    // And it must NOT be the general "your fix was rejected, make a narrower change" message.
+    expect(second).not.toMatch(/it resolved the original problem but INTRODUCED/i);
+  });
+
+  it('a TYPE regression gets the general re-ask, never the lint one', async () => {
+    const typeVerifier: VerificationService = {
+      verify: () =>
+        Promise.resolve({
+          report: {
+            verdict: 'regression' as const,
+            targetResolved: true,
+            newFindingCount: 1,
+            syntaxOk: true,
+            ran: ['syntax', 'tsc'],
+            newFindings: [
+              { source: 'tsc', ruleId: 'TS2322', line: 3, message: 'Type mismatch.' },
+            ],
+          },
+          originalCode: 'ORIGINAL',
+        }),
+      dispose: () => undefined,
+    };
+    const provider = capturing([textEvents(REPAIR)]);
+    const service = createAiService(deps({ provider, verification: typeVerifier }));
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    const second = provider.prompts()[1] ?? '';
+    expect(second).not.toMatch(/Keep the fix exactly as it is/i);
+    // And the strict gate still stands: a type regression ends with Apply disabled.
+    if (result.status !== 'ok' || result.proposal.profile !== 'repair') throw new Error('no repair');
+    expect(result.proposal.verification.verdict).toBe('regression');
+  });
+
+  it('keeps Apply disabled when the lint retry ALSO fails — no bypass', async () => {
+    const verifier = lintVerifier(Number.MAX_SAFE_INTEGER); // never passes
+    const provider = capturing([textEvents(REPAIR)]);
+    const service = createAiService(deps({ provider, verification: verifier }));
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    if (result.status !== 'ok' || result.proposal.profile !== 'repair') throw new Error('no repair');
+    // The last verdict stands. Reached one attempt later, but reached honestly.
+    expect(result.proposal.verification.verdict).toBe('regression');
+    expect(result.proposal.verification.newFindings?.[0]?.ruleId).toBe('prefer-const');
+  });
+
+  it('spends the lint-targeted attempt at most once', async () => {
+    // Otherwise a model that cannot satisfy a linter consumes the whole retry budget on it.
+    const provider = capturing([textEvents(REPAIR)]);
+    const service = createAiService(
+      deps({ provider, verification: lintVerifier(Number.MAX_SAFE_INTEGER) }),
+    );
+    await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    const lintPrompts = provider
+      .prompts()
+      .filter((p) => /Keep the fix exactly as it is/i.test(p));
+    expect(lintPrompts).toHaveLength(1);
+  });
+});

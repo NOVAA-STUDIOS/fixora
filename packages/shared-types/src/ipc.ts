@@ -41,6 +41,19 @@ export const AppInfoSchema = z.object({
   version: z.string(),
   /** Short git SHA the build came from, or 'unknown' when built without a git checkout. */
   commit: z.string(),
+  /**
+   * When this bundle was built, ISO-8601.
+   *
+   * The app could not previously answer "am I running current code?", and a whole debugging session
+   * went into a defect that was fixed in source but absent from the installed binary. A build stamp
+   * makes that question answerable in one glance instead of by grepping an asar.
+   */
+  builtAt: z.string(),
+  /**
+   * Whether the working tree had uncommitted changes when this was built. A commit alone is
+   * misleading for a local build: it names code that may not be what was compiled.
+   */
+  dirty: z.boolean(),
   platform: z.enum(['win32', 'darwin', 'linux']),
   arch: z.string(),
   electronVersion: z.string(),

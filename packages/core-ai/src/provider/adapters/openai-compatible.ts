@@ -1,5 +1,6 @@
 import type { JsonStrategy } from '../capability.js';
 import { describeProviderFailure } from '../failure.js';
+import { readRateLimit } from '../rate-limit.js';
 import type {
   AIProvider,
   ProviderEvent,
@@ -43,6 +44,14 @@ export interface OpenAiCompatibleOptions {
    * separate cases the status code alone cannot (a 404 model slug vs a 404 route).
    */
   readonly describeStatus?: (status: number, model: string) => string | null;
+  /**
+   * Query string appended to every endpoint, WITHOUT the leading '?'.
+   *
+   * Azure OpenAI requires `api-version` on every request as a query parameter. It cannot ride on
+   * `baseUrl` because the endpoints are built by appending a path (`/chat/completions`), which would
+   * put the path after the query and produce a URL that 404s. Empty for every other provider.
+   */
+  readonly query?: string;
 }
 
 interface StreamChunk {
@@ -159,10 +168,66 @@ function* handleLine(line: string): Iterable<ProviderEvent> {
   }
 }
 
+/**
+ * A key's identity, safe to log: length plus the last four characters.
+ *
+ * "I saved a new key and still got the old key's error" is not answerable from a verdict — the two
+ * possible causes (the request genuinely used the old credential, or the new credential is itself
+ * refused) are indistinguishable downstream. A fingerprint on the OUTGOING request settles it: if the
+ * tail changes when the user saves a new key, the new credential was adopted, whatever the provider
+ * then says about it.
+ *
+ * Never the key. Four characters cannot reconstruct a 73-character secret, and the length is bounded
+ * information that catches the other common case — an empty or truncated key.
+ */
+/**
+ * The response headers that explain a failure, and only those.
+ *
+ * Logging every header floods the log with cache and CDN noise; logging none loses the two things
+ * that actually answer "why was this refused" — the rate-limit counters, which separate "you are
+ * sending too fast" from "your daily allowance is gone", and the provider's request id, which is
+ * what support asks for. Never includes anything carrying the credential.
+ */
+const INTERESTING_HEADERS: readonly string[] = [
+  'content-type',
+  'x-request-id',
+  'retry-after',
+  'x-ratelimit-limit',
+  'x-ratelimit-remaining',
+  'x-ratelimit-reset',
+  'x-ratelimit-limit-requests',
+  'x-ratelimit-remaining-requests',
+  'x-ratelimit-reset-requests',
+];
+
+function importantHeaders(response: Response): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const name of INTERESTING_HEADERS) {
+    const value = response.headers.get(name);
+    if (value !== null) out[name] = value;
+  }
+  return out;
+}
+
+export function keyFingerprint(apiKey: string | null): string {
+  if (apiKey === null || apiKey === '') return 'none';
+  return `len=${String(apiKey.length)} …${apiKey.slice(-4)}`;
+}
+
 export function createOpenAiCompatibleProvider(options: OpenAiCompatibleOptions): AIProvider {
   const doFetch: FetchLike = options.fetchImpl ?? ((input, init) => fetch(input, init));
-  const chatUrl = `${options.baseUrl}/chat/completions`;
-  const modelsUrl = `${options.baseUrl}/models`;
+  const suffix = options.query === undefined || options.query === '' ? '' : `?${options.query}`;
+  const chatUrl = `${options.baseUrl}/chat/completions${suffix}`;
+  const modelsUrl = `${options.baseUrl}/models${suffix}`;
+
+  /**
+   * The credential this provider INSTANCE was constructed with, captured once.
+   *
+   * A provider is built per run from `credentials.getKey(id)`, so this value being stale is exactly
+   * the failure mode under investigation — logging it at construction and again at request time
+   * shows whether the instance itself is old or the credential inside it is.
+   */
+  const builtWith = keyFingerprint(options.apiKey);
 
   function headers(): Record<string, string> {
     const base: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -175,6 +240,16 @@ export function createOpenAiCompatibleProvider(options: OpenAiCompatibleOptions)
     signal: AbortSignal,
   ): AsyncIterable<ProviderEvent> {
     let response: Response;
+    // What is ACTUALLY going out: which provider, which model, and which credential. Masked.
+    console.error('[provider] request', {
+      provider: options.id,
+      baseUrl: options.baseUrl,
+      model: request.model,
+      key: keyFingerprint(options.apiKey),
+      builtWith,
+      // If these ever disagree, the instance outlived a credential change.
+      keyMatchesInstance: keyFingerprint(options.apiKey) === builtWith,
+    });
     try {
       response = await doFetch(chatUrl, {
         method: 'POST',
@@ -184,6 +259,17 @@ export function createOpenAiCompatibleProvider(options: OpenAiCompatibleOptions)
       });
     } catch (error) {
       if (signal.aborted) return; // a cancelled stream is not an error (AI-Pipeline §6)
+      // Never reached the provider at all — DNS, TLS, offline, a proxy. Distinguishing this from a
+      // provider refusal is the difference between "check your network" and "check your account".
+      console.error('[provider] FAILED — request did not reach the provider', {
+        provider: options.id,
+        baseUrl: options.baseUrl,
+        model: request.model,
+        key: keyFingerprint(options.apiKey),
+        reachedProvider: false,
+        errorOrigin: 'fixora',
+        detail: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      });
       yield {
         type: 'error',
         retryable: true,
@@ -195,10 +281,53 @@ export function createOpenAiCompatibleProvider(options: OpenAiCompatibleOptions)
 
     if (!response.ok) {
       const requestId = response.headers.get('x-request-id') ?? undefined;
+      /**
+       * The provider's verdict, paired with the credential that earned it.
+       *
+       * This pairing is the whole point: a 429 beside a fingerprint proves WHICH key was rate
+       * limited, so "I saved a new key and still get quota exceeded" resolves to either "the new key
+       * is also out of allowance" or "the old key was used" — which are different bugs with
+       * different fixes, and were previously indistinguishable.
+       */
+      // `clone()` so reading the body here does not consume the stream `describeErrorResponse`
+      // needs below. Logged in FULL, not truncated: a provider error body is a sentence or two, and
+      // the one time it is longer is exactly the time the detail matters. The cap is a flood guard
+      // for a misbehaving endpoint, not an editorial decision about what is worth reading.
+      let body = '';
+      try {
+        const raw = await response.clone().text();
+        body = raw.length > 8000 ? `${raw.slice(0, 8000)}…[truncated at 8000 of ${String(raw.length)}]` : raw;
+      } catch {
+        body = '(body unreadable — already consumed or the connection dropped)';
+      }
+      /**
+       * The provider REFUSED us. It was reached, it answered, and the answer was an error — which is
+       * a different diagnosis from a request that never arrived, and the log now says which.
+       *
+       * `errorOrigin: 'provider'` is the important field: everything here is the provider's own
+       * verdict on our credential, our model choice or our allowance. Nothing in Fixora failed.
+       */
+      console.error('[provider] FAILED — the provider refused the request', {
+        provider: options.id,
+        baseUrl: options.baseUrl,
+        model: request.model,
+        key: keyFingerprint(options.apiKey),
+        reachedProvider: true,
+        errorOrigin: 'provider',
+        status: response.status,
+        statusText: response.statusText,
+        ...(requestId === undefined ? {} : { requestId }),
+        headers: importantHeaders(response),
+        body,
+      });
+      // Parsed from the SAME headers and body already read for the log above — no extra request,
+      // and nothing inferred that the provider did not send.
+      const rateLimit = readRateLimit(response.headers, body);
       yield {
         type: 'error',
         retryable: response.status === 429 || response.status >= 500,
         providerCode: `HTTP_${String(response.status)}`,
+        ...(Object.keys(rateLimit).length > 0 ? { rateLimit } : {}),
         message: await describeErrorResponse(response, request.model, options.describeStatus),
         status: response.status,
         ...(requestId === undefined ? {} : { requestId }),

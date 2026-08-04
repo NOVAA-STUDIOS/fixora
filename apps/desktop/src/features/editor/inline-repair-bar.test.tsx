@@ -119,3 +119,79 @@ describe('InlineRepairBar — full diff escape hatch', () => {
     expect(useUiStore.getState().fullDiffOpen).toBe(true);
   });
 });
+
+/**
+ * Force Apply — a separate, confirmed override, never a relaxation of Accept.
+ *
+ * The safety-critical properties are the negative ones: Accept's gate must be exactly what it was,
+ * nothing must be written without an explicit confirmation, and the flag the override sets must be an
+ * audit marker rather than a permission. These pin all three.
+ */
+describe('InlineRepairBar — Force Apply', () => {
+  const rejected = report({ verdict: 'regression', newFindingCount: 1, syntaxOk: false });
+
+  it('is offered when verification FAILED', () => {
+    useAiStore.setState({ proposal: repairProposal(rejected) });
+    render(<InlineRepairBar position={{ index: 0, total: 1 }} onNext={() => {}} onPrevious={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Force Apply' })).toBeInTheDocument();
+  });
+
+  it('is NOT offered for a verified patch — Accept is the right action there', () => {
+    useAiStore.setState({ proposal: repairProposal(report()) });
+    render(<InlineRepairBar position={{ index: 0, total: 1 }} onNext={() => {}} onPrevious={() => {}} />);
+    expect(screen.queryByRole('button', { name: 'Force Apply' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept' })).not.toBeDisabled();
+  });
+
+  it('leaves Accept DISABLED — the gate is untouched by the presence of an override', () => {
+    useAiStore.setState({ proposal: repairProposal(rejected) });
+    render(<InlineRepairBar position={{ index: 0, total: 1 }} onNext={() => {}} onPrevious={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeDisabled();
+  });
+
+  it('applies NOTHING until the user confirms', () => {
+    const applyRepair = vi.fn(() => Promise.resolve(true));
+    useAiStore.setState({ proposal: repairProposal(rejected), applyRepair });
+    render(<InlineRepairBar position={{ index: 0, total: 1 }} onNext={() => {}} onPrevious={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Force Apply' }));
+    // The dialog is up; the file has not been touched.
+    expect(applyRepair).not.toHaveBeenCalled();
+  });
+
+  it('explains WHY it failed and what may happen, before asking for confirmation', () => {
+    useAiStore.setState({ proposal: repairProposal(rejected) });
+    render(<InlineRepairBar position={{ index: 0, total: 1 }} onNext={() => {}} onPrevious={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Force Apply' }));
+    expect(screen.getByText(/does not parse/i)).toBeInTheDocument();
+    expect(screen.getByText(/High risk/i)).toBeInTheDocument();
+    expect(screen.getByText(/will not compile/i)).toBeInTheDocument();
+    // And it states that the write-time protections still apply.
+    expect(screen.getByText(/the write is refused/i)).toBeInTheDocument();
+  });
+
+  it('applies through the SAME pipeline once confirmed, marked as forced', () => {
+    const applyRepair = vi.fn(() => Promise.resolve(true));
+    useAiStore.setState({ proposal: repairProposal(rejected), applyRepair });
+    render(<InlineRepairBar position={{ index: 0, total: 1 }} onNext={() => {}} onPrevious={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Force Apply' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply anyway' }));
+    // `forced` is the audit marker — the same applyRepair, not a second write path.
+    expect(applyRepair).toHaveBeenCalledWith({ forced: true });
+  });
+
+  it('a lint-only failure is described as low risk, not alarming', () => {
+    useAiStore.setState({
+      proposal: repairProposal(
+        report({
+          verdict: 'regression',
+          newFindingCount: 1,
+          newFindings: [{ source: 'eslint', ruleId: 'prefer-const', line: 3, message: 'Use const.' }],
+        }),
+      ),
+    });
+    render(<InlineRepairBar position={{ index: 0, total: 1 }} onNext={() => {}} onPrevious={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Force Apply' }));
+    expect(screen.getByText(/Low risk/i)).toBeInTheDocument();
+    expect(screen.getByText(/parses and type-checks/i)).toBeInTheDocument();
+  });
+});

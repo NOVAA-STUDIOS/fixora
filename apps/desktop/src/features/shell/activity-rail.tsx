@@ -27,7 +27,12 @@ export function ActivityRail(): React.JSX.Element {
   const setActiveView = useUiStore((s) => s.setActiveView);
 
   return (
-    <nav aria-label="Primary" className="flex w-16 shrink-0 flex-col items-stretch gap-0.5 py-1">
+    <nav
+      aria-label="Primary"
+      // Sidebar spacing follows density too: compact tightens the gap between rail items so the
+      // toggle affects the navigation as well as the content beside it.
+      className="flex w-16 shrink-0 flex-col items-stretch gap-(--fx-sidebar-gap) py-1"
+    >
       {items.map(({ view, label, Icon }) => {
         const active = view === activeView;
         return (
@@ -43,7 +48,9 @@ export function ActivityRail(): React.JSX.Element {
               // A rounded target inset from the rail edges, rather than a full-bleed strip. The rail
               // sits on the chrome layer now, so an item that lights up edge-to-edge reads as a
               // background change; a pill reads as a thing you pressed.
-              'relative mx-1.5 flex flex-col items-center gap-1.5 rounded-lg px-1 py-2.5 text-[10px] font-medium',
+              'relative mx-1.5 flex flex-col items-center gap-1.5 rounded-lg px-1 text-[10px] font-medium',
+              // Vertical padding from the card token, so a rail item tightens with everything else.
+              'py-(--fx-card-padding-y)',
               // Every other interactive surface in the app animates its hover; the rail — the most
               // frequently clicked thing in the window — snapped between states instantly.
               'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',

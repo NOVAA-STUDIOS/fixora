@@ -76,6 +76,34 @@ const BUNDLED = [
  * narrows it to a diff. Resolved with `git rev-parse`, and falls back to 'unknown' rather than
  * failing the build — a source tarball with no .git is a legitimate way to build this.
  */
+/**
+ * When this bundle was built, as an ISO timestamp.
+ *
+ * Stamped into main so the running application can state which build it is. A whole debugging
+ * session was spent on a defect that was already fixed in source but absent from the installed
+ * binary, and nothing in the app could answer "is this build current?". Now it can.
+ */
+function buildTime(): string {
+  return new Date().toISOString();
+}
+
+/**
+ * True when the working tree had uncommitted changes at build time. A commit hash alone is
+ * misleading for a local build: it names code that may not be what was compiled.
+ */
+function gitDirty(): boolean {
+  try {
+    return (
+      execSync('git status --porcelain', {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim() !== ''
+    );
+  } catch {
+    return false;
+  }
+}
+
 function gitCommit(): string {
   try {
     return execSync('git rev-parse --short HEAD', {
@@ -89,7 +117,11 @@ function gitCommit(): string {
 
 export default defineConfig({
   main: {
-    define: { __FIXORA_COMMIT__: JSON.stringify(gitCommit()) },
+    define: {
+      __FIXORA_COMMIT__: JSON.stringify(gitCommit()),
+      __FIXORA_BUILT_AT__: JSON.stringify(buildTime()),
+      __FIXORA_DIRTY__: JSON.stringify(gitDirty()),
+    },
     plugins: [copyAnalysisWorker],
     build: {
       externalizeDeps: { exclude: BUNDLED },

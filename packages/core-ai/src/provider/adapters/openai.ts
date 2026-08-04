@@ -36,6 +36,7 @@ export const openAiDescriptor: ProviderDescriptor = {
   label: 'OpenAI',
   auth: 'api-key',
   keyUrl: 'https://platform.openai.com/api-keys',
+  dashboardUrl: 'https://platform.openai.com/usage',
   baseUrl: BASE_URL,
   defaultModel: 'gpt-4.1-mini',
   local: false,

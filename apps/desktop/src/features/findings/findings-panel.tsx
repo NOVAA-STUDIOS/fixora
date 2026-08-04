@@ -328,7 +328,12 @@ function FindingRow({
         // The row is measured, so it sizes to its own content and the list makes room for it — no
         // h-full to fill a fixed slot, and no overflow-hidden, which would have clipped exactly the
         // content the measurement exists to accommodate. min-w-0 keeps it shrinking with the pane.
-        'group/row flex min-w-0 flex-col gap-1.5 border-b border-border-subtle px-3 py-2',
+        // Spacing comes from the density tokens, not fixed utilities. The card is a STACK, so its
+        // density lives in its own padding and gap — `--fx-row-height` sizes single-line rows and
+        // says nothing about a card that holds three lines. Hardcoding `px-3 py-2` here is why the
+        // toggle changed the chrome around the list and left the list itself untouched.
+        'group/row flex min-w-0 flex-col border-b border-border-subtle',
+        'gap-(--fx-card-gap) px-(--fx-card-padding-x) py-(--fx-card-padding-y)',
         'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
         !isSelected && 'hover:bg-hover',
         // The selected row is what the details pane is describing — say so, with a bar rather than a
@@ -360,20 +365,28 @@ function FindingRow({
             className={cn('mt-[5px] size-2 shrink-0 rounded-full', SEVERITY_DOT[finding.severity])}
           />
           <span className="sr-only">{finding.severity}: </span>
-          <span className="line-clamp-2 min-w-0 text-xs leading-snug font-medium text-fg">
+          {/*
+            The title is the loudest thing in the row. It was `text-xs` — the same size as the
+            location beneath it — so the row read as two equal lines and the eye had nothing to land
+            on when scanning. It is the sentence that says what is wrong, so it leads.
+          */}
+          <span className="line-clamp-2 min-w-0 text-[13px] leading-snug font-semibold text-fg">
             {finding.message}
           </span>
         </span>
-        {/* The location is the thing you actually navigate by, so it leads — and it is monospace,
-            because file:line is code, and proportional digits in a scanning column are noise. */}
-        <span className="flex w-full min-w-0 items-center gap-1.5 pl-4">
+        {/*
+          Secondary line: where it is, and which rule fired. Deliberately quieter than the title.
+          `file:line` stays monospace because it is code and proportional digits are noise in a
+          scanning column; the rule id becomes a BADGE so it reads as a label rather than as more
+          prose competing with the location.
+        */}
+        <span className="flex w-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-4">
           <span className="min-w-0 truncate font-mono text-[11px] text-fg-secondary">
             {basename(finding.location.file)}:{finding.location.startLine}
           </span>
-          <span aria-hidden="true" className="shrink-0 text-border-strong">
-            ·
+          <span className="shrink-0 rounded bg-inset px-1 py-px font-mono text-[10px] leading-none text-fg-muted ring-1 ring-border-subtle ring-inset">
+            {finding.ruleId}
           </span>
-          <span className="min-w-0 truncate text-[11px] text-fg-muted">{finding.ruleId}</span>
         </span>
       </button>
 
@@ -393,7 +406,10 @@ function FindingRow({
       */}
       <div
         className={cn(
-          'flex flex-wrap items-center gap-1 pl-4',
+          // `min-w-0` so the row may shrink below its content's natural width instead of forcing the
+          // card wider than the pane — the clipping this sprint is about. `gap-y` is explicit so a
+          // wrapped second line has breathing room rather than colliding with the line above it.
+          'flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 pl-4',
           'transition-opacity duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
           isSelected
             ? 'opacity-100'
@@ -457,7 +473,13 @@ function FindingRow({
             ignore(finding.id);
           }}
           title="Hide this finding for now"
-          className="ml-auto shrink-0 rounded px-2 py-0.5 text-[11px] text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+          /*
+            `ml-auto` pushed this to the far right, which is right on one line and wrong the moment
+            the row wraps: on a narrow pane the auto-margin threw it to the end of a new line with a
+            gap of dead space beside the buttons it was meant to sit after. It now simply follows
+            them, and the wrap is what handles a narrow pane — which is the point of `flex-wrap`.
+          */
+          className="shrink-0 rounded px-2 py-0.5 text-[11px] text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
         >
           Ignore
         </button>

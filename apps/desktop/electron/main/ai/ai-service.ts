@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   buildContext,
   buildReAskMessage,
+  buildLintOnlyReAskMessage,
   buildVerificationReAskMessage,
   describeModelOutputFailure,
   describeProviderFailure,
@@ -21,7 +22,12 @@ import {
   type AIProvider,
 } from '@fixora/core-ai';
 import type { MicroRepairResult, RepairScope, RootCauseGroup } from '@fixora/core-analysis';
-import { classifyDiagnostic, detectDependentFailure, isUserFacingError } from '@fixora/shared-types';
+import {
+  classifyDiagnostic,
+  detectDependentFailure,
+  detectLintOnlyFailure,
+  isUserFacingError,
+} from '@fixora/shared-types';
 import type {
   AiRunRequest,
   AiRunResponse,
@@ -1170,6 +1176,8 @@ export function createAiService(deps: AiServiceDeps): AiService {
         // reassignment above. The empty fallback is unreachable in practice — a failed stream leaves
         // `response` as SCHEMA_ERROR, which the loop condition already excludes.
         let lastText = stream.ok ? stream.text : '';
+        /** Lint-targeted retries spent. Capped at one — see the block inside the loop. */
+        let lintRetries = 0;
         for (
           let attempt = 1;
           attempt <= VERIFY_RETRY_LIMIT &&
@@ -1205,6 +1213,30 @@ export function createAiService(deps: AiServiceDeps): AiService {
            * the model is now able to return something that can pass.
            */
           const widened = await escalateScope(failed);
+
+          /**
+           * A lint-only rejection earns ONE narrowly-targeted attempt before the patch is written off.
+           *
+           * When a patch parses, type-checks and resolves the reported problem, and the only new
+           * findings are lint diagnostics on the lines it touched, the general re-ask ("fix the
+           * problem without causing these") invites a rewrite that loses the parts already correct.
+           * This asks instead for the smallest possible follow-up: keep the fix, clear the listed
+           * rules, touch nothing else.
+           *
+           * Bounded to one attempt so a model that cannot satisfy a linter does not consume the whole
+           * retry budget it might have spent on a better repair. The gate is untouched: the result is
+           * verified by the identical pipeline, and if it still fails, the last verdict stands and
+           * Apply stays disabled with its reason.
+           */
+          const lintOnly = lintRetries === 0 && widened === null ? detectLintOnlyFailure(failed) : null;
+          if (lintOnly !== null) {
+            lintRetries += 1;
+            console.error('[ai:run] lint-only rejection — one targeted retry', {
+              rules: [...new Set(lintOnly.diagnostics.map((d) => d.ruleId))],
+              reason: lintOnly.reason,
+            });
+          }
+
           const retryStream = await streamOnce(
             usedAdapter,
             {
@@ -1212,7 +1244,13 @@ export function createAiService(deps: AiServiceDeps): AiService {
               // a fresh grounded request rather than a follow-up to the narrow answer — continuing
               // that conversation would anchor the model to the one-line patch that just failed.
               ...(widened ??
-                followUpRequest(activeRequest, lastText, buildVerificationReAskMessage(failed))),
+                followUpRequest(
+                  activeRequest,
+                  lastText,
+                  lintOnly === null
+                    ? buildVerificationReAskMessage(failed)
+                    : buildLintOnlyReAskMessage(lintOnly.diagnostics),
+                )),
               model: usedModel,
             },
             controller.signal,

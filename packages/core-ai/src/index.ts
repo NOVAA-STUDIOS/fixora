@@ -71,6 +71,7 @@ export {
   type ParseResult,
 } from './profiles/schemas.js';
 export { prepareRequest, type PreparedRequest } from './pipeline/prepare.js';
+export { keyFingerprint } from './provider/adapters/openai-compatible.js';
 
 // Proceed Mode (P2.1) — the editing pipeline. A parallel, additive path that reuses the repair
 // engine's gate/budget/provider/parse primitives; the repair path above is untouched.
@@ -90,6 +91,7 @@ export {
 export {
   buildReAskMessage,
   buildVerificationReAskMessage,
+  buildLintOnlyReAskMessage,
   describeModelOutputFailure,
   describeProviderFailure,
   describeSchemaFailureForUser,

@@ -62,17 +62,15 @@ describe('priority ordering', () => {
     const before = registry.list().map((p) => p.id);
     expect(before[0]).toBe('openrouter'); // the default ships first
 
+    // Asserted as RELATIVE order, not as the whole list: the catalogue grows as providers ship, and
+    // a test that pins every id fails on each addition while proving nothing about reordering.
     registry.moveUp('openai');
-    expect(createProviderRegistry({ dir }).list().map((p) => p.id)).toEqual([
-      'openai',
-      'openrouter',
-    ]);
+    const afterUp = createProviderRegistry({ dir }).list().map((p) => p.id);
+    expect(afterUp.indexOf('openai')).toBeLessThan(afterUp.indexOf('openrouter'));
 
     createProviderRegistry({ dir }).moveDown('openai');
-    expect(createProviderRegistry({ dir }).list().map((p) => p.id)).toEqual([
-      'openrouter',
-      'openai',
-    ]);
+    const afterDown = createProviderRegistry({ dir }).list().map((p) => p.id);
+    expect(afterDown.indexOf('openrouter')).toBeLessThan(afterDown.indexOf('openai'));
   });
 
   it('moving past either end is a no-op, not a wrap or a crash', () => {
@@ -111,9 +109,15 @@ describe('reconciliation across versions', () => {
       }),
     );
     const registry = createProviderRegistry({ dir });
-    expect(registry.list().map((p) => p.id)).toEqual(['openrouter', 'openai']);
-    // Present so it is visible in Settings; inert until the user chooses it.
+    const ids = registry.list().map((p) => p.id);
+    // The known provider keeps its place at the front; everything shipped since is appended.
+    expect(ids[0]).toBe('openrouter');
+    expect(ids).toContain('openai');
+    // Present so they are visible in Settings; inert until the user chooses one.
     expect(registry.get('openai')?.enabled).toBe(false);
+    for (const id of ids.slice(1)) {
+      expect(registry.get(id)?.enabled, id).toBe(false);
+    }
     // And the existing provider is untouched.
     expect(registry.get('openrouter')).toMatchObject({ enabled: true, model: 'm' });
   });

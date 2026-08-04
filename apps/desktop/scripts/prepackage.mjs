@@ -9,7 +9,7 @@
 // The fix: before packaging, replace that symlink with a dereferenced real copy — just the runtime files
 // (dist, package.json) and the nested WASM deps — so everything asarUnpack touches lives under the app.
 // Idempotent. Run `pnpm install` afterwards to restore the workspace symlink for development.
-import { cpSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 
 const appDir = process.cwd(); // apps/desktop
@@ -62,3 +62,14 @@ cpSync(real, link, { recursive: true, dereference: true, filter });
 console.log(
   `prepackage: vendored @fixora/core-analysis into ${link} (dereferenced, with WASM deps).`,
 );
+
+/**
+ * A marker so `postpackage.mjs` knows the symlink was replaced and must be restored.
+ *
+ * Without this, packaging leaves a dereferenced COPY of `@fixora/core-analysis` in node_modules, and
+ * every later dev run silently analyses with whatever engine code was current at package time. A
+ * plain `pnpm install` does not fix it — pnpm sees the path present and reports "Already up to date"
+ * — so the staleness survives indefinitely and is invisible. That is a stale-bundle path, and it is
+ * closed by restoring the link immediately after the packer is done with it.
+ */
+writeFileSync(join(appDir, 'node_modules', '.fixora-vendored-core-analysis'), real, 'utf8');

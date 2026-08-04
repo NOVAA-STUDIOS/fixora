@@ -73,6 +73,22 @@ if (!gotTheLock) {
 
   app.whenReady().then(
     () => {
+      /**
+       * Say which build this is, first thing, on every launch.
+       *
+       * A defect fixed in source but absent from the installed binary is indistinguishable from a
+       * defect that was never fixed — and the app could not previously tell you which it was
+       * looking at. One line in the log now answers it, so "is this build current?" never again
+       * costs an investigation.
+       */
+      console.error('[main] build', {
+        commit: typeof __FIXORA_COMMIT__ === 'string' ? __FIXORA_COMMIT__ : 'unknown',
+        builtAt: typeof __FIXORA_BUILT_AT__ === 'string' ? __FIXORA_BUILT_AT__ : 'unknown',
+        dirty: typeof __FIXORA_DIRTY__ === 'boolean' ? __FIXORA_DIRTY__ : false,
+        packaged: app.isPackaged,
+        version: app.getVersion(),
+      });
+
       // Local persistence. A corrupt DB degrades to "history unavailable" and never blocks
       // launch (DB §1) — `openDatabase` returns `recovered` rather than throwing.
       const { driver } = openDatabase({ dir: app.getPath('userData') });

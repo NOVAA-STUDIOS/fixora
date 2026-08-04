@@ -573,3 +573,116 @@ describe('ai store — resumes the refused request after the provider changes', 
     expect(useAiStore.getState().status).toBe('error');
   });
 });
+
+/**
+ * Force Apply must actually reach the write.
+ *
+ * The feature shipped inert: the dialog resolved, the button fired, and `applyRepair` was entered
+ * with `forced: true` — and then the gate guard at the top returned false before `invoke` was ever
+ * called. No IPC, no file write, no editor refresh. The `forced` flag was plumbed into the request
+ * payload but the guard above it never consulted it, so the whole feature was a no-op that looked
+ * like a working button.
+ *
+ * These pin the exemption AND its boundary: forced passes the verification gate only, an ordinary
+ * apply is still refused by it, and every downstream protection still runs.
+ */
+describe('ai store — Force Apply reaches the write', () => {
+  const rejected = {
+    ...proposal,
+    verification: {
+      verdict: 'regression' as const,
+      targetResolved: true,
+      newFindingCount: 1,
+      syntaxOk: false,
+      ran: ['syntax'],
+    },
+  };
+
+  it('an ordinary apply on a FAILED gate is still refused before any IPC', async () => {
+    useAiStore.setState({ status: 'done', proposal: rejected, activeFindingId: 'f1' });
+    const ok = await useAiStore.getState().applyRepair();
+    expect(ok).toBe(false);
+    // The guard is intact: nothing was sent.
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('a FORCED apply reaches ai:applyRepair, carrying the audit flag', async () => {
+    useAiStore.setState({ status: 'done', proposal: rejected, activeFindingId: 'f1' });
+    invoke.mockResolvedValueOnce({
+      ok: true,
+      value: { applied: true, reason: null, message: 'applied', staleRangeCheck: null },
+    });
+    invoke.mockResolvedValueOnce({ ok: true, value: { file: { content: 'new content' } } });
+    // The history refresh that follows every successful apply (fire-and-forget in the store).
+    invoke.mockResolvedValueOnce({ ok: true, value: { entries: [] } });
+
+    const ok = await useAiStore.getState().applyRepair({ forced: true });
+
+    expect(ok).toBe(true);
+    expect(invoke).toHaveBeenCalledWith(
+      'ai:applyRepair',
+      expect.objectContaining({
+        file: 'src/Button.tsx',
+        code: rejected.repairedCode,
+        // The staleness guard's input is still sent — forcing does not skip it.
+        expectedOriginal: rejected.originalCode,
+        forced: true,
+      }),
+    );
+  });
+
+  it('refreshes the editor buffer after a forced write, like any other apply', async () => {
+    useAiStore.setState({ status: 'done', proposal: rejected, activeFindingId: 'f1' });
+    invoke.mockResolvedValueOnce({
+      ok: true,
+      value: { applied: true, reason: null, message: 'applied', staleRangeCheck: null },
+    });
+    invoke.mockResolvedValueOnce({ ok: true, value: { file: { content: 'new content' } } });
+    // The history refresh that follows every successful apply (fire-and-forget in the store).
+    invoke.mockResolvedValueOnce({ ok: true, value: { entries: [] } });
+
+    await useAiStore.getState().applyRepair({ forced: true });
+
+    // The re-read that reflects the change in the open buffer.
+    expect(invoke).toHaveBeenCalledWith('fs:readFile', { relPath: 'src/Button.tsx' });
+    // And the proposal is cleared, as after any successful apply.
+    expect(useAiStore.getState().proposal).toBeNull();
+  });
+
+  it('still honours main REFUSING a forced write — the override is not of file safety', async () => {
+    useAiStore.setState({ status: 'done', proposal: rejected, activeFindingId: 'f1' });
+    invoke.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        applied: false,
+        reason: 'stale-range',
+        message: 'The file changed since this repair was generated.',
+        staleRangeCheck: null,
+      },
+    });
+
+    const ok = await useAiStore.getState().applyRepair({ forced: true });
+
+    expect(ok).toBe(false);
+    expect(useAiStore.getState().errorMessage).toMatch(/changed since/i);
+    // No refresh, and the proposal survives so the user can see what failed.
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(useAiStore.getState().proposal).toEqual(rejected);
+  });
+
+  it('does not need forcing when the gate already passes', async () => {
+    useAiStore.setState({ status: 'done', proposal, activeFindingId: 'f1' });
+    invoke.mockResolvedValueOnce({
+      ok: true,
+      value: { applied: true, reason: null, message: 'applied', staleRangeCheck: null },
+    });
+    invoke.mockResolvedValueOnce({ ok: true, value: { file: { content: 'new' } } });
+    invoke.mockResolvedValueOnce({ ok: true, value: { entries: [] } });
+
+    await useAiStore.getState().applyRepair();
+
+    // Accept's request is unchanged — no `forced` key at all.
+    const sent = invoke.mock.calls.find((c) => c[0] === 'ai:applyRepair')?.[1] as Record<string, unknown>;
+    expect(sent).not.toHaveProperty('forced');
+  });
+});

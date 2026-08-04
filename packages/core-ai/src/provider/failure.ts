@@ -25,6 +25,7 @@ import {
   type FailureSeverity,
   type RecoveryAction,
 } from './failure-model.js';
+import type { RateLimitFacts } from './rate-limit.js';
 
 export * from './failure-model.js';
 
@@ -58,6 +59,14 @@ export interface ProviderFailure {
   readonly actions: readonly RecoveryAction[];
   /** The provider's own code, preserved for logs and bug reports — not shown as the headline. */
   readonly providerCode: string;
+  /**
+   * The provider's rate-limit numbers, carried through from the adapter when it had them.
+   *
+   * Classification does not read this — the category is decided from the status and the body text,
+   * exactly as before. It rides along so the card can show "0 of 50 left, back in 6h 52m" instead
+   * of "quota exceeded", which is the whole difference between a dead end and an ETA.
+   */
+  readonly rateLimit?: RateLimitFacts;
 }
 
 /**
@@ -76,6 +85,7 @@ export function severityOf(failure: {
 
 /** Assemble a failure, filling in the fields that are always the same shape. */
 function failure(input: {
+  rateLimit?: RateLimitFacts;
   kind: FailureKind;
   category: FailureCategory;
   layer: Exclude<FailureLayer, 'engine'>;
@@ -129,6 +139,8 @@ export function describeProviderFailure(input: {
   providerCode: string;
   detail?: string;
   retryable?: boolean;
+  /** Passed straight through onto the result; never consulted when classifying. */
+  rateLimit?: RateLimitFacts;
 }): ProviderFailure {
   const code = input.providerCode.toUpperCase();
   const status = /^HTTP_(\d{3})$/.exec(code)?.[1];
@@ -144,8 +156,11 @@ export function describeProviderFailure(input: {
           message:
             'Your provider allowance for this model is used up for now. It will reset on the provider’s schedule — until then, switch to another configured model or add credits.',
           retryable: false,
-          actions: ['change-model', 'check-credits', 'retry-later', 'open-settings'],
+          // Ordered by what most often works: another model has its own allowance, another provider
+          // certainly does, and the dashboard is where the quota itself is actually changed.
+          actions: ['change-model', 'switch-provider', 'open-dashboard', 'retry-later', 'check-credits'],
           providerCode: code,
+          ...(input.rateLimit === undefined ? {} : { rateLimit: input.rateLimit }),
         })
       : failure({
           kind: 'quota',
@@ -154,8 +169,9 @@ export function describeProviderFailure(input: {
           message:
             'The provider is limiting how fast requests can be sent. Nothing is wrong with your setup — wait a few seconds and try again.',
           retryable: true,
-          actions: ['retry', 'change-model'],
+          actions: ['retry', 'change-model', 'switch-provider'],
           providerCode: code,
+          ...(input.rateLimit === undefined ? {} : { rateLimit: input.rateLimit }),
         });
   }
   if (status === '402') {
@@ -422,4 +438,36 @@ export function describeModelOutputFailure(reason: string, detail = ''): Provide
     actions: ['retry', 'change-model'],
     providerCode: `MODEL_${reason}`,
   };
+}
+
+/**
+ * The correction sent back when a patch failed verification for LINT diagnostics only.
+ *
+ * Distinct from {@link buildVerificationReAskMessage}, which handles the general case. Here the patch
+ * already parses, already type-checks, and already resolves the reported problem — the only thing
+ * standing between it and Apply is a set of lint findings on the code it touched. Asking the model to
+ * "fix the original problem without causing these" (the general message) invites it to rewrite the
+ * whole patch and lose the parts that were right.
+ *
+ * So this asks for the narrowest possible thing: keep the fix exactly as it is, and clear the listed
+ * lint diagnostics. The verifier still re-runs in full afterwards and still decides.
+ */
+export function buildLintOnlyReAskMessage(
+  diagnostics: readonly { source: string; ruleId: string; line: number; message: string }[],
+): string {
+  const list = diagnostics
+    .slice(0, 8)
+    .map((d) => `  - line ${String(d.line)} — ${d.ruleId}: ${d.message}`)
+    .join('\n');
+  const more = diagnostics.length > 8 ? `\n  …and ${String(diagnostics.length - 8)} more.` : '';
+  return (
+    'Your previous fix is correct: it parses, it type-checks, and it resolves the reported problem. ' +
+    'It was rejected only because it introduced these lint diagnostics:\n' +
+    `${list}${more}\n` +
+    'Keep the fix exactly as it is and resolve ONLY these lint diagnostics — for example by using ' +
+    'const where a binding is never reassigned, removing a binding that is genuinely unused, or ' +
+    'awaiting a value the rule requires. Do not restructure the fix, do not change its behaviour, ' +
+    'and do not touch any line these diagnostics do not name.' +
+    ' Return ONLY the corrected JSON object, in the same shape as before, with no surrounding text.'
+  );
 }

@@ -1,4 +1,5 @@
 import {
+  keyFingerprint,
   providerRegistration,
   resolveCapabilities,
   runWithFailover,
@@ -116,6 +117,19 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
       // A cloud provider with no key cannot be attempted. A local one needs none — asking a user for
       // an API key to talk to a daemon on their own machine would be nonsense.
       const apiKey = descriptor.auth === 'none' ? null : deps.credentials.getKey(settings.id);
+      /**
+       * What the credential STORE just handed back, at the moment the provider is built.
+       *
+       * Paired with `[provider] request`, this closes the loop on "a saved key was not adopted": if
+       * the fingerprint here already matches the newly saved key, the store is correct and any
+       * refusal belongs to the provider; if it still shows the old tail, the fault is upstream in the
+       * store, not in the adapter. Masked — see `keyFingerprint`.
+       */
+      console.error('[orchestrator] credential read', {
+        provider: settings.id,
+        key: keyFingerprint(apiKey),
+        auth: descriptor.auth,
+      });
       if (descriptor.auth === 'api-key' && apiKey === null) continue;
       sawCredential = true;
 
@@ -140,6 +154,9 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
       candidates.push({
         provider: settings.id,
         model,
+        // Carried so failover can tell "this daemon is not running" from "the internet is down".
+        // A refused connection to 127.0.0.1 must not stop the walk before the cloud is tried.
+        local: descriptor.local,
         adapter: registration.create({
           apiKey,
           baseUrl: settings.baseUrl,

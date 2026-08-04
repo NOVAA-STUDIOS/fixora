@@ -71,8 +71,14 @@ type AiState = {
   /** Re-run the last attempted profile/finding — Proceed's Retry, mirrored for Repair/Explain/Test. */
   retry: () => Promise<void>;
   cancel: () => Promise<void>;
-  /** Apply the current repair proposal to the file on disk. Returns true on success. */
-  applyRepair: () => Promise<boolean>;
+  /**
+   * Apply the current repair proposal to the file on disk. Returns true on success.
+   *
+   * `forced` marks a deliberate override of a FAILED verification (Force Apply). It changes nothing
+   * about what is sent or what main enforces — the staleness check, range validation and path guard
+   * all still run — it only makes the override auditable.
+   */
+  applyRepair: (options?: { forced?: boolean }) => Promise<boolean>;
   dismiss: () => void;
   listen: () => () => void;
 };
@@ -323,11 +329,14 @@ export const useAiStore = create<AiState>((set, get) => ({
     }
   },
 
-  applyRepair: async () => {
+  applyRepair: async (options) => {
     const { proposal, activeFindingId } = get();
     if (proposal?.profile !== 'repair') return false;
 
+    // Evaluated on EVERY apply, forced or not: the attempt record must always carry the gate's
+    // verdict, so a forced write is auditable against what verification actually said at the time.
     const gate = evaluateApplyGate(proposal);
+    const forced = options?.forced === true;
     const request = {
       file: proposal.target.file,
       startLine: proposal.target.startLine,
@@ -335,6 +344,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       code: proposal.repairedCode,
       expectedOriginal: proposal.originalCode,
       historyId: proposal.historyId,
+      ...(forced ? { forced: true } : {}),
     };
     const startedAt = Date.now();
     const attempt: ApplyAttempt = {
@@ -353,11 +363,25 @@ export const useAiStore = create<AiState>((set, get) => ({
 
     // Record a gate refusal as an attempt too. Otherwise a disabled-button case leaves no trace and
     // is indistinguishable from "the click did nothing".
-    if (!gate.enabled) {
+    //
+    // `forced` is the ONE thing that passes this guard, and only this guard: it is the user's
+    // explicit, confirmed override of the VERIFICATION gate, taken after being shown what failed and
+    // what may happen. Without the exemption here, Force Apply was inert — the dialog resolved, the
+    // action ran, and this early return refused before `invoke` was ever reached, so no IPC, no write
+    // and no editor refresh ever happened.
+    //
+    // Everything downstream is unchanged and can still refuse: main re-reads the file, checks the
+    // target range against `expectedOriginal`, validates the range bounds, and applies the path guard
+    // and secrets denylist. A forced write is an override of verification, never of file safety.
+    if (!gate.enabled && !forced) {
       const blocked: ApplyAttempt = { ...attempt, durationMs: 0 };
       set({ lastApplyAttempt: blocked });
       console.error('[apply] blocked', { gate, rootCause: rootCauseOf(blocked) });
       return false;
+    }
+    if (!gate.enabled) {
+      // Audit the override at the point it takes effect, with the verdict it overrode.
+      console.error('[apply] FORCED past a failed gate', { reason: gate.reason, explanation: gate.explanation });
     }
 
     // Same reason as `run()`: `invoke` rejects on a missing/throwing main handler, and this one is

@@ -7,15 +7,17 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "node scripts/electron-vite-gui.mjs dev",
-    "build": "electron-vite build",
+    "build": "pnpm clean && electron-vite build",
     "preview": "node scripts/electron-vite-gui.mjs preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint electron src electron.vite.config.ts --max-warnings 0",
     "test": "vitest run",
-    "package:win": "pnpm --filter @fixora/core-analysis build && electron-vite build && node scripts/prepackage.mjs && electron-builder --win --config electron-builder.yml",
-    "package:dir": "pnpm --filter @fixora/core-analysis build && electron-vite build && node scripts/prepackage.mjs && electron-builder --dir --win --config electron-builder.yml",
+    "package:win": "pnpm --filter @fixora/core-analysis build && pnpm clean && electron-vite build && node scripts/prepackage.mjs && electron-builder --win --config electron-builder.yml && node scripts/postpackage.mjs",
+    "package:dir": "pnpm --filter @fixora/core-analysis build && pnpm clean && electron-vite build && node scripts/prepackage.mjs && electron-builder --dir --win --config electron-builder.yml && node scripts/postpackage.mjs",
     "prepackage": "node scripts/prepackage.mjs",
-    "icon": "electron scripts/make-icon.cjs"
+    "icon": "electron scripts/make-icon.cjs",
+    "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
+    "postpackage": "node scripts/postpackage.mjs"
   },
   "//dependencies": "Only @fixora/core-analysis is a RUNTIME dependency: the ESM analysis worker imports it from disk (out/main/analysis-worker.mjs) so it can resolve tree-sitter WASM via import.meta.url. Every other @fixora/* package is bundled into the CJS main and the renderer by electron-vite, which makes them build-time inputs — they belong in devDependencies. Keeping them here also broke packaging: electron-builder's production-dependency walker follows pnpm's workspace symlinks out to packages/*, then refuses the realpath for being outside apps/desktop.",
   "dependencies": {

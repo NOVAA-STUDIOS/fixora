@@ -39,6 +39,7 @@ export const openRouterDescriptor: ProviderDescriptor = {
   label: 'OpenRouter',
   auth: 'api-key',
   keyUrl: 'https://openrouter.ai/keys',
+  dashboardUrl: 'https://openrouter.ai/credits',
   baseUrl: BASE_URL,
   defaultModel: 'openai/gpt-oss-20b:free',
   local: false,

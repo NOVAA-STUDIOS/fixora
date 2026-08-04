@@ -40,6 +40,14 @@ export interface ProviderDescriptor {
   /** Where a user gets a key. Rendered as a link in Settings; omitted for local providers. */
   readonly keyUrl?: string;
   /**
+   * Where the user manages QUOTA and billing — distinct from `keyUrl`.
+   *
+   * A rate-limited user does not need the key page; they need the page that shows what they have
+   * spent and lets them raise the limit. Sending them to the wrong one is a small betrayal of an
+   * offer to help. Omitted for local providers, which have no dashboard and no quota.
+   */
+  readonly dashboardUrl?: string;
+  /**
    * Default API base. Overridable per install, which is what makes every OpenAI-compatible endpoint
    * (Azure, Groq, Together, Fireworks, LM Studio, vLLM) reachable without a new adapter — they are
    * this descriptor with a different base URL.

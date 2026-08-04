@@ -386,6 +386,18 @@ export const ApplyRepairRequestSchema = z.object({
   expectedOriginal: z.string(),
   /** The history row to mark as applied (from the repair proposal). */
   historyId: z.string().optional(),
+  /**
+   * True when the user deliberately overrode a FAILED verification (Force Apply).
+   *
+   * Carried so the write is auditable: an unverified patch entering someone's source tree is exactly
+   * the event a log needs to record, and reconstructing it afterwards from the verdict alone is
+   * impossible once the file has changed.
+   *
+   * It grants nothing. Main does not branch on it for any safety decision — the staleness check, the
+   * range validation and the path guard run identically whether it is set or not. Its only effects
+   * are the audit line and the history record.
+   */
+  forced: z.boolean().optional(),
 });
 export type ApplyRepairRequest = z.infer<typeof ApplyRepairRequestSchema>;
 
@@ -551,9 +563,40 @@ export const AiFailureSchema = z.object({
         'change-model',
         'check-credits',
         'check-connection',
+        /** Move to the next configured provider, without leaving the repair. */
+        'switch-provider',
+        /** Open the provider's own dashboard, where quota and billing actually live. */
+        'open-dashboard',
       ]),
     )
     .min(1),
+  /**
+   * The provider's own rate-limit numbers, when it sent them.
+   *
+   * Present only for refusals that carried them. Every field is optional and absent-means-unknown: a
+   * reset time we invented would be worse than none, because the user plans around it and comes back
+   * to find the allowance still gone.
+   */
+  rateLimit: z
+    .object({
+      limit: z.number().optional(),
+      remaining: z.number().optional(),
+      /** Epoch milliseconds, normalised from whichever unit the provider used. */
+      resetAt: z.number().optional(),
+      retryAfterSeconds: z.number().optional(),
+      /**
+       * The provider's own machine name for the limit, e.g. openrouter_free_tier_daily.
+       *
+       * A short bounded token, not prose — it distinguishes "too fast" from "out for the day", which
+       * need different actions. The provider's free-text remedy is deliberately NOT carried: it is
+       * unbounded, unlocalised, and in practice vendor upsell copy, which has no business being
+       * rendered inside Fixora. We say what to do in our own words instead.
+       */
+      source: z.string().optional(),
+    })
+    .optional(),
+  /** Where the user manages this provider's quota and billing. */
+  dashboardUrl: z.string().optional(),
   /** Which provider was called, for the card's Provider row. */
   provider: z.string(),
   /** The model id that was asked. Shown as-is; it is the thing the user would change. */

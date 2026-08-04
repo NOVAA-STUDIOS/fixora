@@ -120,7 +120,9 @@ describe('ProviderErrorCard — whose problem is it', () => {
 describe('ProviderErrorCard — what do I do now', () => {
   it('lists the suggested actions in the order the classifier ranked them', () => {
     renderCard({ actions: ['change-model', 'check-credits', 'retry-later'] });
-    const items = within(screen.getByRole('alert')).getAllByRole('listitem');
+    // Scoped to the suggested-actions list by name: the card also renders a DIAGNOSIS list now, and
+    // an unscoped listitem query silently mixes the two.
+    const items = within(screen.getByRole('list', { name: 'Suggested actions' })).getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual([
       'Select another configured model',
       'Check your API credits with the provider',
@@ -161,9 +163,9 @@ describe('ProviderErrorCard — what do I do now', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 
-  it('labels the settings button Change Model when that is the actual advice', () => {
+  it('labels the model button Switch Model when that is the actual advice', () => {
     renderCard({ category: 'model-unavailable', actions: ['change-model'] });
-    expect(screen.getByRole('button', { name: 'Change Model' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Switch Model' })).toBeInTheDocument();
   });
 
   it('wires the buttons to their handlers', () => {
@@ -237,5 +239,74 @@ describe('ProviderErrorCard — a failed failover walk', () => {
   it('stays a plain status card when nothing was failed over', () => {
     renderCard({ attempts: [] });
     expect(screen.getByRole('alert')).not.toHaveTextContent('Also tried');
+  });
+});
+
+/**
+ * The 429 experience, end to end.
+ *
+ * "Quota exceeded" is true and useless. These pin the replacement: what the failure PROVES is stated
+ * as ticks, the provider's own numbers are shown verbatim, and the blame is never Fixora's.
+ */
+describe('ProviderErrorCard — production-grade 429 diagnostics', () => {
+  const quota429: Partial<AiFailure> = {
+    category: 'quota-exceeded',
+    actions: ['change-model', 'switch-provider', 'open-dashboard', 'retry-later'],
+    rateLimit: {
+      limit: 50,
+      remaining: 0,
+      resetAt: Date.now() + 6.86 * 3600 * 1000,
+      source: 'openrouter_free_tier_daily',
+    },
+    dashboardUrl: 'https://openrouter.ai/credits',
+  };
+
+  it('confirms the key is valid and the connection works, and fails ONLY the quota', () => {
+    renderCard(quota429);
+    const diagnosis = within(screen.getByRole('list', { name: 'Diagnosis' })).getAllByRole('listitem');
+    const text = diagnosis.map((li) => li.textContent);
+    expect(text.some((t) => t.includes('API key is valid') && t.includes('401'))).toBe(true);
+    expect(text.some((t) => t.includes('Provider connection works'))).toBe(true);
+    expect(text.some((t) => t.includes('Daily free quota exhausted'))).toBe(true);
+  });
+
+  it("shows the provider's own numbers, not a generic sentence", () => {
+    renderCard(quota429);
+    expect(screen.getByText('Remaining')).toBeInTheDocument();
+    expect(screen.getByText(/0 of 50/)).toBeInTheDocument();
+    expect(screen.getByText('Resets')).toBeInTheDocument();
+    expect(screen.getByText(/in 6h/)).toBeInTheDocument();
+  });
+
+  it('offers Retry, Switch Model, Switch Provider and Open Provider Dashboard', () => {
+    renderCard({ ...quota429, actions: ['retry', 'change-model', 'switch-provider', 'open-dashboard'] }, { retryable: true });
+    for (const name of ['Retry', 'Switch Model', 'Switch Provider', 'Open Provider Dashboard']) {
+      expect(screen.getByRole('button', { name }), name).toBeInTheDocument();
+    }
+  });
+
+  it('blames the PROVIDER, never Fixora', () => {
+    renderCard(quota429);
+    expect(screen.getByText('AI provider — not Fixora')).toBeInTheDocument();
+    expect(screen.queryByText('Fixora', { exact: true })).not.toBeInTheDocument();
+  });
+
+  it('omits a fact the provider did not send, rather than inventing it', () => {
+    // A reset time we made up is worse than none: the user plans around it.
+    renderCard({ ...quota429, rateLimit: { remaining: 0 } });
+    expect(screen.queryByText('Resets')).not.toBeInTheDocument();
+    expect(screen.queryByText('Retry after')).not.toBeInTheDocument();
+    expect(screen.getByText('Remaining')).toBeInTheDocument();
+  });
+
+  it('hides the dashboard button when the provider has no dashboard URL', () => {
+    // Local providers have neither a dashboard nor a quota. A dead button is worse than none.
+    renderCard({ ...quota429, dashboardUrl: undefined });
+    expect(screen.queryByRole('button', { name: 'Open Provider Dashboard' })).not.toBeInTheDocument();
+  });
+
+  it('renders no checklist at all for an unclassified failure, rather than a fabricated one', () => {
+    renderCard({ category: 'unknown-provider-error', actions: ['retry'], rateLimit: undefined });
+    expect(screen.queryByRole('list', { name: 'Diagnosis' })).not.toBeInTheDocument();
   });
 });

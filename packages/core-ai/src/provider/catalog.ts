@@ -1,4 +1,6 @@
 
+import { azureOpenAiRegistration } from './adapters/azure-openai.js';
+import { lmStudioRegistration, ollamaRegistration } from './adapters/local.js';
 import { openAiRegistration } from './adapters/openai.js';
 import { openRouterRegistration } from './adapters/openrouter.js';
 import type { ProviderDescriptor, ProviderRegistration } from './descriptor.js';
@@ -17,6 +19,12 @@ const REGISTRATIONS: readonly ProviderRegistration[] = [
   // OpenRouter first: it is the default, and every existing user is already on it.
   openRouterRegistration,
   openAiRegistration,
+  azureOpenAiRegistration,
+  // Local providers last in the DEFAULT order, not because they matter least — they are the most
+  // private option available — but because they only work once the user has a daemon running, and a
+  // fresh install has neither. A user who wants them first moves them up, and that order persists.
+  ollamaRegistration,
+  lmStudioRegistration,
 ];
 
 export function allProviders(): readonly ProviderRegistration[] {

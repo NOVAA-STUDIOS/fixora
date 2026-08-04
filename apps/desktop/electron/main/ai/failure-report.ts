@@ -1,4 +1,9 @@
-import { describeProviderFailure, severityOf, type ProviderFailure } from '@fixora/core-ai';
+import {
+  describeProviderFailure,
+  providerDescriptor,
+  severityOf,
+  type ProviderFailure,
+} from '@fixora/core-ai';
 import type { AiFailure } from '@fixora/shared-types';
 
 /**
@@ -39,6 +44,39 @@ export function toWireFailure(
     // message this feature exists to deliver. So the guarantee is re-asserted here rather than
     // assumed across a package boundary.
     actions: failure.actions.length > 0 ? [...failure.actions] : (['open-settings'] as const),
+    // The provider's own numbers, when it sent them. Absent stays absent — an invented reset time is
+    // worse than none, because the user plans around it.
+    /**
+     * Picked field by field, never spread.
+     *
+     * A spread carries whatever the adapter happened to parse — including the provider's free-text
+     * `remedy`, which is unbounded vendor copy and has no business in Fixora's UI. Removing it from
+     * the wire SCHEMA is not enough: this object is constructed, not parsed, so zod strips nothing.
+     * The boundary is here, and it is explicit so a new field on RateLimitFacts cannot cross by
+     * accident — it has to be added on this line, deliberately.
+     */
+    ...(failure.rateLimit === undefined
+      ? {}
+      : {
+          rateLimit: {
+            ...(failure.rateLimit.limit === undefined ? {} : { limit: failure.rateLimit.limit }),
+            ...(failure.rateLimit.remaining === undefined
+              ? {}
+              : { remaining: failure.rateLimit.remaining }),
+            ...(failure.rateLimit.resetAt === undefined
+              ? {}
+              : { resetAt: failure.rateLimit.resetAt }),
+            ...(failure.rateLimit.retryAfterSeconds === undefined
+              ? {}
+              : { retryAfterSeconds: failure.rateLimit.retryAfterSeconds }),
+            ...(failure.rateLimit.source === undefined ? {} : { source: failure.rateLimit.source }),
+          },
+        }),
+    // Where the quota actually lives. Distinct from the key page: a rate-limited user does not need
+    // to re-read their key, they need the page that shows what they have spent.
+    ...(providerDescriptor(context.provider)?.dashboardUrl === undefined
+      ? {}
+      : { dashboardUrl: providerDescriptor(context.provider)?.dashboardUrl }),
     provider: providerLabel(context.provider),
     model: context.model,
     // The whole walk, so a total failure is ONE card listing what was tried rather than a sequence

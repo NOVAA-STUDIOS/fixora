@@ -1,8 +1,10 @@
-import { Button, cn } from '@fixora/ui';
+import { Button, ConfirmDialog, cn } from '@fixora/ui';
+import { useState } from 'react';
 
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { evaluateApplyGate } from '../ai/apply-diagnostics.js';
+import { assessForceApplyRisk, riskLabel } from '../ai/force-apply-risk.js';
 
 /**
  * The inline review controls — Accept, Reject, and movement between edits — pinned over the editor.
@@ -30,9 +32,32 @@ export function InlineRepairBar({
   const dismiss = useAiStore((s) => s.dismiss);
   const openFullDiff = useUiStore((s) => s.openFullDiff);
 
-  const repair = proposal !== null && proposal.profile === 'repair' ? proposal : null;
+  const repair = proposal?.profile === 'repair' ? proposal : null;
   const gate = evaluateApplyGate(repair);
   const total = position?.total ?? 0;
+  const [confirming, setConfirming] = useState(false);
+  const risk = assessForceApplyRisk(repair);
+
+  /**
+   * Force Apply is offered whenever there is a patch — including a verified one, where it is simply
+   * redundant and Accept is the obvious action. Hiding it when verification passes would make it
+   * appear only in the moment of frustration, which is the worst time to meet an unfamiliar control.
+   */
+  const canForce = repair !== null && repair.repairedCode.length > 0;
+
+  const dialogDescription =
+    risk === null
+      ? ''
+      : [
+          risk.headline + '.',
+          risk.detail,
+          '',
+          riskLabel(risk.level) + '. If you apply this anyway:',
+          ...risk.consequences.map((c) => '• ' + c),
+          '',
+          'The file is still checked before it is written: if it changed since this repair was',
+          'generated, the write is refused rather than corrupting it.',
+        ].join('\n');
 
   return (
     <div
@@ -86,6 +111,28 @@ export function InlineRepairBar({
       >
         Reject
       </Button>
+      {/*
+        Force Apply — a separate action, never a relaxation of Accept.
+
+        Accept's `disabled` below is untouched and still comes from `evaluateApplyGate`. This is the
+        deliberate override: it is always available when a patch exists, it explains precisely what
+        failed and what may happen, and it does nothing until the user confirms. It bypasses the
+        VERIFICATION gate only — every write-time protection still runs and can still refuse.
+      */}
+      {canForce && !gate.enabled && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0 text-danger-text"
+          title="Apply this patch even though verification failed. You will be asked to confirm."
+          onClick={() => {
+            setConfirming(true);
+          }}
+        >
+          Force Apply
+        </Button>
+      )}
+
       <Button
         variant="primary"
         size="sm"
@@ -96,6 +143,20 @@ export function InlineRepairBar({
       >
         Accept
       </Button>
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Apply an unverified repair?"
+        description={dialogDescription}
+        confirmLabel="Apply anyway"
+        destructive
+        onConfirm={() => {
+          setConfirming(false);
+          // The SAME pipeline Accept uses. `forced` is for the audit trail, not for permission.
+          void applyRepair({ forced: true });
+        }}
+      />
     </div>
   );
 }

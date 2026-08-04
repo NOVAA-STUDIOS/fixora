@@ -98,6 +98,8 @@ describe('the IPC contract registry', () => {
       name: 'Fixora',
       version: '0.1.0',
       commit: 'abc1234',
+      builtAt: '2026-08-04T00:00:00.000Z',
+      dirty: false,
       platform: 'win32',
       arch: 'x64',
       electronVersion: '43.1.0',

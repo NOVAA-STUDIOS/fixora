@@ -136,3 +136,63 @@ describe('ai:setModel — a model switch is a provider change too', () => {
     expect(s.keyModel).toHaveBeenCalledWith('other/model');
   });
 });
+
+/**
+ * Removal is permanent — including across a restart.
+ *
+ * The v1 file is not only the downgrade path, it is the RESURRECTION path: `credential-store.ts`'s
+ * `migrateLegacy` adopts the v1 key whenever the v2 file is absent or unreadable. So "Remove Key"
+ * has to clear both stores, and a failure in one must not leave the other holding the key — a
+ * removal that cleared v2 and then threw would look successful and hand the key back on the next
+ * launch that could not read v2.
+ */
+describe('ai:clearKey — removal is authoritative and survives restart', () => {
+  it('clears BOTH the provider store and the legacy file', async () => {
+    const s = spies();
+    const { clearKey } = await handlers(s);
+    await clearKey({});
+    // The store the provider is built from.
+    expect(s.credClear).toHaveBeenCalledWith('openrouter');
+    // The store `migrateLegacy` would otherwise resurrect from.
+    expect(s.keyClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('still clears the LEGACY file when the provider store throws', async () => {
+    // Otherwise the next launch that cannot read v2 migrates the deleted key straight back.
+    const s = spies();
+    s.credClear.mockImplementation(() => {
+      throw new Error('keychain unavailable');
+    });
+    const { clearKey } = await handlers(s);
+    await expect(clearKey({})).rejects.toThrow(/keychain/i);
+    expect(s.keyClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('still clears the PROVIDER store when the legacy file throws', async () => {
+    const s = spies();
+    const { clearKey } = await handlers(s);
+    // Set AFTER wiring: the harness assigns a return value to this spy while registering handlers.
+    s.keyClear.mockImplementation(() => {
+      throw new Error('disk full');
+    });
+    await expect(clearKey({})).rejects.toThrow();
+    expect(s.credClear).toHaveBeenCalledWith('openrouter');
+  });
+
+  it('reports the failure rather than returning a config that claims success', async () => {
+    const s = spies();
+    s.credClear.mockImplementation(() => {
+      throw new Error('keychain unavailable');
+    });
+    const { clearKey } = await handlers(s);
+    // A silent success here would tell the user the key is gone while it is still on disk.
+    await expect(clearKey({})).rejects.toThrow();
+  });
+
+  it('aborts any run still in flight, so the removed key cannot report afterwards', async () => {
+    const s = spies();
+    const { clearKey } = await handlers(s);
+    await clearKey({});
+    expect(s.cancel).toHaveBeenCalledTimes(1);
+  });
+});

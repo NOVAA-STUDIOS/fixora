@@ -50,11 +50,49 @@ describe('toWireFailure — what crosses the boundary', () => {
     // Six keys, all renderable. `attempts` was added when automatic failover shipped: it carries
     // model ids and classifications for the consolidated card, and — like every other field here —
     // has no room for a status code, a request id, a latency or the provider's own words.
+    // `rateLimit` and `dashboardUrl` were added by the provider-diagnostics sprint. Both are safe by
+    // this test's own rule: rateLimit carries NUMBERS plus a short machine token (the limit's name),
+    // and dashboardUrl is a static URL from our own provider descriptor. The provider's free-text
+    // remedy is deliberately not carried — it is unbounded vendor prose, which is exactly what this
+    // allow-list exists to keep out.
     expect(Object.keys(wire).sort()).toEqual(
-      ['actions', 'attempts', 'category', 'layer', 'model', 'provider'].sort(),
+      ['actions', 'attempts', 'category', 'dashboardUrl', 'layer', 'model', 'provider'].sort(),
     );
     expect(JSON.stringify(wire)).not.toContain('429');
     expect(JSON.stringify(wire)).not.toContain('Too Many Requests');
+  });
+
+  /**
+   * The rate-limit facts are the one payload added since, and they are numbers plus a short machine
+   * token — never the provider's prose. The provider's own `remedy_hint` is unbounded vendor copy
+   * ("Add 10 credits to unlock 1000 free model requests per day") and is deliberately dropped at the
+   * boundary; Fixora says what to do in its own words instead.
+   */
+  it('carries rate-limit NUMBERS when present, and none of the provider’s prose', () => {
+    const wire = toWireFailure(
+      describeProviderFailure({
+        providerCode: 'HTTP_429',
+        detail: '429 Too Many Requests — Rate limit exceeded: free-models-per-day',
+        rateLimit: {
+          limit: 50,
+          remaining: 0,
+          resetAt: 1785888000000,
+          source: 'openrouter_free_tier_daily',
+          remedy: 'Add 10 credits to unlock 1000 free model requests per day',
+        },
+      }),
+      context,
+    );
+
+    expect(wire.rateLimit).toEqual({
+      limit: 50,
+      remaining: 0,
+      resetAt: 1785888000000,
+      source: 'openrouter_free_tier_daily',
+    });
+    // The upsell never crosses.
+    expect(JSON.stringify(wire)).not.toContain('Add 10 credits');
+    expect(JSON.stringify(wire)).not.toContain('429');
   });
 
   it('never crosses with an empty action list — the wire schema would reject it', () => {

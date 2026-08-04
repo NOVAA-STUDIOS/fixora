@@ -191,11 +191,40 @@ export { classifyDiagnostic, type ConfigDiagnosis } from './diagnostic-classifie
 export { grammarFor, type GrammarId } from './grammar.js';
 
 export {
+  canProbe,
+  formatAgo,
+  healthColour,
+  statusFromFailure,
+  statusFromProbe,
+  statusLabel,
+  MIN_PROBE_INTERVAL_MS,
+  ProviderHealthSchema,
+  ProviderStatusSchema,
+  type HealthColour,
+  type ProviderHealth,
+  type ProviderStatus,
+} from './provider-health.js';
+
+export {
+  diagnoseFailure,
+  formatResetIn,
+  type CheckStatus,
+  type DiagnosticCheck,
+  type FailureDiagnosis,
+} from './failure-diagnosis.js';
+
+export {
   detectDependentFailure,
   isDependencyShapedRule,
   type DependentFailure,
   type PatchRange,
 } from './dependent-failure.js';
+
+export {
+  detectLintOnlyFailure,
+  isLintSource,
+  type LintOnlyFailure,
+} from './lint-only-failure.js';
 
 export {
   categoryRank,

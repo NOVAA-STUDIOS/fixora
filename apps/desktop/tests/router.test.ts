@@ -21,6 +21,8 @@ const appInfo: AppInfo = {
   name: 'Fixora',
   version: '0.0.0',
   commit: 'abc1234',
+      builtAt: '2026-08-04T00:00:00.000Z',
+      dirty: false,
   platform: 'win32',
   arch: 'x64',
   electronVersion: '0',
