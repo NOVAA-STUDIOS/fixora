@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildReAskMessage,
+  buildVerificationReAskMessage,
   describeModelOutputFailure,
   describeProviderFailure,
   describeSchemaFailureForUser,
@@ -300,5 +301,66 @@ describe('failure invariants - hold for every category', () => {
     expect(severityOf(describeProviderFailure({ providerCode: 'HTTP_402' }))).toBe('danger');
     expect(severityOf(describeProviderFailure({ providerCode: 'HTTP_503' }))).toBe('warning');
     expect(severityOf(describeProviderFailure({ providerCode: 'NETWORK' }))).toBe('warning');
+  });
+});
+
+/**
+ * Verification retry (feature): a patch that PARSED but failed its gates is re-asked with the
+ * verifier's own diagnostic quoted back. The correction must name the specific evidence — the
+ * parser's line, the exact new findings, the unresolved original — because a generic "try again"
+ * is a re-roll, not a correction.
+ */
+describe('buildVerificationReAskMessage', () => {
+  it('a syntax failure names where the parser stopped', () => {
+    const msg = buildVerificationReAskMessage({
+      verdict: 'regression',
+      syntaxOk: false,
+      syntaxError: { line: 42, column: 7, text: 'const x = {' },
+    });
+    expect(msg).toMatch(/no longer parses/i);
+    expect(msg).toContain('42');
+    expect(msg).toContain('const x = {');
+    expect(msg).toMatch(/only the corrected json/i);
+  });
+
+  it('a regression lists the problems the patch introduced', () => {
+    const msg = buildVerificationReAskMessage({
+      verdict: 'regression',
+      syntaxOk: true,
+      newFindings: [
+        { source: 'tsc', ruleId: 'TS2322', line: 10, message: 'Type mismatch.' },
+        { source: 'eslint', ruleId: 'no-undef', line: 12, message: "'y' is not defined." },
+      ],
+    });
+    expect(msg).toMatch(/INTRODUCED new ones/i);
+    expect(msg).toContain('TS2322');
+    expect(msg).toContain('no-undef');
+    expect(msg).toContain('line 10');
+  });
+
+  it('caps the listed findings so a broken patch cannot flood the prompt', () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({
+      source: 'tsc', ruleId: 'TS100' + String(i), line: i, message: 'boom',
+    }));
+    const msg = buildVerificationReAskMessage({ verdict: 'regression', syntaxOk: true, newFindings: many });
+    expect(msg).toContain('and 4 more');
+    expect(msg).not.toContain('TS1008');
+  });
+
+  it('an unresolved verdict says the fix did not take, not that it broke something', () => {
+    const msg = buildVerificationReAskMessage({
+      verdict: 'unresolved',
+      syntaxOk: true,
+      note: 'The finding is still reported at line 3.',
+    });
+    expect(msg).toMatch(/STILL reported/i);
+    expect(msg).toContain('still reported at line 3');
+    expect(msg).not.toMatch(/introduced/i);
+  });
+
+  it('a regression with no recorded findings still gives an actionable instruction', () => {
+    const msg = buildVerificationReAskMessage({ verdict: 'regression', syntaxOk: true });
+    expect(msg).toMatch(/narrower change/i);
+    expect(msg.length).toBeGreaterThan(60);
   });
 });

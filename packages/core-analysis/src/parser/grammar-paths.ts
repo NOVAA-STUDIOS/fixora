@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
-import type { Language } from '@fixora/shared-types';
+import { grammarFor, type GrammarId } from '@fixora/shared-types';
 
 /**
  * Resolves the WASM assets tree-sitter needs at runtime: the core `tree-sitter.wasm` (from
@@ -19,13 +19,15 @@ export function coreWasmPath(): string {
 }
 
 /**
- * The grammar to parse with. This is finer-grained than `Language`: TypeScript ships as TWO
- * tree-sitter grammars — `typescript` (no JSX) and `tsx` (JSX) — and the plain one reports the WHOLE
- * file as a syntax error the moment it meets a `<Tag>`. A `.tsx` file is `Language: 'typescript'` for
- * tool selection (eslint/tsc treat them the same) but MUST use the tsx grammar to parse. Conflating
- * the two is what made verification reject every valid repair in a React file as "does not parse".
+ * The grammar to parse with — re-exported from the contract layer, NOT defined here.
+ *
+ * It moved to `@fixora/shared-types` because the repair prompt must name the same dialect this
+ * parser will judge the reply against, and `core-ai` cannot depend on this package (ESM-only,
+ * tree-sitter WASM). Two definitions would eventually disagree, and a model instructed in one
+ * dialect but verified in another is exactly the defect the discriminator prevents. Everything in
+ * this file below is the WASM-file mapping, which is genuinely this package's concern.
  */
-export type GrammarId = Language | 'tsx';
+export type { GrammarId };
 
 const GRAMMAR_FILE: Record<GrammarId, string> = {
   typescript: 'tree-sitter-typescript.wasm',
@@ -42,16 +44,7 @@ const GRAMMAR_FILE: Record<GrammarId, string> = {
   html: 'tree-sitter-html.wasm',
 };
 
-/**
- * Choose the grammar for a file. Only `.tsx` needs special handling: the JavaScript grammar already
- * includes JSX, so `.jsx` (Language: 'javascript') parses correctly, and every other language maps
- * straight through. The file path is the only thing that distinguishes `.ts` from `.tsx`, since both
- * are `Language: 'typescript'`.
- */
-export function grammarFor(language: Language, filePath: string): GrammarId {
-  if (language === 'typescript' && /\.tsx$/i.test(filePath)) return 'tsx';
-  return language;
-}
+export { grammarFor };
 
 /** Absolute path to a grammar's prebuilt WASM. */
 export function grammarWasmPath(grammar: GrammarId): string {

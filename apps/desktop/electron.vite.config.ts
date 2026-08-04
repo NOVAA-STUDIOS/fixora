@@ -99,7 +99,10 @@ export default defineConfig({
           // The real-pipeline acceptance harness (release blocker B4). Gated on an env flag so a
           // production bundle never contains it — `pnpm package:win` output is unchanged.
           ...(process.env['FIXORA_ACCEPTANCE'] === '1'
-            ? { acceptance: resolve(__dirname, 'electron/acceptance/run.ts') }
+            ? {
+                acceptance: resolve(__dirname, 'electron/acceptance/run.ts'),
+                'verify-parity': resolve(__dirname, 'electron/acceptance/verify-parity.ts'),
+              }
             : {}),
         },
       },

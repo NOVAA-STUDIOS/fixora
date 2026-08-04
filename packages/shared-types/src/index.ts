@@ -186,6 +186,27 @@ export {
   type RepairState,
 } from './repair-support.js';
 
+export { classifyDiagnostic, type ConfigDiagnosis } from './diagnostic-classifier.js';
+
+export { grammarFor, type GrammarId } from './grammar.js';
+
+export {
+  detectDependentFailure,
+  isDependencyShapedRule,
+  type DependentFailure,
+  type PatchRange,
+} from './dependent-failure.js';
+
+export {
+  categoryRank,
+  classifyFinding,
+  countByCategory,
+  FINDING_CATEGORY_LABEL,
+  FINDING_CATEGORY_ORDER,
+  type FindingCategory,
+  type FindingClassification,
+} from './finding-category.js';
+
 export {
   REPAIR_METRICS_LIMIT,
   RepairMetricSchema,

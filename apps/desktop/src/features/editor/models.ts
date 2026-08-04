@@ -1,5 +1,7 @@
 import type * as monaco from 'monaco-editor';
 
+import { activeEditor } from './active-editor.js';
+
 /**
  * Monaco text models, cached by workspace-relative path. Monaco models **own the text** (ADR-015),
  * including the undo stack, so there is exactly one model per open file and it is never recreated
@@ -101,8 +103,28 @@ export function refreshModelText(relPath: string, content: string): void {
   baselines.set(relPath, model.getAlternativeVersionId());
 }
 
+/**
+ * Detach a model from the mounted editor if that is what it is currently showing.
+ *
+ * The cache owns these models, but the editor BORROWS one at a time. Disposing a borrowed model
+ * without telling the editor leaves it holding a disposed model, and every worker-backed request
+ * already in flight against it (tokenization, diff, links) rejects — surfacing as an uncaught
+ * `Cancelled: Cancelled` or `no diff result available`. Closing a tab and switching workspace both
+ * did exactly that, which is why the console errors survived fixing the diff editor alone.
+ *
+ * Nulling the model first is the same discipline `diff-editor.tsx` follows: the editor gives the
+ * model up through Monaco's own path, and only then is it torn down.
+ */
+function detachIfShowing(model: monaco.editor.ITextModel | undefined): void {
+  if (model === undefined) return;
+  const editor = activeEditor();
+  if (editor !== null && editor.getModel() === model) editor.setModel(null);
+}
+
 export function disposeModel(relPath: string): void {
-  cache.get(relPath)?.dispose();
+  const model = cache.get(relPath);
+  detachIfShowing(model);
+  model?.dispose();
   cache.delete(relPath);
   baselines.delete(relPath);
 }
@@ -116,7 +138,10 @@ export function disposeModel(relPath: string): void {
  * data to another, and invisible because the path looked right.
  */
 export function disposeAllModels(): void {
-  for (const model of cache.values()) model.dispose();
+  for (const model of cache.values()) {
+    detachIfShowing(model);
+    model.dispose();
+  }
   cache.clear();
   baselines.clear();
 }

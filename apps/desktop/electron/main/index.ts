@@ -167,6 +167,7 @@ if (!gotTheLock) {
       registerAnalysisHandlers(analysisService);
       registerAiHandlers({
         keyStore,
+        credentials,
         aiService,
         workspace: workspaceService,
         history: repairHistory,

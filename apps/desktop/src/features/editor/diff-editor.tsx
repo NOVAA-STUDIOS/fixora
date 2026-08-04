@@ -42,6 +42,14 @@ export function DiffEditor({
   /** Called with the REAL file line when a line in the diff is clicked. */
   onLineClick?: (fileLine: number) => void;
 }): React.JSX.Element {
+  /**
+   * Nothing to compare. A repair whose replacement came back empty is a real outcome — the Apply
+   * gate has an `empty-patch` branch for exactly it — and mounting Monaco to diff a file against
+   * nothing shows a wall of deletions that reads as "this patch deletes your code". An empty state
+   * says what actually happened, and keeps the editor from being constructed at all.
+   */
+  const nothingToDiff = original.length === 0 && modified.length === 0;
+
   const container = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const theme = useUiStore((s) => s.theme);
@@ -54,7 +62,7 @@ export function DiffEditor({
 
   useEffect(() => {
     const el = container.current;
-    if (el === null) return;
+    if (el === null || nothingToDiff) return;
     const m = setupMonaco();
     const editor = m.editor.createDiffEditor(el, {
       readOnly: true,
@@ -98,25 +106,43 @@ export function DiffEditor({
     return () => {
       clickable.dispose();
       const models = editor.getModel();
+      // Detach before tearing down, for the same reason the swap above reorders: a diff computation
+      // still in flight must stop pointing at these models before they are disposed, or it rejects
+      // into an unhandled promise as the panel unmounts (Dismiss, or switching finding).
+      editor.setModel(null);
       editor.dispose();
       models?.original.dispose();
       models?.modified.dispose();
       editorRef.current = null;
     };
-  }, []);
+  }, [nothingToDiff]);
 
   useEffect(() => {
     const editor = editorRef.current;
-    if (editor === null) return;
+    if (editor === null || nothingToDiff) return;
     const m = setupMonaco();
     const lang = language ?? 'plaintext';
-    editor.getModel()?.original.dispose();
-    editor.getModel()?.modified.dispose();
+    /**
+     * Swap FIRST, dispose second — the order is the whole fix.
+     *
+     * `setModel` kicks off a diff computation on Monaco's worker, and that promise resolves against
+     * whatever models the editor holds. Disposing the old pair *before* the swap left that in-flight
+     * computation reading disposed models, which rejects — surfacing in the console as an uncaught
+     * `Error: no diff result available`, and as `Cancelled: Cancelled` when Monaco cancelled the
+     * superseded computation instead. Both were the same defect, and both fired on every proposal
+     * change: selecting a second finding, a retry, or a mode switch.
+     *
+     * Handing the editor its new models first means the computation in flight is superseded through
+     * Monaco's own path, and only models nothing is reading any more are torn down.
+     */
+    const previous = editor.getModel();
     editor.setModel({
       original: m.editor.createModel(original, lang),
       modified: m.editor.createModel(modified, lang),
     });
-  }, [original, modified, language]);
+    previous?.original.dispose();
+    previous?.modified.dispose();
+  }, [original, modified, language, nothingToDiff]);
 
   useEffect(() => {
     setupMonaco().editor.setTheme(themeForAppearance(theme));
@@ -132,6 +158,19 @@ export function DiffEditor({
         : { renderSideBySide: sideBySide, useInlineViewWhenSpaceIsLimited: false },
     );
   }, [sideBySide]);
+
+  if (nothingToDiff) {
+    return (
+      <div
+        role="status"
+        className="flex h-full w-full min-w-0 items-center justify-center px-4 text-center"
+      >
+        <p className="text-xs text-fg-muted">
+          No changes to show — this repair produced no replacement code.
+        </p>
+      </div>
+    );
+  }
 
   // min-w-0 + overflow-hidden: Monaco measures its container, so a container allowed to be sized by
   // its content would let the editor argue with the pane it lives in during a drag.

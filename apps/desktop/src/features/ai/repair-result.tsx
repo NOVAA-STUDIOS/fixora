@@ -5,8 +5,7 @@ import { useState } from 'react';
 import { copyToClipboard } from '../../lib/clipboard.js';
 import { basename } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
-import { DiffEditor } from '../editor/diff-editor.js';
-import { useWorkspaceStore } from '../workspace/workspace-store.js';
+import { useUiStore } from '../../stores/ui-store.js';
 
 import { evaluateApplyGate, recoveryHintFor } from './apply-diagnostics.js';
 import { RepairDiagnosticsPanel } from './repair-diagnostics-panel.js';
@@ -54,9 +53,6 @@ const BADGE_MARK: Record<ValidationBadge['status'], string> = {
   'not-run': '–',
 };
 
-/** How much rationale to show before folding it behind "Show more". */
-const RATIONALE_CLAMP = 180;
-
 /** A labelled fact. Reads as a value, not prose — which is what a rule id or a percentage is. */
 function Chip({ label, value }: { label: string; value: string }): React.JSX.Element {
   return (
@@ -68,16 +64,37 @@ function Chip({ label, value }: { label: string; value: string }): React.JSX.Ele
 }
 
 /**
- * The patch card — the panel's primary object.
+ * One labelled fact in the status card. A fixed-width label column so the values line up down the
+ * card and each row reads as an answer to the same kind of question, rather than as free-floating
+ * prose that happens to be stacked.
+ */
+function StatusRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
+      <span className="w-[4.5rem] shrink-0 text-[9px] uppercase tracking-wide text-fg-muted">
+        {label}
+      </span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * The status card — the panel's primary object.
  *
- * Four facts, separated and ranked: what mode produced this patch, what it will replace, how much
- * code that is, and which validations actually ran. They were previously a flat row of badges plus a
- * yellow banner, which read as status furniture rather than as a description of the change about to
- * be made to someone's file.
+ * One header stating what this patch IS (mode, scope, line range), then a divided list of labelled
+ * facts: what it was targeted at, whether the scope had to grow, how large the edit is, and what was
+ * actually verified. Previously a flat row of badges plus a yellow banner, which read as status
+ * furniture rather than as a description of the change about to be made to someone's file.
  *
- * Mode is carried by a left border and a label rather than a filled background: a whole-file rewrite
- * needs to look different from a one-line fix, but tinting a third of the panel yellow to say so is
- * an alarm, not a hierarchy.
+ * Root cause lives INSIDE this card rather than beside it, so the card is a single place to answer
+ * "what is about to happen to my file" instead of two competing summaries.
  */
 function PatchCard({
   proposal,
@@ -89,66 +106,74 @@ function PatchCard({
   const mode = repairModeInfo(proposal.mode);
   const lines = proposal.target.endLine - proposal.target.startLine + 1;
   const impact = repairImpact(proposal.mode, lines);
+  const rootCause = proposal.rootCause;
+  const expansion = proposal.scopeExpansion;
 
   return (
-    <div
-      className={cn(
-        'flex flex-col overflow-hidden rounded-md border border-border-subtle bg-inset',
-        // The mode's signature: a left rule, weighted by blast radius.
-        'border-l-2',
-        mode.mode === 'ai-file'
-          ? 'border-l-danger'
-          : mode.mode === 'related-scope'
-            ? 'border-l-accent'
-            : 'border-l-border-strong',
-      )}
-    >
-      {/* Row 1 — mode, and the impact verdict. The two things read first. */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pt-2">
-        <span className="min-w-0 truncate text-xs font-semibold text-fg">{mode.label}</span>
+    <div className="rounded-lg border border-border-subtle bg-raised px-3.5 py-1">
+      {/* The header states what this patch IS: which mode produced it, and what it covers. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-subtle py-2.5">
+        <span className="min-w-0 truncate text-sm font-semibold text-fg">{mode.label}</span>
         {mode.advanced && (
-          <span className="shrink-0 rounded bg-danger-subtle px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-danger-text">
+          <span className="shrink-0 rounded bg-danger-subtle px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-danger-text">
             Advanced
           </span>
         )}
-        <span
-          className="ml-auto flex shrink-0 items-center gap-1"
-          title={`Estimated impact: ${IMPACT_LABEL[impact.level]} — ${impact.summary}`}
-        >
-          <span
-            aria-hidden="true"
-            className={cn('size-2 rounded-full', IMPACT_DOT[impact.level])}
-          />
-          <span className={cn('text-[10px] font-medium', IMPACT_TEXT[impact.level])}>
-            {IMPACT_LABEL[impact.level]} impact
-          </span>
+        <span className="text-xs text-fg-muted">
+          {mode.scopeLabel} · lines {proposal.target.startLine}–{proposal.target.endLine}
         </span>
       </div>
 
-      {/* Row 2 — scope and size. Concise: a label, a value, a line range. */}
-      <dl className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-2.5 pb-2 pt-1 text-[11px]">
-        <div className="flex min-w-0 items-baseline gap-1.5">
-          <dt className="shrink-0 text-[9px] uppercase tracking-wide text-fg-muted">Scope</dt>
-          <dd className="min-w-0 truncate text-fg-secondary">{mode.scopeLabel}</dd>
-        </div>
-        <div className="flex shrink-0 items-baseline gap-1.5">
-          <dt className="text-[9px] uppercase tracking-wide text-fg-muted">Lines</dt>
-          <dd className="font-mono tabular-nums text-fg-secondary">
-            {proposal.target.startLine}–{proposal.target.endLine}
-          </dd>
-        </div>
-        <div className="flex shrink-0 items-baseline gap-1.5">
-          <dt className="text-[9px] uppercase tracking-wide text-fg-muted">Impact</dt>
-          <dd className="text-fg-secondary">{impact.summary}</dd>
-        </div>
-      </dl>
+      <div className="divide-y divide-border-subtle">
+        <StatusRow label="Root cause">
+          {rootCause === undefined ? (
+            <span className="text-xs text-fg-secondary">Selected location — not retargeted.</span>
+          ) : (
+            <RootCauseDetail rootCause={rootCause} />
+          )}
+        </StatusRow>
 
-      {/* Row 3 — the validations, on their own surface so they read as a result, not a property. */}
-      <div className="flex flex-wrap items-center gap-1 border-t border-border-subtle bg-raised px-2.5 py-1.5">
-        <span className="mr-0.5 shrink-0 text-[9px] uppercase tracking-wide text-fg-muted">
-          Validation
-        </span>
-        <ValidationRow badges={badges} />
+        {/*
+          Why the diff is bigger than the line the user clicked.
+          A repair that silently covers a whole function when the problem was one statement reads as
+          the engine overreaching. It is the opposite: the narrow patch was tried first, the verifier
+          proved it could not compile alone, and the scope grew to include the edit it depended on.
+          Stating it is also the honest disclosure when the wider attempt still failed — "a larger fix
+          was tried and still did not compile" is a different result from "this line is unfixable".
+        */}
+        {expansion !== undefined && (
+          <StatusRow label="Scope">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-fg">
+                Expanded from lines {expansion.from.startLine}–{expansion.from.endLine} to{' '}
+                {expansion.to.startLine}–{expansion.to.endLine}
+              </span>
+              <span className="text-[10px] leading-snug text-fg-muted [overflow-wrap:anywhere]">
+                The smaller fix did not compile on its own, so this repair includes the change it
+                depends on. {expansion.reason}
+              </span>
+            </div>
+          </StatusRow>
+        )}
+
+        <StatusRow label="Impact">
+          <span
+            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+            title={`Estimated impact: ${IMPACT_LABEL[impact.level]} — ${impact.summary}`}
+          >
+            <span className="flex shrink-0 items-center gap-1">
+              <span aria-hidden="true" className={cn('size-2 rounded-full', IMPACT_DOT[impact.level])} />
+              <span className={cn('text-[11px] font-medium', IMPACT_TEXT[impact.level])}>
+                {IMPACT_LABEL[impact.level]} impact
+              </span>
+            </span>
+            <span className="text-[11px] text-fg-secondary">{impact.summary}</span>
+          </span>
+        </StatusRow>
+
+        <StatusRow label="Verification">
+          <ValidationRow badges={badges} />
+        </StatusRow>
       </div>
     </div>
   );
@@ -171,32 +196,25 @@ const ROOT_CAUSE_BASIS_LABEL: Record<RootCause['basis'], string> = {
  * validation row above it is what actually confirms anything, and this card must never look like a
  * second source of truth competing with it.
  */
-function RootCauseCard({ rootCause }: { rootCause: RootCause }): React.JSX.Element {
+function RootCauseDetail({ rootCause }: { rootCause: RootCause }): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-1.5 rounded-md border border-accent-border bg-accent-subtle px-2.5 py-2">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-accent-text">
-          Root cause
-        </span>
-        {rootCause.differsFromSelection && (
-          <span
-            className="shrink-0 rounded bg-inset px-1 py-px text-[9px] font-medium text-fg-muted"
-            title="Advanced Repair traced this problem to a different location than the one you selected."
-          >
-            different location
-          </span>
-        )}
-      </div>
-      <p className="text-[11px] leading-snug text-fg-secondary [overflow-wrap:anywhere]">
-        <code className="font-mono text-[10px] text-fg">{rootCause.ruleId}</code>
+    <div className="flex flex-col gap-1">
+      <p className="text-xs leading-snug text-fg-secondary [overflow-wrap:anywhere]">
+        <code className="font-mono text-[11px] text-fg">{rootCause.ruleId}</code>
         {' at line '}
         <span className="font-mono tabular-nums">{rootCause.line}</span>
         {': '}
         {rootCause.message}
       </p>
-      <p className="text-[10px] text-fg-muted">
-        {ROOT_CAUSE_BASIS_LABEL[rootCause.basis]}
-      </p>
+      {rootCause.differsFromSelection && (
+        <span
+          className="w-fit shrink-0 rounded bg-inset px-1 py-px text-[9px] font-medium text-fg-muted"
+          title="Advanced Repair traced this problem to a different location than the one you selected."
+        >
+          different location
+        </span>
+      )}
+      <p className="text-[10px] text-fg-muted">{ROOT_CAUSE_BASIS_LABEL[rootCause.basis]}</p>
       {rootCause.affected.length > 0 && (
         <p className="text-[10px] text-fg-muted [overflow-wrap:anywhere]">
           Estimated {rootCause.affected.length}{' '}
@@ -322,8 +340,7 @@ export function RepairResult({
 }): React.JSX.Element {
   const applyRepair = useAiStore((s) => s.applyRepair);
   const dismiss = useAiStore((s) => s.dismiss);
-  const revealAt = useWorkspaceStore((s) => s.revealAt);
-  const [diffView, setDiffView] = useState<'unified' | 'split'>('split');
+  const openFullDiff = useUiStore((s) => s.openFullDiff);
   const [showFullRationale, setShowFullRationale] = useState(false);
 
   const gate = evaluateApplyGate(proposal);
@@ -334,9 +351,6 @@ export function RepairResult({
   const rejected = !gate.enabled;
 
   const rationale = proposal.rationale;
-  const isLong = rationale.length > RATIONALE_CLAMP;
-  const shown =
-    isLong && !showFullRationale ? `${rationale.slice(0, RATIONALE_CLAMP)}…` : rationale;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -365,7 +379,6 @@ export function RepairResult({
           />
         </div>
         <PatchCard proposal={proposal} badges={badges} />
-        {proposal.rootCause !== undefined && <RootCauseCard rootCause={proposal.rootCause} />}
       </div>
 
       {/*
@@ -392,77 +405,37 @@ export function RepairResult({
       )}
 
       {/*
-        ── The diff: the primary review surface ────────────────────────────────────────────────────
-        It is `flex-1`, so it takes every pixel the chrome does not need, and it is ALWAYS mounted —
-        including for a rejected patch, because "what did it try to do?" is exactly the question a
-        rejection raises. Making it opt-in was a regression: it solved a layout problem by hiding the
-        one thing the panel exists to show.
+        ── Review happens in the EDITOR, not here ──────────────────────────────────────────────────
+        The diff used to live in this panel and take every spare pixel. That put the code under
+        review in a narrow column beside the editor that already shows that same file, and asked the
+        user to reason about a change in one place and the code around it in another.
 
-        Monaco carries the rest by itself: red/green gutters, changed-line highlighting, unchanged
-        context, syntax highlighting, and virtualised rendering for a large patch.
+        The proposed change is now drawn inline in the editor (see `inline-repair.ts`): the replaced
+        lines are marked in place, the proposed lines render beneath them, and Accept/Reject/navigate
+        sit on the change itself. This panel keeps what the editor cannot show — why the problem
+        happened, what was verified, and what the risk is.
+
+        "Open Full Diff" is still one click away for the times a side-by-side really is the right
+        tool, and it opens the SAME `DiffEditor` component as before.
       */}
-      <div className="flex min-h-0 flex-1 flex-col border-b border-border-subtle">
-        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-inset px-3 py-1">
+      <div className="shrink-0 border-b border-border-subtle px-3 py-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-[9px] uppercase tracking-wide text-fg-muted">Changes</span>
-          <span className="font-mono text-[10px] text-fg-secondary">
+          <span className="min-w-0 truncate font-mono text-[10px] text-fg-secondary">
             {basename(proposal.target.file)}:{proposal.target.startLine}–{proposal.target.endLine}
           </span>
-          {/*
-            The view toggle. Offered for the whole-file mode, where a patch is long enough that two
-            columns genuinely help; below that the pane is too narrow for two readable columns and the
-            responsive default is the better answer.
-          */}
-          {proposal.mode === 'ai-file' && (
-            <div
-              className="ml-auto flex shrink-0 items-center gap-0.5"
-              role="group"
-              aria-label="Diff view"
-            >
-              {(
-                [
-                  ['unified', 'Unified'],
-                  ['split', 'Side-by-side'],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={diffView === value}
-                  onClick={() => {
-                    setDiffView(value);
-                  }}
-                  className={cn(
-                    'rounded px-1.5 py-0.5 text-[10px] transition-colors',
-                    diffView === value
-                      ? 'bg-raised text-fg ring-1 ring-border-strong ring-inset'
-                      : 'text-fg-muted hover:text-fg',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={openFullDiff}
+            className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[11px] text-accent-text hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+          >
+            Open Full Diff
+          </button>
         </div>
-        <div className="min-h-0 flex-1">
-          <DiffEditor
-            original={proposal.originalCode}
-            modified={proposal.repairedCode}
-            language={monacoLanguageFor(proposal.target.file)}
-            // Real file lines, not the slice's 1..n.
-            startLine={proposal.target.startLine}
-            sideBySide={proposal.mode === 'ai-file' ? diffView === 'split' : undefined}
-            onLineClick={(fileLine) => {
-              revealAt({
-                file: proposal.target.file,
-                startLine: fileLine,
-                startCol: 1,
-                endLine: fileLine,
-                endCol: 1,
-              });
-            }}
-          />
-        </div>
+        <p className="mt-1 text-[11px] leading-snug text-fg-muted">
+          Review the change in the editor — the proposed lines are shown in place, with Accept and
+          Reject on the change itself.
+        </p>
       </div>
 
       {/*
@@ -472,21 +445,27 @@ export function RepairResult({
         the original `shrink-0` one did.
       */}
       <div className="max-h-[38%] shrink-0 overflow-y-auto border-b border-border-subtle">
+        {/*
+          The explanation is collapsed by DEFAULT, at every length — not clamped past a threshold.
+          A clamp still spends the most valuable rows in this region on prose, and it makes the panel
+          reflow as rationales vary in length. What the user needs first is the diff and the verdict;
+          the model's reasoning is available on request, and never in the way when it is not wanted.
+        */}
         <div className="border-b border-border-subtle px-3 py-2.5">
-          <p className="text-xs leading-relaxed text-fg-secondary [overflow-wrap:anywhere]">
-            {shown}
-          </p>
-          {isLong && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowFullRationale((v) => !v);
-              }}
-              aria-expanded={showFullRationale}
-              className="mt-1 rounded text-[11px] text-accent-text hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
-            >
-              {showFullRationale ? 'Show less' : 'Show more'}
-            </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowFullRationale((v) => !v);
+            }}
+            aria-expanded={showFullRationale}
+            className="rounded text-[11px] text-accent-text hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+          >
+            {showFullRationale ? 'Hide explanation' : 'Show explanation'}
+          </button>
+          {showFullRationale && (
+            <p className="mt-1.5 text-xs leading-relaxed text-fg-secondary [overflow-wrap:anywhere]">
+              {rationale}
+            </p>
           )}
         </div>
 
@@ -562,27 +541,6 @@ export function RepairResult({
       </div>
     </div>
   );
-}
-
-const MONACO_LANG: Record<string, string> = {
-  ts: 'typescript',
-  tsx: 'typescript',
-  mts: 'typescript',
-  cts: 'typescript',
-  js: 'javascript',
-  jsx: 'javascript',
-  mjs: 'javascript',
-  cjs: 'javascript',
-  py: 'python',
-  go: 'go',
-  json: 'json',
-  css: 'css',
-  html: 'html',
-  htm: 'html',
-};
-
-function monacoLanguageFor(file: string): string {
-  return MONACO_LANG[file.split('.').pop()?.toLowerCase() ?? ''] ?? 'plaintext';
 }
 
 /**

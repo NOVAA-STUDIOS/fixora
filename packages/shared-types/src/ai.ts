@@ -337,6 +337,23 @@ export const AiProposalSchema = z.discriminatedUnion('profile', [
     mode: RepairModeSchema.optional(),
     /** Set only for Advanced Repair. */
     rootCause: RootCauseInfoSchema.optional(),
+    /**
+     * Set when the repair scope was widened after a dependent verification failure — the first patch
+     * was correct in isolation but could not compile, because the edit it depended on lay outside the
+     * range. Carries the verifier's own explanation.
+     *
+     * The panel states this because the diff is otherwise surprising: the user asked about one line
+     * and is shown a whole function. It is also the honest disclosure when the widened attempt still
+     * fails — "we tried a larger fix and it still did not compile" is a materially different result
+     * from "we could not fix this line".
+     */
+    scopeExpansion: z
+      .object({
+        reason: z.string(),
+        from: z.object({ startLine: z.number().int(), endLine: z.number().int() }),
+        to: z.object({ startLine: z.number().int(), endLine: z.number().int() }),
+      })
+      .optional(),
     repairedCode: z.string(),
     /** The original text of the target symbol — the left side of the diff view. */
     originalCode: z.string(),

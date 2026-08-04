@@ -330,7 +330,11 @@ function LicenseSettings(): React.JSX.Element {
     const result = await activate(draft.trim());
     setBusy(false);
     if (result === null) {
-      setError('Something went wrong activating the license.');
+      // The IPC call itself failed, so we genuinely do not know why — say that plainly and name the
+      // one thing worth checking, rather than a generic sentence that leaves the user with no move.
+      setError(
+        'Fixora could not complete the activation. Check that the key was pasted in full, then try again — nothing was changed.',
+      );
       return;
     }
     if (result.valid) {

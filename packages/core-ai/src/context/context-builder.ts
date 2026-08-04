@@ -1,4 +1,10 @@
-import type { Finding, Language } from '@fixora/shared-types';
+import {
+  classifyFinding,
+  grammarFor,
+  type Finding,
+  type GrammarId,
+  type Language,
+} from '@fixora/shared-types';
 
 import type { GatePart } from '../gate/secret-gate.js';
 
@@ -56,6 +62,11 @@ export interface BuiltTarget {
 export interface BuiltContext {
   readonly filePath: string;
   readonly language: Language;
+  /**
+   * The dialect this file actually is, chosen by the SAME function the verifier parses with.
+   * Carried here so the repair prompt and the parser gate can never name different languages.
+   */
+  readonly grammarId: GrammarId;
   readonly finding: Finding;
   readonly target: BuiltTarget;
   readonly evidenceText: string;
@@ -85,6 +96,20 @@ function formatEvidence(finding: Finding, related: readonly Finding[] = []): str
     'code in question:',
     finding.evidence.snippet,
   ];
+  // Why the engine will not repair this, when it will not. Explain is asked to cover that question,
+  // and without the classification in its evidence it can only guess at the answer — or invent one.
+  // Derived from the same `classifyFinding` the panel shows, so the prose and the UI agree.
+  const classification = classifyFinding(finding);
+  if (classification.category !== 'repairable') {
+    lines.push(
+      '',
+      `Fixora classification: ${classification.title}`,
+      `Fixora will not repair this automatically because: ${classification.reason}`,
+      ...(classification.suggestedFix === undefined
+        ? []
+        : [`Known fix: ${classification.suggestedFix}`]),
+    );
+  }
   // Framed as additional problems to resolve within the SAME replacement, never as separate tasks:
   // the model returns one block of code for one range, so presenting these as extra jobs would
   // invite several edits it has no way to express.
@@ -150,6 +175,7 @@ export function buildContext(input: ContextInput): BuiltContext {
   return {
     filePath: input.filePath,
     language: input.language,
+    grammarId: grammarFor(input.language, input.filePath),
     finding: input.finding,
     target,
     evidenceText,

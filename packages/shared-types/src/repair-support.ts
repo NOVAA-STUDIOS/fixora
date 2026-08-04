@@ -1,4 +1,5 @@
 import type { Finding } from './analysis.js';
+import { classifyDiagnostic } from './diagnostic-classifier.js';
 
 /**
  * Which languages the repair pipeline can act on, expressed as file extensions so the RENDERER can
@@ -45,13 +46,27 @@ export function isRepairSupportedPath(path: string): boolean {
  *  - `ai-repairable`  — no deterministic fix, but a model can propose one (verified before Apply).
  *  - `manual-only`    — the intended change is the author's to make; no machine should guess it.
  *  - `unsupported`    — the repair pipeline does not handle this file type.
+ *  - `config-issue`   — the diagnostic classifier recognised this as a project configuration or
+ *                        environment problem (missing types, unresolved module, tsconfig gap), not a
+ *                        source-code defect. Never sent to AI Repair — no edit to this file's code
+ *                        can resolve it, and a model asked to try burns tokens producing a patch that
+ *                        fails verification for the same underlying reason every time.
  */
-export type RepairState = 'repairable' | 'ai-repairable' | 'manual-only' | 'unsupported';
+export type RepairState =
+  | 'repairable'
+  | 'ai-repairable'
+  | 'manual-only'
+  | 'unsupported'
+  | 'config-issue';
 
 export function repairStateFor(finding: Finding): RepairState {
   // Language support is checked FIRST: an unsupported file cannot be repaired whatever the rule
   // says, so reporting the rule's classification there would describe a decision that never happens.
   if (!isRepairSupportedPath(finding.location.file)) return 'unsupported';
+  // Checked before the analyzer's own classification: a config/environment diagnostic may still be
+  // tagged `ai-required` by `classifyRepair` (it has no notion of "not a code defect"), and this gate
+  // must win regardless of that tag — AI Repair is never the right tool for it.
+  if (finding.source === 'tsc' && classifyDiagnostic(finding) !== null) return 'config-issue';
   if (finding.repair === 'safe-auto') return 'repairable';
   if (finding.repair === 'ai-required') return 'ai-repairable';
   return 'manual-only';
@@ -69,6 +84,8 @@ export const REPAIR_STATE_REASON: Record<RepairState, string> = {
   'manual-only':
     'This finding has no automatic or AI fix — the correct change needs your judgment, not a model.',
   unsupported: 'Fixora cannot repair this file type yet, so there is nothing to generate here.',
+  'config-issue':
+    'This looks like a project configuration or environment problem, not a source-code defect — see the recommended fix below instead of running AI Repair.',
 };
 
 /** The short label shown on the finding row, so the state is visible without hovering anything. */
@@ -77,4 +94,5 @@ export const REPAIR_STATE_LABEL: Record<RepairState, string> = {
   'ai-repairable': 'AI fix',
   'manual-only': 'Manual',
   unsupported: 'Unsupported',
+  'config-issue': 'Config issue',
 };

@@ -93,7 +93,9 @@ export function createMainWindow(devServerUrl: string | undefined): BrowserWindo
 }
 
 /**
- * Temporary black-screen diagnostics, gated behind `FIXORA_DEBUG=1`. Opens DevTools and logs every
+ * Black-screen diagnostics, gated behind `FIXORA_DEBUG=1` — off for every normal run, and retained
+ * deliberately: a black window is the one failure a user cannot describe, so the flag is what turns
+ * "it didn't start" into a report. Opens DevTools and logs every
  * signal that distinguishes the black-screen causes from each other: a load failure, a preload
  * throw, a renderer crash before first paint, or a mounted-but-not-painted DOM (a compositor issue).
  */

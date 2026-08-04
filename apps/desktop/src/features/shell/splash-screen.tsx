@@ -56,7 +56,18 @@ export function SplashScreen({
       className={[
         'fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-canvas',
         'transition-opacity duration-300 ease-out',
-        phase === 'entering' || phase === 'leaving' ? 'opacity-0' : 'opacity-100',
+        // Opaque from the FIRST painted frame, and only ever transparent on the way out.
+        //
+        // This used to also start at `opacity-0` during `entering`, to give the CSS transition
+        // something to fade in from. But main shows the window on `ready-to-show` — i.e. on that
+        // exact first frame — and `AppShell` is already mounted and painted underneath (see
+        // `App.tsx`). A transparent splash on frame one therefore revealed the fully-rendered main
+        // UI, which then got covered as the splash faded in and uncovered again when it left: the
+        // "main window flashes, then splash, then main window" startup sequence.
+        //
+        // Nothing is lost visually. The entrance motion was never this container's fade — it is the
+        // staggered `fx-splash-in` on the mark, wordmark and tagline below, which is unchanged.
+        phase === 'leaving' ? 'opacity-0' : 'opacity-100',
         phase === 'leaving' ? 'pointer-events-none' : '',
       ].join(' ')}
     >

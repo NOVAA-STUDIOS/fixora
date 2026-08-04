@@ -27,6 +27,7 @@ import { createAiService } from '../main/ai/ai-service.js';
 import { safeStorageCipher } from '../main/ai/cipher.js';
 import { createCredentialStore } from '../main/ai/credentials/credential-store.js';
 import type { KeyStore, StoredAiConfig } from '../main/ai/key-store.js';
+import { createModelCatalogue } from '../main/ai/model-catalogue.js';
 import { createOrchestrator } from '../main/ai/providers/orchestrator.js';
 import { createProviderRegistry } from '../main/ai/providers/provider-registry.js';
 import { createAnalysisHost, type AnalysisTargetRef } from '../main/analysis/analysis-host.js';
@@ -147,6 +148,10 @@ interface CaseResult {
   after?: string;
   ms?: number;
   error?: string;
+  /** The AI run's terminal code and message, so a refusal names itself instead of just "error". */
+  code?: string;
+  detail?: string;
+  failureCategory?: string;
 }
 
 // Electron does not forward this process's stdout or stderr to the shell that launched it on
@@ -295,12 +300,25 @@ async function main(): Promise<number> {
 
       // A real orchestrator over the acceptance run's own registry and credentials, so the
       // acceptance path exercises the same selection code the app does.
+      // `modelFacts`/`modelCatalogue` are wired exactly as `main/index.ts` wires them. Without them
+      // OpenRouter's `json: 'per-model'` capability cannot be resolved, every candidate fails the
+      // profile gate, and the chain refuses before any request is sent — a harness artefact that
+      // would look identical to a real repair failure.
+      const acceptanceCatalogue = createModelCatalogue();
       const acceptanceOrchestrator = createOrchestrator({
         registry: createProviderRegistry({ dir: app.getPath('userData') }),
         credentials: createCredentialStore({
           dir: app.getPath('userData'),
           cipher: safeStorageCipher,
         }),
+        modelFacts: async (providerId, wanted) => {
+          if (providerId !== 'openrouter') return null;
+          const models = await acceptanceCatalogue.models();
+          return models.find((entry) => entry.id === wanted) ?? null;
+        },
+        modelCatalogue: async (providerId) =>
+          providerId === 'openrouter' ? acceptanceCatalogue.models() : [],
+        appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
       const ai = createAiService({
         orchestrator: acceptanceOrchestrator,
@@ -330,6 +348,14 @@ async function main(): Promise<number> {
       const report = proposal?.['verification'] as { verdict?: string; ran?: string[] } | undefined;
       result.verdict = report?.verdict ?? (response as { status?: string }).status ?? 'no-proposal';
       result.ran = report?.ran ?? [];
+      const asError = response as {
+        code?: string;
+        message?: string;
+        failure?: { category?: string };
+      };
+      if (asError.code !== undefined) result.code = asError.code;
+      if (asError.message !== undefined) result.detail = asError.message;
+      if (asError.failure?.category !== undefined) result.failureCategory = asError.failure.category;
 
       // ---- 3. apply, exactly as ai:applyRepair does (including the staleness guard) ----
       if (result.verdict === 'verified') {

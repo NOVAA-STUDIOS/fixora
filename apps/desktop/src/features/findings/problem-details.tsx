@@ -1,4 +1,5 @@
 import {
+  classifyFinding,
   isRepairAttemptable,
   repairStateFor,
   REPAIR_STATE_REASON,
@@ -43,6 +44,9 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
   const risk = riskLevelFor(finding);
   const effort = effortFor(finding);
   const manualFix = manualFixFor(finding);
+  // One source of truth for "why not repairable" — derived from the same repair state that
+  // disables the button, so the two can never disagree.
+  const classification = classifyFinding(finding);
   const { file, startLine, startCol } = finding.location;
 
   const revealAt = useWorkspaceStore((s) => s.revealAt);
@@ -124,25 +128,58 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
         <Section title="Why this code triggered it">{whyTriggered(finding)}</Section>
         <Section title="If you leave it">{guidance.ifIgnored}</Section>
 
-        <section className="flex flex-col gap-1.5">
-          <h3 className="text-[11px] font-semibold tracking-wide text-fg uppercase">
-            Suggested manual fix
-          </h3>
-          <p className="text-xs leading-relaxed text-fg-secondary">{manualFix.strategy}</p>
-          {manualFix.illustration !== undefined && (
-            <>
-              <pre className="overflow-x-auto rounded border border-border-subtle bg-inset p-2.5 text-[11px] leading-relaxed text-fg-secondary">
-                <code>{manualFix.illustration}</code>
-              </pre>
-              {/* Said plainly, because a code block in a repair tool looks like a patch. */}
-              <p className="text-[11px] text-fg-muted">
-                An illustration of the pattern — not a rewrite of your code. Use{' '}
-                <span className="text-fg-secondary">Repair</span> for a change generated against
-                this file and verified before you can apply it.
-              </p>
-            </>
-          )}
-        </section>
+        {/*
+          Why this cannot be repaired, stated once and specifically.
+
+          `classifyFinding` derives this from the SAME `repairStateFor` that disables the button, so
+          the explanation and the disabled control can never disagree — and a generic "Repair
+          disabled" is not reachable: every category carries its own title, reason and next step.
+          Repairable findings fall through to the manual-fix guidance below, unchanged.
+        */}
+        {classification.category !== 'repairable' ? (
+          <section className="flex flex-col gap-1.5 rounded border border-warn-border bg-warn-subtle/30 p-2.5">
+            <h3 className="text-[11px] font-semibold tracking-wide text-fg uppercase">
+              {classification.title}
+            </h3>
+            <div className="flex flex-col gap-0.5">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-fg-muted">Reason</p>
+              <p className="text-xs leading-relaxed text-fg-secondary">{classification.reason}</p>
+            </div>
+            {classification.suggestedFix !== undefined && (
+              <div className="flex flex-col gap-0.5">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-fg-muted">
+                  Suggested fix
+                </p>
+                <pre className="overflow-x-auto rounded border border-border-subtle bg-inset p-2.5 text-[11px] leading-relaxed text-fg-secondary">
+                  <code>{classification.suggestedFix}</code>
+                </pre>
+              </div>
+            )}
+            {classification.nextStep !== undefined && (
+              <p className="text-[11px] leading-relaxed text-fg-muted">{classification.nextStep}</p>
+            )}
+          </section>
+        ) : (
+          <section className="flex flex-col gap-1.5">
+            <h3 className="text-[11px] font-semibold tracking-wide text-fg uppercase">
+              Suggested manual fix
+            </h3>
+            <p className="text-xs leading-relaxed text-fg-secondary">{manualFix.strategy}</p>
+            {manualFix.illustration !== undefined && (
+              <>
+                <pre className="overflow-x-auto rounded border border-border-subtle bg-inset p-2.5 text-[11px] leading-relaxed text-fg-secondary">
+                  <code>{manualFix.illustration}</code>
+                </pre>
+                {/* Said plainly, because a code block in a repair tool looks like a patch. */}
+                <p className="text-[11px] text-fg-muted">
+                  An illustration of the pattern — not a rewrite of your code. Use{' '}
+                  <span className="text-fg-secondary">Repair</span> for a change generated against
+                  this file and verified before you can apply it.
+                </p>
+              </>
+            )}
+          </section>
+        )}
 
         <Section title="What this category means">{guidance.what}</Section>
 

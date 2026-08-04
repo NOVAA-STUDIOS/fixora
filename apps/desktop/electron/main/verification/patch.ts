@@ -165,10 +165,47 @@ export function sliceLines(content: string, startLine: number, endLine: number):
  * instant any code changes) — instead source + rule + the enclosing symbol (falling back to a line
  * bucket), so "the same problem" survives a fix that shifts lines, and a genuinely new problem stands out.
  */
+/**
+ * A short, stable digest of a code snippet — FNV-1a, inlined to keep this module dependency-free and
+ * unit-testable. Whitespace is collapsed first so re-indentation (which `reindentToMatch` performs
+ * routinely) does not change a finding's identity.
+ */
+function snippetDigest(snippet: string): string {
+  const normalized = snippet.replace(/\s+/g, ' ').trim();
+  if (normalized === '') return '';
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < normalized.length; i++) {
+    hash ^= normalized.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
+}
+
 export function verificationSignature(finding: Finding): string {
-  const symbol =
-    finding.evidence.enclosingSymbol?.name ?? `line:${String(finding.location.startLine)}`;
-  return `${finding.source}:${finding.ruleId}:${symbol}`;
+  const symbol = finding.evidence.enclosingSymbol?.name;
+  if (symbol !== undefined) return `${finding.source}:${finding.ruleId}:${symbol}`;
+
+  /**
+   * No enclosing symbol — identify the problem by the CODE it is about, never by where that code
+   * sits.
+   *
+   * The line number used to be the fallback, and it made the verifier reject correct repairs. A patch
+   * that changes the file's line count shifts every symbol-less finding below it, so an untouched
+   * `no-console` on line 20 reappeared at line 21 with a different signature, was counted as a new
+   * problem, and the verdict became `regression` — Apply disabled over a finding the patch never went
+   * near. Files whose findings routinely have no enclosing symbol (CSS rules, JSON members,
+   * top-level statements, config files) failed this way for *any* patch that added or removed a line,
+   * which now includes every prerequisite fix scope escalation emits.
+   *
+   * Content is the right identity: the same rule firing on the same code is the same problem wherever
+   * it moved to, and if the patch actually changed that code the digest changes and it is correctly
+   * treated as different. This does not weaken regression detection — a genuinely new problem has
+   * either a new rule, new code, or both, and still produces a signature absent from the baseline.
+   */
+  const digest = snippetDigest(finding.evidence.snippet);
+  if (digest !== '') return `${finding.source}:${finding.ruleId}:code:${digest}`;
+  // No symbol and no snippet: nothing content-bearing to key on, so position is all that is left.
+  return `${finding.source}:${finding.ruleId}:line:${String(finding.location.startLine)}`;
 }
 
 export interface VerdictInput {

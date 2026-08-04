@@ -17,6 +17,17 @@ export function setActiveEditor(editor: monaco.editor.IStandaloneCodeEditor | nu
   mounted = editor;
 }
 
+/**
+ * The mounted editor, or null.
+ *
+ * Exposed so `models.ts` can detach a model from the editor before disposing it — the cache owns
+ * the models, the editor borrows one, and a borrowed model torn down without notice leaves every
+ * in-flight worker request resolving into nothing.
+ */
+export function activeEditor(): monaco.editor.IStandaloneCodeEditor | null {
+  return mounted;
+}
+
 /** The caret's 1-based line, or null when no editor is mounted. */
 export function activeCursorLine(): number | null {
   return mounted?.getPosition()?.lineNumber ?? null;

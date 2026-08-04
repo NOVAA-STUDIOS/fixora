@@ -89,6 +89,7 @@ export {
 } from './edit/edit-request.js';
 export {
   buildReAskMessage,
+  buildVerificationReAskMessage,
   describeModelOutputFailure,
   describeProviderFailure,
   describeSchemaFailureForUser,

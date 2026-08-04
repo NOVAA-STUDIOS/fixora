@@ -355,8 +355,13 @@ describe('ai service — a rejected repair is never retried on another model', (
 
     const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
 
-    // Exactly one model contacted. The verdict is reported honestly rather than shopped around.
-    expect(asked).toEqual([CONFIGURED]);
+    // ONE model contacted, however many times. The verification retry re-asks the same model with
+    // the verifier's diagnostic fed back (see VERIFY_RETRY_LIMIT in ai-service.ts), which is a
+    // correction — not the thing this test guards against. What must never happen is the rejection
+    // being carried to a DIFFERENT model until one gets past the gate, so the assertion is on the
+    // set of models contacted, not on the number of calls.
+    expect(new Set(asked)).toEqual(new Set([CONFIGURED]));
+    expect(asked.length).toBeGreaterThanOrEqual(1);
     expect(result.status).toBe('ok');
     if (result.status !== 'ok') return;
     if (result.proposal.profile !== 'repair') return;

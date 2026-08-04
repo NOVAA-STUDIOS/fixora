@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
   buildContext,
   buildReAskMessage,
+  buildVerificationReAskMessage,
   describeModelOutputFailure,
   describeProviderFailure,
   describeSchemaFailureForUser,
@@ -18,8 +20,8 @@ import {
   type ProviderRequest,
   type AIProvider,
 } from '@fixora/core-ai';
-import type { MicroRepairResult, RootCauseGroup } from '@fixora/core-analysis';
-import { isUserFacingError } from '@fixora/shared-types';
+import type { MicroRepairResult, RepairScope, RootCauseGroup } from '@fixora/core-analysis';
+import { classifyDiagnostic, detectDependentFailure, isUserFacingError } from '@fixora/shared-types';
 import type {
   AiRunRequest,
   AiRunResponse,
@@ -31,6 +33,7 @@ import type {
   RepairSummary,
   RepairSummaryEntry,
   RootCauseInfo,
+  VerificationReport,
 } from '@fixora/shared-types';
 import { app, type BrowserWindow } from 'electron';
 
@@ -43,6 +46,7 @@ import type { VerificationService } from '../verification/verification-service.j
 
 import { logProviderFailure, missingKeyFailure, toWireFailure } from './failure-report.js';
 import type { KeyStore } from './key-store.js';
+import { checksum, emitTrace, newTrace } from './pipeline-trace.js';
 import type { ChainRefusal, Orchestrator } from './providers/orchestrator.js';
 import { projectConventions, repairNeighbours } from './repair-context.js';
 import { evaluateRepairEligibility } from './repair-eligibility.js';
@@ -153,6 +157,16 @@ interface Target {
 }
 
 const SCHEMA_ERROR = Symbol('schema_error');
+
+/**
+ * How many times a patch that failed verification is re-asked with the verifier's diagnostic fed
+ * back in, before the panel settles for showing it with Apply disabled.
+ *
+ * Three, because each one is a full provider round-trip: the user waits for it and pays for it, and
+ * a model that has missed three times with the exact failure quoted back at it is not usually one
+ * more attempt away. The gate itself is unchanged — the final verdict still decides Apply.
+ */
+const VERIFY_RETRY_LIMIT = 3;
 
 /**
  * The last parse failure, so run() can report the real reason instead of a generic sentence.
@@ -275,13 +289,27 @@ export function createAiService(deps: AiServiceDeps): AiService {
     previous: string,
     failure: ParseFailureInfo | null,
   ): ProviderRequest {
+    return followUpRequest(
+      request,
+      previous,
+      buildReAskMessage(failure ?? { reason: 'unknown', detail: '' }),
+    );
+  }
+
+  /**
+   * Continue the same conversation: the model's own previous answer, then a correction. Shared by
+   * the schema re-ask and the verification retry so both stay a genuine follow-up rather than a
+   * fresh request that happens to look similar.
+   */
+  function followUpRequest(
+    request: ProviderRequest,
+    previous: string,
+    correction: string,
+  ): ProviderRequest {
     const messages: ProviderMessage[] = [
       ...request.messages,
       { role: 'assistant', content: previous },
-      {
-        role: 'user',
-        content: buildReAskMessage(failure ?? { reason: 'unknown', detail: '' }),
-      },
+      { role: 'user', content: correction },
     ];
     return { ...request, messages };
   }
@@ -348,6 +376,13 @@ export function createAiService(deps: AiServiceDeps): AiService {
       // decisions ARE final and short-circuit with the engine's exact reason, never a generic one.
       let repairMethod: 'deterministic' | 'ai' | null = null;
       if (request.profile === 'repair') {
+        // Diagnostic Classifier (launch blocker fix): a config/environment diagnostic — missing
+        // types, an unresolved module, a tsconfig gap — is not a source-code defect, and no edit to
+        // this file can resolve it. Classified here, BEFORE eligibility is even evaluated, so it
+        // short-circuits with its exact fix and never reaches the model — the same gate the renderer
+        // already applies via `repairStateFor` to disable the button, kept in main as defense in
+        // depth for any caller that reaches `ai:run` directly.
+        const configDiagnosis = finding.source === 'tsc' ? classifyDiagnostic(finding) : null;
         const eligibility = evaluateRepairEligibility({
           language,
           ruleId: finding.ruleId,
@@ -355,11 +390,13 @@ export function createAiService(deps: AiServiceDeps): AiService {
           provider: 'openrouter',
           model: deps.keyStore.getConfig().model,
           repairCapable: true,
+          configDiagnosis,
         });
         if (!eligibility.repairable && eligibility.reason !== null) {
           console.error('[ai:run] repair not eligible', {
             ruleId: finding.ruleId,
             repairability: finding.repair,
+            configIssue: configDiagnosis !== null,
             reason: eligibility.reason,
           });
           return { status: 'error', code: 'not_found', message: eligibility.reason };
@@ -367,9 +404,19 @@ export function createAiService(deps: AiServiceDeps): AiService {
         repairMethod = eligibility.method;
       }
 
+      /**
+       * One trace per run, threaded through every stage below. Observes only — no branch reads it,
+       * so it can never change a verdict. It exists so a disabled Apply can be explained from the
+       * log alone: which revision was repaired, which patch was verified, by which model, and which
+       * stage decided.
+       */
+      const trace2 = newTrace(randomUUID());
+      trace2.configuredModel = deps.keyStore.getConfig().model;
+
       let content: string;
       try {
         content = readFile(workspace.rootPath, finding.location.file);
+        trace2.documentChecksum = checksum(content);
       } catch (error) {
         // The fs layer authors a precise, actionable reason — "no longer exists", "open in another
         // program", "permission denied", "on the secrets denylist". Surface THAT verbatim, never a
@@ -554,7 +601,13 @@ export function createAiService(deps: AiServiceDeps): AiService {
             ) ?? null)
           : null;
 
-      const patchTarget: Target =
+      /**
+       * The splice range. A `let`, because a verified-but-dependent failure can widen it — see
+       * `escalateScope` below. Everything derived from it (`mergeable`, the context, the prompt) is
+       * rebuilt through `buildForTarget` whenever it changes, so the model is never shown one range
+       * and spliced into another.
+       */
+      let patchTarget: Target =
         mode === 'ai-file'
           ? { symbolName: null, startLine: 1, endLine: fileLineCount }
           : mode === 'advanced' && advancedGroup !== null
@@ -576,13 +629,13 @@ export function createAiService(deps: AiServiceDeps): AiService {
       // far a patch may safely widen) rather than the generic "anything on a line inside the range"
       // rule, which would sweep in loosely-adjacent findings the grouping deliberately did not vouch
       // for.
-      const mergeable =
+      let mergeable: readonly Finding[] =
         mode === 'finding'
           ? []
           : mode === 'advanced'
             ? (advancedGroup?.mergeable ?? [])
             : siblings.filter((f) => withinPatch(f) && f.repair !== 'manual');
-      const skipped = siblings.filter((f) => !mergeable.includes(f));
+      let skipped = siblings.filter((f) => !mergeable.includes(f));
 
       // Manual Validation Phase 2 instrumentation. Observes only — every stage is recorded so a
       // rejected repair can be traced to the step that produced the wrong thing, rather than being
@@ -592,33 +645,67 @@ export function createAiService(deps: AiServiceDeps): AiService {
         .target(patchTarget, content)
         .related(mergeable);
 
-      // v3 context layers: the Semantic + Dependency neighbours the analyzer selected (sliced from the
-      // current file), and the Project Metadata conventions detected from the project itself.
-      const context = buildContext({
-        filePath: finding.location.file,
-        language,
-        fileContent: content,
-        finding,
-        target: patchTarget,
-        relatedFindings: mergeable,
-        neighbours: repairNeighbours(content, finding),
-        conventions: projectConventions({
+      /**
+       * Build the context and the provider request for the CURRENT `patchTarget`.
+       *
+       * Extracted into a function purely so scope escalation can call it again. When the splice range
+       * widens, the slice the model is shown, the related findings that now fall inside it, and the
+       * prompt built from both must all widen with it — a request built for the old range spliced
+       * into the new one would corrupt the file, which is precisely the class of bug this pipeline
+       * exists to prevent.
+       *
+       * `prerequisite` is the verifier's explanation of why the range grew, threaded into the prompt
+       * so the model is told to emit the prerequisite edit as part of the same replacement rather
+       * than left to rediscover the dependency.
+       */
+      const buildForTarget = (
+        prerequisite?: string,
+      ): ReturnType<typeof prepareRequest> => {
+        mergeable =
+          mode === 'finding'
+            ? []
+            : mode === 'advanced'
+              ? (advancedGroup?.mergeable ?? [])
+              : siblings.filter((f) => withinPatch(f) && f.repair !== 'manual');
+        skipped = siblings.filter((f) => !mergeable.includes(f));
+        trace.target(patchTarget, content).related(mergeable);
+
+        // v3 context layers: the Semantic + Dependency neighbours the analyzer selected (sliced from
+        // the current file), and the Project Metadata conventions detected from the project itself.
+        const built = buildContext({
+          filePath: finding.location.file,
           language,
           fileContent: content,
-          workspaceRoot: workspace.rootPath,
-        }),
-        budget: DEFAULT_BUDGETS[request.profile],
-      });
+          finding,
+          target: patchTarget,
+          relatedFindings: mergeable,
+          neighbours: repairNeighbours(content, finding),
+          conventions: projectConventions({
+            language,
+            fileContent: content,
+            workspaceRoot: workspace.rootPath,
+          }),
+          budget: DEFAULT_BUDGETS[request.profile],
+        });
+        return prepareRequest(request.profile, built, {
+          model: deps.keyStore.getConfig().model,
+          maxOutputTokens: DEFAULT_BUDGETS[request.profile].reserveForOutput,
+          ...(prerequisite === undefined ? {} : { prerequisite }),
+        });
+      };
 
-      const prepared = prepareRequest(request.profile, context, {
-        model: deps.keyStore.getConfig().model,
-        maxOutputTokens: DEFAULT_BUDGETS[request.profile].reserveForOutput,
-      });
+      const prepared = buildForTarget();
       if (!prepared.ok) {
         if (window !== null) emitToWindow(window, 'ai:runState', { status: 'blocked' });
         return { status: 'blocked', matches: prepared.blocked.map((m) => ({ ...m })) };
       }
-      trace.prompt(prepared.request.messages.map((m) => `[${m.role}]\n${m.content}`).join('\n\n'));
+      /**
+       * The request currently in force. Separate from `prepared` because scope escalation replaces it,
+       * and TypeScript's narrowing of `prepared.ok` does not survive a reassignment made inside a
+       * closure — the same reason the refs below exist.
+       */
+      let activeRequest = prepared.request;
+      trace.prompt(activeRequest.messages.map((m) => `[${m.role}]\n${m.content}`).join('\n\n'));
 
       const controller = new AbortController();
       active?.abort();
@@ -636,6 +723,121 @@ export function createAiService(deps: AiServiceDeps): AiService {
       const usedCandidate: {
         current: { provider: string; model: string; attempts: RepairHistoryAttempt[] } | null;
       } = { current: null };
+      /**
+       * The verification report of the most recent repair attempt, when it FAILED its gates. Same ref
+       * pattern and same reason as the two above: `finalize` writes it from inside a closure.
+       *
+       * A failed verification is not an error — `finalize` still returns a proposal, and the panel
+       * still shows the diff with Apply disabled. This ref is what lets `run()` notice and re-ask
+       * before settling for that, rather than handing the user a dead patch on the first miss.
+       */
+      const lastVerification: { current: VerificationReport | null } = { current: null };
+
+      /**
+       * How many times one run may widen its splice range. One: the ladder here runs from the
+       * finding's own scope to its enclosing symbol, and that single step is what turns "no possible
+       * patch of this range compiles" into "a patch exists". Going further would mean regenerating
+       * successively larger regions on the strength of a model that has already missed twice, which
+       * is the whole-file rewrite the mode ladder deliberately keeps behind a user confirmation.
+       */
+      const SCOPE_ESCALATION_LIMIT = 1;
+      const escalations = { count: 0 };
+      /**
+       * The widening that happened, for the panel. Same ref pattern as the three above: written by
+       * `escalateScope` and read by `finalize`, both closures.
+       */
+      const scopeExpansion: {
+        current: {
+          reason: string;
+          from: { startLine: number; endLine: number };
+          to: { startLine: number; endLine: number };
+        } | null;
+      } = { current: null };
+
+      /**
+       * Widen the splice range when — and only when — the verifier's rejection is attributable to
+       * something the current range cannot reach. Returns the regenerated request, or null to leave
+       * the range alone and let the caller do an ordinary re-ask.
+       *
+       * The rungs come from the finding's own evidence, so no re-parse is needed: `enclosingRange` is
+       * the smallest self-contained scope (the statement), `enclosingSymbol.location` is the function
+       * or class around it. `widenRepairScope` picks between them, and enforces that the result is
+       * strictly larger, contains every prerequisite line, and stays at or below the `function` cap.
+       */
+      const escalateScope = async (failed: VerificationReport): Promise<ProviderRequest | null> => {
+        if (escalations.count >= SCOPE_ESCALATION_LIMIT) return null;
+        // `ai-file` already spans the file — there is nothing above it but the file itself.
+        if (mode === 'ai-file') return null;
+
+        const dependent = detectDependentFailure(failed, patchTarget);
+        if (dependent === null) return null;
+
+        // Dynamic import for the same reason `groupByRootCause` above uses one: `@fixora/core-analysis`
+        // is ESM-only and this is the CJS main process, so a static value-import throws at startup.
+        const { widenRepairScope } = await import('@fixora/core-analysis');
+        const enclosing = finding.evidence.enclosingRange;
+        const symbol = finding.evidence.enclosingSymbol;
+        const candidates: RepairScope[] = [
+          ...(enclosing
+            ? [
+                {
+                  startLine: enclosing.startLine,
+                  endLine: enclosing.endLine,
+                  level: 'statement' as const,
+                },
+              ]
+            : []),
+          ...(symbol
+            ? [
+                {
+                  startLine: symbol.location.startLine,
+                  endLine: symbol.location.endLine,
+                  level: 'function' as const,
+                },
+              ]
+            : []),
+        ];
+        const wider = widenRepairScope({
+          scopes: candidates,
+          current: patchTarget,
+          mustInclude: dependent.prerequisiteLines,
+        });
+        if (wider === null) return null;
+
+        const previous = patchTarget;
+        patchTarget = {
+          symbolName: symbol?.name ?? previous.symbolName,
+          startLine: wider.startLine,
+          endLine: wider.endLine,
+        };
+        const rebuilt = buildForTarget(dependent.reason);
+        // The wider slice is new content, so it goes through the secret gate again — and can be
+        // blocked by it, if the extra lines contain a credential the narrow range did not. That is
+        // the gate working, not a failure to handle: revert to the range that already passed and let
+        // the caller fall back to an ordinary re-ask. Rebuilding on the way back is what keeps
+        // `mergeable`, the trace and the context consistent with the range that will actually splice.
+        if (!rebuilt.ok) {
+          patchTarget = previous;
+          buildForTarget();
+          console.error('[ai:run] scope escalation blocked by the secret gate — keeping the narrow range');
+          return null;
+        }
+
+        escalations.count += 1;
+        activeRequest = rebuilt.request;
+        scopeExpansion.current = {
+          reason: dependent.reason,
+          from: { startLine: previous.startLine, endLine: previous.endLine },
+          to: { startLine: patchTarget.startLine, endLine: patchTarget.endLine },
+        };
+        console.error('[ai:run] widening repair scope — the narrow range cannot compile', {
+          from: `${String(previous.startLine)}-${String(previous.endLine)}`,
+          to: `${String(patchTarget.startLine)}-${String(patchTarget.endLine)}`,
+          level: wider.level,
+          reason: dependent.reason,
+        });
+        return rebuilt.request;
+      };
 
       // Turn a raw completion into a response. `repair` verifies on an overlay before returning; a
       // schema violation returns the SCHEMA_ERROR sentinel so run() can re-ask exactly once.
@@ -694,12 +896,31 @@ export function createAiService(deps: AiServiceDeps): AiService {
         if (parsed.recovery.length > 0 && parsed.recovery[0] !== 'none') {
           console.error('[ai] recovered model output', {
             profile: request.profile,
-            model: prepared.request.model,
+            model: activeRequest.model,
             recovery: parsed.recovery,
           });
         }
         stage('validating');
+        // A new patch — and a new verification — on every attempt, retry and scope escalation, so the
+        // ids never conflate two attempts the way a single per-run id would.
+        const baseline = deps.findings.list(workspace.id, { relPath: finding.location.file });
+        const verifyId = randomUUID();
+        trace2.patchRequestId = randomUUID();
+        trace2.verificationRequestId = verifyId;
+        trace2.patchChecksum = checksum(parsed.value.repairedCode);
+        trace2.patchedFileChecksum = checksum(
+          spliceLines(
+            content,
+            patchTarget.startLine,
+            patchTarget.endLine,
+            parsed.value.repairedCode,
+          ),
+        );
+        trace2.targetRange = `${String(patchTarget.startLine)}-${String(patchTarget.endLine)}`;
+        trace2.baselineFindingCount = baseline.length;
+
         const { report, originalCode } = await deps.verification.verify({
+          verifyId,
           finding,
           repairedCode: parsed.value.repairedCode,
           target: {
@@ -710,9 +931,33 @@ export function createAiService(deps: AiServiceDeps): AiService {
           },
           workspaceRoot: workspace.rootPath,
           originalContent: content,
-          originalFindings: deps.findings.list(workspace.id, { relPath: finding.location.file }),
+          originalFindings: baseline,
         });
         trace.verified(report);
+        trace2.usedModel = usedCandidate.current?.model ?? trace2.configuredModel;
+        trace2.verdict = report.verdict;
+        /**
+         * What the renderer's Apply gate will decide, derived from the same report it receives.
+         * Mirrored rather than imported — `evaluateApplyGate` lives in the renderer bundle — so the
+         * log states the outcome, not just the inputs to it. `apply-gate-parity.test.ts` is what
+         * keeps this mirror honest; if the two ever diverge, that test fails.
+         */
+        trace2.applyEnabled =
+          parsed.value.repairedCode.length > 0 && report.syntaxOk && report.verdict !== 'regression';
+        trace2.decidedBy =
+          parsed.value.repairedCode.length === 0
+            ? 'patch-builder (empty replacement)'
+            : !report.syntaxOk
+              ? 'verification (parser gate)'
+              : report.verdict === 'regression'
+                ? 'regression-detection (new findings)'
+                : 'verification (passed)';
+        emitTrace(trace2, 'verdict');
+        // Publish the verdict for the retry loop in `run()`. `verified` and `skipped` are settled
+        // outcomes — the first passed its gates, the second had no analyzer to run them, and asking
+        // a model to improve on a check that never happened would be noise, not a correction.
+        lastVerification.current =
+          report.verdict === 'verified' || report.verdict === 'skipped' ? null : report;
         // A rejected repair is exactly the case worth keeping evidence for. A verified one is not:
         // dumping source to disk on every success would be a privacy cost with no diagnostic return.
         if (report.verdict === 'regression' || !report.syntaxOk) {
@@ -753,6 +998,12 @@ export function createAiService(deps: AiServiceDeps): AiService {
             // reason, so a minimal patch reads as a choice rather than an oversight.
             repairSummary: buildRepairSummary({ finding, related: mergeable, others: skipped }),
             rootCause: buildRootCauseInfo({ mode, selected: finding, group: advancedGroup }),
+            // Present only when the scope was widened, so the panel can explain why the diff covers
+            // more than the line the user asked about — and, if this attempt also failed, that a
+            // larger fix was tried rather than the line simply being unfixable.
+            ...(scopeExpansion.current === null
+              ? {}
+              : { scopeExpansion: scopeExpansion.current }),
             repairedCode: parsed.value.repairedCode,
             originalCode,
             rationale: parsed.value.rationale,
@@ -777,7 +1028,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
         // Smart model routing: a size/complexity hint for providers the user left on "auto". This
         // NEVER reorders providers and NEVER overrides a model the user actually picked — see
         // `orchestrator.ts`. Complexity is estimated from what is actually being sent, not guessed.
-        const promptChars = prepared.request.messages.reduce((n, m) => n + m.content.length, 0);
+        const promptChars = activeRequest.messages.reduce((n, m) => n + m.content.length, 0);
         const routingTask = {
           // Advanced Repair is definitionally the complex case — it coordinates a root cause with
           // its group rather than a single finding — so complexity is never re-estimated down for
@@ -801,7 +1052,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
               // Same prepared request, this candidate's model. The budget was computed for the first
               // candidate; one with a smaller window answers `context-too-large`, which is not a
               // failover category, so the walk stops and reports it honestly rather than looping.
-              { ...prepared.request, model: candidate.model },
+              { ...activeRequest, model: candidate.model },
               controller.signal,
               window,
               !wantsStructured,
@@ -888,13 +1139,98 @@ export function createAiService(deps: AiServiceDeps): AiService {
           // send a correction about one model's output to a different model, which is incoherent.
           stream = await streamOnce(
             usedAdapter,
-            { ...reAskRequest(prepared.request, stream.text, lastFailure.current), model: usedModel },
+            { ...reAskRequest(activeRequest, stream.text, lastFailure.current), model: usedModel },
             controller.signal,
             window,
             false,
           );
           if (stream.ok) response = await finalize(stream.text);
         }
+
+        /**
+         * Verification retry. A patch that parses but fails its gates — does not compile, breaks
+         * something that worked, or leaves the finding in place — is re-asked with the verifier's own
+         * diagnostic fed back in, up to VERIFY_RETRY_LIMIT times.
+         *
+         * This does NOT weaken the gate. Every attempt is verified by the same pipeline on a fresh
+         * overlay, and the LAST attempt's verdict is what the panel receives — so a repair that never
+         * passes still arrives with Apply disabled and its reason intact. What changes is only that
+         * the model gets told what was wrong before the user is handed a dead patch, which is exactly
+         * what the schema re-ask above already does for a malformed response.
+         *
+         * Deliberately re-asks the same provider and model that answered, for the same reason the
+         * schema re-ask does: a correction about one model's output is incoherent sent to another.
+         */
+        // `signal.aborted` is mutated outside this function's control flow, which TypeScript narrows
+        // away on a direct read after the earlier guard — read it through a call, the same shape
+        // `failover.ts` uses for exactly this reason.
+        const aborted = (): boolean => controller.signal.aborted;
+        // The text of the most recent successful completion. Tracked separately rather than
+        // reassigning `stream`, whose ok-variant narrowing does not survive the schema re-ask's
+        // reassignment above. The empty fallback is unreachable in practice — a failed stream leaves
+        // `response` as SCHEMA_ERROR, which the loop condition already excludes.
+        let lastText = stream.ok ? stream.text : '';
+        for (
+          let attempt = 1;
+          attempt <= VERIFY_RETRY_LIMIT &&
+          response !== SCHEMA_ERROR &&
+          lastVerification.current !== null &&
+          !aborted();
+          attempt += 1
+        ) {
+          const failed = lastVerification.current;
+          console.error('[ai:run] verification failed — retrying', {
+            attempt,
+            of: VERIFY_RETRY_LIMIT,
+            verdict: failed.verdict,
+            syntaxOk: failed.syntaxOk,
+            newFindingCount: failed.newFindingCount,
+            model: usedModel,
+          });
+          stage('generating');
+
+          /**
+           * Scope escalation, before the ordinary re-ask.
+           *
+           * Some failures cannot be fixed by re-asking at all. When the patch parses cleanly but
+           * still fails because of a declaration *outside* the range it replaced — `const data =
+           * await response.json()` failing on a `response` that was never awaited — no reply confined
+           * to that range compiles, and re-asking three times just spends the user's tokens on an
+           * impossible question. `escalateScope` widens the splice by one AST level so the
+           * prerequisite edit is inside it, and rebuilds the prompt for the wider range.
+           *
+           * The verifier is NOT relaxed by this: the regenerated patch goes through the same overlay
+           * verification as every other attempt, and if the wider one also fails the user still gets
+           * the best attempt with Apply disabled and the verifier's reason. What changes is only that
+           * the model is now able to return something that can pass.
+           */
+          const widened = await escalateScope(failed);
+          const retryStream = await streamOnce(
+            usedAdapter,
+            {
+              // A widened scope means a NEW question about a larger piece of code, so it is sent as
+              // a fresh grounded request rather than a follow-up to the narrow answer — continuing
+              // that conversation would anchor the model to the one-line patch that just failed.
+              ...(widened ??
+                followUpRequest(activeRequest, lastText, buildVerificationReAskMessage(failed))),
+              model: usedModel,
+            },
+            controller.signal,
+            window,
+            false,
+          );
+          // A provider failure mid-retry is not worth surfacing over a patch we already have: the
+          // previous attempt's proposal is still a real, verified-and-rejected result the user can
+          // read. Stop retrying and keep it.
+          if (!retryStream.ok) break;
+          lastText = retryStream.text;
+          const retried = await finalize(lastText);
+          // A retry that comes back unparseable is a worse outcome than the patch we already hold,
+          // so keep the earlier response rather than replacing it with a schema error.
+          if (retried === SCHEMA_ERROR) break;
+          response = retried;
+        }
+
         if (response === SCHEMA_ERROR) {
           const failure: ParseFailureInfo = lastFailure.current ?? {
             reason: 'unknown',
@@ -905,7 +1241,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
           // The raw response, on disk, whenever parsing fails. Without it "the model returned
           // something invalid" is unfalsifiable — nobody can see what it actually returned.
           const debugPath = writeParseFailureDump({
-            model: prepared.request.model,
+            model: activeRequest.model,
             profile: request.profile,
             failure,
           });
@@ -914,7 +1250,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
           // ("repairedCode: Required") is the most useful thing a maintainer can have and the least
           // useful thing a user can read.
           console.error('[ai] parse failed', {
-            model: prepared.request.model,
+            model: activeRequest.model,
             profile: request.profile,
             reason: failure.reason,
             detail: failure.detail,

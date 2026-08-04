@@ -20,6 +20,8 @@ vi.mock('../workspace/workspace-store.js', () => ({
     selector({ revealAt }),
 }));
 
+import { useUiStore } from '../../stores/ui-store.js';
+
 import { buildPatchText, RepairResult } from './repair-result.js';
 
 /**
@@ -89,15 +91,22 @@ describe('RepairResult — first screen', () => {
   });
 });
 
-describe('RepairResult — the diff is the primary surface', () => {
-  it('is ALWAYS mounted, with no toggle needed — hiding it was the regression', () => {
+/**
+ * The panel no longer renders code.
+ *
+ * The diff used to be this panel's primary surface. In the editor-first workflow it is drawn inline
+ * in the editor instead — the replaced lines marked in place, the proposed lines beneath them — and
+ * this panel is reserved for what the editor cannot show: why the problem happened, what was
+ * verified, and what the risk is. These pin that separation, because regressing it means showing the
+ * user the same code twice in two places and asking them to reconcile the two.
+ */
+describe('RepairResult — the panel explains, the editor shows the code', () => {
+  it('never mounts a diff editor', () => {
     render(<RepairResult proposal={proposal()} finding={finding()} />);
-    expect(screen.getByTestId('diff-editor')).toBeInTheDocument();
-    // The old opt-in control is gone: there is nothing to press to see the change.
-    expect(screen.queryByRole('button', { name: 'Preview Diff' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('diff-editor')).not.toBeInTheDocument();
   });
 
-  it('is shown for a REJECTED patch too — a rejection is exactly when you ask what it tried', () => {
+  it('renders no diff even for a REJECTED patch', () => {
     render(
       <RepairResult
         proposal={proposal({
@@ -113,10 +122,12 @@ describe('RepairResult — the diff is the primary surface', () => {
         finding={finding()}
       />,
     );
-    expect(screen.getByTestId('diff-editor')).toBeInTheDocument();
+    expect(screen.queryByTestId('diff-editor')).not.toBeInTheDocument();
+    // The rejection itself is still explained here — that is the panel's job.
+    expect(screen.getByText(/Apply is disabled/)).toBeInTheDocument();
   });
 
-  it('numbers the gutter with REAL file lines, not the slice offset', () => {
+  it('still names the file and range the change covers, without rendering it', () => {
     render(
       <RepairResult
         proposal={proposal({
@@ -125,33 +136,24 @@ describe('RepairResult — the diff is the primary surface', () => {
         finding={finding()}
       />,
     );
-    // Both models hold a slice, so without this Monaco would number a 120-140 repair as "1-21".
-    expect(diffProps.current?.['startLine']).toBe(120);
+    expect(screen.getByText(/a.ts:120–140/)).toBeInTheDocument();
   });
 
-  it('clicking a changed line reveals that REAL line in the editor', () => {
-    render(
-      <RepairResult
-        proposal={proposal({
-          target: { file: 'src/a.ts', startLine: 50, endLine: 60, symbolName: null },
-        })}
-        finding={finding()}
-      />,
-    );
-    const onLineClick = diffProps.current?.['onLineClick'] as (n: number) => void;
-    onLineClick(57);
-    expect(revealAt).toHaveBeenCalledWith(
-      expect.objectContaining({ file: 'src/a.ts', startLine: 57 }),
-    );
+  it('points the user at the editor rather than leaving the absence unexplained', () => {
+    render(<RepairResult proposal={proposal()} finding={finding()} />);
+    expect(screen.getByText(/Review the change in the editor/)).toBeInTheDocument();
   });
 
-  it('leaves the view responsive for the scoped modes — two columns do not fit a narrow pane', () => {
-    render(<RepairResult proposal={proposal({ mode: 'finding' })} finding={finding()} />);
-    expect(diffProps.current?.['sideBySide']).toBeUndefined();
-    expect(screen.queryByRole('group', { name: 'Diff view' })).not.toBeInTheDocument();
+  it('offers Open Full Diff for the traditional side-by-side view', () => {
+    render(<RepairResult proposal={proposal()} finding={finding()} />);
+    const button = screen.getByRole('button', { name: 'Open Full Diff' });
+    fireEvent.click(button);
+    // The overlay is opened through the ui store, so the panel does not own a second diff surface.
+    expect(useUiStore.getState().fullDiffOpen).toBe(true);
+    useUiStore.getState().closeFullDiff();
   });
 
-  it('offers Unified / Side-by-side for whole-file repairs, and switches between them', () => {
+  it('has no diff-view toggle — that moved to the full-diff overlay', () => {
     render(
       <RepairResult
         proposal={proposal({
@@ -161,31 +163,24 @@ describe('RepairResult — the diff is the primary surface', () => {
         finding={finding()}
       />,
     );
-    expect(screen.getByRole('group', { name: 'Diff view' })).toBeInTheDocument();
-    expect(diffProps.current?.['sideBySide']).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Unified' }));
-    expect(diffProps.current?.['sideBySide']).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Side-by-side' }));
-    expect(diffProps.current?.['sideBySide']).toBe(true);
+    expect(screen.queryByRole('group', { name: 'Diff view' })).not.toBeInTheDocument();
   });
 });
-
-describe('RepairResult — long explanations fold', () => {
-  it('a short rationale shows in full with no Show more control', () => {
+describe('RepairResult — explanations collapse by default', () => {
+  it('the rationale is hidden behind a Show explanation control', () => {
     render(<RepairResult proposal={proposal()} finding={finding()} />);
-    expect(screen.getByText('Short reason.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
+    const toggle = screen.getByRole('button', { name: 'Show explanation' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Short reason.')).not.toBeInTheDocument();
   });
 
-  it('a long rationale is clamped by default and expands on demand', () => {
+  it('expands to reveal the full rationale on demand, however long', () => {
     const long = 'x'.repeat(400);
     render(<RepairResult proposal={proposal({ rationale: long })} finding={finding()} />);
-    const more = screen.getByRole('button', { name: 'Show more' });
-    expect(more).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByText(long)).not.toBeInTheDocument(); // clamped
-    fireEvent.click(more);
+    const toggle = screen.getByRole('button', { name: 'Show explanation' });
+    fireEvent.click(toggle);
     expect(screen.getByText(long)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Show less' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hide explanation' })).toBeInTheDocument();
   });
 });
 
@@ -245,10 +240,13 @@ describe('RepairResult — repair summary', () => {
     expect(screen.queryByText(/Repair summary/i)).not.toBeInTheDocument();
   });
 
-  it('never replaces the diff — both are present together', () => {
+  it('coexists with the change summary rather than replacing it', () => {
+    // The summary and the "what changed" row are both panel content and must not displace each
+    // other; the code itself is in the editor, so neither competes with a diff for the space.
     render(<RepairResult proposal={withSummary} finding={finding()} />);
-    expect(screen.getByTestId('diff-editor')).toBeInTheDocument();
     expect(screen.getByText(/Repair summary/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Full Diff' })).toBeInTheDocument();
+    expect(screen.queryByTestId('diff-editor')).not.toBeInTheDocument();
   });
 });
 
@@ -270,15 +268,13 @@ describe('RepairResult — action bar', () => {
   });
 });
 
-describe('RepairResult — the patch card', () => {
-  it('separates mode, scope, lines and impact as distinct labelled facts', () => {
+describe('RepairResult — the status card', () => {
+  it('separates mode, scope, lines and verification as distinct labelled facts', () => {
     render(<RepairResult proposal={proposal({ mode: 'finding' })} finding={finding()} />);
     expect(screen.getByText('Repair Finding')).toBeInTheDocument();
-    expect(screen.getByText('Scope')).toBeInTheDocument();
-    expect(screen.getByText('Selected finding only')).toBeInTheDocument();
-    expect(screen.getByText('Lines')).toBeInTheDocument();
-    expect(screen.getByText('3–3')).toBeInTheDocument();
-    expect(screen.getByText('Validation')).toBeInTheDocument();
+    expect(screen.getByText(/Selected finding only/)).toBeInTheDocument();
+    expect(screen.getByText(/lines 3–3/)).toBeInTheDocument();
+    expect(screen.getByText('Verification')).toBeInTheDocument();
   });
 
   it('rates a one-line patch as Low impact, and says what that was measured from', () => {
@@ -300,7 +296,7 @@ describe('RepairResult — the patch card', () => {
     expect(screen.getByText('AI File Repair (Advanced)')).toBeInTheDocument();
     expect(screen.getByText('Advanced')).toBeInTheDocument();
     expect(screen.getByText('High impact')).toBeInTheDocument();
-    expect(screen.getByText('Entire file')).toBeInTheDocument();
+    expect(screen.getByText(/Entire file/)).toBeInTheDocument();
   });
 
   it('rates a large default-mode patch High too — size decides, not mode', () => {
@@ -336,9 +332,11 @@ describe('RepairResult — the patch card', () => {
  * validation badges, which is what actually confirms anything.
  */
 describe('RepairResult — Root Cause View', () => {
-  it('renders nothing extra when the proposal carries no rootCause (every other mode)', () => {
+  it('shows a fallback, not a fabricated basis, when the proposal carries no rootCause', () => {
     render(<RepairResult proposal={proposal({ mode: 'finding' })} finding={finding()} />);
-    expect(screen.queryByText('Root cause')).not.toBeInTheDocument();
+    expect(screen.getByText('Root cause')).toBeInTheDocument();
+    expect(screen.getByText(/Selected location — not retargeted\./)).toBeInTheDocument();
+    expect(screen.queryByText('different location')).not.toBeInTheDocument();
   });
 
   it('shows the root-cause finding, its basis, and flags a different location', () => {
@@ -391,5 +389,79 @@ describe('RepairResult — Root Cause View', () => {
     expect(screen.queryByText('different location')).not.toBeInTheDocument();
     // No affected findings — no fabricated estimate line.
     expect(screen.queryByText(/may clear as a side effect/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The scope-expansion disclosure.
+ *
+ * When the engine widens a repair after a dependent verification failure, the diff covers more than
+ * the line the user clicked. Unexplained, that reads as the engine overreaching — it is the opposite:
+ * the narrow patch was tried first and the verifier proved it could not compile alone. The card has
+ * to say so, both to justify the larger diff and, when the widened attempt also failed, to report the
+ * materially different outcome "a larger fix was tried and still did not compile".
+ */
+describe('RepairResult — scope expansion', () => {
+  const expansion = {
+    reason:
+      'The patch still fails on TS2339, which is caused by a declaration outside the code it replaces.',
+    from: { startLine: 3, endLine: 3 },
+    to: { startLine: 1, endLine: 5 },
+  };
+
+  function expanded(over: Partial<Repair> = {}): Repair {
+    return proposal({
+      scopeExpansion: expansion,
+      target: { file: 'src/a.ts', startLine: 1, endLine: 5, symbolName: 'load' },
+      ...over,
+    });
+  }
+
+  it('names both the original and the widened range', () => {
+    render(<RepairResult proposal={expanded()} finding={finding()} />);
+    expect(screen.getByText(/Expanded from lines 3–3 to 1–5/)).toBeInTheDocument();
+  });
+
+  it('explains that the smaller fix could not compile, in the verifier’s own words', () => {
+    render(<RepairResult proposal={expanded()} finding={finding()} />);
+    expect(screen.getByText(/did not compile on its own/)).toBeInTheDocument();
+    // Quoting the verifier keeps the panel and the engine from telling different stories.
+    expect(
+      screen.getByText(/caused by a declaration outside the code it replaces/),
+    ).toBeInTheDocument();
+  });
+
+  it('sits inside the status card as a labelled row, like every other fact', () => {
+    render(<RepairResult proposal={expanded()} finding={finding()} />);
+    // The row label, alongside the rows that were already there.
+    expect(screen.getByText('Scope')).toBeInTheDocument();
+    expect(screen.getByText('Root cause')).toBeInTheDocument();
+    expect(screen.getByText('Verification')).toBeInTheDocument();
+  });
+
+  it('is stated even when the widened attempt was itself rejected', () => {
+    // The disclosure is not a success notice — a rejected wider patch is exactly when the user most
+    // needs to know a larger fix was already tried.
+    render(
+      <RepairResult
+        proposal={expanded({
+          verification: {
+            verdict: 'regression',
+            targetResolved: false,
+            newFindingCount: 1,
+            syntaxOk: true,
+            ran: ['syntax', 'tsc'],
+          },
+        })}
+        finding={finding()}
+      />,
+    );
+    expect(screen.getByText(/Expanded from lines 3–3 to 1–5/)).toBeInTheDocument();
+  });
+
+  it('says nothing at all when the scope was never widened', () => {
+    render(<RepairResult proposal={proposal()} finding={finding()} />);
+    expect(screen.queryByText(/Expanded from lines/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Scope')).not.toBeInTheDocument();
   });
 });

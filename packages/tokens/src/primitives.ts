@@ -39,11 +39,19 @@ export const neutralDark: Scale = [
 ];
 
 export const neutralLight: Scale = [
-  '#ffffff',
-  '#faf9fc',
-  '#f4f2f8',
-  '#edeaf4',
-  '#e5e1ee',
+  // Steps 0-4 are backgrounds only — never contrast-gated against text on their own (`canvas`,
+  // `raised`, `overlay` ARE checked, but only get MORE readable as a background darkens toward
+  // dark text, never less). Softened from a near-pure-white ramp: step 0 was literally #ffffff,
+  // which is the "visually aggressive" surface a bright IDE panel reads as glare, not calm. Every
+  // editor-class light theme in the reference set (VS Code, GitHub Desktop, Linear) sits its
+  // brightest surface a few percent off pure white for exactly this reason. Steps 5-11 (borders,
+  // text) are untouched — those are the contrast-gated values (see requirements.ts) and this
+  // sprint's brief is calmer surfaces, not a new palette.
+  '#fbfafd',
+  '#f7f5fa',
+  '#f1eef6',
+  '#eae6f1',
+  '#e2dcea',
   '#dbd6e6',
   '#cec7dd',
   '#b8afcc',

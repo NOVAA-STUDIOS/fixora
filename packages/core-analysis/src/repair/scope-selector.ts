@@ -76,8 +76,37 @@ const PYTHON_SCOPES: Record<string, RepairScopeLevel> = {
   module: 'module',
 };
 
+/**
+ * CSS scopes.
+ *
+ * `declaration` (`color: #333;`) is deliberately ABSENT, and that omission is the whole point: a bare
+ * declaration does not parse on its own, so it fails rule (a) at the top of this file. Without a map
+ * here at all, CSS fell through to `TS_JS_SCOPES` — whose node types never occur in a CSS tree — so
+ * `collectScopes` returned nothing, findings carried no `enclosingRange`, and `ai-service.ts` fell to
+ * its last resort: the finding's bare line. That handed the model a fragment that cannot parse and
+ * spliced its reply back over one mid-rule line, which is how a syntactically valid replacement still
+ * produced "the patched file does not parse".
+ *
+ * A `rule_set` is the CSS analogue of a declaration: it parses standalone and can be replaced
+ * wholesale while the stylesheet around it stays valid. The at-rule blocks are the same shape one
+ * level up, and the single-line at-rules are complete statements.
+ */
+const CSS_SCOPES: Record<string, RepairScopeLevel> = {
+  import_statement: 'statement',
+  charset_statement: 'statement',
+  namespace_statement: 'statement',
+  rule_set: 'declaration',
+  keyframe_block: 'declaration',
+  media_statement: 'function',
+  supports_statement: 'function',
+  keyframes_statement: 'function',
+  at_rule: 'function',
+  stylesheet: 'module',
+};
+
 function scopeMap(language: Language): Record<string, RepairScopeLevel> {
   if (language === 'python') return PYTHON_SCOPES;
+  if (language === 'css') return CSS_SCOPES;
   return TS_JS_SCOPES; // typescript / javascript (tsx uses the same node types)
 }
 
