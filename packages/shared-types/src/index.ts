@@ -191,6 +191,13 @@ export { classifyDiagnostic, type ConfigDiagnosis } from './diagnostic-classifie
 export { grammarFor, type GrammarId } from './grammar.js';
 
 export {
+  ProviderInfoSchema,
+  ProviderListSchema,
+  type ProviderInfo,
+  type ProviderList,
+} from './providers.js';
+
+export {
   canProbe,
   formatAgo,
   healthColour,

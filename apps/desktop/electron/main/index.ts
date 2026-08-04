@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { providerDescriptor } from '@fixora/core-ai';
 import { app, BrowserWindow } from 'electron';
 
 import { createAiService } from './ai/ai-service.js';
@@ -7,6 +8,7 @@ import { safeStorageCipher } from './ai/cipher.js';
 import { createCredentialStore } from './ai/credentials/credential-store.js';
 import { createKeyStore } from './ai/key-store.js';
 import { createModelCatalogue } from './ai/model-catalogue.js';
+import { createProviderHealthStore } from './ai/provider-health-store.js';
 import { createOrchestrator } from './ai/providers/orchestrator.js';
 import { createProviderRegistry } from './ai/providers/provider-registry.js';
 import { createAnalysisHost } from './analysis/analysis-host.js';
@@ -22,6 +24,7 @@ import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
 import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
 import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
+import { registerProviderHandlers } from './ipc/handlers/providers.handlers.js';
 import { registerSuggestionHandlers } from './ipc/handlers/suggestions.handlers.js';
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
@@ -126,6 +129,16 @@ if (!gotTheLock) {
         cipher: safeStorageCipher,
       });
       const providerRegistry = createProviderRegistry({ dir: app.getPath('userData') });
+      /**
+       * Provider health, recorded from traffic that was going to happen anyway.
+       *
+       * In memory on purpose: health is a statement about right now, and persisting it would show
+       * "Connected" on launch because it was connected yesterday — the exact false reassurance the
+       * panel exists to remove. An empty store honestly reports "not checked".
+       */
+      const providerHealth = createProviderHealthStore({
+        labelFor: (id) => providerDescriptor(id)?.label ?? id,
+      });
       const orchestrator = createOrchestrator({
         registry: providerRegistry,
         credentials,
@@ -146,6 +159,9 @@ if (!gotTheLock) {
 
       const aiService = createAiService({
         keyStore,
+        // Observer only. The service calls these AFTER an outcome is decided; nothing in the repair
+        // path reads health back, so a health write can never gate or delay a repair.
+        health: providerHealth,
         findings: findingsRepo,
         workspace: workspaceService,
         verification,
@@ -181,6 +197,11 @@ if (!gotTheLock) {
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerAnalysisHandlers(analysisService);
+      registerProviderHandlers({
+        registry: providerRegistry,
+        credentials,
+        health: providerHealth,
+      });
       registerAiHandlers({
         keyStore,
         credentials,

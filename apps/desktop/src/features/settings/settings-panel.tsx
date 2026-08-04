@@ -18,6 +18,7 @@ import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
 
 import { ModelPicker } from './model-picker.js';
+import { ProviderManager } from './provider-manager.js';
 
 const PURCHASE_URL = 'https://fixora.dev/pro';
 
@@ -55,6 +56,7 @@ export function SettingsPanel(): React.JSX.Element {
           <EditorSettings />
           <StartupSettings />
           <AiSettings />
+          <ProviderSettings />
           <LicenseSettings />
           <PrivacySettings />
           <Keybindings />
@@ -114,6 +116,21 @@ function AppearanceSettings(): React.JSX.Element {
           </SelectContent>
         </Select>
       </Field>
+    </Group>
+  );
+}
+
+/**
+ * Provider priority and health.
+ *
+ * A separate group from the key/model settings above on purpose: that group is about ONE provider's
+ * credential, this one is about which providers exist and in what order they are tried. Merging them
+ * was what made the failover chain invisible — the panel looked single-provider because it was.
+ */
+function ProviderSettings(): React.JSX.Element {
+  return (
+    <Group title="AI providers & failover">
+      <ProviderManager />
     </Group>
   );
 }

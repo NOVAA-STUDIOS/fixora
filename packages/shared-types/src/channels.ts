@@ -43,6 +43,14 @@ export const channels = [
   'analysis:cancel',
   'analysis:list',
   'analysis:summary',
+  // Provider management. The registry, the failover chain and the health store all existed and were
+  // unreachable — no channel named them, so priority and enable/disable were headless.
+  'providers:list',
+  'providers:setEnabled',
+  'providers:moveUp',
+  'providers:moveDown',
+  'providers:setModel',
+  'providers:setBaseUrl',
   'ai:getConfig',
   'ai:setKey',
   'ai:clearKey',

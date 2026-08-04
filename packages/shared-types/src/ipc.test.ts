@@ -38,6 +38,15 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'analysis:cancel',
       'analysis:list',
       'analysis:summary',
+      // Provider management (Phase 2). Read plus five mutations, all scoped to the provider
+      // registry: enable/disable, priority, model and base URL. None of them touches a credential —
+      // key material still moves only through 'ai:setKey'/'ai:clearKey'.
+      'providers:list',
+      'providers:setEnabled',
+      'providers:moveUp',
+      'providers:moveDown',
+      'providers:setModel',
+      'providers:setBaseUrl',
       'ai:getConfig',
       'ai:setKey',
       'ai:clearKey',

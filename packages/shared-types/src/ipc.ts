@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { ProviderListSchema } from './providers.js';
+
 import {
   AiConfigSchema,
   AiModelListSchema,
@@ -188,6 +190,31 @@ export const contracts = {
   // point of view: `ai:setKey` takes one and it goes to the OS keychain; nothing ever returns it.
   // `ai:run` executes a grounded task against a finding — the secret gate runs inside, before any
   // provider call — and streams prose via `ai:delta`, resolving to a typed outcome value.
+  /**
+   * Every provider mutation returns the FULL refreshed list rather than an ack.
+   *
+   * Reordering is relative (swap with a neighbour), so a renderer that applied the change locally
+   * would be re-deriving an order main already computed — and the two would drift the first time a
+   * provider appeared or a write failed. Returning the list makes main the single authority.
+   */
+  'providers:list': { request: empty, response: ProviderListSchema },
+  'providers:setEnabled': {
+    request: z.object({ id: z.string().min(1), enabled: z.boolean() }),
+    response: ProviderListSchema,
+  },
+  'providers:moveUp': { request: z.object({ id: z.string().min(1) }), response: ProviderListSchema },
+  'providers:moveDown': {
+    request: z.object({ id: z.string().min(1) }),
+    response: ProviderListSchema,
+  },
+  'providers:setModel': {
+    request: z.object({ id: z.string().min(1), model: z.string() }),
+    response: ProviderListSchema,
+  },
+  'providers:setBaseUrl': {
+    request: z.object({ id: z.string().min(1), baseUrl: z.string() }),
+    response: ProviderListSchema,
+  },
   'ai:getConfig': { request: empty, response: AiConfigSchema },
   'ai:setKey': {
     request: z.object({ key: z.string().min(1), model: z.string().min(1).optional() }),

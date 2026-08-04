@@ -29,6 +29,7 @@ import {
   isUserFacingError,
 } from '@fixora/shared-types';
 import type {
+  AiFailure,
   AiRunRequest,
   AiRunResponse,
   AiRunStage,
@@ -124,6 +125,22 @@ export interface AiServiceDeps {
     filePath: string;
   }) => Promise<MicroRepairResult | null>;
   appMeta?: { url?: string; name?: string };
+  /**
+   * Provider health, written as a side effect of work that was happening anyway.
+   *
+   * Optional and observer-only: it is called AFTER an outcome is decided, nothing in this file reads
+   * it back, and every call is wrapped so a throw here cannot reach the repair. A missing store is
+   * simply no health data — never a degraded repair.
+   */
+  health?: {
+    recordSuccess(providerId: string, model: string, latencyMs: number): void;
+    recordFailure(
+      providerId: string,
+      model: string,
+      category: AiFailure['category'],
+      rateLimit?: { remaining?: number; limit?: number; resetAt?: number },
+    ): void;
+  };
 }
 
 /**
@@ -1050,6 +1067,9 @@ export function createAiService(deps: AiServiceDeps): AiService {
           estimatedTokens: Math.ceil(promptChars / 4),
         };
 
+        // Wall clock for the health record's latency figure. Started here, immediately before the
+        // provider walk, so it measures the provider round trip rather than context assembly.
+        const runStartedAt = Date.now();
         const walk = await orchestrator.run(
           request.profile,
           async (candidate) => {
@@ -1113,6 +1133,39 @@ export function createAiService(deps: AiServiceDeps): AiService {
         }));
         // For Provider History: which providers were tried and failed before this one, if any.
         usedCandidate.current = { provider: usedProvider, model: usedModel, attempts: walkAttempts };
+
+        /**
+         * Record health from the walk that just happened.
+         *
+         * Free: this is the outcome of work the user already asked for, and it is more truthful than
+         * a synthetic probe because it IS the workload. Every candidate the walk tried and abandoned
+         * is recorded too — otherwise a provider that failed over would look untested forever, which
+         * is exactly the provider a health panel most needs to describe.
+         *
+         * Wrapped: health is an observer, and an observer must never be able to fail a repair.
+         */
+        try {
+          for (const record of walk.attempts) {
+            deps.health?.recordFailure(
+              record.candidate.provider,
+              record.candidate.model,
+              record.failure.category,
+              record.failure.rateLimit,
+            );
+          }
+          if (walk.ok) {
+            deps.health?.recordSuccess(usedProvider, usedModel, Date.now() - runStartedAt);
+          } else {
+            deps.health?.recordFailure(
+              usedProvider,
+              usedModel,
+              walk.failure.category,
+              walk.failure.rateLimit,
+            );
+          }
+        } catch (error) {
+          console.error('[health] recording failed — the repair is unaffected', error);
+        }
         let stream: StreamResult = walk.ok
           ? walk.value
           : { ok: false, message: walk.failure.message, retryable: walk.failure.retryable, failure: walk.failure };
