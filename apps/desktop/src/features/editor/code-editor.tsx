@@ -1,11 +1,15 @@
 import type * as monaco from 'monaco-editor';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
+
 import { setActiveEditor } from './active-editor.js';
 import { useEditorStore } from './editor-store.js';
+import { InlineRepairBar } from './inline-repair-bar.js';
+import { mountInlineRepair, type InlineRepairView } from './inline-repair.js';
 import { modelFor } from './models.js';
 import { setupMonaco } from './monaco-setup.js';
 import { themeForAppearance } from './monaco-theme.js';
@@ -47,6 +51,9 @@ export function CodeEditor({
   const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const theme = useUiStore((s) => s.theme);
   const revealTarget = useWorkspaceStore((s) => s.revealTarget);
+  const proposal = useAiStore((s) => s.proposal);
+  const inlineViewRef = useRef<InlineRepairView | null>(null);
+  const [hunkPosition, setHunkPosition] = useState<{ index: number; total: number } | null>(null);
 
   // Mount the editor once.
   useEffect(() => {
@@ -92,6 +99,12 @@ export function CodeEditor({
 
     return () => {
       observer.disconnect();
+      // Detach before teardown. Monaco's language services are worker-backed and asynchronous —
+      // tokenization, links, folding — and each holds the model it was started against. Disposing
+      // the editor while one is in flight leaves that request resolving into a torn-down editor,
+      // which surfaces as an uncaught `Cancelled: Cancelled`. The model itself is cache-owned
+      // (`models.ts`) and deliberately NOT disposed here.
+      editor.setModel(null);
       editor.dispose();
       editorRef.current = null;
       setActiveEditor(null);
@@ -167,7 +180,59 @@ export function CodeEditor({
     ]);
   }, [revealTarget, relPath, content]);
 
+  /**
+   * The inline repair review (editor-first workflow).
+   *
+   * A proposal whose target is THIS file is drawn in place: the replaced lines are marked and the
+   * proposed lines render beneath them, so review happens where the code is rather than in a panel
+   * beside it. Torn down whenever the proposal, the file, or the content changes — a decoration left
+   * behind after the model moves on would point at the wrong lines.
+   *
+   * Nothing here decides anything. Accept and Reject are wired to the same store actions the panel's
+   * buttons used; the Apply gate, the verifier and the repair pipeline are untouched.
+   */
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (editor === null) return;
+    if (proposal?.profile !== 'repair') return;
+    if (proposal.target.file !== relPath) return;
+
+    const view = mountInlineRepair({
+      editor,
+      monacoApi: setupMonaco(),
+      originalCode: proposal.originalCode,
+      repairedCode: proposal.repairedCode,
+      startLine: proposal.target.startLine,
+      endLine: proposal.target.endLine,
+      onActiveHunkChange: (index, total) => {
+        setHunkPosition({ index, total });
+      },
+    });
+    inlineViewRef.current = view;
+    setHunkPosition({ index: 0, total: view.hunkCount });
+
+    return () => {
+      view.dispose();
+      inlineViewRef.current = null;
+      setHunkPosition(null);
+    };
+  }, [proposal, relPath, content]);
+
+  const showInlineReview =
+    proposal !== null && proposal.profile === 'repair' && proposal.target.file === relPath;
+
   // min-w-0 + overflow-hidden: Monaco sizes itself from this container, so it must not be able to
   // be widened by its own content while the pane is being dragged narrower.
-  return <div ref={container} className="h-full w-full min-w-0 overflow-hidden" />;
+  return (
+    <div className="relative h-full w-full min-w-0 overflow-hidden">
+      <div ref={container} className="h-full w-full min-w-0 overflow-hidden" />
+      {showInlineReview && (
+        <InlineRepairBar
+          position={hunkPosition}
+          onNext={() => inlineViewRef.current?.next()}
+          onPrevious={() => inlineViewRef.current?.previous()}
+        />
+      )}
+    </div>
+  );
 }

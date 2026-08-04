@@ -132,3 +132,45 @@
     transform: translateX(300%);
   }
 }
+
+/*
+ * Inline repair review (inline-repair.ts). The editor is the review surface, so a proposed change is
+ * drawn where the code is: the region under review is tinted, the lines being replaced are marked as
+ * removals, and the proposed lines render beneath them in a view zone as additions.
+ *
+ * Colours come from the existing danger/success tokens rather than hard-coded red and green, so the
+ * inline review follows the app theme — including light mode — exactly as the rest of the UI does.
+ * These class names are referenced from JS, so they live here (global) rather than in a module.
+ */
+.fx-inline-scope {
+  background: color-mix(in srgb, var(--fx-color-accent) 6%, transparent);
+}
+
+.fx-inline-scope-gutter {
+  box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--fx-color-accent) 55%, transparent);
+}
+
+.fx-inline-removed {
+  background: color-mix(in srgb, var(--fx-color-danger) 14%, transparent);
+}
+
+.fx-inline-removed-gutter {
+  box-shadow: inset 3px 0 0 0 var(--fx-color-danger);
+}
+
+/*
+ * The proposed lines. A view zone is plain DOM inside Monaco's scrolled content, so it has to be
+ * given the editor's own font metrics or the added lines will not align with the code above them.
+ */
+.fx-inline-added {
+  background: color-mix(in srgb, var(--fx-color-success) 14%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--fx-color-success);
+  width: 100%;
+}
+
+.fx-inline-added-line {
+  white-space: pre;
+  padding-left: 0.25rem;
+  color: var(--fx-color-fg);
+  line-height: var(--fx-inline-line-height, 19px);
+}

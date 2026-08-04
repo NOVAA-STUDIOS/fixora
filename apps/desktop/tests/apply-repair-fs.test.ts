@@ -33,6 +33,7 @@ async function applyHandler(root: string): Promise<Handler> {
   const { registerAiHandlers } = await import('../electron/main/ipc/handlers/ai.handlers.js');
   registerAiHandlers({
     keyStore: {} as never,
+    credentials: { setKey: () => undefined, clearKey: () => undefined } as never,
     aiService: { run: vi.fn(), cancel: vi.fn() } as never,
     workspace: { getCurrent: () => ({ id: 'ws', rootPath: root, name: 'p', ignore: [] }) } as never,
     history: { markApplied: vi.fn(), record: vi.fn(), list: () => [], remove: vi.fn() } as never,

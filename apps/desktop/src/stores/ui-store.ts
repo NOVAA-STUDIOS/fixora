@@ -75,6 +75,15 @@ type UiState = {
   activeView: ActivityView;
   /** Not persisted — a palette open across restarts would be a bug, not a feature. */
   paletteOpen: boolean;
+  /**
+   * The traditional side-by-side diff, opened on demand from the inline review.
+   *
+   * Inline review is the default surface, so this is off unless the user asks for it — and, like the
+   * palette, it is deliberately NOT persisted: a modal restored over the editor on launch is a bug.
+   */
+  fullDiffOpen: boolean;
+  openFullDiff: () => void;
+  closeFullDiff: () => void;
   /** react-resizable-panels layout, keyed by panel id. Persisted so pane sizes survive restart. */
   panelLayout: PanelLayout;
   /**
@@ -121,6 +130,14 @@ export const useUiStore = create<UiState>()(
       telemetryEnabled: false,
       autoSave: false,
       reopenLastProject: false,
+      fullDiffOpen: false,
+
+      openFullDiff: () => {
+        set({ fullDiffOpen: true });
+      },
+      closeFullDiff: () => {
+        set({ fullDiffOpen: false });
+      },
 
       setTheme: (theme) => {
         set({ theme });

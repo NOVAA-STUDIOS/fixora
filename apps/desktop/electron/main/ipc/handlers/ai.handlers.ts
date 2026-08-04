@@ -31,6 +31,7 @@ export function describeRunFailure(error: unknown, profile: string): string {
 }
 
 import type { AiService } from '../../ai/ai-service.js';
+import type { CredentialStore } from '../../ai/credentials/credential-store.js';
 import { timeoutFailure } from '../../ai/failure-report.js';
 import type { KeyStore, StoredAiConfig } from '../../ai/key-store.js';
 import type { ModelCatalogueService } from '../../ai/model-catalogue.js';
@@ -56,8 +57,24 @@ import { registerHandler } from '../router.js';
  */
 export const DEFAULT_RUN_TIMEOUT_MS = 180_000;
 
+/**
+ * The provider the legacy single-key store has always represented. Named once so the two writes in
+ * `ai:setKey`/`ai:clearKey` cannot drift apart from each other.
+ */
+const DEFAULT_PROVIDER_ID = 'openrouter';
+
 export function registerAiHandlers(deps: {
   keyStore: KeyStore;
+  /**
+   * The store the ORCHESTRATOR actually reads (`orchestrator.ts` → `credentials.getKey(id)`).
+   *
+   * `keyStore` is the v1 single-key file and is now only the renderer's config surface plus the
+   * downgrade path. Saving a key wrote v1 alone, so the new key never reached the store the provider
+   * is built from — and because the v2 store only migrates from v1 when its own file is ABSENT, a
+   * restart did not repair it either. That is the "new key saved, still quota exceeded, even after
+   * restarting" defect. Both stores are written together now, so they cannot diverge.
+   */
+  credentials: CredentialStore;
   aiService: AiService;
   workspace: WorkspaceService;
   history: RepairHistoryRepository;
@@ -192,11 +209,40 @@ export function registerAiHandlers(deps: {
     }
   });
 
-  registerHandler('ai:setKey', async ({ key, model }) => enrich(deps.keyStore.setKey(key, model)));
+  /**
+   * Saving a key must behave exactly like a fresh launch, with no restart.
+   *
+   * Order matters. The credential store is written FIRST: it throws `keychain_unavailable` when the
+   * OS keychain is gone, and if v1 had already been written by then the two stores would disagree
+   * with the failure surfaced to the user — the worst of both. Writing the authoritative store first
+   * means either both succeed or neither does.
+   *
+   * Any run still in flight belongs to the previous key and is aborted, so its result cannot land
+   * after the switch and be read as the new key failing. The orchestrator holds no adapter between
+   * calls (`resolveChain` builds one per run from `credentials.getKey`), so nothing else caches the
+   * old key: the next run constructs a provider from the newest settings by itself.
+   */
+  registerHandler('ai:setKey', async ({ key, model }) => {
+    deps.credentials.setKey(DEFAULT_PROVIDER_ID, key);
+    deps.aiService.cancel();
+    return enrich(deps.keyStore.setKey(key, model));
+  });
 
-  registerHandler('ai:clearKey', async () => enrich(deps.keyStore.clearKey()));
+  registerHandler('ai:clearKey', async () => {
+    deps.credentials.clearKey(DEFAULT_PROVIDER_ID);
+    deps.aiService.cancel();
+    return enrich(deps.keyStore.clearKey());
+  });
 
-  registerHandler('ai:setModel', async ({ model }) => enrich(deps.keyStore.setModel(model)));
+  /**
+   * The model is part of the provider configuration, so switching it gets the same treatment as
+   * switching the key: a run already in flight was issued against the PREVIOUS model, and letting it
+   * finish would report that model's verdict — a quota refusal, say — against the one just chosen.
+   */
+  registerHandler('ai:setModel', async ({ model }) => {
+    deps.aiService.cancel();
+    return enrich(deps.keyStore.setModel(model));
+  });
 
   /**
    * `ai:run` must never throw.

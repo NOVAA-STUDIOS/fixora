@@ -4,7 +4,7 @@ export { createAnalysisContext, type CreateContextOptions } from './context.js';
 export { complexityAnalyzer } from './analyzers/complexity.js';
 export { createEslintAnalyzer } from './analyzers/eslint.js';
 export { createJsonAnalyzer } from './analyzers/json.js';
-export { createSyntaxAnalyzer } from './analyzers/syntax.js';
+export { createSyntaxAnalyzer, isTailwindDirectiveLine } from './analyzers/syntax.js';
 export { createRuffAnalyzer } from './analyzers/ruff.js';
 export { createGoVetAnalyzer } from './analyzers/go-vet.js';
 export { createTscAnalyzer } from './analyzers/tsc.js';
@@ -40,6 +40,9 @@ export {
   type RootCauseGroup,
   type ScopeRange,
 } from './repair/root-cause-grouping.js';
+
+export { widenRepairScope, type WidenInput } from './repair/scope-escalation.js';
+export type { RepairScope, RepairScopeLevel } from './analyzer.js';
 export {
   selectRepairContext,
   type ContextRange,

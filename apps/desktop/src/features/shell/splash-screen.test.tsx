@@ -25,6 +25,48 @@ describe('SplashScreen', () => {
     expect(screen.getByText('Loading workspace…')).toBeTruthy();
   });
 
+  /**
+   * Startup-sequence regression: main shows the window on `ready-to-show`, which is the splash's
+   * FIRST painted frame, and `AppShell` is already mounted underneath it. A splash that starts
+   * transparent therefore reveals the fully-rendered main UI before initialization has finished —
+   * the "main window flashes, then splash, then main window" sequence. Only `leaving` may be
+   * transparent.
+   */
+  it('is opaque on the first painted frame, never revealing the shell behind it', () => {
+    for (const phase of ['entering', 'loading', 'error'] as const) {
+      const { container, unmount } = render(
+        <SplashScreen
+          phase={phase}
+          message="Initializing Fixora…"
+          working
+          errorMessage={phase === 'error' ? 'boom' : null}
+          version={null}
+          onRetry={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      const root = container.firstElementChild;
+      expect(root?.className, phase).toContain('opacity-100');
+      expect(root?.className, phase).not.toContain('opacity-0');
+      unmount();
+    }
+  });
+
+  it('fades out on the way out, so leaving is the one transparent phase', () => {
+    const { container } = render(
+      <SplashScreen
+        phase="leaving"
+        message="Ready"
+        working={false}
+        errorMessage={null}
+        version={null}
+        onRetry={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(container.firstElementChild?.className).toContain('opacity-0');
+  });
+
   it('hides the loading indicator once work is done, even while still visible', () => {
     const { container } = render(
       <SplashScreen

@@ -173,6 +173,67 @@ function flag(node: Node, name: 'isError' | 'isMissing'): boolean {
  * times at finer and finer granularity. Once a node is itself an error we take it and stop, and only
  * recurse through nodes that merely *contain* one.
  */
+/**
+ * Tailwind CSS v4 at-rules that the `tree-sitter-css` grammar does not know.
+ *
+ * The grammar predates Tailwind v4 and has no notion of these, so it reports each one as a syntax
+ * error — "Invalid CSS: this is not valid CSS syntax" — on a file that is perfectly valid Tailwind.
+ * In a real Laravel/Tailwind app that is every `@source` line in `app.css`, which both buries the
+ * genuine findings and offers Repair on code that is not broken.
+ *
+ * Only the directives whose SHAPE actually defeats the grammar are listed. An unrecognised at-rule
+ * with an ordinary shape (`@definitelynotreal foo;`) already parses cleanly, so it needs no entry —
+ * which is also why this list stays short as Tailwind grows: a new directive only belongs here if it
+ * introduces syntax the CSS grammar cannot represent (an unquoted argument, a parenthesised
+ * selector). `@theme`, `@utility` and `@apply` are deliberately ABSENT: they parse today, so
+ * suppressing them would blind us to real errors inside them for no benefit.
+ */
+const TAILWIND_AT_RULES = new Set([
+  'source',
+  'plugin',
+  'variant',
+  'custom-variant',
+  'reference',
+  'config',
+]);
+
+/** The at-rule a line opens with, lowercased and without the `@` — or null if it opens with none. */
+function atRuleOn(line: string): string | null {
+  return /^\s*@([a-z][a-z-]*)/i.exec(line)?.[1]?.toLowerCase() ?? null;
+}
+
+/**
+ * Whether a CSS source line opens with a Tailwind directive the grammar cannot read.
+ *
+ * Exported because the ANALYZER is not the only thing that parses CSS: the verification worker
+ * re-parses the patched file to decide `syntaxOk`, and that gate has to reach the same conclusion
+ * about the same bytes. While it did not, the two disagreed on every Tailwind file — analysis
+ * reported it clean, verification reported "the patched file does not parse" — and Apply was refused
+ * for repairs that were perfectly good.
+ */
+export function isTailwindDirectiveLine(line: string): boolean {
+  const rule = atRuleOn(line);
+  return rule !== null && TAILWIND_AT_RULES.has(rule);
+}
+
+/**
+ * Drop the errors that are only there because the grammar cannot read a Tailwind directive.
+ *
+ * Keyed on the SOURCE LINE rather than the ERROR node's text, because the node is not a reliable
+ * witness: for `@source '…';` tree-sitter reports a MISSING `;` carrying no text at all, and an
+ * ERROR whose text is just `";"`. The line the parser choked on is the honest signal, and these
+ * directives are single-line by construction.
+ *
+ * Deliberately narrow: an error on any line that does NOT open with one of these directives is
+ * untouched, so a genuine defect inside a rule block is still reported exactly as before.
+ */
+function withoutTailwindNoise(errors: SyntaxError[], lines: readonly string[]): SyntaxError[] {
+  return errors.filter((error) => {
+    const rule = atRuleOn(lines[error.line - 1] ?? '');
+    return rule === null || !TAILWIND_AT_RULES.has(rule);
+  });
+}
+
 function collectErrors(root: Node, limit: number): SyntaxError[] {
   const errors: SyntaxError[] = [];
   const visit = (node: Node): void => {
@@ -238,7 +299,20 @@ export function createSyntaxAnalyzer(language: 'css' | 'html'): Analyzer {
 
         let errors: SyntaxError[];
         /** Missed-semicolon findings, which a clean parse can still contain (see below). */
-        const semicolons: { offset: number; line: number; column: number }[] = [];
+        const semicolons: {
+          offset: number;
+          line: number;
+          column: number;
+          /**
+           * The enclosing construct, resolved while the tree is still alive (the tree is disposed
+           * before these are yielded). Same treatment — and same reason — as `error.enclosing` on the
+           * delimiter path below: without it the repair target collapses to the finding's own line,
+           * which for CSS is a bare `color: #333` declaration. That is not a construct that parses on
+           * its own, so the model is asked to repair a fragment and its reply cannot be spliced back
+           * without breaking the rule around it.
+           */
+          enclosing?: { startLine: number; endLine: number } | null;
+        }[] = [];
         try {
           const tree = await parse(language, source, file.file);
           try {
@@ -257,12 +331,23 @@ export function createSyntaxAnalyzer(language: 'css' | 'html'): Analyzer {
               });
             }
             errors = tree.root.hasError ? collectErrors(tree.root, MAX_ERRORS_PER_FILE) : [];
+            // Tailwind v4 directives are valid CSS-in-Tailwind that this grammar cannot read. CSS
+            // only: the HTML validator shares this code path and has no such vocabulary.
+            if (language === 'css' && errors.length > 0) {
+              errors = withoutTailwindNoise(errors, source.split(/\r?\n/));
+            }
             // Root Cause A: these findings carried NO enclosing range, so the repair target collapsed
             // to the finding's own line — and for an unbalanced delimiter that line is where the
             // parser gave up, often a different and perfectly valid rule. Resolved here, while the
             // tree is still alive, to the outermost construct that actually contains the defect.
             for (const error of errors) {
               error.enclosing = outermostConstructContaining(tree.root, error.line);
+            }
+            // The same resolution for the missed-semicolon findings, for the same reason. Done here,
+            // inside the try, because `tree` is disposed in the `finally` below and these findings
+            // are not yielded until after that.
+            for (const found of semicolons) {
+              found.enclosing = outermostConstructContaining(tree.root, found.line);
             }
           } finally {
             tree.dispose();
@@ -350,7 +435,22 @@ export function createSyntaxAnalyzer(language: 'css' | 'html'): Analyzer {
             },
             message:
               'Missing `;` after this declaration — the browser drops this rule and the one after it.',
-            evidence: { snippet, relatedLocations: [], toolOutput: { offset: found.offset } },
+            evidence: {
+              // The repair target. Without it the engine falls back to the finding's own line — a
+              // bare `color: #333`, which does not parse standalone — so an AI repair of this finding
+              // was generated against a fragment and rejected by the parser gate on splice.
+              ...(found.enclosing !== null && found.enclosing !== undefined
+                ? {
+                    enclosingRange: {
+                      startLine: found.enclosing.startLine,
+                      endLine: found.enclosing.endLine,
+                    },
+                  }
+                : {}),
+              snippet,
+              relatedLocations: [],
+              toolOutput: { offset: found.offset },
+            },
             fixable: true,
             autofix: {
               source: language,

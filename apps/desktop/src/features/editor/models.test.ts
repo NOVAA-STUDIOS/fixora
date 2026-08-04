@@ -1,7 +1,9 @@
 import type * as monaco from 'monaco-editor';
 import { describe, expect, it } from 'vitest';
 
+import { setActiveEditor } from './active-editor.js';
 import {
+  disposeAllModels,
   disposeModel,
   isModelDirty,
   markModelSaved,
@@ -86,5 +88,76 @@ describe('dirty tracking', () => {
     disposeModel('closed.ts');
     // No model, no dirt — a closed file must never keep a tab dotted or block a workspace close.
     expect(isModelDirty('closed.ts')).toBe(false);
+  });
+});
+
+/**
+ * Model-ownership regression. The cache OWNS these models; the mounted editor BORROWS one at a
+ * time. Disposing a borrowed model without telling the editor left it holding a disposed model, and
+ * every worker-backed request already in flight against it (tokenization, links, diff) rejected —
+ * surfacing as `Uncaught (in promise) Cancelled: Cancelled` and `no diff result available`.
+ *
+ * Closing a tab (`disposeModel`) and switching workspace (`disposeAllModels`) both did exactly
+ * this, which is why the console errors survived fixing the diff editor alone.
+ */
+describe('model ownership — a borrowed model is detached before it is disposed', () => {
+  function mountedEditorShowing(model: unknown) {
+    let current: unknown = model;
+    const editor = {
+      getModel: () => current,
+      setModel: (next: unknown) => {
+        current = next;
+      },
+      currentModel: () => current,
+    };
+    setActiveEditor(editor as unknown as monaco.editor.IStandaloneCodeEditor);
+    return editor;
+  }
+
+  it('disposeModel detaches the model the editor is showing, before disposing it', () => {
+    const { m } = fakeMonaco();
+    const model = modelFor(m, 'open.ts', 'const a = 1;', 'typescript');
+    const editor = mountedEditorShowing(model);
+
+    disposeModel('open.ts');
+
+    // Detached — the editor is not left pointing at a disposed model.
+    expect(editor.currentModel()).toBeNull();
+    setActiveEditor(null);
+  });
+
+  it('leaves an editor showing a DIFFERENT file alone', () => {
+    const { m } = fakeMonaco();
+    const shown = modelFor(m, 'shown.ts', 'const a = 1;', 'typescript');
+    modelFor(m, 'other.ts', 'const b = 2;', 'typescript');
+    const editor = mountedEditorShowing(shown);
+
+    disposeModel('other.ts');
+
+    // Untouched: only the model actually being disposed may be detached.
+    expect(editor.currentModel()).toBe(shown);
+    setActiveEditor(null);
+    disposeModel('shown.ts');
+  });
+
+  it('disposeAllModels detaches the borrowed one too — the workspace-switch path', () => {
+    const { m } = fakeMonaco();
+    const a = modelFor(m, 'a.ts', 'const a = 1;', 'typescript');
+    modelFor(m, 'b.ts', 'const b = 2;', 'typescript');
+    const editor = mountedEditorShowing(a);
+
+    disposeAllModels();
+
+    expect(editor.currentModel()).toBeNull();
+    setActiveEditor(null);
+  });
+
+  it('is a no-op when no editor is mounted', () => {
+    const { m } = fakeMonaco();
+    modelFor(m, 'headless.ts', 'const a = 1;', 'typescript');
+    setActiveEditor(null);
+    expect(() => {
+      disposeModel('headless.ts');
+    }).not.toThrow();
   });
 });

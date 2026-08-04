@@ -45,6 +45,13 @@ export interface VerifyResult {
   /** The formatter gate outcome, computed in the worker against the overlay copy. */
   formatter?: FormatterGateResult;
   findings: Finding[];
+  /**
+   * The baseline, analyzed by the worker from the UNPATCHED content in this same overlay.
+   *
+   * Optional because the worker can only compute it when the caller supplied `originalSource`, and
+   * because an older worker build does not send it at all. Absent means "use your own baseline".
+   */
+  baselineFindings?: Finding[];
   aborted: boolean;
 }
 
@@ -53,6 +60,17 @@ export interface VerifyJob {
   /** The overlay root (a copy of the workspace with the patch applied) — never the real workspace. */
   overlayRoot: string;
   target: AnalysisTargetRef;
+  /**
+   * The file's content BEFORE the patch, so the parser gate can ask "did this patch break it?"
+   * rather than "does it parse?".
+   *
+   * Those are different questions whenever the grammar is older than the language: tree-sitter-css
+   * cannot parse `0%, 100% { … }` in a `@keyframes`, or `:where(select:is([multiple]))`, both of
+   * which are valid CSS in wide use. Judged absolutely, every repair in such a file is rejected for
+   * a defect on a line it never touched. Judged differentially, only syntax the patch actually
+   * introduced counts — which is what the gate exists to catch, and is not a weakening of it.
+   */
+  originalSource?: string;
   timeoutMs?: number;
   onResult: (result: VerifyResult) => void;
   onError: (message: string) => void;
@@ -141,6 +159,7 @@ type WorkerMessage =
       syntaxError?: SyntaxError;
       formatter?: FormatterGateResult;
       findings: Finding[];
+      baselineFindings?: Finding[];
       aborted: boolean;
     }
   | { type: 'scopeResult'; jobId: string; scope: EditScope }
@@ -215,6 +234,12 @@ function asWorkerMessage(value: unknown): WorkerMessage | null {
       ...(syntaxError !== undefined ? { syntaxError } : {}),
       ...(formatter !== undefined ? { formatter } : {}),
       findings: m['findings'] as Finding[],
+      // Forwarded only when the worker sent it. This normalizer drops any field it does not name, so
+      // a new worker field is invisible to main until it is listed here — which is exactly how the
+      // same-environment baseline silently failed to arrive the first time.
+      ...(Array.isArray(m['baselineFindings'])
+        ? { baselineFindings: m['baselineFindings'] as Finding[] }
+        : {}),
       aborted: m['aborted'] === true,
     };
   }
@@ -305,9 +330,27 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
     // verify job
     if (message.type === 'verifyResult') {
       finish(job);
+      /**
+       * Every optional field the worker sent must be forwarded here.
+       *
+       * This object used to list only `syntaxOk`, `findings` and `aborted`, silently discarding the
+       * rest of the message — so three things the worker computed correctly never reached the verdict:
+       * `syntaxError` (the parser gate degraded to "does not parse" instead of naming the line),
+       * `formatter` (the badge always read "not run", even when the gate had run and passed), and
+       * `baselineFindings` (the same-environment baseline, which is the whole Q8 fix).
+       *
+       * It is a trap: adding a field to the worker and to `asWorkerMessage` looks complete and
+       * changes nothing, because the loss happens one layer further in. Anything added to
+       * `VerifyResult` has to be added here too.
+       */
       job.onResult({
         syntaxOk: message.syntaxOk,
         findings: message.findings,
+        ...(message.syntaxError !== undefined ? { syntaxError: message.syntaxError } : {}),
+        ...(message.formatter !== undefined ? { formatter: message.formatter } : {}),
+        ...(message.baselineFindings !== undefined
+          ? { baselineFindings: message.baselineFindings }
+          : {}),
         aborted: message.aborted,
       });
     }
@@ -383,6 +426,7 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
         jobId: job.id,
         workspaceRoot: job.overlayRoot,
         target: job.target,
+        ...(job.originalSource === undefined ? {} : { originalSource: job.originalSource }),
       });
     },
 

@@ -26,6 +26,17 @@ function fakeProvider(script: ProviderEvent[][]): AIProvider {
         for (const e of events) await Promise.resolve(yield e);
       })();
     },
+    // These tests never exercise connectivity checking — they replay a scripted stream. The method
+    // exists because `AIProvider` requires it; reporting "reachable, unverified" is the honest
+    // answer for a fake that never talks to anything.
+    test() {
+      return Promise.resolve({
+        reachable: true,
+        authenticated: null,
+        modelAvailable: null,
+        latencyMs: 0,
+      });
+    },
   };
 }
 

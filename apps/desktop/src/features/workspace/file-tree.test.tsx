@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as WorkspaceStoreModule from './workspace-store.js';
 import type { TreeNode } from './workspace-store.js';
 
 /**
@@ -33,7 +34,7 @@ let nodes: TreeNode[] = [];
 let selectedFile: string | null = null;
 
 vi.mock('./workspace-store.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./workspace-store.js')>();
+  const actual = await importOriginal<typeof WorkspaceStoreModule>();
   return {
     ...actual,
     useWorkspaceStore: (selector: (s: Record<string, unknown>) => unknown) =>

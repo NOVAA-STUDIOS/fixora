@@ -40,6 +40,43 @@ describe('evaluateRepairEligibility', () => {
     });
   });
 
+  it('a config diagnosis wins over an ai-required repairability — never reaches the model', () => {
+    const d = evaluateRepairEligibility(
+      input({
+        repairability: 'ai-required',
+        ruleId: 'TS2591',
+        configDiagnosis: {
+          reason: "Node.js's built-in globals aren't typed without @types/node.",
+          fix: 'npm install --save-dev @types/node',
+        },
+      }),
+    );
+    expect(d.repairable).toBe(false);
+    expect(d.method).toBeNull();
+    expect(d.capability).toBeNull();
+    expect(d.reason).toMatch(/project configuration issue/i);
+    expect(d.reason).toContain('npm install --save-dev @types/node');
+  });
+
+  it('a config diagnosis wins even when repairCapable/model are already satisfied', () => {
+    const d = evaluateRepairEligibility(
+      input({
+        repairability: 'ai-required',
+        configDiagnosis: { reason: 'Missing dependency.', fix: 'npm install left-pad' },
+      }),
+    );
+    expect(d.repairable).toBe(false);
+    expect(d.reason).toContain('npm install left-pad');
+  });
+
+  it('absent or null configDiagnosis changes nothing — the existing behaviour is untouched', () => {
+    expect(evaluateRepairEligibility(input({ configDiagnosis: null }))).toMatchObject({
+      repairable: true,
+      method: 'ai',
+    });
+    expect(evaluateRepairEligibility(input({}))).toMatchObject({ repairable: true, method: 'ai' });
+  });
+
   it('a manual finding is not repairable, and says the fix is the developer’s', () => {
     const d = evaluateRepairEligibility(input({ repairability: 'manual', ruleId: 'TS2304' }));
     expect(d.repairable).toBe(false);

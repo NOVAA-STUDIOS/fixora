@@ -57,6 +57,38 @@ describe('repairStateFor', () => {
     expect(repairStateFor(finding({ ...at('config.yaml'), repair: 'manual' }))).toBe('unsupported');
   });
 
+  it('classifies a config/environment tsc diagnostic as config-issue, even when ai-required', () => {
+    expect(
+      repairStateFor(
+        finding({
+          source: 'tsc',
+          ruleId: 'TS2591',
+          message: "Cannot find name 'crypto'. Do you need to install type definitions for node?",
+          repair: 'ai-required',
+        }),
+      ),
+    ).toBe('config-issue');
+  });
+
+  it('leaves a genuine tsc source defect classified normally', () => {
+    expect(
+      repairStateFor(
+        finding({
+          source: 'tsc',
+          ruleId: 'TS2345',
+          message: "Argument of type 'string' is not assignable to parameter of type 'number'.",
+          repair: 'ai-required',
+        }),
+      ),
+    ).toBe('ai-repairable');
+  });
+
+  it('never classifies a non-tsc finding as config-issue, even with a matching ruleId string', () => {
+    expect(
+      repairStateFor(finding({ source: 'eslint', ruleId: 'TS2591', repair: 'ai-required' })),
+    ).toBe('ai-repairable');
+  });
+
   it('treats every language the repair pipeline supports as supported', () => {
     for (const file of [
       'a.ts',
@@ -91,11 +123,20 @@ describe('isRepairAttemptable', () => {
     expect(isRepairAttemptable('ai-repairable')).toBe(true);
     expect(isRepairAttemptable('manual-only')).toBe(false);
     expect(isRepairAttemptable('unsupported')).toBe(false);
+    // The whole point of the classifier: a config issue must never be attemptable, so it can never
+    // reach AI Repair through the button that gates every other attempt.
+    expect(isRepairAttemptable('config-issue')).toBe(false);
   });
 });
 
 describe('state copy', () => {
-  const states: RepairState[] = ['repairable', 'ai-repairable', 'manual-only', 'unsupported'];
+  const states: RepairState[] = [
+    'repairable',
+    'ai-repairable',
+    'manual-only',
+    'unsupported',
+    'config-issue',
+  ];
 
   it('every state has a label and a specific, non-generic reason', () => {
     for (const state of states) {

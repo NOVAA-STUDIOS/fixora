@@ -311,6 +311,78 @@ export function buildReAskMessage(failure: { reason: string; detail: string }): 
 }
 
 /**
+ * The correction sent back to the model when a patch PARSED cleanly but failed verification.
+ *
+ * Distinct from {@link buildReAskMessage}, which handles a malformed *response*. Here the response
+ * was fine and the *patch* was wrong: it did not parse as code, it broke something that worked, or
+ * it left the original problem in place. Each of those needs a different instruction, and naming the
+ * specific evidence — the parser's line, the exact new findings, the unresolved rule — is what makes
+ * the retry more than a re-roll.
+ *
+ * The verifier's verdict is never softened by this. It still gates Apply on every attempt; this only
+ * gives the model the diagnostic it needs to do better on the next one.
+ */
+export function buildVerificationReAskMessage(report: {
+  verdict: string;
+  syntaxOk: boolean;
+  syntaxError?: { line: number; column: number; text: string } | undefined;
+  newFindings?: readonly { source: string; ruleId: string; line: number; message: string }[] | undefined;
+  note?: string | undefined;
+}): string {
+  const tail =
+    ' Return ONLY the corrected JSON object, in the same shape as before, with no surrounding text.';
+
+  if (!report.syntaxOk) {
+    const where =
+      report.syntaxError === undefined
+        ? ''
+        : ` The parser failed at line ${String(report.syntaxError.line)}, column ${String(
+            report.syntaxError.column,
+          )}, near: ${report.syntaxError.text.slice(0, 120)}.`;
+    return (
+      'Your previous fix was rejected because the patched file no longer parses as valid code.' +
+      `${where} Re-read the original snippet, keep its syntax intact — matching brackets, quotes and ` +
+      'statement terminators — and fix the reported problem without breaking the structure.' +
+      tail
+    );
+  }
+
+  const introduced = report.newFindings ?? [];
+  if (report.verdict === 'regression' && introduced.length > 0) {
+    const list = introduced
+      .slice(0, 5)
+      .map((f) => `  - line ${String(f.line)} — ${f.ruleId}: ${f.message}`)
+      .join('\n');
+    const more =
+      introduced.length > 5 ? `\n  …and ${String(introduced.length - 5)} more.` : '';
+    return (
+      'Your previous fix was rejected: it resolved the original problem but INTRODUCED new ones that ' +
+      `the file did not have before:\n${list}${more}\n` +
+      'Fix the original problem without causing these. If your approach cannot avoid them, choose a ' +
+      'narrower change that leaves the surrounding behaviour untouched.' +
+      tail
+    );
+  }
+  if (report.verdict === 'regression') {
+    return (
+      'Your previous fix was rejected because it introduced new problems the file did not have ' +
+      `before.${report.note === undefined ? '' : ` ${report.note}`} Make a narrower change that fixes ` +
+      'only the reported problem and leaves the surrounding behaviour untouched.' +
+      tail
+    );
+  }
+
+  // `unresolved`: nothing broke, but the finding is still reported against the patched file.
+  return (
+    'Your previous fix was rejected because the original problem is STILL reported after applying ' +
+    `it — the change did not take effect.${report.note === undefined ? '' : ` ${report.note}`} ` +
+    'Re-read the snippet and address the actual cause of the reported problem rather than an ' +
+    'adjacent detail.' +
+    tail
+  );
+}
+
+/**
  * What the USER is told when the model's answer never matched the required shape, after the retry.
  *
  * Deliberately says nothing about schemas, field paths, or JSON. Those are real and useful — to a

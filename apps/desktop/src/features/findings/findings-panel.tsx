@@ -1,4 +1,9 @@
 import {
+  categoryRank,
+  countByCategory,
+  FINDING_CATEGORY_LABEL,
+  FINDING_CATEGORY_ORDER,
+  type FindingCategory,
   isRepairAttemptable,
   repairStateFor,
   REPAIR_STATE_LABEL,
@@ -25,6 +30,14 @@ import { useFindingsStore } from './findings-store.js';
  * rule, severity, and the actions a first-timer needs — Explain, Repair, Test — right there, no hover
  * required. Zero AI in the findings themselves; this is the moat with the LLM switched off.
  */
+
+/** Category dot colours. Repairable is the accent (it is the actionable one); the rest are quiet. */
+const CATEGORY_DOT: Record<FindingCategory, string> = {
+  repairable: 'bg-accent',
+  'manual-review': 'bg-warn',
+  configuration: 'bg-info',
+  information: 'bg-border-strong',
+};
 
 const SEVERITY_ORDER: Severity[] = ['error', 'warning', 'info'];
 const SEVERITY_STYLE: Record<Severity, string> = {
@@ -65,7 +78,15 @@ export function FindingsPanel(): React.JSX.Element {
     if (workspace !== null) void refresh();
   }, [workspace, refresh]);
 
-  const visible = findings.filter((f) => !ignoredIds.includes(f.id));
+  // Clustered by category — actionable first — so the list reads as groups without changing which
+  // findings are shown, and without interleaving header rows into `VirtualList`, whose roving-focus
+  // and selection contract assumes every row is a selectable finding. A stable sort keeps the
+  // analyzer's own ordering inside each group.
+  const visible = findings
+    .filter((f) => !ignoredIds.includes(f.id))
+    .slice()
+    .sort((a, b) => categoryRank(a) - categoryRank(b));
+  const categoryCounts = countByCategory(visible);
   const hiddenHere = findings.length - visible.length;
 
   // One click, or Enter/Space on the keyboard-active row, does the whole job: describe it, open
@@ -173,6 +194,31 @@ export function FindingsPanel(): React.JSX.Element {
           Showing {findings.length} of {totalForFilter} problems. Narrow by severity to see the
           rest.
         </p>
+      )}
+
+      {/*
+        What the list is made of, before you scroll it. The per-row badge already says what a single
+        finding is; this says what the whole set is — "5 of these need a package installed, not a
+        repair" is the thing that was invisible when everything rendered as one undifferentiated
+        list. Counts only: filtering stays owned by the severity tabs above, so this adds a reading
+        aid without adding a second, competing filter model.
+      */}
+      {visible.length > 0 && (
+        <div
+          className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border-subtle px-3 py-1.5"
+          aria-label="Problems by category"
+        >
+          {FINDING_CATEGORY_ORDER.filter((c) => categoryCounts[c] > 0).map((category) => (
+            <span key={category} className="flex items-center gap-1.5 text-[11px]">
+              <span
+                aria-hidden="true"
+                className={cn('size-1.5 rounded-full', CATEGORY_DOT[category])}
+              />
+              <span className="text-fg-secondary">{FINDING_CATEGORY_LABEL[category]}</span>
+              <span className="tabular-nums text-fg-muted">{categoryCounts[category]}</span>
+            </span>
+          ))}
+        </div>
       )}
 
       {visible.length === 0 ? (

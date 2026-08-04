@@ -375,7 +375,7 @@ describe('the hang safety net', () => {
     expect(result.current.state).toMatchObject({
       visible: true,
       phase: 'error',
-      errorMessage: expect.stringContaining('longer than expected'),
+      errorMessage: expect.stringContaining('longer than expected') as string,
     });
   });
 

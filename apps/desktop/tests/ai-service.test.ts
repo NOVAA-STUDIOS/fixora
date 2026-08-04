@@ -69,6 +69,8 @@ function deps(overrides: {
   readFile?: () => string;
   finding?: Finding;
   microRepair?: AiServiceDeps['microRepair'];
+  /** Override the verifier, for the verification-retry tests below. */
+  verification?: VerificationService;
 }): AiServiceDeps {
   const keyStore = {
     getKey: () => (overrides.hasKey === false ? null : 'sk-or-test'),
@@ -119,7 +121,7 @@ function deps(overrides: {
     keyStore,
     findings,
     workspace,
-    verification,
+    verification: overrides.verification ?? verification,
     history,
     orchestrator: singleProvider(overrides.provider),
     readFile: overrides.readFile ?? (() => overrides.fileContent ?? CLEAN_FILE),
@@ -561,5 +563,405 @@ describe('AI service (BYOK run orchestration)', () => {
       expect(result.message).toContain('re-run analysis'); // recovery guidance
       expect(result.message.toLowerCase()).not.toContain('internal error');
     }
+  });
+});
+
+/**
+ * Verification retry. A patch that PARSES but fails its gates is re-asked with the verifier's own
+ * diagnostic fed back, up to three times, before the panel is handed a dead patch. The gate is not
+ * weakened: the LAST attempt's verdict is what the proposal carries, so a repair that never passes
+ * still arrives with Apply disabled.
+ */
+describe('AI service — verification retry', () => {
+  const REPAIR = JSON.stringify({
+    repairedCode: 'const a = 2;',
+    rationale: 'fix',
+    confidence: 0.9,
+  });
+
+  /** A verifier that fails `failures` times, then verifies. Counts how often it ran. */
+  function flakyVerifier(failures: number): VerificationService & { calls: () => number } {
+    let calls = 0;
+    return {
+      calls: () => calls,
+      verify: () => {
+        calls += 1;
+        const failing = calls <= failures;
+        return Promise.resolve({
+          report: failing
+            ? {
+                verdict: 'regression' as const,
+                targetResolved: true,
+                newFindingCount: 1,
+                syntaxOk: true,
+                ran: ['syntax', 'eslint'],
+                newFindings: [
+                  { source: 'tsc', ruleId: 'TS2322', line: 3, message: 'Type mismatch.' },
+                ],
+              }
+            : {
+                verdict: 'verified' as const,
+                targetResolved: true,
+                newFindingCount: 0,
+                syntaxOk: true,
+                ran: ['syntax', 'eslint'],
+              },
+          originalCode: 'ORIGINAL_SYMBOL_TEXT',
+        });
+      },
+      dispose: () => undefined,
+    };
+  }
+
+  it('retries a failed verification and returns the attempt that finally passes', async () => {
+    const verifier = flakyVerifier(2); // fails twice, verifies on the third
+    const provider = scriptedProvider([
+      textEvents(REPAIR),
+      textEvents(REPAIR),
+      textEvents(REPAIR),
+    ]);
+    const service = createAiService(deps({ provider, verification: verifier }));
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok' || result.proposal.profile !== 'repair') throw new Error('no repair');
+    expect(result.proposal.verification.verdict).toBe('verified');
+    expect(verifier.calls()).toBe(3);
+  });
+
+  it('gives up after the retry limit and hands back the LAST failing verdict', async () => {
+    const verifier = flakyVerifier(Number.MAX_SAFE_INTEGER); // never passes
+    const provider = scriptedProvider([
+      textEvents(REPAIR),
+      textEvents(REPAIR),
+      textEvents(REPAIR),
+      textEvents(REPAIR),
+    ]);
+    const service = createAiService(deps({ provider, verification: verifier }));
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    // Still a proposal, not an error: the user sees the diff and the reason Apply is refused.
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok' || result.proposal.profile !== 'repair') throw new Error('no repair');
+    expect(result.proposal.verification.verdict).toBe('regression');
+    // One initial attempt + VERIFY_RETRY_LIMIT (3) retries.
+    expect(verifier.calls()).toBe(4);
+  });
+
+  it('does not retry a verdict that already passed — no wasted round-trip', async () => {
+    const verifier = flakyVerifier(0);
+    const service = createAiService(
+      deps({ provider: scriptedProvider([textEvents(REPAIR)]), verification: verifier }),
+    );
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    expect(result.status).toBe('ok');
+    expect(verifier.calls()).toBe(1);
+  });
+
+  it('does not retry a `skipped` verdict — a check that never ran is not a failure to correct', async () => {
+    let calls = 0;
+    const verification: VerificationService = {
+      verify: () => {
+        calls += 1;
+        return Promise.resolve({
+          report: {
+            verdict: 'skipped' as const,
+            targetResolved: false,
+            newFindingCount: 0,
+            syntaxOk: true,
+            ran: [],
+          },
+          originalCode: 'ORIGINAL_SYMBOL_TEXT',
+        });
+      },
+      dispose: () => undefined,
+    };
+    const service = createAiService(
+      deps({ provider: scriptedProvider([textEvents(REPAIR)]), verification }),
+    );
+    await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    expect(calls).toBe(1);
+  });
+});
+
+/**
+ * Scope escalation on a dependent verification failure.
+ *
+ * The production case. The finding is on line 3, so the repair target is line 3, and the model
+ * returns `const data = await response.json();` — correct in isolation, and still not compiling,
+ * because `response` on line 2 was never awaited. **No possible replacement of line 3 alone
+ * compiles**, so the old behaviour was to burn all three verify-retries on an impossible question
+ * and hand the user a dead patch.
+ *
+ * The engine must instead notice that the rejection is attributable to code outside the range, widen
+ * the splice to the enclosing function, and regenerate — emitting the prerequisite edit and the
+ * original fix together, as one repair, which then passes the SAME verifier.
+ */
+describe('AI service — dependent failures expand the repair scope', () => {
+  const FETCH_FILE = [
+    'export async function load(url: string) {',
+    '  const response = fetch(url);',
+    '  const data = response.json();',
+    '  return data;',
+    '}',
+    '',
+  ].join('\n');
+
+  function fetchFinding(): Finding {
+    return {
+      id: 'find-1',
+      source: 'tsc',
+      ruleId: 'TS2339',
+      severity: 'error',
+      category: 'correctness',
+      location: { file: 'src/load.ts', startLine: 3, startCol: 3, endLine: 3, endCol: 32 },
+      message: "Property 'json' does not exist on type 'Promise<Response>'.",
+      evidence: {
+        enclosingSymbol: {
+          name: 'load',
+          kind: 'function',
+          location: { file: 'src/load.ts', startLine: 1, startCol: 1, endLine: 5, endCol: 1 },
+        },
+        // The smallest self-contained scope: the failing statement, and nothing else.
+        enclosingRange: { startLine: 3, endLine: 3 },
+        snippet: 'const data = response.json();',
+        relatedLocations: [],
+        toolOutput: {},
+      },
+      fixable: true,
+      repair: 'ai-required',
+      confidence: 1,
+    };
+  }
+
+  const NARROW_PATCH = JSON.stringify({
+    repairedCode: '  const data = await response.json();',
+    rationale: 'await the json call',
+    confidence: 0.9,
+  });
+  const COMPLETE_PATCH = JSON.stringify({
+    repairedCode: [
+      'export async function load(url: string) {',
+      '  const response = await fetch(url);',
+      '  const data = await response.json();',
+      '  return data;',
+      '}',
+    ].join('\n'),
+    rationale: 'await the fetch as well — the json call depends on it',
+    confidence: 0.95,
+  });
+
+  /** Records every request it is asked to stream, so the widened prompt can be inspected. */
+  function capturingProvider(scripts: ProviderEvent[][]): AIProvider & {
+    requests: () => { model: string; messages: { role: string; content: string }[] }[];
+  } {
+    const seen: { model: string; messages: { role: string; content: string }[] }[] = [];
+    let call = 0;
+    return {
+      id: 'fake',
+      capabilities: { structuredOutput: true, maxContext: 100_000 },
+      test: () =>
+        Promise.resolve({
+          reachable: true,
+          authenticated: true,
+          modelAvailable: true,
+          latencyMs: 1,
+        }),
+      requests: () => seen,
+      stream(request, _signal) {
+        seen.push({ model: request.model, messages: [...request.messages] });
+        const events = scripts[Math.min(call, scripts.length - 1)] ?? [];
+        call += 1;
+        return (async function* () {
+          for (const event of events) yield event;
+        })();
+      },
+    };
+  }
+
+  /** Rejects the narrow patch with the dependent type error, then accepts the complete one. */
+  function dependentVerifier(): VerificationService & {
+    calls: () => { startLine: number; endLine: number }[];
+  } {
+    const seen: { startLine: number; endLine: number }[] = [];
+    return {
+      calls: () => seen,
+      verify: (input) => {
+        seen.push({ startLine: input.target.startLine, endLine: input.target.endLine });
+        // The first attempt patched line 3 only. It parses; it does not compile — and the cause is
+        // the un-awaited declaration on line 2, which that range does not contain.
+        const narrow = input.target.startLine === input.target.endLine;
+        return Promise.resolve({
+          report: narrow
+            ? {
+                verdict: 'regression' as const,
+                targetResolved: false,
+                newFindingCount: 1,
+                syntaxOk: true,
+                ran: ['syntax', 'tsc'],
+                newFindings: [
+                  {
+                    source: 'tsc',
+                    ruleId: 'TS2339',
+                    line: 3,
+                    message: "Property 'json' does not exist on type 'Promise<Response>'.",
+                  },
+                ],
+              }
+            : {
+                verdict: 'verified' as const,
+                targetResolved: true,
+                newFindingCount: 0,
+                syntaxOk: true,
+                ran: ['syntax', 'tsc'],
+              },
+          originalCode: 'ORIGINAL',
+        });
+      },
+      dispose: () => undefined,
+    };
+  }
+
+  function runFetchRepair(scripts: ProviderEvent[][]) {
+    const provider = capturingProvider(scripts);
+    const verifier = dependentVerifier();
+    const service = createAiService(
+      deps({
+        provider,
+        verification: verifier,
+        finding: fetchFinding(),
+        fileContent: FETCH_FILE,
+        readFile: () => FETCH_FILE,
+      }),
+    );
+    return { provider, verifier, service };
+  }
+
+  it('widens the splice to the enclosing function and emits BOTH edits as one repair', async () => {
+    const { verifier, service } = runFetchRepair([
+      textEvents(NARROW_PATCH),
+      textEvents(COMPLETE_PATCH),
+    ]);
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok' || result.proposal.profile !== 'repair') throw new Error('no repair');
+
+    // The first attempt was verified against the one failing line; the second against the whole
+    // function. The widening is what made a passing patch possible at all.
+    expect(verifier.calls()).toEqual([
+      { startLine: 3, endLine: 3 },
+      { startLine: 1, endLine: 5 },
+    ]);
+
+    // The verdict is the real one from the same verifier — nothing was relaxed to get here.
+    expect(result.proposal.verification.verdict).toBe('verified');
+    // The proposal splices the WIDER range, so the range shown and the range applied agree.
+    expect(result.proposal.target).toMatchObject({ startLine: 1, endLine: 5 });
+    // And it carries the prerequisite edit, not just the reported symptom.
+    expect(result.proposal.repairedCode).toContain('const response = await fetch(url);');
+    expect(result.proposal.repairedCode).toContain('const data = await response.json();');
+  });
+
+  it('re-grounds the second request on the wider code and says why', async () => {
+    const { provider, service } = runFetchRepair([
+      textEvents(NARROW_PATCH),
+      textEvents(COMPLETE_PATCH),
+    ]);
+    await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    expect(provider.requests()).toHaveLength(2);
+    const first = provider.requests()[0]?.messages.map((m) => m.content).join('\n') ?? '';
+    const second = provider.requests()[1]?.messages.map((m) => m.content).join('\n') ?? '';
+
+    // The first prompt showed only the failing statement — which is why it could not succeed.
+    expect(first).not.toContain('const response = fetch(url);');
+    // The second shows the prerequisite line, so a complete answer is now expressible.
+    expect(second).toContain('const response = fetch(url);');
+    // And it is told to return one replacement covering both edits, rather than the same one-liner.
+    expect(second).toMatch(/did not compile/i);
+    expect(second).toMatch(/prerequisite change AND the original problem/i);
+  });
+
+  it('does not widen when the failure is fixable where it stands', async () => {
+    // A style violation at the patch site means the model was wrong, not that the range was too
+    // small. Widening here would enlarge the blast radius to cover a bad answer.
+    const provider = capturingProvider([textEvents(NARROW_PATCH), textEvents(NARROW_PATCH)]);
+    const localOnly: VerificationService = {
+      verify: () =>
+        Promise.resolve({
+          report: {
+            verdict: 'regression' as const,
+            targetResolved: true,
+            newFindingCount: 1,
+            syntaxOk: true,
+            ran: ['syntax', 'eslint'],
+            newFindings: [
+              { source: 'eslint', ruleId: 'semi', line: 3, message: 'Missing semicolon.' },
+            ],
+          },
+          originalCode: 'ORIGINAL',
+        }),
+      dispose: () => undefined,
+    };
+    const service = createAiService(
+      deps({
+        provider,
+        verification: localOnly,
+        finding: fetchFinding(),
+        fileContent: FETCH_FILE,
+        readFile: () => FETCH_FILE,
+      }),
+    );
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    if (result.status !== 'ok' || result.proposal.profile !== 'repair') throw new Error('no repair');
+    // Still the narrow range, and still rejected — the ordinary re-ask path, untouched.
+    expect(result.proposal.target).toMatchObject({ startLine: 3, endLine: 3 });
+    expect(result.proposal.verification.verdict).toBe('regression');
+  });
+
+  it('escalates at most once, then falls back to the ordinary re-ask', async () => {
+    // A verifier that rejects everything, narrow or wide, with a dependent error.
+    const seen: { startLine: number; endLine: number }[] = [];
+    const alwaysDependent: VerificationService = {
+      verify: (input) => {
+        seen.push({ startLine: input.target.startLine, endLine: input.target.endLine });
+        return Promise.resolve({
+          report: {
+            verdict: 'regression' as const,
+            targetResolved: false,
+            newFindingCount: 1,
+            syntaxOk: true,
+            ran: ['syntax', 'tsc'],
+            newFindings: [
+              { source: 'tsc', ruleId: 'TS2339', line: 3, message: 'Property does not exist.' },
+            ],
+          },
+          originalCode: 'ORIGINAL',
+        });
+      },
+      dispose: () => undefined,
+    };
+    const provider = capturingProvider([textEvents(NARROW_PATCH)]);
+    const service = createAiService(
+      deps({
+        provider,
+        verification: alwaysDependent,
+        finding: fetchFinding(),
+        fileContent: FETCH_FILE,
+        readFile: () => FETCH_FILE,
+      }),
+    );
+    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+
+    // One widening, then the range stays put for the remaining retries — it never climbs to the file.
+    expect(seen[0]).toEqual({ startLine: 3, endLine: 3 });
+    expect(seen.slice(1).every((c) => c.startLine === 1 && c.endLine === 5)).toBe(true);
+    // 1 initial attempt + VERIFY_RETRY_LIMIT (3) retries, each verified on a fresh overlay.
+    expect(seen).toHaveLength(4);
+    // And the user still gets the best attempt with the verifier's real verdict — never a pass.
+    if (result.status !== 'ok' || result.proposal.profile !== 'repair') throw new Error('no repair');
+    expect(result.proposal.verification.verdict).toBe('regression');
   });
 });

@@ -1,3 +1,4 @@
+import { FullDiffOverlay } from '../ai/full-diff-overlay.js';
 import { CommandPalette } from '../commands/command-palette.js';
 import { CommandProvider } from '../commands/command-provider.js';
 import { useAppCommands } from '../commands/use-app-commands.js';
@@ -43,6 +44,8 @@ export function AppShell(): React.JSX.Element {
         <StatusBar />
       </div>
       <CommandPalette />
+      {/* Opened on demand from the inline review; renders nothing until then. */}
+      <FullDiffOverlay />
       <Toaster />
       <WorkspaceSwitchGuard />
     </CommandProvider>

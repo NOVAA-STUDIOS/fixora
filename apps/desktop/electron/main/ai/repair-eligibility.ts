@@ -1,4 +1,4 @@
-import type { Language, RepairStrategy } from '@fixora/shared-types';
+import type { ConfigDiagnosis, Language, RepairStrategy } from '@fixora/shared-types';
 
 /**
  * The Repair Eligibility Engine (P0.1 Part 2).
@@ -43,6 +43,14 @@ export interface RepairEligibilityInput {
   repairCapable: boolean | null;
   /** The capability layer's own reason when `repairCapable` is false — surfaced verbatim. */
   repairCapabilityReason?: string;
+  /**
+   * The Diagnostic Classifier's verdict, computed by the caller from the finding's ruleId/message.
+   * When present, this is a project configuration/environment problem, not a source-code defect, and
+   * wins over every other check below — including a `repairability` of `ai-required` — because no
+   * edit to this file's code can resolve it. Optional so every existing caller/test keeps compiling
+   * unchanged; absent or null behaves exactly as before this gate existed.
+   */
+  configDiagnosis?: ConfigDiagnosis | null;
 }
 
 /** The languages the repair pipeline can target. Kept explicit so a gap is a decision, not a silent no. */
@@ -75,6 +83,20 @@ export function evaluateRepairEligibility(input: RepairEligibilityInput): Repair
       method: null,
       reason:
         'Unsupported file type — Fixora repairs TypeScript, JavaScript, React, Python, Go, JSON, CSS and HTML. This file is none of those.',
+    };
+  }
+
+  // The configuration gate wins over everything below: a project setup problem is refused with its
+  // exact fix regardless of what the analyzer's repairability classification says, so it can never
+  // reach the model even if `classifyRepair` tagged it `ai-required` (it has no notion of "not a code
+  // defect" to disagree with here).
+  if (input.configDiagnosis !== null && input.configDiagnosis !== undefined) {
+    return {
+      ...base,
+      repairable: false,
+      capability: null,
+      method: null,
+      reason: `Project configuration issue — ${input.configDiagnosis.reason} Fix: ${input.configDiagnosis.fix}`,
     };
   }
 

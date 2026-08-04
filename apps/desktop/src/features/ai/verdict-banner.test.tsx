@@ -81,7 +81,7 @@ describe('VerdictBanner', () => {
    */
   it('scopes the default "Verified" explanation to this file, not the whole project', () => {
     render(<VerdictBanner report={report({ verdict: 'verified' })} />);
-    const text = screen.getByRole('status').textContent ?? '';
+    const text = screen.getByRole('status').textContent;
     expect(text).toContain('this file');
     expect(text).not.toMatch(/nothing new broke/i);
   });

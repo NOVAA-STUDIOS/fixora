@@ -1,6 +1,6 @@
 {
   "name": "fixora-desktop",
-  "version": "0.0.0",
+  "version": "1.0.0-beta.1",
   "private": true,
   "type": "module",
   "description": "Fixora \u00e2\u20ac\u201d the workspace you open when the code is already broken.",
