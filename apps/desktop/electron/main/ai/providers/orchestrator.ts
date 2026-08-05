@@ -98,6 +98,44 @@ export type OrchestratorOutcome<T> =
   | FailoverOutcome<T, ResolvedCandidate>
   | { readonly ok: false; readonly refused: true; readonly reason: ChainRefusal };
 
+/**
+ * The credential a provider would present, and whether it can be attempted at all.
+ *
+ * Extracted so the chain walk and the "is AI set up?" question cannot answer it differently. They
+ * did: the panel decided setup from the legacy single-key store while the walk decided it from the
+ * registry, so a user with a working Gemini key was shown "Set up AI to repair" over a chain that
+ * would have run.
+ *
+ * A local provider needs no key — asking a user for an API key to talk to a daemon on their own
+ * machine would be nonsense — so `auth: 'none'` is usable with a null credential.
+ */
+export function providerCredential(
+  providerId: string,
+  credentials: Pick<CredentialStore, 'getKey'>,
+): { readonly usable: boolean; readonly apiKey: string | null; readonly auth: string | null } {
+  const registration = providerRegistration(providerId);
+  // Reconciliation should have removed it; belt and braces.
+  if (registration === null) return { usable: false, apiKey: null, auth: null };
+  const { auth } = registration.descriptor;
+  const apiKey = auth === 'none' ? null : credentials.getKey(providerId);
+  return { usable: auth !== 'api-key' || apiKey !== null, apiKey, auth };
+}
+
+/**
+ * Could a repair run right now without the user configuring anything first?
+ *
+ * The predicate behind "Set up AI to repair" vs "Repair". Deliberately the SAME rule the chain walk
+ * applies, minus the capability filtering — capability is a per-model question the panel cannot
+ * usefully pre-empt, and reporting "not set up" for a configured provider whose model turned out to
+ * lack structured output would send the user to the wrong screen.
+ */
+export function anyProviderConfigured(
+  registry: Pick<ProviderRegistry, 'enabled'>,
+  credentials: Pick<CredentialStore, 'getKey'>,
+): boolean {
+  return registry.enabled().some((settings) => providerCredential(settings.id, credentials).usable);
+}
+
 export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
   async function resolveChain(
     profile: TaskProfile,
@@ -114,9 +152,10 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
       if (registration === null) continue; // reconciliation should have removed it; belt and braces
       const { descriptor } = registration;
 
-      // A cloud provider with no key cannot be attempted. A local one needs none — asking a user for
-      // an API key to talk to a daemon on their own machine would be nonsense.
-      const apiKey = descriptor.auth === 'none' ? null : deps.credentials.getKey(settings.id);
+      // A cloud provider with no key cannot be attempted. A local one needs none. Shared with the
+      // panel's "is AI set up?" check so the two can never disagree — see `providerCredential`.
+      const credential = providerCredential(settings.id, deps.credentials);
+      const apiKey = credential.apiKey;
       /**
        * What the credential STORE just handed back, at the moment the provider is built.
        *
@@ -130,7 +169,7 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
         key: keyFingerprint(apiKey),
         auth: descriptor.auth,
       });
-      if (descriptor.auth === 'api-key' && apiKey === null) continue;
+      if (!credential.usable) continue;
       sawCredential = true;
 
       // Smart model routing — ONLY when the user left this provider's model on "auto". An explicit

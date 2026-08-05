@@ -210,6 +210,7 @@ if (!gotTheLock) {
       registerAiHandlers({
         keyStore,
         credentials,
+        registry: providerRegistry,
         aiService,
         workspace: workspaceService,
         history: repairHistory,

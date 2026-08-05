@@ -35,6 +35,8 @@ import type { CredentialStore } from '../../ai/credentials/credential-store.js';
 import { timeoutFailure } from '../../ai/failure-report.js';
 import type { KeyStore, StoredAiConfig } from '../../ai/key-store.js';
 import type { ModelCatalogueService } from '../../ai/model-catalogue.js';
+import { anyProviderConfigured } from '../../ai/providers/orchestrator.js';
+import type { ProviderRegistry } from '../../ai/providers/provider-registry.js';
 import type { RepairHistoryRepository } from '../../db/repositories.js';
 import { readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
@@ -75,6 +77,8 @@ export function registerAiHandlers(deps: {
    * restarting" defect. Both stores are written together now, so they cannot diverge.
    */
   credentials: CredentialStore;
+  /** Read to answer "is AI set up?" the same way the chain walk answers it. */
+  registry: ProviderRegistry;
   aiService: AiService;
   workspace: WorkspaceService;
   history: RepairHistoryRepository;
@@ -105,6 +109,18 @@ export function registerAiHandlers(deps: {
    * show Repair as available for a model that was just switched away from a capable one.
    */
   async function enrich(config: StoredAiConfig, migratedFrom: string | null = null) {
+    /**
+     * Whether AI is set up, answered by the REGISTRY rather than by the legacy single-key store.
+     *
+     * `StoredAiConfig.configured` is `keyEnc !== null` on the v1 file (`key-store.ts:81`), which only
+     * `ai:setKey` ever writes and only for OpenRouter. Once keys became per-provider, a user who
+     * configured Gemini had a working chain and an empty v1 file — so the Problems panel offered
+     * "Set up AI to repair" and disabled Repair over a provider that would have answered.
+     *
+     * Overridden here rather than at each call site because every config-returning channel funnels
+     * through this function, and the panel must not be able to disagree with the walk.
+     */
+    const configured = anyProviderConfigured(deps.registry, deps.credentials);
     try {
       const catalogue = await deps.catalogue.list(false);
       const resolved = catalogue.models.find((m) => m.id === config.model) ?? null;
@@ -115,6 +131,7 @@ export function registerAiHandlers(deps: {
           : null;
       return {
         ...config,
+        configured,
         migratedFrom,
         capabilities: {
           structuredOutput: capabilities.structuredOutput,
@@ -129,7 +146,7 @@ export function registerAiHandlers(deps: {
     } catch {
       // Catalogue unreachable. Unknown capability is reported as unknown, never as capable — the
       // whole failure being fixed is a button that looks available and is not.
-      return { ...config, migratedFrom, capabilities: null, suggestedModel: null };
+      return { ...config, configured, migratedFrom, capabilities: null, suggestedModel: null };
     }
   }
 

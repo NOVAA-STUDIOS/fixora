@@ -35,6 +35,7 @@ async function handlers(spies: {
       getConfig: () => config,
     } as never,
     credentials: { setKey: spies.credSet, clearKey: spies.credClear } as never,
+    registry: { enabled: () => [] } as never,
     aiService: { run: vi.fn(), cancel: spies.cancel } as never,
     workspace: {} as never,
     history: {} as never,

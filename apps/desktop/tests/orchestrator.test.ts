@@ -7,7 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { SecretCipher } from '../electron/main/ai/cipher.js';
 import { createCredentialStore } from '../electron/main/ai/credentials/credential-store.js';
-import { createOrchestrator } from '../electron/main/ai/providers/orchestrator.js';
+import {
+  anyProviderConfigured,
+  createOrchestrator,
+} from '../electron/main/ai/providers/orchestrator.js';
 import { createProviderRegistry } from '../electron/main/ai/providers/provider-registry.js';
 
 /**
@@ -594,5 +597,69 @@ describe('a newly saved key is used by the very next repair', () => {
     registry.setEnabled('openai', true);
     const chain = await orchestrator.resolveChain('repair');
     expect(chain.ok && chain.candidates.map((c) => c.provider)).toEqual(['openrouter', 'openai']);
+  });
+});
+
+/**
+ * "IS AI SET UP?" — the predicate behind the Problems panel's button.
+ *
+ * This shipped answered by the legacy single-key store (`key-store.ts:81`, `keyEnc !== null`), which
+ * only `ai:setKey` writes and only for OpenRouter. A user who configured Gemini through the Provider
+ * Manager therefore had a registry, a credential and a working chain — and a panel offering "Set up
+ * AI to repair" with Repair disabled. The panel and the walk must answer this identically, so they
+ * now share `providerCredential`.
+ */
+describe('anyProviderConfigured — the same rule the chain walk applies', () => {
+  it('is false on a fresh install: nothing enabled, nothing stored', () => {
+    const { registry, credentials } = build();
+    expect(anyProviderConfigured(registry, credentials)).toBe(false);
+  });
+
+  it('is TRUE for a provider that is not OpenRouter — the whole bug', () => {
+    const { registry, credentials } = build();
+    registry.setEnabled('gemini', true);
+    credentials.setKey('gemini', 'AIza-test');
+    // Nothing was ever written to the legacy store, which is exactly the state that showed
+    // "Set up AI to repair" over a chain that would have answered.
+    expect(anyProviderConfigured(registry, credentials)).toBe(true);
+  });
+
+  it('is false when a provider is enabled but has no key', () => {
+    const { registry, credentials } = build();
+    registry.setEnabled('gemini', true);
+    expect(anyProviderConfigured(registry, credentials)).toBe(false);
+  });
+
+  it('is false when a key exists but its provider is disabled', () => {
+    const { registry, credentials } = build();
+    credentials.setKey('gemini', 'AIza-test');
+    registry.setEnabled('gemini', false);
+    expect(anyProviderConfigured(registry, credentials)).toBe(false);
+  });
+
+  it('is true for an enabled LOCAL provider, which needs no key at all', () => {
+    const { registry, credentials } = build();
+    registry.setEnabled('ollama', true);
+    // Asking for an API key to reach a daemon on your own machine would be nonsense, and the walk
+    // already treats it as a usable candidate — so the panel must not call it unconfigured.
+    expect(anyProviderConfigured(registry, credentials)).toBe(true);
+  });
+
+  it('agrees with resolveChain — it never claims setup the walk would refuse', async () => {
+    const { registry, credentials, orchestrator } = build();
+    registry.setEnabled('gemini', true);
+    credentials.setKey('gemini', 'AIza-test');
+
+    expect(anyProviderConfigured(registry, credentials)).toBe(true);
+    const chain = await orchestrator.resolveChain('repair');
+    expect(chain.ok).toBe(true);
+
+    // And the converse: clearing the key must flip both, in the same direction.
+    credentials.clearKey('gemini');
+    expect(anyProviderConfigured(registry, credentials)).toBe(false);
+    const after = await orchestrator.resolveChain('repair');
+    expect(after.ok).toBe(false);
+    if (after.ok) return;
+    expect(after.reason).toBe('no-credentials');
   });
 });

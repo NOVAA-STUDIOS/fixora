@@ -35,6 +35,7 @@ async function runHandler(
     // The timeout report names the model on its status card, so the stub has to answer.
     keyStore: { getConfig: () => ({ model: 'test/model' }) } as never,
     credentials: { setKey: () => undefined, clearKey: () => undefined } as never,
+    registry: { enabled: () => [] } as never,
     aiService: aiService as never,
     workspace: { getCurrent: () => null } as never,
     history: {} as never,

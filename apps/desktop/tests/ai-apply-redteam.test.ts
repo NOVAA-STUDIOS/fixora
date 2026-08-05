@@ -36,6 +36,7 @@ async function applyHandler(): Promise<Harness> {
   registerAiHandlers({
     keyStore: {} as never,
     credentials: { setKey: () => undefined, clearKey: () => undefined } as never,
+    registry: { enabled: () => [] } as never,
     aiService: {} as never,
     catalogue: {} as never,
     workspace: { getCurrent: () => ({ id: 'ws', rootPath: dir, name: 'x' }) } as never,
