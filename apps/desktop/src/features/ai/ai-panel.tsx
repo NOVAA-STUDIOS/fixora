@@ -102,7 +102,11 @@ export function AiPanel(): React.JSX.Element {
       ) : repair !== null ? (
         <RepairResult proposal={repair} finding={selected} />
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto p-3 text-xs text-fg-secondary">
+        /* `relative` for the same reason as the settings scroller: `sr-only` is absolutely
+           positioned, and the provider error card renders one per status check. Without a
+           positioned ancestor they resolve against the initial containing block and add blank
+           scroll to the whole window. */
+        <div className="relative min-h-0 flex-1 overflow-y-auto p-3 text-xs text-fg-secondary">
           {status === 'blocked' && blocked !== null && (
             <div className="flex flex-col gap-1 text-danger-text">
               <p className="font-semibold [overflow-wrap:anywhere]">

@@ -50,7 +50,12 @@ export function SettingsPanel(): React.JSX.Element {
       {/* The scroll lives on the content, not on the section, so the header stays pinned. The inner
           column is capped at a reading width and centred: settings copy is prose, and prose set the
           full width of a 1440px window is as hard to read as prose set 180px wide. */}
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      {/* `relative` is load-bearing, not decoration. Tailwind's `sr-only` is `position: absolute`
+          with no offsets, so a visually-hidden label resolves against the nearest POSITIONED
+          ancestor — and with none, that is the initial containing block. The six per-provider key
+          labels then sat at document coordinates up to 1504px, escaping both this scroller and the
+          shell's `overflow-hidden`, and gave the whole window 736px of blank scroll below the UI. */}
+      <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-8">
           <AppearanceSettings />
           <EditorSettings />
