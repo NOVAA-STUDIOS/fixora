@@ -48,6 +48,19 @@ extraResources:
   - from: build/icon.png
     to: icon.png
 
+# GitHub Releases. Draft only: the build is UNSIGNED (see `signAndEditExecutable` below), so a
+# published installer would meet users with a SmartScreen warning and no way to verify it. A draft
+# uploads the artifacts and waits — release notes, a SmartScreen check and the decision to ship stay
+# manual until signing lands (ADR-021).
+#
+# Requires GH_TOKEN in the environment at publish time; it is never stored in this file. See
+# docs/RELEASING.md.
+publish:
+  provider: github
+  owner: NOVAA-STUDIOS
+  repo: fixora
+  releaseType: draft
+
 nodeGypRebuild: false
 npmRebuild: false
 
