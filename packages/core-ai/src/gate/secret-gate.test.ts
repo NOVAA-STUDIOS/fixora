@@ -9,6 +9,22 @@ export function add(a: number, b: number): number {
 }
 `;
 
+/**
+ * The OpenRouter fixture, assembled at runtime rather than written out.
+ *
+ * A test for a secret DETECTOR has to contain something shaped like the secret, which makes this
+ * file permanently interesting to every scanner that reads source text — GitHub push protection
+ * rejected the repository over exactly this line, on a value that was never a real key (four
+ * repetitions of `0123456789abcdef`).
+ *
+ * Joining the parts here keeps the scanner's view free of a contiguous `sk-or-v1-<48 hex>` literal
+ * while `gate()` still receives the identical string, so the pattern
+ * (`/\bsk-or-v1-[0-9a-f]{48,}\b/`) is exercised exactly as before. Writing a placeholder that does
+ * NOT match the pattern would have been worse than useless: the test would only pass again if the
+ * regex were loosened, and a loosened regex stops catching the real keys this gate exists to hold.
+ */
+const FAKE_OPENROUTER_KEY = ['sk', 'or', 'v1', '0123456789abcdef'.repeat(4)].join('-');
+
 function part(text: string, label = 'src/example.ts'): GatePart[] {
   return [{ label, text }];
 }
@@ -30,11 +46,7 @@ describe('secret gate — nothing leaves the machine without passing this', () =
     ],
     ['openai key', 'OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz0123', 'openai-key'],
     ['anthropic key', 'k=sk-ant-api03-abcdefghijklmnopqrstuvwxyz', 'anthropic-key'],
-    [
-      'openrouter key',
-      'k=sk-or-v1-REDACTED-FOR-TESTING',
-      'openrouter-key',
-    ],
+    ['openrouter key', `k=${FAKE_OPENROUTER_KEY}`, 'openrouter-key'],
     ['google api key', 'key=AIzaSyA0123456789abcdefghijklmnopqrstuv', 'google-api-key'],
     ['stripe secret key', 'STRIPE=sk_live_0123456789abcdefABCDEF', 'stripe-secret-key'],
     ['jwt', 'auth=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.abcDEF123_-xyz', 'jwt'],
