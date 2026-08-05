@@ -1,7 +1,8 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { dark } from '@fixora/tokens';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, app } from 'electron';
 
 import { emitToWindow } from '../ipc/emit.js';
 import {
@@ -15,8 +16,29 @@ import {
  * explicitly rather than left to Electron's defaults, because a default is a decision someone
  * else gets to change in a minor release, and this is a decision we want to own.
  */
+/**
+ * The window icon.
+ *
+ * On Windows a packaged app inherits the icon compiled into the .exe, so this is what the DEV app
+ * shows — which, unset, was Electron's default atom in the taskbar and Alt-Tab while the app itself
+ * rendered the Fixora mark. On Linux there is no exe resource to inherit from and this is the only
+ * icon the window manager gets.
+ *
+ * Two locations, because the file lives in two different places. Packaged, it is beside the asar via
+ * `extraResources` — it cannot ship inside it, since electron-builder excludes `buildResources`
+ * (build/) from the app package. In development there is no resources dir, so it comes from build/
+ * directly, `__dirname` being out/main.
+ *
+ * Guarded by an existence check: a missing icon should fall back to the platform default rather than
+ * fail a launch over decoration.
+ */
+const ICON_PATH = app.isPackaged
+  ? join(process.resourcesPath, 'icon.png')
+  : join(__dirname, '../../build/icon.png');
+
 export function createMainWindow(devServerUrl: string | undefined): BrowserWindow {
   const window = new BrowserWindow({
+    ...(existsSync(ICON_PATH) ? { icon: ICON_PATH } : {}),
     width: 1440,
     height: 900,
     minWidth: 940,

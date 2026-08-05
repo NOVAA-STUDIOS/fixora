@@ -60,6 +60,18 @@ if (process.platform === 'win32') {
   app.commandLine.appendSwitch('disable-gpu-compositing');
 }
 
+/**
+ * The Windows Application User Model ID, which must match `appId` in electron-builder.yml.
+ *
+ * Windows keys a taskbar button to this string and uses it to tie a running process back to the
+ * shortcut that launched it. Unset, Electron supplies its own default: the app gets a taskbar entry
+ * that does not associate with its Start Menu shortcut and shows the generic Electron icon. Harmless
+ * looking, and the reason a correctly branded shortcut can still pin as something else.
+ *
+ * Set before any window exists, because the association is read when the first one is created.
+ */
+if (process.platform === 'win32') app.setAppUserModelId('dev.fixora.app');
+
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();

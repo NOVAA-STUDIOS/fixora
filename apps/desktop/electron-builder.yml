@@ -35,6 +35,19 @@ asarUnpack:
   # inside an asar, the same constraint that governs the tree-sitter WASM below it.
   - node_modules/@fixora/core-analysis/**
 
+# The window icon, read at runtime by `main-window.ts`.
+#
+# It cannot travel in `files`: `directories.buildResources` is build/, and electron-builder excludes
+# that directory from the app package by construction — a `- build/icon.png` entry there is silently
+# inert (verified: it did not appear in app.asar). `extraResources` puts it beside the asar instead,
+# where `process.resourcesPath` finds it.
+#
+# On Windows the window inherits the exe's own icon resource, so this is belt and braces; on Linux
+# there is no such resource and it is the only icon a window manager gets.
+extraResources:
+  - from: build/icon.png
+    to: icon.png
+
 nodeGypRebuild: false
 npmRebuild: false
 
@@ -61,6 +74,11 @@ win:
   #   (Get-Item 'release\win-unpacked\Fixora.exe').VersionInfo
   # which must report ProductName "Fixora" and ProductVersion matching package.json.
   signAndEditExecutable: false
+
+# Writes the icon into Fixora.exe, which `signAndEditExecutable: false` above otherwise skips —
+# leaving the exe, and therefore every shortcut pointing at it, showing Electron's default icon.
+# Runs before NSIS packs the installer, so the installed copy carries it too. See the script header.
+afterPack: scripts/stamp-exe.cjs
 
 nsis:
   oneClick: false

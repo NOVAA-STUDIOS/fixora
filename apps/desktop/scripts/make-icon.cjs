@@ -40,6 +40,17 @@ if (app === undefined) {
 const SIZE = 512; // electron-builder needs >=256 to produce a full .ico; 512 leaves headroom.
 const outDir = join(__dirname, '..', 'build');
 const outFile = join(outDir, 'icon.png');
+const icoFile = join(outDir, 'icon.ico');
+
+/**
+ * The sizes Windows actually asks for.
+ *
+ * Left to convert the PNG itself, electron-builder emitted an .ico holding ONE 256x256 image, so the
+ * 16px taskbar and 32px desktop icons were downscaled by the shell at draw time — which is why the
+ * mark looked soft everywhere it appears small. Supplying `build/icon.ico` takes precedence over the
+ * PNG on Windows, and each size here is resampled once, at build time, from the 512px master.
+ */
+const ICO_SIZES = [16, 32, 48, 64, 128, 256];
 
 /** The FixoraMark artwork, viewBox 0 0 48 48. Keep in sync with packages/ui/src/components/icons.tsx. */
 const MARK_SVG = `
@@ -59,6 +70,72 @@ const MARK_SVG = `
 const PAGE = `<!doctype html><meta charset="utf-8">
 <style>html,body{margin:0;padding:0;background:transparent;width:${SIZE}px;height:${SIZE}px;overflow:hidden}</style>
 ${MARK_SVG}`;
+
+/**
+ * One icon image, in the uncompressed form the ICO format was built around.
+ *
+ * A BITMAPINFOHEADER whose height is DOUBLED — the format expects a colour bitmap stacked on an AND
+ * mask, and a header that does not admit to the mask makes the shell read the image at half height.
+ * The mask itself is left zeroed: it predates alpha channels, and the 32-bit BGRA below carries the
+ * real transparency. Rows are bottom-up, which is the BMP convention and not a mistake.
+ */
+function dibEntry(image, size) {
+  const bgra = image.resize({ width: size, height: size, quality: 'best' }).toBitmap();
+  const stride = size * 4;
+  const header = Buffer.alloc(40);
+  header.writeUInt32LE(40, 0); // biSize
+  header.writeInt32LE(size, 4); // biWidth
+  header.writeInt32LE(size * 2, 8); // biHeight — colour + mask, per the format
+  header.writeUInt16LE(1, 12); // biPlanes
+  header.writeUInt16LE(32, 14); // biBitCount
+  header.writeUInt32LE(stride * size, 20); // biSizeImage
+
+  const pixels = Buffer.alloc(stride * size);
+  for (let row = 0; row < size; row += 1) {
+    // `toBitmap` hands back top-down; the DIB wants the last row first.
+    bgra.copy(pixels, row * stride, (size - 1 - row) * stride, (size - row) * stride);
+  }
+  // 1bpp AND mask, rows padded to 4 bytes. All zero = "consult the alpha channel".
+  const mask = Buffer.alloc((((size + 31) >> 5) * 4) * size);
+  return Buffer.concat([header, pixels, mask]);
+}
+
+/**
+ * Assemble the .ico container.
+ *
+ * 256px is stored as PNG — the format's width byte is a single octet, so 256 is written as 0 and the
+ * shell infers the size from the payload. Below that, DIB is the safer choice: PNG-compressed entries
+ * are only guaranteed from Vista onward, and there is no reason to spend that compatibility on icons
+ * measured in kilobytes.
+ */
+function buildIco(image) {
+  const images = ICO_SIZES.map((size) =>
+    size === 256
+      ? { size, data: image.resize({ width: 256, height: 256, quality: 'best' }).toPNG() }
+      : { size, data: dibEntry(image, size) },
+  );
+
+  const directory = Buffer.alloc(6 + images.length * 16);
+  directory.writeUInt16LE(0, 0); // reserved
+  directory.writeUInt16LE(1, 2); // type: icon
+  directory.writeUInt16LE(images.length, 4);
+
+  let offset = directory.length;
+  images.forEach((entry, index) => {
+    const at = 6 + index * 16;
+    directory.writeUInt8(entry.size === 256 ? 0 : entry.size, at); // width, 0 meaning 256
+    directory.writeUInt8(entry.size === 256 ? 0 : entry.size, at + 1); // height
+    directory.writeUInt8(0, at + 2); // palette size — none, this is truecolour
+    directory.writeUInt8(0, at + 3); // reserved
+    directory.writeUInt16LE(1, at + 4); // colour planes
+    directory.writeUInt16LE(32, at + 6); // bits per pixel
+    directory.writeUInt32LE(entry.data.length, at + 8);
+    directory.writeUInt32LE(offset, at + 12);
+    offset += entry.data.length;
+  });
+
+  return Buffer.concat([directory, ...images.map((entry) => entry.data)]);
+}
 
 async function main() {
   await app.whenReady();
@@ -91,15 +168,21 @@ async function main() {
   }
 
   mkdirSync(outDir, { recursive: true });
-  writeFileSync(outFile, nativeImage.createFromBuffer(image.toPNG()).toPNG());
+  const master = nativeImage.createFromBuffer(image.toPNG());
+  writeFileSync(outFile, master.toPNG());
   console.log(`make-icon: wrote ${outFile} (${width}x${height})`);
+
+  writeFileSync(icoFile, buildIco(master));
+  console.log(`make-icon: wrote ${icoFile} (${ICO_SIZES.join(', ')})`);
   return 0;
 }
 
 main().then(
   (code) => app.exit(code),
   (error) => {
-    console.error('make-icon failed:', error);
+    // The stack, not just the message: this runs in a headless Electron where the useful failures
+    // (capture, resize, encode) all surface as one-word Skia errors that name no call site.
+    console.error('make-icon failed:', error instanceof Error ? error.stack : error);
     app.exit(1);
   },
 );
