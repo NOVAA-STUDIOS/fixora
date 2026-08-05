@@ -103,8 +103,9 @@ export function registerAiHandlers(deps: {
      * working chain and a false flag — the Problems panel offered "Set up AI to repair" and disabled
      * Repair over a provider that would have answered.
      *
-     * Overridden here rather than at each call site because every config-returning channel funnels
-     * through this function, and the panel must not be able to disagree with the walk.
+     * Overridden here AND in `ai:getConfig`, which has its own return paths and does not call this.
+     * Any future config-returning channel must do the same — `StoredAiConfig.configured` is always
+     * false, so a channel that forgets reports "not set up" to a fully configured user.
      */
     const configured = anyProviderConfigured(deps.registry, deps.credentials);
     try {
@@ -137,6 +138,17 @@ export function registerAiHandlers(deps: {
   }
 
   registerHandler('ai:getConfig', async () => {
+    /**
+     * Whether AI is set up, from the REGISTRY — computed here because this handler does not go
+     * through `enrich()`.
+     *
+     * That was the bug. `StoredAiConfig.configured` is hardcoded false since the v1 store stopped
+     * holding a credential, and `enrich()` overrides it — but this channel has its own two return
+     * paths and reached neither. It is also the channel the panels read on mount, so a user with a
+     * working Gemini key was told to set one up on every launch, and no refresh could fix it: the
+     * value was false by construction rather than stale.
+     */
+    const configured = anyProviderConfigured(deps.registry, deps.credentials);
     let config;
     try {
       config = deps.keyStore.getConfig();
@@ -167,6 +179,7 @@ export function registerAiHandlers(deps: {
           : null;
       return {
         ...config,
+        configured,
         model,
         migratedFrom,
         capabilities: {
@@ -188,6 +201,10 @@ export function registerAiHandlers(deps: {
       });
       return {
         ...config,
+        // Carried on the failure path too: an unreachable model catalogue says nothing about whether
+        // the user has configured a provider, and reporting "not set up" because OpenRouter was down
+        // is the same lie in a different costume.
+        configured,
         migratedFrom: null,
         // Unknown, so reported as unknown. Optimistically enabling Repair here is the exact bug
         // being fixed — the user would press it and it would fail.
