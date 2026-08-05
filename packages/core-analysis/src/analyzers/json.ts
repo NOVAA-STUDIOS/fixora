@@ -154,6 +154,8 @@ async function locateWithTreeSitter(
 export function createJsonAnalyzer(): Analyzer {
   return {
     id: 'json',
+    /** Validity of one JSON document depends on nothing outside it. */
+    fileLocal: true,
 
     // No external tool and no capability gate: a JSON file can always be checked for validity.
     supports() {

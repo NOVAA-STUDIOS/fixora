@@ -18,6 +18,12 @@ export {
   type RawFinding,
 } from './analyzers/support.js';
 export { analyzeWorkspace, type AnalyzeWorkspaceOptions } from './engine.js';
+export {
+  createFindingCache,
+  hashSource,
+  type CacheSplit,
+  type FindingCache,
+} from './finding-cache.js';
 export { applicableAnalyzers, defaultAnalyzers } from './registry.js';
 export { detectCapabilities } from './capabilities.js';
 export { runTool, type RunToolOptions, type ToolRun, type ToolRunner } from './process/run-tool.js';

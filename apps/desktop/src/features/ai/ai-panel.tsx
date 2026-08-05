@@ -7,6 +7,7 @@ import { useUiStore } from '../../stores/ui-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { ProblemDetails } from '../findings/problem-details.js';
 
+import { partialRepairedCode } from './partial-repair.js';
 import { ProviderErrorCard } from './provider-error-card.js';
 import { RepairResult } from './repair-result.js';
 import { VerdictBadge } from './verdict-badge.js';
@@ -36,6 +37,9 @@ export function AiPanel(): React.JSX.Element {
   const stage = useAiStore((s) => s.stage);
   const profile = useAiStore((s) => s.activeProfile);
   const streamText = useAiStore((s) => s.streamText);
+  // Derived on render rather than stored: it is a pure function of the buffer, and keeping a second
+  // copy in the store would be two things to keep in step for no gain.
+  const repairPreview = partialRepairedCode(streamText);
   const proposal = useAiStore((s) => s.proposal);
   const blocked = useAiStore((s) => s.blocked);
   const errorMessage = useAiStore((s) => s.errorMessage);
@@ -141,9 +145,21 @@ export function AiPanel(): React.JSX.Element {
               prose routinely contains things with none — a bare URL, a long import path, a minified
               identifier. Without it one such token forces the whole assistant pane to scroll
               sideways, which at this pane's width is most of the time. */}
-          {(profile === 'explain' || status === 'running') && streamText.length > 0 && (
+          {profile === 'explain' && streamText.length > 0 && (
             <pre className="whitespace-pre-wrap font-sans [overflow-wrap:anywhere]">
               {streamText}
+            </pre>
+          )}
+
+          {/*
+            A repair in flight. The raw stream is a JSON object, which is not something to show a
+            user, so what is rendered is the repaired code being read out of it as it arrives — the
+            same bytes, minus the envelope. Preview only: it is never the patch, and Accept still
+            waits on the parsed, verified result.
+          */}
+          {profile !== 'explain' && status === 'running' && repairPreview.length > 0 && (
+            <pre className="max-h-64 overflow-auto rounded bg-inset p-2 font-mono text-[11px] whitespace-pre-wrap [overflow-wrap:anywhere] text-fg-secondary">
+              {repairPreview}
             </pre>
           )}
 

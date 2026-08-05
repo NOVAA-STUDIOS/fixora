@@ -280,6 +280,8 @@ function messageFor(language: 'css' | 'html', error: SyntaxError): string {
 export function createSyntaxAnalyzer(language: 'css' | 'html'): Analyzer {
   return {
     id: language,
+    /** A parse of one source file; nothing outside it can change the result. */
+    fileLocal: true,
 
     // No external tool and no capability gate: validity can always be checked from the grammar.
     supports() {

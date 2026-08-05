@@ -1092,7 +1092,13 @@ export function createAiService(deps: AiServiceDeps): AiService {
               { ...activeRequest, model: candidate.model },
               controller.signal,
               window,
-              !wantsStructured,
+              // Deltas are emitted for STRUCTURED profiles too, which they were not.
+              // `!wantsStructured` meant Repair sent nothing until the whole object had arrived, so a
+              // 20-second call was 20 seconds of blank panel while its bytes were already streaming
+              // past. The renderer reads the partial `repairedCode` out of the buffer for a preview
+              // (`partial-repair.ts`); the response itself is still parsed once, complete, by
+              // `parseRepairOutput`. Nothing downstream sees these.
+              true,
             );
             return result.ok
               ? { ok: true as const, value: result }

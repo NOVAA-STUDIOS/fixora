@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 import {
   analyzeWorkspace,
+  createFindingCache,
   createAnalysisContext,
   deterministicRepair,
   detectCapabilities,
@@ -26,6 +27,29 @@ const port = process.parentPort;
 const jobs = new Map();
 /** workspaceRoot -> detected capabilities; detection spawns `tool --version` probes. */
 const capabilitiesByRoot = new Map();
+/**
+ * Findings for files nobody has touched, keyed by content hash. In memory only, and consulted only
+ * for analyzers that declare `fileLocal` — see `finding-cache.ts` for why eslint and tsc are excluded
+ * on correctness grounds rather than by oversight.
+ *
+ * Dropped when the workspace root changes: a cache surviving a switch would answer for the wrong
+ * project entirely.
+ *
+ * NOT dropped on Re-run, deliberately. Re-run is the only thing that starts an analysis at all, so
+ * clearing here would mean the cache was never once read. It is keyed on content hash, which already
+ * gives Re-run what it is actually for: files the user edited are re-analyzed, files they did not are
+ * not, and eslint and tsc re-run in full every time regardless.
+ */
+const findingCache = createFindingCache();
+let cacheRoot = null;
+
+function cacheFor(root) {
+  if (cacheRoot !== root) {
+    findingCache.clear();
+    cacheRoot = root;
+  }
+  return findingCache;
+}
 
 async function capabilitiesFor(root) {
   const cached = capabilitiesByRoot.get(root);
@@ -329,11 +353,12 @@ async function runJob(message) {
       if (language !== null) files.push({ file: t.file, absPath: t.absPath, language });
     }
     const context = createAnalysisContext({ root: workspaceRoot, capabilities, files });
+    const cache = cacheFor(workspaceRoot);
 
     // Collect findings grouped by file, then post one batch per file. A file with no findings sends
     // no message — main clears the workspace's findings at run start, so it correctly ends up empty.
     const byFile = new Map();
-    for await (const finding of analyzeWorkspace({ context }, controller.signal)) {
+    for await (const finding of analyzeWorkspace({ context, cache }, controller.signal)) {
       const list = byFile.get(finding.location.file);
       if (list === undefined) byFile.set(finding.location.file, [finding]);
       else list.push(finding);

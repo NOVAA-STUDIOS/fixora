@@ -91,6 +91,15 @@ export interface Analyzer {
    *  per-file inside `run()`. */
   supports(capabilities: WorkspaceCapabilities): boolean;
   /**
+   * True when this analyzer's findings for a file depend on nothing but that file's own bytes.
+   *
+   * The engine will then reuse findings for unchanged files across runs. Declaring it on an analyzer
+   * that reads OTHER files — a type checker, a linter with type-aware rules — would make it report a
+   * file as clean after a change elsewhere broke it. Absent means "not safe to cache", which is the
+   * right default for anything cross-file.
+   */
+  readonly fileLocal?: boolean;
+  /**
    * Produce findings for the whole workspace, streaming so the panel fills as results arrive. Must
    * observe `signal` (kill the subprocess / stop iterating on abort) and must never throw for an
    * ordinary "tool found nothing" — that is an empty stream, not an error.

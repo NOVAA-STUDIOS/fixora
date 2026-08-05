@@ -303,6 +303,9 @@ function functionKind(node: Node): SymbolKind {
 
 export const complexityAnalyzer: Analyzer = {
   id: 'complexity',
+  /** Findings depend only on this file's own bytes — tree-sitter over one source, no cross-file
+   *  information — so the engine may reuse them for unchanged files. */
+  fileLocal: true,
 
   // Tree-sitter based: it needs no external tool, so it is always active.
   supports(): boolean {
