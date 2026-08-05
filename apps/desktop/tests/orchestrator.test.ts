@@ -37,7 +37,7 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'fx-orch-'));
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
 function build() {
   const registry = createProviderRegistry({ dir });

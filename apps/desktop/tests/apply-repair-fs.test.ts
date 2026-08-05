@@ -35,7 +35,7 @@ async function applyHandler(root: string): Promise<Handler> {
     keyStore: {} as never,
     credentials: { setKey: () => undefined, clearKey: () => undefined } as never,
     registry: { enabled: () => [] } as never,
-    aiService: { run: vi.fn(), cancel: vi.fn() } as never,
+    aiService: { run: vi.fn(), cancel: vi.fn() },
     workspace: { getCurrent: () => ({ id: 'ws', rootPath: root, name: 'p', ignore: [] }) } as never,
     history: { markApplied: vi.fn(), record: vi.fn(), list: () => [], remove: vi.fn() } as never,
     catalogue: {} as never,
@@ -48,7 +48,7 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'fx-apply-'));
   mkdirSync(join(root, 'src'), { recursive: true });
 });
-afterEach(() => rmSync(root, { recursive: true, force: true }));
+afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
 describe('ai:applyRepair — filesystem failures travel as contract data', () => {
   it('a repair targeting a file that no longer exists returns read-failed, not a thrown error', async () => {

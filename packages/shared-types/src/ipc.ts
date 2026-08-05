@@ -207,6 +207,23 @@ export const contracts = {
     request: z.object({ id: z.string().min(1) }),
     response: ProviderListSchema,
   },
+  'providers:listModels': {
+    request: z.object({
+      id: z.string().min(1),
+      /** Bypass the session cache. Settings passes this on an explicit refresh. */
+      refresh: z.boolean().optional(),
+    }),
+    response: z.object({
+      models: z.array(z.string()),
+      /**
+       * Where the list came from, because the two carry different authority: `live` is what the
+       * provider says it serves right now, `curated` is compiled in and may be behind.
+       */
+      source: z.enum(['live', 'curated', 'none']),
+      /** Why the live call did not happen or did not work. Null when it did. */
+      notice: z.string().nullable(),
+    }),
+  },
   'providers:setModel': {
     request: z.object({ id: z.string().min(1), model: z.string() }),
     response: ProviderListSchema,

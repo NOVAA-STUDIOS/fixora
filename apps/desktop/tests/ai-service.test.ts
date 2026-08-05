@@ -2,7 +2,6 @@ import type { AIProvider, ProviderEvent } from '@fixora/core-ai';
 import { UserFacingError, type Finding } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
-import { refusingChain, singleProvider } from './support/fake-orchestrator.js';
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
 import type { KeyStore } from '../electron/main/ai/key-store.js';
 import type {
@@ -11,6 +10,8 @@ import type {
 } from '../electron/main/db/repositories.js';
 import type { WorkspaceService } from '../electron/main/services/workspace-service.js';
 import type { VerificationService } from '../electron/main/verification/verification-service.js';
+
+import { refusingChain, singleProvider } from './support/fake-orchestrator.js';
 
 const CLEAN_FILE = `export function greet(name: string): string {
   const msg = 'hi ' + name;

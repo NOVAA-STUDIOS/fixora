@@ -54,6 +54,13 @@ export const azureOpenAiDescriptor: ProviderDescriptor = {
   capabilities: CAPABILITIES,
   // Azure's model list is per-resource and needs a management-plane call, not the inference key.
   discovery: 'static',
+  /**
+   * Empty ON PURPOSE, and not an omission to be filled in later.
+   *
+   * Azure addresses DEPLOYMENTS, which are names the user invented in their own resource — there is
+   * no vendor list to curate, and shipping model ids here would offer names that are wrong for every
+   * subscriber. The live listing against their endpoint is the only truthful source.
+   */
   models: [],
 };
 

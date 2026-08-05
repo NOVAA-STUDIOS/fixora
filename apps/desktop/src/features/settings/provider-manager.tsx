@@ -330,13 +330,33 @@ function ProviderModelField({
   onSave: (model: string) => Promise<boolean>;
 }): React.JSX.Element {
   const inputId = useId();
+  const listId = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [known, setKnown] = useState<{ models: string[]; notice: string | null } | null>(null);
+
+  // Fetched per provider when the panel mounts. Main caches for the session, so revisiting Settings
+  // costs nothing; a failure is a notice, never an error state — the field works without a list.
+  useEffect(() => {
+    let live = true;
+    void invoke('providers:listModels', { id: provider.id }).then((result) => {
+      if (live && result.ok) setKnown({ models: result.value.models, notice: result.value.notice });
+    });
+    return () => {
+      live = false;
+    };
+  }, [provider.id]);
 
   // Null means "not being edited": the field shows what main last returned, so an edit elsewhere is
   // reflected rather than shadowed by stale local state.
   const value = draft ?? (provider.modelIsAuto ? '' : provider.model);
   const dirty = draft !== null && draft !== (provider.modelIsAuto ? '' : provider.model);
+  // Empty means "use the descriptor default", which is always valid and never warned about.
+  const unknownModel =
+    known !== null &&
+    known.models.length > 0 &&
+    value.trim() !== '' &&
+    !known.models.includes(value.trim());
 
   const save = async (): Promise<void> => {
     if (!dirty) return;
@@ -353,8 +373,14 @@ function ProviderModelField({
       <label htmlFor={inputId} className="sr-only">
         {provider.label} model
       </label>
+      {/*
+        A datalist, not a <select>. The list is a suggestion and must stay one: a vendor ships models
+        faster than this app releases, and an id we have never heard of is far more likely to be
+        newer than to be wrong. So it offers what we know and accepts what we do not.
+      */}
       <Input
         id={inputId}
+        list={listId}
         spellCheck={false}
         className="h-6 min-w-0 flex-1 font-mono text-[11px]"
         placeholder={provider.model}
@@ -366,6 +392,11 @@ function ProviderModelField({
           if (e.key === 'Enter') void save();
         }}
       />
+      <datalist id={listId}>
+        {(known?.models ?? []).map((model) => (
+          <option key={model} value={model} />
+        ))}
+      </datalist>
       <Button
         size="sm"
         variant="secondary"
@@ -375,6 +406,20 @@ function ProviderModelField({
       >
         Set model
       </Button>
+
+      {/*
+        Warned, not blocked. The list can be behind the provider, so refusing an unknown id would
+        stop a user adopting a model the day it ships — and they can see the id in the vendor's own
+        docs. Only shown once a list actually loaded, or every provider without one would nag.
+      */}
+      {unknownModel && (
+        <p className="basis-full text-[10px] text-warn-text">
+          Model not in known list — it may not work.
+        </p>
+      )}
+      {known !== null && known.notice !== null && known.models.length === 0 && (
+        <p className="basis-full text-[10px] text-fg-muted">{known.notice}</p>
+      )}
     </div>
   );
 }

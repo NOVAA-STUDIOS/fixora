@@ -1,9 +1,9 @@
 import type { AIProvider, ProviderEvent, ProviderRequest } from '@fixora/core-ai';
+import type { EditScope } from '@fixora/core-analysis';
 import type { VerificationReport } from '@fixora/shared-types';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createProceedService, type ProceedDeps } from '../electron/main/ai/proceed-service.js';
-import type { EditScope } from '@fixora/core-analysis';
 
 /**
  * Proceed Mode orchestration, proven end-to-end with injected fakes (no Electron, worker, or network):
@@ -251,7 +251,7 @@ describe('createProceedService', () => {
         requests.push(req);
         const text = requests.length === 1 ? truncated : complete;
         return (async function* () {
-          yield { type: 'text_delta', text } as ProviderEvent;
+          yield { type: 'text_delta', text };
         })();
       },
     };

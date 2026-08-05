@@ -3,12 +3,12 @@ import type { AIProvider, CatalogueModel, ProviderEvent, ProviderRequest } from 
 import type { Finding } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
-import { fakeOrchestrator } from './support/fake-orchestrator.js';
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
 import type { KeyStore } from '../electron/main/ai/key-store.js';
 import type { FindingsRepository, RepairHistoryRepository } from '../electron/main/db/repositories.js';
 import type { WorkspaceService } from '../electron/main/services/workspace-service.js';
-import type { VerificationService } from '../electron/main/verification/verification-service.js';
+
+import { fakeOrchestrator } from './support/fake-orchestrator.js';
 
 /**
  * Provider failover, through the real service rather than the loop in isolation.
@@ -148,7 +148,7 @@ function deps(provider: AIProvider, catalogue: readonly CatalogueModel[]): AiSer
           originalCode: 'export function target() {\n  return 1;\n}',
         }),
       dispose: () => undefined,
-    } as VerificationService,
+    },
     history: {
       record: () => 'history-1',
       markApplied: () => undefined,
@@ -350,7 +350,7 @@ describe('ai service — a rejected repair is never retried on another model', (
             originalCode: "function greet(name) {\n  const msg = 'hi ' + name;\n  return msg;\n}",
           }),
         dispose: () => undefined,
-      } as typeof base.verification,
+      },
     });
 
     const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);

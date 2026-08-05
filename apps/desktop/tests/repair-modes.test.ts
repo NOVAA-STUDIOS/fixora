@@ -1,16 +1,16 @@
-import type { AIProvider, ProviderEvent } from '@fixora/core-ai';
+import type { AIProvider } from '@fixora/core-ai';
 import type { Finding, RepairMode } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
-import { singleProvider } from './support/fake-orchestrator.js';
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
+import type { KeyStore } from '../electron/main/ai/key-store.js';
 import type {
   FindingsRepository,
   RepairHistoryRepository,
 } from '../electron/main/db/repositories.js';
-import type { KeyStore } from '../electron/main/ai/key-store.js';
 import type { WorkspaceService } from '../electron/main/services/workspace-service.js';
-import type { VerificationService } from '../electron/main/verification/verification-service.js';
+
+import { singleProvider } from './support/fake-orchestrator.js';
 
 /**
  * ISSUE 4 + 8: repair modes and the scope-bounded merge.
@@ -101,7 +101,7 @@ function capture() {
     stream(request) {
       prompts.push(request.messages.map((m) => m.content).join('\n'));
       return (async function* () {
-        yield { type: 'text_delta', text: REPAIR_JSON } as ProviderEvent;
+        yield { type: 'text_delta', text: REPAIR_JSON };
       })();
     },
   };
@@ -139,7 +139,7 @@ function deps(all: Finding[], captured: ReturnType<typeof capture>): AiServiceDe
         });
       },
       dispose: () => undefined,
-    } as VerificationService,
+    },
     history: { record: () => 'h1' } as unknown as RepairHistoryRepository,
     orchestrator: singleProvider(captured.provider),
     readFile: () => CONTENT,

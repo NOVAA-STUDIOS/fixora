@@ -68,6 +68,13 @@ export const anthropicDescriptor: ProviderDescriptor = {
   local: false,
   capabilities: CAPABILITIES,
   discovery: 'id-list',
+  /**
+   * Fallback only. Anthropic DOES serve `GET /v1/models`, and the live list is preferred whenever
+   * the call succeeds — but it needs a valid key, so a user choosing a model BEFORE saving one would
+   * otherwise face an empty dropdown. Curated deliberately short: a stale id here is a 404 the user
+   * cannot explain, so this lists current models only and is expected to be edited on each release.
+   */
+  models: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5-20251001'],
 };
 
 interface AnthropicFrame {

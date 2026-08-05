@@ -16,7 +16,7 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'fx-registry-'));
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
 describe('provider registry', () => {
   it('a fresh install knows every provider and has none enabled', () => {

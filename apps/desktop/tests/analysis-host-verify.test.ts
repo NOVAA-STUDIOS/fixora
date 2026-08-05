@@ -61,7 +61,7 @@ describe('analysis host — the verify payload survives the process hop', () => 
         target: { file: 'a.ts', absPath: 'C:/overlay/a.ts', language: 'ts' },
         originalSource: 'before',
         onResult: resolve,
-        onError: () => resolve({ syntaxOk: false, findings: [], aborted: false }),
+        onError: () => { resolve({ syntaxOk: false, findings: [], aborted: false }); },
       });
     });
 
@@ -93,7 +93,7 @@ describe('analysis host — the verify payload survives the process hop', () => 
         overlayRoot: 'C:/overlay',
         target: { file: 'a.ts', absPath: 'C:/overlay/a.ts', language: 'ts' },
         onResult: resolve,
-        onError: () => resolve({ syntaxOk: false, findings: [], aborted: false }),
+        onError: () => { resolve({ syntaxOk: false, findings: [], aborted: false }); },
       });
     });
 

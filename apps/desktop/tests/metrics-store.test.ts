@@ -34,7 +34,7 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'fx-metrics-'));
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
 describe('metrics store', () => {
   it('records and returns entries newest-last', () => {

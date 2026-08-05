@@ -36,7 +36,7 @@ async function runHandler(
     keyStore: { getConfig: () => ({ model: 'test/model' }) } as never,
     credentials: { setKey: () => undefined, clearKey: () => undefined } as never,
     registry: { enabled: () => [] } as never,
-    aiService: aiService as never,
+    aiService: aiService,
     workspace: { getCurrent: () => null } as never,
     history: {} as never,
     catalogue: {} as never,
@@ -62,7 +62,7 @@ describe('ai:run — every run reaches a terminal state', () => {
     const aiService = {
       run: () =>
         new Promise<AiRunResponse>((resolve) => {
-          abort = () => resolve({ status: 'error', code: 'cancelled', message: 'Cancelled.' });
+          abort = () => { resolve({ status: 'error', code: 'cancelled', message: 'Cancelled.' }); };
         }),
       cancel: vi.fn(() => abort?.()),
     };

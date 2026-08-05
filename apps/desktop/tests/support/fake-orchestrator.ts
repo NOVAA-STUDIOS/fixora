@@ -33,7 +33,7 @@ export function fakeOrchestrator(
     async run(_profile, attempt, options = {}) {
       const [head, ...rest] = resolved;
       if (head === undefined) {
-        return { ok: false, refused: true, reason: 'none-enabled' } as OrchestratorOutcome<never>;
+        return { ok: false, refused: true, reason: 'none-enabled' };
       }
       return runWithFailover([head, ...rest], attempt, options);
     },

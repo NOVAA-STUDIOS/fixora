@@ -37,7 +37,7 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'fx-creds-'));
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
 describe('credential store', () => {
   it('stores and returns a key per provider, independently', () => {

@@ -2,14 +2,13 @@ import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Finding } from '@fixora/shared-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { openDatabase } from '../electron/main/db/database.js';
 import { currentSchemaVersion, migrate } from '../electron/main/db/migrate.js';
 import { migrations } from '../electron/main/db/migrations.js';
 import { createNodeSqliteDriver } from '../electron/main/db/node-sqlite-driver.js';
-import type { Finding } from '@fixora/shared-types';
-
 import {
   createFileIndexRepository,
   createFindingsRepository,

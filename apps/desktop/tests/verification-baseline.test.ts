@@ -51,7 +51,7 @@ function hostReturning(result: VerifyResult): AnalysisHost & { lastJob: () => Ve
     microRepair: vi.fn(),
     cancel: vi.fn(),
     dispose: vi.fn(),
-  } as unknown as AnalysisHost & { lastJob: () => VerifyJob | null };
+  };
 }
 
 const TARGET = finding({ rule: 'TS2339', line: 32 });

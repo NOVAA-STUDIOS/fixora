@@ -1,10 +1,26 @@
-import { allDescriptors, providerDescriptor } from '@fixora/core-ai';
+import { allDescriptors, providerDescriptor, providerRegistration } from '@fixora/core-ai';
 import type { ProviderInfo, ProviderList } from '@fixora/shared-types';
 
 import type { CredentialStore } from '../../ai/credentials/credential-store.js';
 import type { ProviderHealthStore } from '../../ai/provider-health-store.js';
 import type { ProviderRegistry } from '../../ai/providers/provider-registry.js';
 import { registerHandler } from '../router.js';
+
+/**
+ * Model lists, cached for the session.
+ *
+ * Listing costs a network round trip per provider, and Settings mounts on every visit — without this
+ * the panel would re-fetch eight providers each time it opened. Memory only and never persisted: a
+ * vendor adding a model between launches should show up on the next launch, not be remembered wrong
+ * until a cache file is cleared.
+ */
+interface ModelList {
+  models: string[];
+  source: 'live' | 'curated' | 'none';
+  notice: string | null;
+}
+
+const modelCache = new Map<string, ModelList>();
 
 /**
  * Provider management IPC.
@@ -97,6 +113,68 @@ export function registerProviderHandlers(deps: {
     return list();
   });
 
+  /**
+   * What models this provider offers.
+   *
+   * Live wherever the vendor serves a list — which is every adapter here, since `test()` already
+   * fetches `/models` and reports the ids. The curated list in the descriptor is a FALLBACK, used
+   * when the live call cannot run (no key yet) or fails, so choosing a model before saving a key
+   * still offers something rather than an empty dropdown.
+   *
+   * Never throws and never blocks: a provider that cannot be listed returns an empty list plus a
+   * notice, and the field stays free text so the user can type an id we have never heard of.
+   */
+  registerHandler('providers:listModels', async ({ id, refresh }) => {
+    const cached = modelCache.get(id);
+    if (cached !== undefined && refresh !== true) return cached;
+
+    const registration = providerRegistration(id);
+    if (registration === null) {
+      return { models: [], source: 'none', notice: 'Unknown provider.' } satisfies ModelList;
+    }
+    const { descriptor } = registration;
+    const curated = [...(descriptor.models ?? [])];
+
+    const settings = deps.registry.get(id);
+    const apiKey = descriptor.auth === 'none' ? null : deps.credentials.getKey(id);
+    if (descriptor.auth === 'api-key' && apiKey === null) {
+      const result: ModelList = {
+        models: curated,
+        source: curated.length > 0 ? 'curated' : 'none',
+        notice: 'Add a key to load this provider’s live model list.',
+      };
+      // Deliberately NOT cached: the next call after a key is saved must try the live list.
+      return result;
+    }
+
+    let result: ModelList;
+    try {
+      const adapter = registration.create({
+        apiKey,
+        baseUrl: settings?.baseUrl ?? descriptor.baseUrl,
+      });
+      const probe = await adapter.test(settings?.model ?? descriptor.defaultModel, AbortSignal.timeout(10_000));
+      const live = [...(probe.models ?? [])];
+      result =
+        live.length > 0
+          ? { models: live, source: 'live', notice: null }
+          : {
+              models: curated,
+              source: curated.length > 0 ? 'curated' : 'none',
+              notice: 'This provider did not return a model list.',
+            };
+    } catch {
+      // A listing failure is never a repair failure. Fall back and say so.
+      result = {
+        models: curated,
+        source: curated.length > 0 ? 'curated' : 'none',
+        notice: 'Could not reach this provider to list its models.',
+      };
+    }
+    modelCache.set(id, result);
+    return result;
+  });
+
   registerHandler('providers:setModel', ({ id, model }) => {
     deps.registry.setModel(id, model);
     return list();
@@ -122,6 +200,8 @@ export function registerProviderHandlers(deps: {
    */
   registerHandler('providers:setKey', ({ id, key, makePrimary }) => {
     deps.credentials.setKey(id, key);
+    // A different key can see a different catalogue — entitlements are per key, not per provider.
+    modelCache.delete(id);
     deps.registry.setEnabled(id, true);
     // The primary field detected this provider from the key itself, so the user's intent is "use
     // this one" — which means the head of the chain, not merely enabled somewhere in it. The
@@ -136,6 +216,7 @@ export function registerProviderHandlers(deps: {
 
   registerHandler('providers:clearKey', ({ id }) => {
     deps.credentials.clearKey(id);
+    modelCache.delete(id);
     // Deliberately NOT disabled. A provider the user enabled stays enabled; it simply has no key and
     // is skipped by the chain until one is supplied. Silently flipping the switch off would hide the
     // fact that they still intend to use it.

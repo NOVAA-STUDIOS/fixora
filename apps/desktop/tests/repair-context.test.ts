@@ -79,7 +79,7 @@ describe('projectConventions (Project Metadata)', () => {
     });
     expect(c[0]).toBe('Language: python');
     expect(c.some((l) => /preserve/i.test(l))).toBe(true);
-    expect(c.some((l) => /React/.test(l))).toBe(false); // not a React file
+    expect(c.some((l) => l.includes('React'))).toBe(false); // not a React file
   });
 
   it('detects React from a real import', () => {
@@ -90,7 +90,7 @@ describe('projectConventions (Project Metadata)', () => {
       fileContent: 'import { useState } from "react";\nexport const x = 1;\n',
       workspaceRoot: root,
     });
-    expect(c.some((l) => /React/.test(l))).toBe(true);
+    expect(c.some((l) => l.includes('React'))).toBe(true);
   });
 
   it('does NOT flag React for an unrelated "react" substring', () => {
@@ -101,7 +101,7 @@ describe('projectConventions (Project Metadata)', () => {
       fileContent: 'const reactionTime = 5; // not react\n',
       workspaceRoot: root,
     });
-    expect(c.some((l) => /React/.test(l))).toBe(false);
+    expect(c.some((l) => l.includes('React'))).toBe(false);
   });
 
   it('detects TypeScript strict mode from the workspace tsconfig', () => {

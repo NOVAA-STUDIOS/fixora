@@ -40,12 +40,12 @@ describe('buildMailtoUrl', () => {
   it('encodes unicode characters correctly', () => {
     const url = buildMailtoUrl({ to: 'a@b.com', subject: 'Café', body: 'naïve résumé' });
     expect(url).toContain(encodeURIComponent('Café').replace(/\+/g, '%20'));
-    expect(decodeURIComponent(new URL(url).search.match(/body=([^&]*)/)![1]!)).toBe('naïve résumé');
+    expect(decodeURIComponent(/body=([^&]*)/.exec(new URL(url).search)![1]!)).toBe('naïve résumé');
   });
 
   it('encodes emoji correctly and they round-trip losslessly', () => {
     const url = buildMailtoUrl({ to: 'a@b.com', subject: 'x', body: 'Great idea 🎉🚀' });
-    const bodyParam = new URL(url).search.match(/body=([^&]*)/)![1]!;
+    const bodyParam = /body=([^&]*)/.exec(new URL(url).search)![1]!;
     expect(decodeURIComponent(bodyParam)).toBe('Great idea 🎉🚀');
   });
 

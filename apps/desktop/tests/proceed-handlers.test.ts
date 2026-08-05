@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { ProceedOutcome, ProceedRunRequest } from '@fixora/shared-types';
 import { UserFacingError } from '@fixora/shared-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { fakeOrchestrator } from './support/fake-orchestrator.js';
 
 vi.mock('electron', () => ({
@@ -80,7 +81,7 @@ beforeEach(() => {
   mkdirSync(join(root, 'src'), { recursive: true });
   writeFileSync(join(root, 'src', 'a.ts'), 'export function a() {\n  return 1;\n}\n');
 });
-afterEach(() => rmSync(root, { recursive: true, force: true }));
+afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
 describe('proceed:run — unhandled exceptions never reach the renderer as raw errors', () => {
   it('B2: a worker crash is reported via the same actionable wording as Repair, not a raw error message', async () => {

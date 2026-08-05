@@ -58,9 +58,26 @@ function listOk(providers: ProviderInfo[]) {
   return { ok: true as const, value: { providers } };
 }
 
+/** The row now fetches a model list per provider, so the default mock has to answer that too. */
+function defaultInvoke(channel: string) {
+  if (channel === 'providers:listModels') {
+    return Promise.resolve({ ok: true, value: { models: [], source: 'none', notice: null } });
+  }
+  return Promise.resolve(listOk(THREE));
+}
+
+/** Override the provider list while keeping the model fetch answered. */
+function mockList(providers: ProviderInfo[]) {
+  invoke.mockImplementation((channel: string) =>
+    channel === 'providers:listModels'
+      ? Promise.resolve({ ok: true, value: { models: [], source: 'none', notice: null } })
+      : Promise.resolve(listOk(providers)),
+  );
+}
+
 beforeEach(() => {
   invoke.mockReset();
-  invoke.mockResolvedValue(listOk(THREE));
+  invoke.mockImplementation(defaultInvoke);
 });
 
 describe('ProviderManager — lists the chain in priority order', () => {
@@ -85,8 +102,7 @@ describe('ProviderManager — lists the chain in priority order', () => {
   });
 
   it('shows health facts when they exist', async () => {
-    invoke.mockResolvedValue(
-      listOk([
+    mockList([
         provider({
           health: {
             providerId: 'openrouter',
@@ -104,8 +120,7 @@ describe('ProviderManager — lists the chain in priority order', () => {
             checkedAt: 1,
           },
         }),
-      ]),
-    );
+    ]);
     render(<ProviderManager />);
     expect(await screen.findByText('Rate Limited')).toBeInTheDocument();
     expect(screen.getByText('412ms')).toBeInTheDocument();
@@ -293,7 +308,7 @@ describe('ProviderManager — model field', () => {
   it('an AUTO model shows as an empty field over a placeholder', async () => {
     // Empty is the honest rendering of "following the default": it makes clearing the field the way
     // back to that default, rather than the user having to guess a magic value.
-    invoke.mockResolvedValue(listOk([provider({ modelIsAuto: true, model: 'gemini-2.0-flash' })]));
+    mockList([provider({ modelIsAuto: true, model: 'gemini-2.0-flash' })]);
     render(<ProviderManager />);
     await screen.findAllByRole('listitem');
     const input = screen.getByLabelText('OpenRouter model');
@@ -319,5 +334,72 @@ describe('ProviderManager — model field', () => {
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith('providers:setModel', { id: 'openrouter', model: '' });
     });
+  });
+});
+
+/**
+ * The model dropdown.
+ *
+ * A suggestion list, never a gate: vendors ship models faster than this app releases, so an id we do
+ * not recognise is more likely to be newer than wrong. It offers what we know and accepts what we do
+ * not.
+ */
+describe('ProviderManager — model list', () => {
+  function withModels(models: string[], notice: string | null = null) {
+    invoke.mockImplementation((channel: string) => {
+      if (channel === 'providers:listModels') {
+        return Promise.resolve({ ok: true, value: { models, source: 'live', notice } });
+      }
+      return Promise.resolve(listOk(THREE));
+    });
+  }
+
+  it('offers the fetched models as options', async () => {
+    withModels(['gpt-4.1', 'gpt-4.1-mini']);
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    await waitFor(() => {
+      expect(document.querySelectorAll('datalist option').length).toBeGreaterThan(0);
+    });
+    const values = [...document.querySelectorAll('datalist option')].map((o) =>
+      o.getAttribute('value'),
+    );
+    expect(values).toContain('gpt-4.1');
+  });
+
+  it('WARNS but does not block an id outside the list', async () => {
+    withModels(['gpt-4.1']);
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    fireEvent.change(screen.getByLabelText('OpenAI model'), { target: { value: 'gpt-6-preview' } });
+    await waitFor(() => {
+      expect(screen.getAllByText('Model not in known list — it may not work.').length).toBeGreaterThan(0);
+    });
+    const row = within(screen.getAllByRole('listitem')[1] as HTMLElement);
+    // Still saveable: the user may be reading the vendor's docs and we may be behind.
+    expect(row.getByRole('button', { name: 'Set model' })).toBeEnabled();
+  });
+
+  it('does not warn about a model that IS in the list', async () => {
+    withModels(['gpt-4.1']);
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    fireEvent.change(screen.getByLabelText('OpenAI model'), { target: { value: 'gpt-4.1' } });
+    await waitFor(() => {
+      expect(document.querySelectorAll('datalist option').length).toBeGreaterThan(0);
+    });
+    // Scoped to this row: the other providers' models are genuinely not in this list and warn, which
+    // is the correct behaviour rather than something to suppress.
+    const row = within(screen.getAllByRole('listitem')[1] as HTMLElement);
+    expect(row.queryByText('Model not in known list — it may not work.')).toBeNull();
+  });
+
+  it('never warns while no list could be loaded', async () => {
+    // Every provider without a list would otherwise nag permanently.
+    withModels([], 'Could not reach this provider to list its models.');
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    fireEvent.change(screen.getByLabelText('OpenAI model'), { target: { value: 'anything' } });
+    expect(screen.queryByText('Model not in known list — it may not work.')).toBeNull();
   });
 });

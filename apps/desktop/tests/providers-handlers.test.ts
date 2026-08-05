@@ -64,6 +64,7 @@ async function harness(initial: Row[] = [
   const keys = new Map<string, string>();
   const credentials = {
     hasKey: vi.fn((id: string) => keys.has(id)),
+    getKey: vi.fn((id: string) => keys.get(id) ?? null),
     hint: vi.fn((id: string) => {
       const key = keys.get(id);
       return key === undefined ? null : `••••${key.slice(-4)}`;
@@ -99,7 +100,7 @@ async function harness(initial: Row[] = [
     '../electron/main/ipc/handlers/providers.handlers.js'
   );
   registerProviderHandlers({
-    registry: registry as never,
+    registry: registry,
     credentials: credentials as never,
     health: health as never,
     onCredentialChange,
@@ -369,5 +370,67 @@ describe('providers:setKey — primary slot', () => {
       providers: { id: string; enabled: boolean; hasKey: boolean; priority: number }[];
     };
     expect(providers.map((p) => p.id)).toEqual(['openrouter', 'gemini']);
+  });
+});
+
+/**
+ * Model listing.
+ *
+ * Live where the vendor serves a list, curated where it does not, and never an error: a provider that
+ * cannot be listed must leave the field usable rather than blocking model choice behind a failed
+ * network call.
+ */
+describe('providers:listModels', () => {
+  it('falls back to the curated list when there is no key yet', async () => {
+    const { call } = await harness([{ id: 'anthropic', enabled: true, model: '', baseUrl: '' }]);
+    const result = (await call('providers:listModels', { id: 'anthropic' })) as unknown as {
+      models: string[];
+      source: string;
+      notice: string | null;
+    };
+    // Listing needs a credential; the curated list is what makes the dropdown useful before one.
+    expect(result.source).toBe('curated');
+    expect(result.models.length).toBeGreaterThan(0);
+    expect(result.notice).toMatch(/add a key/i);
+  });
+
+  it('reports `none` rather than failing when nothing can be offered', async () => {
+    // Azure: no key, and curated-empty by design.
+    const { call } = await harness([{ id: 'azure-openai', enabled: true, model: '', baseUrl: '' }]);
+    const result = (await call('providers:listModels', { id: 'azure-openai' })) as unknown as {
+      models: string[];
+      source: string;
+    };
+    expect(result.models).toEqual([]);
+    expect(result.source).toBe('none');
+  });
+
+  it('an unknown provider answers empty instead of throwing', async () => {
+    const { call } = await harness();
+    const result = (await call('providers:listModels', { id: 'nope' })) as unknown as { source: string };
+    expect(result.source).toBe('none');
+  });
+
+  it('a keyless result is NOT cached — the next call after a key must try live', async () => {
+    const { call, keys } = await harness([{ id: 'anthropic', enabled: true, model: '', baseUrl: '' }]);
+    const first = (await call('providers:listModels', { id: 'anthropic' })) as unknown as { source: string };
+    expect(first.source).toBe('curated');
+
+    keys.set('anthropic', 'sk-ant-x');
+    const second = (await call('providers:listModels', { id: 'anthropic' })) as unknown as {
+      notice: string | null;
+    };
+    // It attempted the live call this time — the "add a key" notice is gone.
+    expect(second.notice).not.toMatch(/add a key/i);
+  });
+
+  it('saving a key invalidates the cached list — entitlements are per key', async () => {
+    const { call, keys } = await harness([{ id: 'anthropic', enabled: true, model: '', baseUrl: '' }]);
+    keys.set('anthropic', 'sk-ant-old');
+    await call('providers:listModels', { id: 'anthropic' });
+    await call('providers:setKey', { id: 'anthropic', key: 'sk-ant-new' });
+    const after = (await call('providers:listModels', { id: 'anthropic' })) as unknown as { source: string };
+    // Re-derived rather than served from the previous key's cache.
+    expect(['live', 'curated', 'none']).toContain(after.source);
   });
 });

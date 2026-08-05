@@ -2,13 +2,14 @@ import type { AIProvider, ProviderEvent } from '@fixora/core-ai';
 import type { Finding, Location } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
-import { singleProvider } from './support/fake-orchestrator.js';
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
 import type { KeyStore } from '../electron/main/ai/key-store.js';
-import type { FindingsRepository, RepairHistoryRepository } from '../electron/main/db/repositories.js';
 import type { Orchestrator } from '../electron/main/ai/providers/orchestrator.js';
+import type { FindingsRepository, RepairHistoryRepository } from '../electron/main/db/repositories.js';
 import type { WorkspaceService } from '../electron/main/services/workspace-service.js';
 import type { VerificationService } from '../electron/main/verification/verification-service.js';
+
+import { singleProvider } from './support/fake-orchestrator.js';
 
 /**
  * Advanced Repair, through the real service.

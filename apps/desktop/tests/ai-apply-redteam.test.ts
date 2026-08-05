@@ -96,8 +96,8 @@ describe('ai:applyRepair red-team (the renderer is hostile)', () => {
     );
 
     expect(outcome.applied).toBe(false);
-    expect(outcome.applied === false && outcome.reason).toBe('stale-range');
-    expect(outcome.applied === false && outcome.message).toMatch(/changed/i);
+    expect(!outcome.applied && outcome.reason).toBe('stale-range');
+    expect(!outcome.applied && outcome.message).toMatch(/changed/i);
     // The evidence behind the refusal is reported, not merely asserted.
     expect(outcome.staleRangeCheck?.passed).toBe(false);
     expect(outcome.staleRangeCheck?.expectedHash).not.toBe(outcome.staleRangeCheck?.actualHash);
