@@ -447,3 +447,138 @@ describe('smart model routing', () => {
     expect(chain.ok).toBe(true); // still resolves — never a hard failure from routing alone
   });
 });
+
+/**
+ * CREDENTIAL FRESHNESS — the scenario that made the Provider Manager necessary.
+ *
+ * A user burns their daily quota mid-session, pastes a new key into Settings, and repairs again. If
+ * anything between the credential store and the adapter is cached — a memoised chain, a provider
+ * built once at startup, a key read at boot — the next repair still uses the dead credential and the
+ * only fix is a restart. These pin that the walk is rebuilt from the store on EVERY run.
+ *
+ * The 429 here is a test double, not a live provider call: proving this against a real quota would
+ * require exhausting one on demand, and the behaviour under test is entirely local to the walk.
+ */
+describe('a newly saved key is used by the very next repair', () => {
+  /** Wraps the real store so the exact key handed to each adapter build is observable. */
+  function recording() {
+    const registry = createProviderRegistry({ dir });
+    const credentials = createCredentialStore({ dir, cipher: fakeCipher() });
+    const reads: { provider: string; key: string | null }[] = [];
+    const spy: typeof credentials = {
+      ...credentials,
+      getKey: (id: string) => {
+        const key = credentials.getKey(id);
+        reads.push({ provider: id, key });
+        return key;
+      },
+    };
+    const orchestrator = createOrchestrator({
+      registry,
+      credentials: spy,
+      modelFacts: (_p, model) =>
+        Promise.resolve({ id: model, structuredOutput: true, contextLength: 128_000 }),
+    });
+    return { registry, credentials, orchestrator, reads };
+  }
+
+  it('SKIPS an enabled provider with no key instead of spending a request on it', async () => {
+    const { registry, credentials, orchestrator } = build();
+    for (const id of ['openrouter', 'openai']) registry.setEnabled(id, true);
+    // Only the second one is credentialed.
+    credentials.setKey('openai', 'sk-oa');
+
+    const asked: string[] = [];
+    const outcome = await orchestrator.run('repair', (candidate) => {
+      asked.push(candidate.provider);
+      return Promise.resolve(ok('patch'));
+    });
+
+    // Silently skipped — not attempted and not reported as a failure, because a missing key is a
+    // configuration state rather than a provider error.
+    expect(asked).toEqual(['openai']);
+    expect('refused' in outcome).toBe(false);
+    if ('refused' in outcome || !outcome.ok) return;
+    expect(outcome.candidate.provider).toBe('openai');
+  });
+
+  it('after a 429 exhausts the chain, a key added to ANOTHER provider is used immediately', async () => {
+    const { registry, credentials, orchestrator } = build();
+    registry.setEnabled('openrouter', true);
+    credentials.setKey('openrouter', 'sk-or-dead');
+
+    // Run 1: the only credentialed provider is out of quota.
+    const first = await orchestrator.run('repair', () =>
+      Promise.resolve(fail('HTTP_429', 'free-models-per-day exhausted')),
+    );
+    expect('refused' in first).toBe(false);
+    if ('refused' in first || first.ok) return;
+    expect(first.reason).toBe('exhausted');
+
+    // The user pastes a key for a different provider and enables it — exactly what
+    // `providers:setKey` does in main. No restart, no cache flush, same orchestrator instance.
+    credentials.setKey('openai', 'sk-oa-fresh');
+    registry.setEnabled('openai', true);
+
+    const asked: string[] = [];
+    const second = await orchestrator.run('repair', (candidate) => {
+      asked.push(candidate.provider);
+      return Promise.resolve(
+        candidate.provider === 'openrouter' ? fail('HTTP_429', 'still exhausted') : ok('patch'),
+      );
+    });
+
+    expect(asked).toEqual(['openrouter', 'openai']);
+    expect('refused' in second).toBe(false);
+    if ('refused' in second || !second.ok) return;
+    expect(second.value).toBe('patch');
+    expect(second.candidate.provider).toBe('openai');
+  });
+
+  it('a REPLACED key on the same provider reaches the adapter on the next run', async () => {
+    const { credentials, registry, orchestrator, reads } = recording();
+    registry.setEnabled('openrouter', true);
+    credentials.setKey('openrouter', 'sk-or-dead');
+
+    await orchestrator.run('repair', () => Promise.resolve(fail('HTTP_429', 'quota')));
+    expect(reads.at(-1)).toEqual({ provider: 'openrouter', key: 'sk-or-dead' });
+
+    // Same provider, new key — the case a per-provider field finally makes possible.
+    credentials.setKey('openrouter', 'sk-or-fresh');
+
+    const outcome = await orchestrator.run('repair', () => Promise.resolve(ok('patch')));
+    // Re-read from the store for this run, not carried over from the last one.
+    expect(reads.at(-1)).toEqual({ provider: 'openrouter', key: 'sk-or-fresh' });
+    expect('refused' in outcome).toBe(false);
+    if ('refused' in outcome || !outcome.ok) return;
+    expect(outcome.value).toBe('patch');
+  });
+
+  it('a key REMOVED mid-session stops being offered, without a restart', async () => {
+    const { credentials, registry, orchestrator } = build();
+    for (const id of ['openrouter', 'openai']) {
+      registry.setEnabled(id, true);
+      credentials.setKey(id, 'k');
+    }
+    expect((await orchestrator.resolveChain('repair')).ok).toBe(true);
+
+    credentials.clearKey('openrouter');
+
+    const chain = await orchestrator.resolveChain('repair');
+    // Still enabled, simply not attemptable — the row keeps its place and its "no key" badge.
+    expect(chain.ok && chain.candidates.map((c) => c.provider)).toEqual(['openai']);
+    expect(registry.enabled().map((s) => s.id)).toContain('openrouter');
+  });
+
+  it('the chain is rebuilt per run — a provider enabled between runs appears without one', async () => {
+    const { credentials, registry, orchestrator } = build();
+    credentials.setKey('openai', 'sk-oa');
+    registry.setEnabled('openrouter', true);
+    credentials.setKey('openrouter', 'sk-or');
+    expect((await orchestrator.resolveChain('repair')).ok).toBe(true);
+
+    registry.setEnabled('openai', true);
+    const chain = await orchestrator.resolveChain('repair');
+    expect(chain.ok && chain.candidates.map((c) => c.provider)).toEqual(['openrouter', 'openai']);
+  });
+});

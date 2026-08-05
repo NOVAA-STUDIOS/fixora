@@ -311,6 +311,6 @@ export const geminiRegistration: ProviderRegistration = {
     createGeminiProvider({
       apiKey: apiKey ?? '',
       baseUrl,
-      ...(fetchImpl === undefined ? {} : { fetchImpl: fetchImpl as FetchLike }),
+      ...(fetchImpl === undefined ? {} : { fetchImpl: fetchImpl }),
     }),
 };

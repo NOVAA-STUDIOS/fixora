@@ -129,7 +129,7 @@ describe('Anthropic — success path yields the same events as every other adapt
 });
 
 describe('Anthropic — every failure type', () => {
-  async function failWith(status: number, body: string, headers: HeadersInit = {}) {
+  async function failWith(status: number, body: string, headers: Record<string, string> = {}) {
     const fetchImpl: FetchLike = () =>
       Promise.resolve(new Response(body, { status, statusText: 'x', headers }));
     const events = await collect(

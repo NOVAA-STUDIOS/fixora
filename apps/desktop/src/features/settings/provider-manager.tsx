@@ -1,7 +1,7 @@
 import type { ProviderInfo } from '@fixora/shared-types';
 import { formatAgo, healthColour, statusLabel } from '@fixora/shared-types';
-import { Button, Switch, cn } from '@fixora/ui';
-import { useEffect, useState } from 'react';
+import { Button, Input, Switch, cn } from '@fixora/ui';
+import { useEffect, useId, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 
@@ -34,7 +34,7 @@ export function ProviderManager(): React.JSX.Element {
     action: Promise<
       { ok: true; value: { providers: ProviderInfo[] } } | { ok: false; error: { message: string } }
     >,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const result = await action;
     if (result.ok) {
       setProviders(result.value.providers);
@@ -43,6 +43,8 @@ export function ProviderManager(): React.JSX.Element {
       // A failed write must not leave the list showing a change that did not happen.
       setError(result.error.message);
     }
+    // Reported, not swallowed: the key field clears its input only when the save really landed.
+    return result.ok;
   }
 
   useEffect(() => {
@@ -127,6 +129,19 @@ export function ProviderManager(): React.JSX.Element {
               </span>
             </div>
 
+            {/*
+              Each provider gets its OWN key field. One shared field — labelled for a single vendor —
+              is what made every provider after the first unusable: a key pasted for Gemini was saved
+              into the OpenRouter slot, overwriting it, and Gemini stayed unreachable.
+            */}
+            {provider.requiresKey && (
+              <ProviderKeyField
+                provider={provider}
+                onSave={(key) => apply(invoke('providers:setKey', { id: provider.id, key }))}
+                onClear={() => apply(invoke('providers:clearKey', { id: provider.id }))}
+              />
+            )}
+
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-fg-muted">
               <span className="min-w-0 truncate font-mono">{provider.model}</span>
               {provider.modelIsAuto && <span>(auto)</span>}
@@ -181,6 +196,96 @@ export function ProviderManager(): React.JSX.Element {
       >
         Refresh
       </Button>
+    </div>
+  );
+}
+
+/**
+ * One provider's key field.
+ *
+ * Shows the masked tail of what is stored rather than a bare "configured" tick, because the question
+ * a user actually has when re-pasting is "is the key in there the one I think it is" — and two keys
+ * for the same provider look identical to a checkmark.
+ *
+ * The input is emptied on save and never repopulated: the stored key is not readable by the renderer
+ * by design, so showing anything in the box afterwards would be showing something that is not it.
+ */
+function ProviderKeyField({
+  provider,
+  onSave,
+  onClear,
+}: {
+  provider: ProviderInfo;
+  onSave: (key: string) => Promise<boolean>;
+  onClear: () => Promise<unknown>;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const inputId = useId();
+
+  const save = async (): Promise<void> => {
+    const key = draft.trim();
+    if (key === '') return;
+    setBusy(true);
+    try {
+      // Cleared on success only — a failed save must not lose what the user pasted, which for a
+      // key copied from a page that shows it once is unrecoverable.
+      if (await onSave(key)) setDraft('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <label htmlFor={inputId} className="sr-only">
+        {provider.label} API key
+      </label>
+      <Input
+        id={inputId}
+        type="password"
+        autoComplete="off"
+        spellCheck={false}
+        className="h-6 min-w-0 flex-1 text-[11px]"
+        placeholder={provider.keyHint ?? `${provider.label} API key`}
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void save();
+        }}
+      />
+      <Button
+        size="sm"
+        variant="secondary"
+        className="shrink-0"
+        disabled={busy || draft.trim() === ''}
+        onClick={() => void save()}
+      >
+        Save
+      </Button>
+      {provider.hasKey && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="shrink-0"
+          disabled={busy}
+          onClick={() => void onClear()}
+        >
+          Remove
+        </Button>
+      )}
+      {provider.keyUrl !== undefined && provider.keyHint === null && (
+        <a
+          href={provider.keyUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 text-[10px] text-accent-text hover:underline"
+        >
+          Get a key
+        </a>
+      )}
     </div>
   );
 }

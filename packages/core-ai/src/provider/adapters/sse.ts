@@ -35,7 +35,7 @@ export async function* readSseStream(
     for (;;) {
       const result = await reader.read();
       if (result.done) break;
-      buffer += decoder.decode(result.value as Uint8Array, { stream: true });
+      buffer += decoder.decode(result.value, { stream: true });
 
       let newline = buffer.indexOf('\n');
       while (newline >= 0) {

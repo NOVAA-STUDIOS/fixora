@@ -25,6 +25,7 @@ function provider(over: Partial<ProviderInfo> = {}): ProviderInfo {
     baseUrl: 'https://openrouter.ai/api/v1',
     requiresKey: true,
     hasKey: true,
+    keyHint: '••••5fcw',
     local: false,
     health: null,
     ...over,
@@ -33,7 +34,15 @@ function provider(over: Partial<ProviderInfo> = {}): ProviderInfo {
 
 const THREE: ProviderInfo[] = [
   provider(),
-  provider({ id: 'openai', label: 'OpenAI', enabled: false, priority: 2, hasKey: false }),
+  // No key stored, so no hint — main never returns a hint without a key.
+  provider({
+    id: 'openai',
+    label: 'OpenAI',
+    enabled: false,
+    priority: 2,
+    hasKey: false,
+    keyHint: null,
+  }),
   provider({
     id: 'ollama',
     label: 'Ollama (local)',
@@ -154,5 +163,103 @@ describe('ProviderManager — main owns the order', () => {
     render(<ProviderManager />);
     await screen.findAllByRole('listitem');
     expect(document.body.textContent).not.toMatch(/sk-/);
+  });
+});
+
+/**
+ * Per-provider key entry.
+ *
+ * One shared field labelled for a single vendor is what made every provider after the first
+ * unusable. These pin that each provider owns its own field, that saving names the right id, and
+ * that key material never appears in the DOM.
+ */
+describe('ProviderManager — per-provider key fields', () => {
+  it('gives every key-requiring provider its own field, and none to a local one', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    // OpenRouter and OpenAI need keys; Ollama does not.
+    expect(screen.getByLabelText('OpenRouter API key')).toBeInTheDocument();
+    expect(screen.getByLabelText('OpenAI API key')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Ollama (local) API key')).not.toBeInTheDocument();
+  });
+
+  it('saves to the provider whose field was used — the whole bug', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    const field = screen.getByLabelText('OpenAI API key');
+    fireEvent.change(field, { target: { value: 'sk-openai-key' } });
+    const row = within(screen.getAllByRole('listitem')[1] as HTMLElement);
+    fireEvent.click(row.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('providers:setKey', {
+        id: 'openai',
+        key: 'sk-openai-key',
+      });
+    });
+    // And never to another provider's slot.
+    expect(invoke).not.toHaveBeenCalledWith('providers:setKey', expect.objectContaining({ id: 'openrouter' }));
+  });
+
+  it('shows the masked hint for a stored key, and a prompt when there is none', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    // Two keys for the same provider look identical to a checkmark; the tail tells them apart.
+    expect(screen.getByLabelText('OpenRouter API key')).toHaveAttribute('placeholder', '••••5fcw');
+    expect(screen.getByLabelText('OpenAI API key')).toHaveAttribute(
+      'placeholder',
+      'OpenAI API key',
+    );
+  });
+
+  it('offers Remove only where a key is stored', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    const withKey = within(screen.getAllByRole('listitem')[0] as HTMLElement);
+    const without = within(screen.getAllByRole('listitem')[1] as HTMLElement);
+    expect(withKey.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+    expect(without.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
+  });
+
+  it('clearing names the right provider', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    const row = within(screen.getAllByRole('listitem')[0] as HTMLElement);
+    fireEvent.click(row.getByRole('button', { name: 'Remove' }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('providers:clearKey', { id: 'openrouter' });
+    });
+  });
+
+  it('masks the input and never leaves the typed key in the DOM after saving', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    const field = screen.getByLabelText<HTMLInputElement>('OpenAI API key');
+    expect(field.type).toBe('password');
+    fireEvent.change(field, { target: { value: 'sk-should-not-persist' } });
+    const row = within(screen.getAllByRole('listitem')[1] as HTMLElement);
+    fireEvent.click(row.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(field.value).toBe('');
+    });
+    expect(document.body.innerHTML).not.toContain('sk-should-not-persist');
+  });
+
+  it('keeps what was typed when the save FAILS, rather than losing it', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    const field = screen.getByLabelText<HTMLInputElement>('OpenAI API key');
+    fireEvent.change(field, { target: { value: 'sk-typed' } });
+    invoke.mockResolvedValue({ ok: false, error: { message: 'Keychain unavailable.' } });
+    const row = within(screen.getAllByRole('listitem')[1] as HTMLElement);
+    fireEvent.click(row.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Keychain unavailable.');
+    expect(field.value).toBe('sk-typed');
+  });
+
+  it('will not save an empty field', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    const row = within(screen.getAllByRole('listitem')[1] as HTMLElement);
+    expect(row.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 });

@@ -51,6 +51,10 @@ export const channels = [
   'providers:moveDown',
   'providers:setModel',
   'providers:setBaseUrl',
+  // Per-provider credentials. `ai:setKey` writes only the OpenRouter slot by construction, so a
+  // user pasting a Gemini key silently overwrote their OpenRouter one — these take the id.
+  'providers:setKey',
+  'providers:clearKey',
   'ai:getConfig',
   'ai:setKey',
   'ai:clearKey',

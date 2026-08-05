@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-import { ProviderListSchema } from './providers.js';
 
 import {
   AiConfigSchema,
@@ -16,6 +15,7 @@ import {
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
 import { LicenseStatusSchema } from './license.js';
+import { ProviderListSchema } from './providers.js';
 import {
   ShareSuggestionResponseSchema,
   ShareViaGmailResponseSchema,
@@ -213,6 +213,18 @@ export const contracts = {
   },
   'providers:setBaseUrl': {
     request: z.object({ id: z.string().min(1), baseUrl: z.string() }),
+    response: ProviderListSchema,
+  },
+  /**
+   * Save a key for ONE named provider. The id is the point: the older `ai:setKey` hardcodes
+   * OpenRouter, which made every provider after the first unusable.
+   */
+  'providers:setKey': {
+    request: z.object({ id: z.string().min(1), key: z.string().min(1) }),
+    response: ProviderListSchema,
+  },
+  'providers:clearKey': {
+    request: z.object({ id: z.string().min(1) }),
     response: ProviderListSchema,
   },
   'ai:getConfig': { request: empty, response: AiConfigSchema },

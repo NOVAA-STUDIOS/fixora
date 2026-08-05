@@ -35,8 +35,15 @@ export const ProviderInfoSchema = z.object({
   baseUrl: z.string(),
   /** Whether this provider needs an API key at all. Local providers do not. */
   requiresKey: z.boolean(),
-  /** Whether a credential is actually stored. Never the key, never a hint of it. */
+  /** Whether a credential is actually stored. */
   hasKey: z.boolean(),
+  /**
+   * Masked tail of the stored key, e.g. `••••5fcw`. Null when none is stored.
+   *
+   * Enough to tell two keys apart when re-pasting, and never enough to reconstruct one — the store
+   * computes it; the renderer never sees key material.
+   */
+  keyHint: z.string().nullable(),
   /** True when inference happens on the user's machine — drives the privacy note. */
   local: z.boolean(),
   /** Where to obtain a key, when the provider has such a page. */

@@ -104,6 +104,6 @@ export const azureOpenAiRegistration: ProviderRegistration = {
     createAzureOpenAiProvider({
       apiKey: apiKey ?? '',
       baseUrl,
-      ...(fetchImpl === undefined ? {} : { fetchImpl: fetchImpl as FetchLike }),
+      ...(fetchImpl === undefined ? {} : { fetchImpl: fetchImpl }),
     }),
 };

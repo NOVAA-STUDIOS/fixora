@@ -327,6 +327,6 @@ export const anthropicRegistration: ProviderRegistration = {
     createAnthropicProvider({
       apiKey: apiKey ?? '',
       baseUrl,
-      ...(fetchImpl === undefined ? {} : { fetchImpl: fetchImpl as FetchLike }),
+      ...(fetchImpl === undefined ? {} : { fetchImpl: fetchImpl }),
     }),
 };

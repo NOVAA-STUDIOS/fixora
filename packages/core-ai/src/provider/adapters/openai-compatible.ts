@@ -293,7 +293,7 @@ export function createOpenAiCompatibleProvider(options: OpenAiCompatibleOptions)
       // needs below. Logged in FULL, not truncated: a provider error body is a sentence or two, and
       // the one time it is longer is exactly the time the detail matters. The cap is a flood guard
       // for a misbehaving endpoint, not an editorial decision about what is worth reading.
-      let body = '';
+      let body: string;
       try {
         const raw = await response.clone().text();
         body = raw.length > 8000 ? `${raw.slice(0, 8000)}…[truncated at 8000 of ${String(raw.length)}]` : raw;

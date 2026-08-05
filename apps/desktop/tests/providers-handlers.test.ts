@@ -55,7 +55,19 @@ async function harness(initial: Row[] = [
     }),
   };
 
-  const credentials = { hasKey: vi.fn((id: string) => id === 'openrouter') };
+  // A real map, so "did saving gemini disturb openrouter" is an observable fact rather than a
+  // question about call arguments.
+  const keys = new Map<string, string>();
+  const credentials = {
+    hasKey: vi.fn((id: string) => keys.has(id)),
+    hint: vi.fn((id: string) => {
+      const key = keys.get(id);
+      return key === undefined ? null : `••••${key.slice(-4)}`;
+    }),
+    setKey: vi.fn((id: string, key: string) => keys.set(id, key)),
+    clearKey: vi.fn((id: string) => keys.delete(id)),
+  };
+  const onCredentialChange = vi.fn();
   const health = {
     get: vi.fn((id: string) =>
       id === 'openrouter'
@@ -86,6 +98,7 @@ async function harness(initial: Row[] = [
     registry: registry as never,
     credentials: credentials as never,
     health: health as never,
+    onCredentialChange,
   });
 
   const call = async (
@@ -94,7 +107,7 @@ async function harness(initial: Row[] = [
   ): Promise<{ providers: unknown[] }> =>
     (await (getHandler(channel) as unknown as Handler)(payload)) as { providers: unknown[] };
 
-  return { call, registry, credentials, rows };
+  return { call, registry, credentials, rows, keys, onCredentialChange };
 }
 
 beforeEach(() => {
@@ -126,7 +139,8 @@ describe('providers:list — joins descriptor, registry and health', () => {
 
   it('reports hasKey as a BOOLEAN and never any key material', async () => {
     // The whole point: this channel must not become a second way to read a credential.
-    const { call } = await harness();
+    const { call, keys } = await harness();
+    keys.set('openrouter', 'sk-or-secret-value');
     const { providers } = await call('providers:list');
     const serialised = JSON.stringify(providers);
     expect(serialised).not.toMatch(/sk-/);
@@ -217,5 +231,87 @@ describe('provider mutations — main stays the authority on order', () => {
     ]);
     const { providers } = (await call('providers:list')) as { providers: { id: string }[] };
     expect(providers.map((p) => p.id)).toEqual(['openrouter']);
+  });
+});
+
+/**
+ * Per-provider credential isolation.
+ *
+ * The bug this replaces: `ai:setKey` writes `DEFAULT_PROVIDER_ID` — always OpenRouter — so a user
+ * pasting a Gemini key overwrote their OpenRouter credential, and Gemini stayed unusable with no
+ * indication anything had gone wrong. The credential store was always keyed per provider; only the
+ * handler was not. These pin that a key now lands in exactly one slot and disturbs no other.
+ */
+describe('providers:setKey — a key lands in ONE slot', () => {
+  it('saves to the named provider, not to OpenRouter', async () => {
+    const { call, credentials } = await harness();
+    await call('providers:setKey', { id: 'gemini', key: 'AIza-gemini-key' });
+    expect(credentials.setKey).toHaveBeenCalledWith('gemini', 'AIza-gemini-key');
+    expect(credentials.setKey).not.toHaveBeenCalledWith('openrouter', expect.anything());
+  });
+
+  it('does NOT overwrite another provider’s existing key', async () => {
+    const { call, credentials, keys } = await harness();
+    keys.set('openrouter', 'sk-or-existing');
+    await call('providers:setKey', { id: 'gemini', key: 'AIza-new' });
+    // The whole point of the fix.
+    expect(keys.get('openrouter')).toBe('sk-or-existing');
+    expect(keys.get('gemini')).toBe('AIza-new');
+    expect(credentials.clearKey).not.toHaveBeenCalled();
+  });
+
+  it('enables the provider on save — a stored key that is never used is the same confusion inverted', async () => {
+    const { call, registry } = await harness();
+    await call('providers:setKey', { id: 'gemini', key: 'AIza-new' });
+    expect(registry.setEnabled).toHaveBeenCalledWith('gemini', true);
+  });
+
+  it('does NOT reorder priority — that is a separate, deliberate decision', async () => {
+    const { call, registry } = await harness();
+    await call('providers:setKey', { id: 'gemini', key: 'AIza-new' });
+    expect(registry.moveUp).not.toHaveBeenCalled();
+    expect(registry.moveDown).not.toHaveBeenCalled();
+  });
+
+  it('cancels a run already issued against the PREVIOUS credential', async () => {
+    // Otherwise the old key's verdict lands after the save and reads as the new key failing.
+    const { call, onCredentialChange } = await harness();
+    await call('providers:setKey', { id: 'gemini', key: 'AIza-new' });
+    expect(onCredentialChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports the masked hint back, never the key', async () => {
+    // Explicit rows: the shared default has no gemini, and other tests assert its exact id list.
+    const { call, keys } = await harness([
+      { id: 'openrouter', enabled: true, model: '', baseUrl: '' },
+      { id: 'gemini', enabled: true, model: '', baseUrl: '' },
+    ]);
+    keys.set('gemini', 'AIza-supersecret-tail');
+    const { providers } = (await call('providers:list')) as {
+      providers: { id: string; keyHint: string | null; hasKey: boolean }[];
+    };
+    const gemini = providers.find((p) => p.id === 'gemini');
+    expect(gemini?.hasKey).toBe(true);
+    expect(gemini?.keyHint).toBe('••••tail');
+    expect(JSON.stringify(providers)).not.toContain('AIza-supersecret-tail');
+  });
+});
+
+describe('providers:clearKey — removes ONE credential', () => {
+  it('clears only the named provider', async () => {
+    const { call, credentials, keys } = await harness();
+    keys.set('openrouter', 'sk-or-keep');
+    keys.set('gemini', 'AIza-drop');
+    await call('providers:clearKey', { id: 'gemini' });
+    expect(credentials.clearKey).toHaveBeenCalledWith('gemini');
+    expect(keys.get('openrouter')).toBe('sk-or-keep');
+    expect(keys.has('gemini')).toBe(false);
+  });
+
+  it('leaves the provider ENABLED — it simply has no key until one is supplied', async () => {
+    // Flipping the switch off would hide that the user still intends to use it.
+    const { call, registry } = await harness();
+    await call('providers:clearKey', { id: 'gemini' });
+    expect(registry.setEnabled).not.toHaveBeenCalledWith('gemini', false);
   });
 });

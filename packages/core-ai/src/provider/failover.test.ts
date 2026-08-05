@@ -449,7 +449,6 @@ describe('mixed failures across a chain', () => {
  */
 describe('failover policy — availability moves on, configuration does not', () => {
   const cloud = { provider: 'openrouter', model: 'm', local: false };
-  const local = { provider: 'ollama', model: 'm', local: true };
 
   it('fails over for provider AVAILABILITY failures', () => {
     for (const category of ['rate-limited', 'timeout', 'provider-unavailable', 'model-unavailable'] as const) {

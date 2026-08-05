@@ -1,3 +1,4 @@
+import type { ProviderFailure } from './failure.js';
 import type { RateLimitFacts } from './rate-limit.js';
 /**
  * The provider abstraction (AI-Pipeline §3, ADR-012).
@@ -12,7 +13,6 @@ import type { RateLimitFacts } from './rate-limit.js';
  * system that writes to people's source files.
  */
 
-import type { ProviderFailure } from './failure.js';
 
 export type ProviderRole = 'system' | 'user' | 'assistant';
 

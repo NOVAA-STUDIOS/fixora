@@ -201,6 +201,11 @@ if (!gotTheLock) {
         registry: providerRegistry,
         credentials,
         health: providerHealth,
+        // A saved key must take effect on the NEXT repair, not the next launch: cancel any run
+        // already issued against the previous credential so its verdict cannot land afterwards.
+        onCredentialChange: () => {
+          aiService.cancel();
+        },
       });
       registerAiHandlers({
         keyStore,

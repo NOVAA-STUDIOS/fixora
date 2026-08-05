@@ -107,7 +107,7 @@ function createLocalProvider(
 export const ollamaRegistration: ProviderRegistration = {
   descriptor: ollamaDescriptor,
   create: ({ baseUrl, fetchImpl }) =>
-    createLocalProvider('ollama', 'Ollama', '11434', baseUrl, fetchImpl as FetchLike | undefined),
+    createLocalProvider('ollama', 'Ollama', '11434', baseUrl, fetchImpl),
 };
 
 export const lmStudioRegistration: ProviderRegistration = {
@@ -118,6 +118,6 @@ export const lmStudioRegistration: ProviderRegistration = {
       'LM Studio',
       '1234',
       baseUrl,
-      fetchImpl as FetchLike | undefined,
+      fetchImpl,
     ),
 };
