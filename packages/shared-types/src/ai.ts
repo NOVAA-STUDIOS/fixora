@@ -597,10 +597,15 @@ export const AiFailureSchema = z.object({
     .optional(),
   /** Where the user manages this provider's quota and billing. */
   dashboardUrl: z.string().optional(),
-  /** Which provider was called, for the card's Provider row. */
-  provider: z.string(),
-  /** The model id that was asked. Shown as-is; it is the thing the user would change. */
-  model: z.string(),
+  /**
+   * Which provider was called, for the card's Provider row.
+   *
+   * Null when no provider was contacted at all — a missing credential is caught before any request
+   * is sent, and naming one there attributes the failure to a provider that never saw it.
+   */
+  provider: z.string().nullable(),
+  /** The model id that was asked. Shown as-is; it is the thing the user would change. Null with `provider`. */
+  model: z.string().nullable(),
   /**
    * Every model tried before this failure, in order, when automatic failover walked a chain.
    *

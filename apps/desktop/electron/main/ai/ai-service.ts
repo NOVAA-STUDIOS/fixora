@@ -356,18 +356,21 @@ export function createAiService(deps: AiServiceDeps): AiService {
       };
 
       stage('preparing');
-      const modelId = deps.keyStore.getConfig().model;
-      const key = deps.keyStore.getKey();
-      if (key === null) {
-        return {
-          status: 'error',
-          code: 'no_key',
-          message:
-            'Fixora has no provider key yet, so it cannot reach an AI model. Add your key in Settings → AI.',
-          // A configuration failure, and the one the card explains best — it is fixable in one click.
-          failure: missingKeyFailure(modelId),
-        };
-      }
+      /**
+       * NO credential check here — deliberately.
+       *
+       * This used to gate on the legacy v1 `keyStore`, which holds a single unnamed key that
+       * `ai:setKey` only ever wrote for OpenRouter. Once credentials became per-provider, that gate
+       * was asking the wrong store: a user whose only key was configured for Gemini through the
+       * Provider Manager had an empty v1 store, so Repair refused with "add your key in Settings"
+       * and never reached the orchestrator at all — a registry-configured provider was unusable
+       * because a pre-registry store had nothing in it.
+       *
+       * Whether any usable credential exists is a property of the CHAIN, not of one slot, and the
+       * orchestrator already answers it: `resolveChain` returns `no-credentials` when providers are
+       * enabled but none has a key. That refusal is handled below, and it is the only place that
+       * decision is made now.
+       */
       const workspace = deps.workspace.getCurrent();
       if (workspace === null) {
         return { status: 'error', code: 'not_found', message: 'Open a workspace first.' };
@@ -410,7 +413,15 @@ export function createAiService(deps: AiServiceDeps): AiService {
           language,
           ruleId: finding.ruleId,
           repairability: finding.repair,
-          provider: 'openrouter',
+          // Null, not a guess: the chain has not resolved a candidate yet, and this field is carried
+          // for the record only — no eligibility decision reads it. Naming OpenRouter here put a
+          // provider the user may not even have enabled into the record.
+          provider: null,
+          // Still the legacy configured model, and deliberately unchanged here. The only decision
+          // this field drives is a `=== null` check meaning "no model selected", which cannot happen
+          // in the registry world (every provider entry carries at least its descriptor default), so
+          // it is vestigial — but the real model is not known until the chain resolves one, and
+          // resolving it twice per repair to populate a record would cost a catalogue round trip.
           model: deps.keyStore.getConfig().model,
           repairCapable: true,
           configDiagnosis,
@@ -1113,7 +1124,10 @@ export function createAiService(deps: AiServiceDeps): AiService {
             status: 'error',
             code: 'no_key',
             message,
-            failure: missingKeyFailure(modelId),
+            // No provider and no model: the chain produced no candidate, so there is nothing
+            // truthful to name. It previously reported OpenRouter and the legacy configured model
+            // regardless of what the user had set up.
+            failure: missingKeyFailure(),
           };
         }
 

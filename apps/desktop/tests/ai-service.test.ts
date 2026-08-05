@@ -2,7 +2,7 @@ import type { AIProvider, ProviderEvent } from '@fixora/core-ai';
 import { UserFacingError, type Finding } from '@fixora/shared-types';
 import { describe, expect, it } from 'vitest';
 
-import { singleProvider } from './support/fake-orchestrator.js';
+import { refusingChain, singleProvider } from './support/fake-orchestrator.js';
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
 import type { KeyStore } from '../electron/main/ai/key-store.js';
 import type {
@@ -66,6 +66,7 @@ function deps(overrides: {
   fileContent?: string;
   hasKey?: boolean;
   provider: AIProvider;
+  orchestrator?: AiServiceDeps['orchestrator'];
   readFile?: () => string;
   finding?: Finding;
   microRepair?: AiServiceDeps['microRepair'];
@@ -123,7 +124,7 @@ function deps(overrides: {
     workspace,
     verification: overrides.verification ?? verification,
     history,
-    orchestrator: singleProvider(overrides.provider),
+    orchestrator: overrides.orchestrator ?? singleProvider(overrides.provider),
     readFile: overrides.readFile ?? (() => overrides.fileContent ?? CLEAN_FILE),
     // Real deps route this through the analysis worker (Q2 Fix #2A); the default here answers "no
     // autofix" so tests that don't care about deterministic repair are unaffected.
@@ -136,8 +137,13 @@ function textEvents(text: string): ProviderEvent[] {
 }
 
 describe('AI service (BYOK run orchestration)', () => {
-  it('refuses with no_key when no key is configured', async () => {
-    const service = createAiService(deps({ hasKey: false, provider: scriptedProvider([[]]) }));
+  it('refuses with no_key when the CHAIN has no usable credential', async () => {
+    // Decided by the chain, not by the legacy single-slot key store. That store only ever held an
+    // OpenRouter key, so gating on it here refused users who had configured a different provider
+    // entirely — Repair never reached provider selection.
+    const service = createAiService(
+      deps({ provider: scriptedProvider([[]]), orchestrator: refusingChain('no-credentials') }),
+    );
     const result = await service.run({ profile: 'explain', findingId: 'find-1' }, null);
     // A missing key is a CONFIGURATION failure, and it carries a card: it is the failure the panel
     // can resolve most directly, and a bare sentence left the user with nothing to click.
@@ -149,11 +155,31 @@ describe('AI service (BYOK run orchestration)', () => {
         category: 'invalid-api-key',
         layer: 'configuration',
         actions: ['open-settings'],
-        provider: 'OpenRouter',
-        model: expect.any(String),
-        // No provider was contacted, so nothing was tried.
+        // Null, not "OpenRouter": nothing was contacted, so there is no provider to name and the
+        // card omits the row rather than blaming one that never saw the request.
+        provider: null,
+        model: null,
         attempts: [],
       },
+    });
+  });
+
+  it('runs even when the LEGACY key store is empty, if the chain has a credential', async () => {
+    /**
+     * The regression. `hasKey: false` empties the v1 single-slot store, which is exactly the state
+     * of a user who configured their only provider through the Provider Manager — v1 is only ever
+     * written by `ai:setKey`, and that writes the OpenRouter slot alone.
+     *
+     * Repair used to read that store, find nothing, and refuse with "add your key in Settings"
+     * without ever consulting the registry. A provider the user had enabled, credentialed and put
+     * at the top of the chain could not be reached.
+     */
+    const provider = scriptedProvider([textEvents('It concatenates.')]);
+    const service = createAiService(deps({ hasKey: false, provider }));
+    const result = await service.run({ profile: 'explain', findingId: 'find-1' }, null);
+    expect(result).toEqual({
+      status: 'ok',
+      proposal: { profile: 'explain', explanation: 'It concatenates.' },
     });
   });
 

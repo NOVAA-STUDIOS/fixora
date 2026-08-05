@@ -142,14 +142,18 @@ export function logProviderFailure(
  * A missing key never reaches the provider, so it has no status code to classify — but it is exactly
  * the failure the card is best at explaining, and leaving it as a bare sentence would leave the panel
  * without the one thing that fixes it. Classified as `configuration` because it unambiguously is.
+ *
+ * Names no provider and no model by default. This is raised when the chain produced no candidate at
+ * all, so there is no provider that refused anything — it used to report "OpenRouter" unconditionally,
+ * which told a user who had configured Gemini that OpenRouter had rejected them.
  */
-export function missingKeyFailure(model: string): AiFailure {
+export function missingKeyFailure(context?: { provider: string; model: string }): AiFailure {
   return {
     category: 'invalid-api-key',
     layer: 'configuration',
     actions: ['open-settings'],
-    provider: providerLabel('openrouter'),
-    model,
+    provider: context === undefined ? null : providerLabel(context.provider),
+    model: context?.model ?? null,
     attempts: [],
   };
 }

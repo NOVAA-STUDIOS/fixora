@@ -181,12 +181,16 @@ export function ProviderErrorCard({
 
       {failure !== null && (
         <>
-          <Field label="Provider">{failure.provider}</Field>
+          {/* Omitted, not blank: with no credential configured nothing was contacted, and an empty
+              Provider row reads as "it tried something and would not say what". */}
+          {failure.provider !== null && <Field label="Provider">{failure.provider}</Field>}
           {/* The model id verbatim: it is the string the user would change, and a prettified version
               would not match what Settings shows them. */}
-          <Field label="Model">
-            <code className="font-mono text-[11px] [overflow-wrap:anywhere]">{failure.model}</code>
-          </Field>
+          {failure.model !== null && (
+            <Field label="Model">
+              <code className="font-mono text-[11px] [overflow-wrap:anywhere]">{failure.model}</code>
+            </Field>
+          )}
           <Field label="Status">{STATUS_LABEL[failure.category]}</Field>
           {/*
             The provider's OWN numbers. Every row is conditional because every field is optional at

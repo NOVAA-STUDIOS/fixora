@@ -140,10 +140,18 @@ describe('logProviderFailure — what does not', () => {
 
 describe('failures Fixora detects itself', () => {
   it('a missing key is a configuration failure that points at Settings', () => {
-    const wire = missingKeyFailure('x/y');
+    const wire = missingKeyFailure();
     expect(wire.layer).toBe('configuration');
     expect(wire.actions).toContain('open-settings');
     expect(AiFailureSchema.safeParse(wire).success).toBe(true);
+  });
+
+  it('names NO provider when nothing was contacted', () => {
+    // It used to report OpenRouter unconditionally, which told a user who had configured Gemini
+    // that OpenRouter had rejected their key — a provider that never saw the request.
+    const wire = missingKeyFailure();
+    expect(wire.provider).toBeNull();
+    expect(wire.model).toBeNull();
   });
 
   it('a run that exceeded its own deadline is attributed to the provider, not to Fixora', () => {
