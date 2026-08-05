@@ -259,6 +259,38 @@ export function describeProviderFailure(input: {
       providerCode: code,
     });
   }
+  /**
+   * A 400 that is not a context overflow: the provider read our request and rejected its shape.
+   *
+   * This used to fall through to the catch-all and render as "the provider did not say why in a way
+   * Fixora recognises" — while the body said exactly why. Gemini's, verbatim:
+   *
+   *   Invalid JSON payload received. Unknown name "additionalProperties"
+   *   at 'generation_config.response_schema': Cannot find field.
+   *
+   * That is a sentence naming the offending field, and discarding it turned a five-minute fix into an
+   * unfalsifiable "unknown error".
+   *
+   * The layer stays `provider` even though a malformed request is usually OUR bug: this module is not
+   * permitted to attribute a provider failure to the engine (see `FailureLayer`), and that rule is
+   * worth more than the attribution. The message carries the honesty instead — it says the request
+   * was rejected as malformed and quotes the provider, so nobody is sent to check a key over it.
+   */
+  if (status === '400') {
+    return failure({
+      kind: 'provider',
+      category: 'unknown-provider-error',
+      layer: 'provider',
+      message:
+        'The provider rejected the request as malformed — this is not a problem with your key, your ' +
+        'quota, or your project' +
+        (detail === '' ? '.' : `. The provider said: ${detail}`),
+      // Retrying an identically malformed request produces an identical rejection.
+      retryable: false,
+      actions: ['change-model', 'open-settings'],
+      providerCode: code,
+    });
+  }
   if (code === 'NETWORK' || code === 'NO_BODY' || code === 'STREAM') {
     return failure({
       kind: 'network',

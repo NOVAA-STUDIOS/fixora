@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createGeminiProvider, toGeminiBody } from './adapters/gemini.js';
+import { createGeminiProvider, toGeminiBody, toGeminiSchema } from './adapters/gemini.js';
 import type { FetchLike } from './adapters/openai-compatible.js';
 import { failoverScope, shouldFailover } from './failover.js';
 import { describeProviderFailure } from './failure.js';
@@ -240,5 +240,117 @@ describe('Gemini — test()', () => {
       new AbortController().signal,
     );
     expect(result).toMatchObject({ reachable: true, authenticated: false });
+  });
+});
+
+/**
+ * The schema Gemini will actually accept.
+ *
+ * Verified against the live API: `responseSchema` is an OpenAPI 3.0 subset that REJECTS unknown
+ * keywords rather than ignoring them, so our JSON Schema profiles made every repair a 400 before the
+ * model was reached:
+ *
+ *   400 INVALID_ARGUMENT — Invalid JSON payload received. Unknown name "additionalProperties"
+ *   at 'generation_config.response_schema': Cannot find field.
+ */
+const REPAIR_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['repairedCode', 'rationale', 'confidence'],
+  properties: {
+    repairedCode: { type: 'string', description: 'The full replacement source.' },
+    rationale: { type: 'string', description: 'Why.' },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+  },
+};
+
+describe('Gemini — the real repair schema is accepted', () => {
+  it('strips additionalProperties, the field the live API named in its 400', () => {
+    const body = toGeminiBody({
+      model: 'gemini-2.5-flash',
+      messages: [{ role: 'user', content: 'fix' }],
+      responseSchema: { name: 'repair', schema: REPAIR_SCHEMA },
+    });
+    const config = body['generationConfig'] as Record<string, unknown>;
+    const schema = config['responseSchema'] as Record<string, unknown>;
+    expect(schema).not.toHaveProperty('additionalProperties');
+  });
+
+  it('drops every keyword outside Gemini’s subset, at any depth', () => {
+    const schema = toGeminiSchema(REPAIR_SCHEMA) as Record<string, unknown>;
+    const properties = schema['properties'] as Record<string, Record<string, unknown>>;
+    expect(properties['confidence']).toEqual({ type: 'number' });
+    expect(properties['confidence']).not.toHaveProperty('minimum');
+    expect(properties['confidence']).not.toHaveProperty('maximum');
+  });
+
+  it('KEEPS everything the schema still needs to be useful', () => {
+    const schema = toGeminiSchema(REPAIR_SCHEMA) as Record<string, unknown>;
+    expect(schema['type']).toBe('object');
+    expect(schema['required']).toEqual(['repairedCode', 'rationale', 'confidence']);
+    const properties = schema['properties'] as Record<string, Record<string, unknown>>;
+    // Field NAMES are not keywords and must survive the filter.
+    expect(Object.keys(properties)).toEqual(['repairedCode', 'rationale', 'confidence']);
+    expect(properties['repairedCode']).toEqual({
+      type: 'string',
+      description: 'The full replacement source.',
+    });
+  });
+
+  it('recurses into arrays and nested objects', () => {
+    const nested = toGeminiSchema({
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        items: {
+          type: 'array',
+          minItems: 1,
+          items: { type: 'object', additionalProperties: false, properties: { a: { type: 'string' } } },
+        },
+      },
+    }) as Record<string, unknown>;
+    const properties = nested['properties'] as Record<string, Record<string, unknown>>;
+    const items = properties['items'] as Record<string, unknown>;
+    expect(items).not.toHaveProperty('minItems');
+    expect((items['items'] as Record<string, unknown>)).not.toHaveProperty('additionalProperties');
+  });
+
+  it('a gemini-2.5-flash SSE response parses into the same events as any other adapter', async () => {
+    // The success shape, so the schema fix cannot be mistaken for the parser being wrong too.
+    const fetchImpl: FetchLike = () =>
+      Promise.resolve(
+        sse([
+          'data: {"candidates":[{"content":{"parts":[{"text":"{\\"repairedCode\\":"}]}}]}\n',
+          'data: {"candidates":[{"content":{"parts":[{"text":"\\"const a = 1;\\"}"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":8}}\n',
+        ]),
+      );
+    const events = await collect(
+      createGeminiProvider({ apiKey: 'k', fetchImpl }).stream(
+        { model: 'gemini-2.5-flash', messages: [{ role: 'user', content: 'fix' }] },
+        new AbortController().signal,
+      ),
+    );
+    expect(
+      events.filter((e) => e.type === 'text_delta').map((e) => (e as { text: string }).text).join(''),
+    ).toBe('{"repairedCode":"const a = 1;"}');
+    expect(events.find((e) => e.type === 'usage')).toEqual({
+      type: 'usage',
+      inputTokens: 12,
+      outputTokens: 8,
+      cachedTokens: 0,
+    });
+  });
+});
+
+describe('Gemini — a 400 says why', () => {
+  it('reports the provider’s own reason instead of "unrecognised"', () => {
+    const failure = describeProviderFailure({
+      providerCode: 'HTTP_400',
+      detail: 'Invalid JSON payload received. Unknown name "additionalProperties"',
+    });
+    expect(failure.message).toContain('additionalProperties');
+    // The message must not send the user to check a key or a quota over a malformed request.
+    expect(failure.message).toMatch(/not a problem with your key/i);
+    expect(failure.retryable).toBe(false);
   });
 });

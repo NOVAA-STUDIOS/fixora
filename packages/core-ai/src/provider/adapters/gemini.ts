@@ -77,6 +77,60 @@ interface GeminiFrame {
  * silently — a wrong role is a 400, and a dropped system prompt produces a plausible-looking repair
  * generated without any of its instructions.
  */
+/**
+ * The schema keywords Gemini's `responseSchema` actually defines.
+ *
+ * It is a SUBSET of OpenAPI 3.0's schema object, not JSON Schema, and it rejects the request outright
+ * for any field it does not know — it does not ignore them. Verified against the live API:
+ *
+ *   400 INVALID_ARGUMENT — Invalid JSON payload received. Unknown name "additionalProperties"
+ *   at 'generation_config.response_schema': Cannot find field.
+ *
+ * Our profile schemas are written in JSON Schema (`additionalProperties: false`, `minimum`,
+ * `maximum`), which every OpenAI-compatible provider accepts. Forwarding them verbatim made every
+ * Gemini repair a 400 before the model was ever reached.
+ *
+ * An allow-list rather than a deny-list, because the failure mode of guessing wrong is a hard 400
+ * on every request: an unrecognised keyword is dropped rather than gambled on. Constraints lost this
+ * way are not lost from the pipeline — `parseRepairOutput` validates the response against the zod
+ * schema on our side, which is where the contract was always actually enforced.
+ */
+const GEMINI_SCHEMA_KEYS = new Set([
+  'type',
+  'format',
+  'description',
+  'nullable',
+  'enum',
+  'items',
+  'properties',
+  'required',
+  'anyOf',
+  'propertyOrdering',
+]);
+
+/** Recursively strip keywords Gemini does not define. Exported for tests. */
+export function toGeminiSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(toGeminiSchema);
+  if (typeof schema !== 'object' || schema === null) return schema;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(schema as Record<string, unknown>)) {
+    if (!GEMINI_SCHEMA_KEYS.has(key)) continue;
+    // `properties` is a map of NAME -> schema, so its keys are user field names and must not be
+    // filtered — only the schemas underneath them are.
+    if (key === 'properties' && typeof value === 'object' && value !== null) {
+      const properties: Record<string, unknown> = {};
+      for (const [name, sub] of Object.entries(value as Record<string, unknown>)) {
+        properties[name] = toGeminiSchema(sub);
+      }
+      out[key] = properties;
+      continue;
+    }
+    out[key] = toGeminiSchema(value);
+  }
+  return out;
+}
+
 export function toGeminiBody(request: ProviderRequest): Record<string, unknown> {
   const system = request.messages
     .filter((m) => m.role === 'system')
@@ -98,7 +152,7 @@ export function toGeminiBody(request: ProviderRequest): Record<string, unknown> 
   if (request.temperature !== undefined) generationConfig['temperature'] = request.temperature;
   if (request.responseSchema !== undefined) {
     generationConfig['responseMimeType'] = 'application/json';
-    generationConfig['responseSchema'] = request.responseSchema.schema;
+    generationConfig['responseSchema'] = toGeminiSchema(request.responseSchema.schema);
   }
 
   const body: Record<string, unknown> = { contents };
