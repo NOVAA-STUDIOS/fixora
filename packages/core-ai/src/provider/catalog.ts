@@ -1,5 +1,8 @@
 
+import { anthropicRegistration } from './adapters/anthropic.js';
 import { azureOpenAiRegistration } from './adapters/azure-openai.js';
+import { geminiRegistration } from './adapters/gemini.js';
+import { groqRegistration } from './adapters/groq.js';
 import { lmStudioRegistration, ollamaRegistration } from './adapters/local.js';
 import { openAiRegistration } from './adapters/openai.js';
 import { openRouterRegistration } from './adapters/openrouter.js';
@@ -19,6 +22,9 @@ const REGISTRATIONS: readonly ProviderRegistration[] = [
   // OpenRouter first: it is the default, and every existing user is already on it.
   openRouterRegistration,
   openAiRegistration,
+  anthropicRegistration,
+  geminiRegistration,
+  groqRegistration,
   azureOpenAiRegistration,
   // Local providers last in the DEFAULT order, not because they matter least — they are the most
   // private option available — but because they only work once the user has a daemon running, and a

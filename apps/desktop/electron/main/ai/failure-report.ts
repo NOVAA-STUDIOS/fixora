@@ -19,11 +19,19 @@ import type { AiFailure } from '@fixora/shared-types';
  * developer log, where it never reaches a user. The boundary is the type, not a convention.
  */
 
-/** Human-readable provider name for the card's Provider row. Only one provider ships today. */
-const PROVIDER_LABEL: Record<string, string> = { openrouter: 'OpenRouter' };
-
+/**
+ * Human-readable provider name for the card's Provider row.
+ *
+ * Reads the DESCRIPTOR, which is the same source the Settings panel and the provider list use. It
+ * was a hardcoded `{openrouter: 'OpenRouter'}` map from when one provider shipped, so every
+ * provider added since rendered as a raw id — a user with a Claude failure saw "anthropic" on the
+ * card and "Anthropic (Claude)" in Settings, for the same thing.
+ *
+ * Falling back to the id is deliberate: a provider present in the registry but absent from the
+ * catalogue (a downgrade) should still name itself rather than render blank.
+ */
 export function providerLabel(id: string): string {
-  return PROVIDER_LABEL[id.toLowerCase()] ?? id;
+  return providerDescriptor(id)?.label ?? id;
 }
 
 /** The renderable half: classification, blame, and recovery. Never a status code or raw text. */

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   logProviderFailure,
   missingKeyFailure,
+  providerLabel,
   timeoutFailure,
   toWireFailure,
 } from '../electron/main/ai/failure-report.js';
@@ -175,5 +176,30 @@ describe('the failover walk on the wire', () => {
   it('is empty when there was no walk — the common case stays a plain card', () => {
     const wire = toWireFailure(describeProviderFailure({ providerCode: 'HTTP_503' }), context);
     expect(wire.attempts).toEqual([]);
+  });
+});
+
+/**
+ * Display names come from the descriptor, for every provider.
+ *
+ * `providerLabel` was a hardcoded `{openrouter: 'OpenRouter'}` map from when one provider shipped.
+ * Every provider added since rendered as a raw id, so a user with a Claude failure saw "anthropic"
+ * on the card and "Anthropic (Claude)" in Settings — for the same thing.
+ */
+describe('providerLabel — one source of truth for all 8 providers', () => {
+  it('names every registered provider from its descriptor', () => {
+    expect(providerLabel('openrouter')).toBe('OpenRouter');
+    expect(providerLabel('openai')).toBe('OpenAI');
+    expect(providerLabel('anthropic')).toBe('Anthropic (Claude)');
+    expect(providerLabel('gemini')).toBe('Google Gemini');
+    expect(providerLabel('groq')).toBe('Groq');
+    expect(providerLabel('azure-openai')).toBe('Azure OpenAI');
+    expect(providerLabel('ollama')).toBe('Ollama (local)');
+    expect(providerLabel('lmstudio')).toBe('LM Studio (local)');
+  });
+
+  it('falls back to the id for a provider the catalogue no longer knows', () => {
+    // A downgrade past a provider the install once had. It should still name itself, not render blank.
+    expect(providerLabel('provider-from-the-future')).toBe('provider-from-the-future');
   });
 });
