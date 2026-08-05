@@ -51,7 +51,8 @@ export const geminiDescriptor: ProviderDescriptor = {
   keyUrl: 'https://aistudio.google.com/apikey',
   dashboardUrl: 'https://aistudio.google.com/usage',
   baseUrl: BASE_URL,
-  defaultModel: 'gemini-2.5-flash',
+  // 2.5-flash is retired for new keys — the live API answers 404 'no longer available to new users'.
+  defaultModel: 'gemini-2.0-flash',
   local: false,
   capabilities: CAPABILITIES,
   discovery: 'id-list',

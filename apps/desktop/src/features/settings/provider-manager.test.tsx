@@ -263,3 +263,61 @@ describe('ProviderManager — per-provider key fields', () => {
     expect(row.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 });
+
+/**
+ * The model field.
+ *
+ * `providers:setModel` existed, persisted correctly, and had NO caller in the renderer — the row
+ * printed the model as text. The only model control in Settings wrote the legacy store the chain does
+ * not read, so a change appeared to save and the next repair used the old model.
+ */
+describe('ProviderManager — model field', () => {
+  it('sends the change to providers:setModel, naming the right provider', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    const row = within(screen.getAllByRole('listitem')[1] as HTMLElement);
+    fireEvent.change(screen.getByLabelText('OpenAI model'), { target: { value: 'gpt-4.1' } });
+    fireEvent.click(row.getByRole('button', { name: 'Set model' }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('providers:setModel', { id: 'openai', model: 'gpt-4.1' });
+    });
+  });
+
+  it('shows the model main returned, per provider', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    expect(screen.getByLabelText('OpenRouter model')).toHaveValue('gpt-oss-20b:free');
+    expect(screen.getByLabelText('OpenAI model')).toHaveValue('gpt-oss-20b:free');
+  });
+
+  it('an AUTO model shows as an empty field over a placeholder', async () => {
+    // Empty is the honest rendering of "following the default": it makes clearing the field the way
+    // back to that default, rather than the user having to guess a magic value.
+    invoke.mockResolvedValue(listOk([provider({ modelIsAuto: true, model: 'gemini-2.0-flash' })]));
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    const input = screen.getByLabelText('OpenRouter model');
+    expect(input).toHaveValue('');
+    expect(input).toHaveAttribute('placeholder', 'gemini-2.0-flash');
+  });
+
+  it('will not save until something actually changed', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    const row = within(screen.getAllByRole('listitem')[0] as HTMLElement);
+    expect(row.getByRole('button', { name: 'Set model' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('OpenRouter model'), { target: { value: 'other' } });
+    expect(row.getByRole('button', { name: 'Set model' })).toBeEnabled();
+  });
+
+  it('an empty value is sent as empty — that is how a user returns to the default', async () => {
+    render(<ProviderManager />);
+    await screen.findAllByRole('listitem');
+    const row = within(screen.getAllByRole('listitem')[0] as HTMLElement);
+    fireEvent.change(screen.getByLabelText('OpenRouter model'), { target: { value: '' } });
+    fireEvent.click(row.getByRole('button', { name: 'Set model' }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('providers:setModel', { id: 'openrouter', model: '' });
+    });
+  });
+});

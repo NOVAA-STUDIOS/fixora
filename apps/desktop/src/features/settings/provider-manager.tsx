@@ -153,9 +153,19 @@ export function ProviderManager(): React.JSX.Element {
               />
             )}
 
+            {/*
+              The model, EDITABLE. It was rendered as text here, and `providers:setModel` — the
+              channel that writes it, and the one the orchestrator reads back — had no caller in the
+              renderer at all. The only model control in Settings wrote the legacy single-provider
+              store, which the chain does not consult, so changing a provider's model appeared to
+              save and the next repair used the old one.
+            */}
+            <ProviderModelField
+              provider={provider}
+              onSave={(model) => apply(invoke('providers:setModel', { id: provider.id, model }))}
+            />
+
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-fg-muted">
-              <span className="min-w-0 truncate font-mono">{provider.model}</span>
-              {provider.modelIsAuto && <span>(auto)</span>}
 
               {/*
                 Health, only when there is any. A provider nobody has exercised has none, and showing
@@ -297,6 +307,74 @@ function ProviderKeyField({
           Get a key
         </a>
       )}
+    </div>
+  );
+}
+
+/**
+ * A provider's model id.
+ *
+ * Free text rather than a dropdown: only OpenRouter publishes a catalogue Fixora can enumerate
+ * (`discovery: 'catalogue'`), and offering a list for the others would either be empty or a hardcoded
+ * guess that goes stale the week a vendor ships a new model. The id the user pastes from the
+ * provider's own docs is authoritative; a wrong one comes back as a clear 404 naming it.
+ *
+ * Empty means "follow the descriptor default", which is what `(auto)` reports — so clearing the field
+ * is how a user gets back to the shipped default after a vendor retires a model.
+ */
+function ProviderModelField({
+  provider,
+  onSave,
+}: {
+  provider: ProviderInfo;
+  onSave: (model: string) => Promise<boolean>;
+}): React.JSX.Element {
+  const inputId = useId();
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Null means "not being edited": the field shows what main last returned, so an edit elsewhere is
+  // reflected rather than shadowed by stale local state.
+  const value = draft ?? (provider.modelIsAuto ? '' : provider.model);
+  const dirty = draft !== null && draft !== (provider.modelIsAuto ? '' : provider.model);
+
+  const save = async (): Promise<void> => {
+    if (!dirty) return;
+    setBusy(true);
+    try {
+      if (await onSave(draft.trim())) setDraft(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <label htmlFor={inputId} className="sr-only">
+        {provider.label} model
+      </label>
+      <Input
+        id={inputId}
+        spellCheck={false}
+        className="h-6 min-w-0 flex-1 font-mono text-[11px]"
+        placeholder={provider.model}
+        value={value}
+        onChange={(e) => {
+          setDraft(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void save();
+        }}
+      />
+      <Button
+        size="sm"
+        variant="secondary"
+        className="shrink-0"
+        disabled={busy || !dirty}
+        onClick={() => void save()}
+      >
+        Set model
+      </Button>
     </div>
   );
 }

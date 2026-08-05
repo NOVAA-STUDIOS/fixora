@@ -663,3 +663,54 @@ describe('anyProviderConfigured — the same rule the chain walk applies', () =>
     expect(after.reason).toBe('no-credentials');
   });
 });
+
+/**
+ * Model persistence, end to end through the REAL registry.
+ *
+ * `providers:setModel` and its registry write both existed and both worked; nothing in the renderer
+ * ever called them, and the only model control in Settings wrote the legacy single-provider store
+ * that the chain does not read. So a changed model persisted nowhere the orchestrator would look, and
+ * the next repair used the old one. These pin the read-back the orchestrator actually performs.
+ */
+describe('a provider’s model persists and is read back', () => {
+  it('setModel is what the chain uses on the next run', async () => {
+    const { registry, credentials, orchestrator } = build();
+    registry.setEnabled('gemini', true);
+    credentials.setKey('gemini', 'AIza-x');
+
+    // Descriptor default first — nothing chosen yet.
+    let chain = await orchestrator.resolveChain('repair');
+    expect(chain.ok && chain.candidates[0]?.model).toBe('gemini-2.0-flash');
+
+    registry.setModel('gemini', 'gemini-2.5-pro');
+
+    chain = await orchestrator.resolveChain('repair');
+    expect(chain.ok && chain.candidates[0]?.model).toBe('gemini-2.5-pro');
+  });
+
+  it('survives a reload — it is on disk, not in memory', () => {
+    const first = createProviderRegistry({ dir });
+    first.setEnabled('gemini', true);
+    first.setModel('gemini', 'gemini-2.5-pro');
+
+    // A second registry over the same directory is what the next app launch constructs.
+    const reloaded = createProviderRegistry({ dir });
+    expect(reloaded.get('gemini')?.model).toBe('gemini-2.5-pro');
+    expect(reloaded.modelIsAuto('gemini')).toBe(false);
+  });
+
+  it('clearing it returns to the descriptor default', () => {
+    const registry = createProviderRegistry({ dir });
+    registry.setModel('gemini', 'gemini-2.5-pro');
+    registry.setModel('gemini', '');
+    // Empty is stored as "follow the default", not as a model literally named "".
+    expect(registry.get('gemini')?.model).toBe('gemini-2.0-flash');
+    expect(registry.modelIsAuto('gemini')).toBe(true);
+  });
+
+  it('sets the model for ONE provider only', () => {
+    const registry = createProviderRegistry({ dir });
+    registry.setModel('gemini', 'gemini-2.5-pro');
+    expect(registry.get('openrouter')?.model).not.toBe('gemini-2.5-pro');
+  });
+});
