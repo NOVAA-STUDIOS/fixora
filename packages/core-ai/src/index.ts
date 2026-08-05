@@ -148,12 +148,14 @@ export type {
 export {
   buildFailoverChain,
   FAILOVER_CATEGORIES,
+  failoverScope,
   runWithFailover,
   shouldFailover,
   type FailoverAttemptRecord,
   type FailoverAttemptResult,
   type FailoverCandidate,
   type FailoverOutcome,
+  type FailoverScope,
   type FailoverStopReason,
 } from './provider/failover.js';
 export {

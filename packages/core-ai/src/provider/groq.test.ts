@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createGroqProvider, groqDescriptor } from './adapters/groq.js';
 import type { FetchLike } from './adapters/openai-compatible.js';
-import { shouldFailover } from './failover.js';
+import { failoverScope, shouldFailover } from './failover.js';
 import { describeProviderFailure } from './failure.js';
 import type { ProviderEvent, ProviderRequest } from './types.js';
 
@@ -148,12 +148,16 @@ describe('Groq — failover eligibility follows the shared policy', () => {
     }
   });
 
-  it('does NOT fail over for a rejected credential or an oversized prompt', () => {
-    for (const code of ['HTTP_401', 'HTTP_403', 'HTTP_413']) {
+  it('carries a rejected credential elsewhere, but never an oversized prompt', () => {
+    for (const code of ['HTTP_401', 'HTTP_403']) {
       expect(
-        shouldFailover(describeProviderFailure({ providerCode: code, detail: 'x' }), candidate),
+        failoverScope(describeProviderFailure({ providerCode: code, detail: 'x' }), candidate),
         code,
-      ).toBe(false);
+      ).toBe('different-credential');
     }
+    // A prompt too large for this model is too large for the next one too.
+    expect(
+      shouldFailover(describeProviderFailure({ providerCode: 'HTTP_413', detail: 'x' }), candidate),
+    ).toBe(false);
   });
 });

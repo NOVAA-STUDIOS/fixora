@@ -89,10 +89,9 @@ export type FailoverAttemptResult<T> =
  * `network-offline` is retryable and is the clearest case where trying five more candidates is five
  * more ways to fail slowly.
  *
- * Everything absent from this set stops the walk. Notably:
+ * Everything absent from this set stops the walk, EXCEPT the credential rejections, which get their
+ * own narrower treatment — see `failoverScope`. Notably:
  *
- *  - `invalid-api-key`, `auth-failed` — a rejected key is rejected identically by every candidate on
- *    that adapter. Failing over would turn one clear "fix your key" into N confusing failures.
  *  - `network-offline` — no candidate is reachable. See above.
  *  - `context-too-large` — a larger-context model WOULD fix it, but that is capability selection, not
  *    failure recovery, and picking one blind is a guess.
@@ -125,10 +124,42 @@ export const FAILOVER_CATEGORIES: ReadonlySet<FailureCategory> = new Set<Failure
  * Reusing `layer` here rather than adding a flag is deliberate: it already encodes "whose problem is
  * this", and "the user's configuration" is precisely the case no other provider can rescue.
  */
-export function shouldFailover(
+/**
+ * How far a failure may be carried.
+ *
+ * Three-valued rather than boolean because a rejected credential is not "stop" and is not "try
+ * anything" — it is "try anything that does not present this same key".
+ */
+export type FailoverScope =
+  /** Nothing else could survive this. End the walk here. */
+  | 'none'
+  /** Only candidates presenting a DIFFERENT credential. Same-provider candidates share the key. */
+  | 'different-credential'
+  /** Any remaining candidate, in order. */
+  | 'any';
+
+/**
+ * The credential rejections.
+ *
+ * These used to end the walk outright, on the reasoning that "a rejected key is rejected identically
+ * by every candidate". That was true when a chain was models on ONE key. It is false now that every
+ * provider carries its own credential: provider A refusing its key says nothing whatsoever about
+ * provider B's, and stopping meant one stale key at priority 1 made every correctly-configured
+ * provider behind it unreachable.
+ *
+ * What remains true is the half that motivated the original rule — presenting the SAME rejected key
+ * to the same provider's other models is N ways to be told the same thing. `different-credential`
+ * keeps that and drops the part that was over-broad.
+ */
+const CREDENTIAL_CATEGORIES: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
+  'invalid-api-key',
+  'auth-failed',
+]);
+
+export function failoverScope(
   failure: Pick<ProviderFailure, 'category' | 'layer'>,
   candidate?: { readonly local?: boolean },
-): boolean {
+): FailoverScope {
   /**
    * An unreachable LOCAL endpoint is not evidence that the internet is down.
    *
@@ -139,14 +170,30 @@ export function shouldFailover(
    * user who puts a local provider first and has not started it gets the whole chain stopped by a
    * process that was never running — the cloud providers below it are never even tried.
    */
-  if (failure.category === 'network-offline') return candidate?.local === true;
-  if (!FAILOVER_CATEGORIES.has(failure.category)) return false;
+  if (failure.category === 'network-offline') return candidate?.local === true ? 'any' : 'none';
+  if (CREDENTIAL_CATEGORIES.has(failure.category)) return 'different-credential';
+  if (!FAILOVER_CATEGORIES.has(failure.category)) return 'none';
   // The layer check applies to QUOTA ONLY, and deliberately not to the rest of the set.
   // `model-unavailable` is also `layer: 'configuration'` — the user picked a model that no longer
   // exists — yet it is the category another model most obviously rescues. Generalising this guard
   // to every category silently disabled exactly that case.
-  if (failure.category === 'quota-exceeded') return failure.layer !== 'configuration';
-  return true;
+  if (failure.category === 'quota-exceeded') return failure.layer === 'configuration' ? 'none' : 'any';
+  return 'any';
+}
+
+/**
+ * Whether this failure may be carried past the candidate that produced it at all.
+ *
+ * A convenience over `failoverScope` for callers asking the yes/no question. It cannot express
+ * "only a different credential", so anything WALKING a chain must use `failoverScope` — see
+ * `runWithFailover`, which needs to know which candidates to skip rather than merely whether to
+ * continue.
+ */
+export function shouldFailover(
+  failure: Pick<ProviderFailure, 'category' | 'layer'>,
+  candidate?: { readonly local?: boolean },
+): boolean {
+  return failoverScope(failure, candidate) !== 'none';
 }
 
 /**
@@ -169,8 +216,18 @@ export async function runWithFailover<T, C extends FailoverCandidate = FailoverC
   const aborted = (): boolean => options.signal?.aborted === true;
 
   let last: FailoverAttemptRecord<C> | null = null;
+  /**
+   * Providers whose credential has already been rejected this walk.
+   *
+   * A candidate is skipped without being contacted when its provider is in here: it would present
+   * the identical key and be told the identical thing, at the cost of a round trip. Keyed by provider
+   * id because that is exactly the granularity credentials are stored at — one key slot per provider.
+   */
+  const rejectedCredentials = new Set<string>();
 
   for (const candidate of candidates) {
+    if (rejectedCredentials.has(candidate.provider)) continue;
+
     if (aborted()) {
       return {
         ok: false,
@@ -195,10 +252,17 @@ export async function runWithFailover<T, C extends FailoverCandidate = FailoverC
     // support log most needs.
     attempts.push(record);
 
-    if (!shouldFailover(result.failure, candidate)) {
+    const scope = failoverScope(result.failure, candidate);
+    if (scope === 'none') {
       // A failure the rest of the chain would reproduce. Report it now, against the candidate that
       // actually produced it, so the guidance names the right key and the right model.
       return { ok: false, reason: 'non-retryable', failure: result.failure, candidate, attempts };
+    }
+    if (scope === 'different-credential') {
+      // This provider's key was refused. Its other models would present the same key, so they are
+      // struck from the walk — but a DIFFERENT provider carries a different key and is still worth
+      // trying. If nothing else remains, the loop falls out and reports this failure as `exhausted`.
+      rejectedCredentials.add(candidate.provider);
     }
 
     options.onFailover?.(record);
@@ -209,7 +273,13 @@ export async function runWithFailover<T, C extends FailoverCandidate = FailoverC
   const final = last as FailoverAttemptRecord<C>;
   return {
     ok: false,
-    reason: 'exhausted',
+    // Ending ON a credential rejection means no candidate with a different key remained — had one
+    // been tried, its own failure would be the final record instead. That is "retrying will not
+    // help", not "we ran out of things to try", and the two send the user to different places.
+    reason:
+      failoverScope(final.failure, final.candidate) === 'different-credential'
+        ? 'non-retryable'
+        : 'exhausted',
     failure: final.failure,
     candidate: final.candidate,
     attempts,

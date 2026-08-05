@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createAnthropicProvider, toAnthropicBody } from './adapters/anthropic.js';
 import type { FetchLike } from './adapters/openai-compatible.js';
-import { shouldFailover } from './failover.js';
+import { failoverScope, shouldFailover } from './failover.js';
 import { describeProviderFailure } from './failure.js';
 import type { ProviderEvent, ProviderRequest } from './types.js';
 
@@ -210,10 +210,12 @@ describe('Anthropic — failover eligibility follows the shared policy', () => {
     }
   });
 
-  it('does NOT fail over for 401 or 403 — every candidate rejects the same key', () => {
+  it('carries a rejected key ONLY to a different credential, never to its own other models', () => {
     for (const code of ['HTTP_401', 'HTTP_403']) {
       const failure = describeProviderFailure({ providerCode: code, detail: 'x' });
-      expect(shouldFailover(failure, candidate), code).toBe(false);
+      // Anthropic refusing its key says nothing about another provider's key, but every Anthropic
+      // model presents this same one.
+      expect(failoverScope(failure, candidate), code).toBe('different-credential');
     }
   });
 });

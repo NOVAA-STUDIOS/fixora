@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createGeminiProvider, toGeminiBody } from './adapters/gemini.js';
 import type { FetchLike } from './adapters/openai-compatible.js';
-import { shouldFailover } from './failover.js';
+import { failoverScope, shouldFailover } from './failover.js';
 import { describeProviderFailure } from './failure.js';
 import type { ProviderEvent, ProviderRequest } from './types.js';
 
@@ -206,12 +206,12 @@ describe('Gemini — failover eligibility follows the shared policy', () => {
     }
   });
 
-  it('does NOT fail over for a rejected credential', () => {
+  it('carries a rejected key ONLY to a different credential', () => {
     for (const code of ['HTTP_401', 'HTTP_403']) {
       expect(
-        shouldFailover(describeProviderFailure({ providerCode: code, detail: 'x' }), candidate),
+        failoverScope(describeProviderFailure({ providerCode: code, detail: 'x' }), candidate),
         code,
-      ).toBe(false);
+      ).toBe('different-credential');
     }
   });
 });

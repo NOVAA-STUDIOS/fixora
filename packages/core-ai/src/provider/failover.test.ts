@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CatalogueModel } from './catalogue.js';
 import {
   buildFailoverChain,
+  failoverScope,
   runWithFailover,
   shouldFailover,
   type FailoverAttemptResult,
@@ -94,7 +95,7 @@ describe('failover — the five required scenarios', () => {
     expect(outcome.attempts).toHaveLength(3);
   });
 
-  it('an invalid key stops failover immediately — it is not re-offered to the rest of the chain', async () => {
+  it('an invalid key is never re-offered to the SAME provider’s other models', async () => {
     const attempt = vi
       .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
       .mockResolvedValue(BAD_KEY());
@@ -104,8 +105,10 @@ describe('failover — the five required scenarios', () => {
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toBe('non-retryable');
-    // The whole point: ONE call, not three. A rejected key is rejected identically everywhere, so
-    // walking the chain would turn one clear "fix your key" into three confusing failures.
+    // ONE call, not three. Every candidate here is a model on the same provider, so they all present
+    // the identical rejected key — walking them would turn one clear "fix your key" into three
+    // confusing failures. A candidate on a DIFFERENT provider is another matter entirely; see the
+    // cross-provider block below.
     expect(attempt).toHaveBeenCalledTimes(1);
     expect(outcome.failure.category).toBe('invalid-api-key');
     expect(outcome.failure.layer).toBe('configuration');
@@ -136,9 +139,13 @@ describe('which failures are worth trying elsewhere', () => {
     }
   });
 
-  it('stops for authentication and permission failures', () => {
+  it('scopes authentication and permission failures to a different credential', () => {
+    // Worth carrying — but only to a candidate that presents a different key. `runWithFailover` is
+    // what enforces the second half; this is the policy that tells it to.
     for (const code of ['HTTP_401', 'HTTP_403']) {
-      expect(shouldFailover(describeProviderFailure({ providerCode: code })), code).toBe(false);
+      expect(failoverScope(describeProviderFailure({ providerCode: code })), code).toBe(
+        'different-credential',
+      );
     }
   });
 
@@ -371,7 +378,13 @@ describe('failover never re-runs a repair-safety rejection', () => {
       'WEIRD',
     ]) {
       const failure = describeProviderFailure({ providerCode: code });
-      if (!availability.has(failure.category) || failure.layer === 'configuration') {
+      // Credential rejections are the one exception, and a narrow one: they reach only candidates
+      // presenting a different key, never the wider chain. Asserted as a scope so this stays a
+      // statement about what may be walked rather than a hole in the rule.
+      const credential = failure.category === 'invalid-api-key' || failure.category === 'auth-failed';
+      if (credential) {
+        expect(failoverScope(failure), code).toBe('different-credential');
+      } else if (!availability.has(failure.category) || failure.layer === 'configuration') {
         expect(shouldFailover(failure), code + ' -> ' + failure.category).toBe(false);
       }
     }
@@ -460,10 +473,14 @@ describe('failover policy — availability moves on, configuration does not', ()
     expect(shouldFailover({ category: 'quota-exceeded', layer: 'provider' }, cloud)).toBe(true);
   });
 
-  it('does NOT fail over for a rejected credential', () => {
-    // Every candidate on that adapter rejects the same key identically.
+  it('carries a rejected credential to a DIFFERENT one, and nowhere else', () => {
+    // Not "stop", and not "try anything". Every provider now holds its own key, so provider A
+    // refusing its key is no evidence at all about provider B's — but A's other models present the
+    // very same key and would be told the very same thing.
     for (const category of ['invalid-api-key', 'auth-failed'] as const) {
-      expect(shouldFailover({ category, layer: 'configuration' }, cloud), category).toBe(false);
+      expect(failoverScope({ category, layer: 'configuration' }, cloud), category).toBe(
+        'different-credential',
+      );
     }
   });
 
@@ -496,5 +513,109 @@ describe('failover policy — an unreachable LOCAL daemon is not an offline inte
 
   it('treats an unknown candidate as cloud — the safe default', () => {
     expect(shouldFailover({ category: 'network-offline', layer: 'provider' })).toBe(false);
+  });
+});
+
+/**
+ * CREDENTIAL-SCOPED FAILOVER.
+ *
+ * The rule that a rejected key ends the walk was written when a chain meant several models on ONE
+ * key, where it was exactly right. Once every provider carried its own credential it became a trap:
+ * a stale key on the provider at priority 1 made every correctly-configured provider behind it
+ * unreachable, and the only remedy was to notice and reorder the chain by hand.
+ *
+ * What survives is the half that was always true — the same key is not worth presenting twice.
+ */
+describe('a rejected key skips its own provider, not the whole chain', () => {
+  const MIXED: [FailoverCandidate, ...FailoverCandidate[]] = [
+    { provider: 'openrouter', model: 'or-a' },
+    { provider: 'openrouter', model: 'or-b' },
+    { provider: 'gemini', model: 'gemini-2.5-flash' },
+  ];
+
+  it('walks past a bad key to the next PROVIDER, skipping its sibling models', async () => {
+    const asked: string[] = [];
+    const attempt = vi.fn((candidate: FailoverCandidate) => {
+      asked.push(`${candidate.provider}:${candidate.model}`);
+      return Promise.resolve(
+        candidate.provider === 'openrouter' ? BAD_KEY() : { ok: true as const, value: 'patch' },
+      );
+    });
+
+    const outcome = await runWithFailover(MIXED, attempt);
+
+    // `or-b` is never contacted: it would present the same rejected key. `gemini` is.
+    expect(asked).toEqual(['openrouter:or-a', 'gemini:gemini-2.5-flash']);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.value).toBe('patch');
+    expect(outcome.candidate.provider).toBe('gemini');
+    // The rejection is still on the record even though the walk recovered from it.
+    expect(outcome.attempts.map((a) => a.failure.category)).toEqual(['invalid-api-key']);
+  });
+
+  it('reports non-retryable when EVERY credential is refused', async () => {
+    const attempt = vi.fn(() => Promise.resolve(BAD_KEY()));
+    const outcome = await runWithFailover(MIXED, attempt);
+
+    // One call per credential — two providers, two attempts, not three.
+    expect(attempt).toHaveBeenCalledTimes(2);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    // Not `exhausted`: nothing here is worth retrying, and the two send a user to different places.
+    expect(outcome.reason).toBe('non-retryable');
+    expect(outcome.failure.actions).toContain('open-settings');
+    expect(outcome.attempts).toHaveLength(2);
+  });
+
+  it('does not let a bad key mask a later provider’s DIFFERENT failure', async () => {
+    const attempt = vi
+      .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
+      .mockResolvedValueOnce(BAD_KEY())
+      .mockResolvedValueOnce(fail('HTTP_503'));
+
+    const outcome = await runWithFailover(MIXED, attempt);
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    // The last failure is the one the user must act on, and it is the outage — not the key.
+    expect(outcome.failure.category).toBe('provider-unavailable');
+    expect(outcome.reason).toBe('exhausted');
+    expect(outcome.attempts.map((a) => a.failure.category)).toEqual([
+      'invalid-api-key',
+      'provider-unavailable',
+    ]);
+  });
+
+  it('still contacts a provider whose key was NOT the one refused, whatever the order', async () => {
+    // Gemini first this time: the skip is keyed on the provider that actually failed, never on a
+    // position in the list.
+    const REVERSED: [FailoverCandidate, ...FailoverCandidate[]] = [
+      { provider: 'gemini', model: 'gemini-2.5-flash' },
+      { provider: 'openrouter', model: 'or-a' },
+      { provider: 'openrouter', model: 'or-b' },
+    ];
+    const asked: string[] = [];
+    const attempt = vi.fn((candidate: FailoverCandidate) => {
+      asked.push(candidate.provider);
+      return Promise.resolve(
+        candidate.provider === 'gemini' ? BAD_KEY() : { ok: true as const, value: 'ok' },
+      );
+    });
+
+    const outcome = await runWithFailover(REVERSED, attempt);
+    expect(asked).toEqual(['gemini', 'openrouter']);
+    expect(outcome.ok).toBe(true);
+  });
+
+  it('an out-of-credits account still stops everything — it is not a per-provider key', async () => {
+    // The distinction that must survive this change: a refused KEY is per-provider, an exhausted
+    // BALANCE is not, and only the first is worth carrying to the next candidate.
+    const attempt = vi.fn(() => Promise.resolve(fail('HTTP_402')));
+    const outcome = await runWithFailover(MIXED, attempt);
+    expect(attempt).toHaveBeenCalledTimes(1);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toBe('non-retryable');
   });
 });

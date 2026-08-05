@@ -170,18 +170,32 @@ describe('failover across providers', () => {
     expect(outcome.candidate.provider).toBe('openai');
   });
 
-  it('a rejected key stops the walk — the second provider is never contacted', async () => {
+  it('a rejected key moves to the next PROVIDER, which carries its own', async () => {
+    const orchestrator = await twoProviders();
+    const asked: string[] = [];
+    const outcome = await orchestrator.run('repair', (candidate) => {
+      asked.push(candidate.provider);
+      return Promise.resolve(candidate.provider === 'openrouter' ? fail('HTTP_401') : ok('patch'));
+    });
+    // A bad key on provider A says nothing about provider B's, now that each holds its own. Stopping
+    // here meant one stale credential at priority 1 made every provider behind it unreachable.
+    expect(asked).toEqual(['openrouter', 'openai']);
+    expect('refused' in outcome).toBe(false);
+    if ('refused' in outcome || !outcome.ok) return;
+    expect(outcome.candidate.provider).toBe('openai');
+  });
+
+  it('every key rejected reports non-retryable, having tried each credential once', async () => {
     const orchestrator = await twoProviders();
     const asked: string[] = [];
     const outcome = await orchestrator.run('repair', (candidate) => {
       asked.push(candidate.provider);
       return Promise.resolve(fail('HTTP_401'));
     });
-    // A bad key on provider A says nothing about provider B — but it is not an availability
-    // failure, and the user's fix is to correct the key they just entered.
-    expect(asked).toEqual(['openrouter']);
+    expect(asked).toEqual(['openrouter', 'openai']);
     expect('refused' in outcome).toBe(false);
     if ('refused' in outcome || outcome.ok) return;
+    // Not "exhausted": no amount of retrying fixes a key, and the card must send them to Settings.
     expect(outcome.reason).toBe('non-retryable');
   });
 
