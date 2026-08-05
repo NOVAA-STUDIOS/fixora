@@ -220,7 +220,12 @@ export const contracts = {
    * OpenRouter, which made every provider after the first unusable.
    */
   'providers:setKey': {
-    request: z.object({ id: z.string().min(1), key: z.string().min(1) }),
+    request: z.object({
+      id: z.string().min(1),
+      key: z.string().min(1),
+      /** Move this provider to the head of the failover chain. The primary field sets it. */
+      makePrimary: z.boolean().optional(),
+    }),
     response: ProviderListSchema,
   },
   'providers:clearKey': {

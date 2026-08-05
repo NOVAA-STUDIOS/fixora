@@ -11,12 +11,14 @@ import {
 } from '@fixora/ui';
 import { useEffect, useId, useState } from 'react';
 
+import { invoke } from '../../lib/bridge.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { isPro, useLicenseStore } from '../../stores/license-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
 
+import { detectProvider } from './detect-provider.js';
 import { ModelPicker } from './model-picker.js';
 import { ProviderManager } from './provider-manager.js';
 
@@ -143,25 +145,18 @@ function ProviderSettings(): React.JSX.Element {
 function AiSettings(): React.JSX.Element {
   const config = useAiStore((s) => s.config);
   const loadConfig = useAiStore((s) => s.loadConfig);
-  const setKey = useAiStore((s) => s.setKey);
-  const clearKey = useAiStore((s) => s.clearKey);
   const setModel = useAiStore((s) => s.setModel);
   const models = useAiStore((s) => s.models);
   const loadModels = useAiStore((s) => s.loadModels);
   const dismissMigrationNotice = useAiStore((s) => s.dismissMigrationNotice);
 
-  const keyId = useId();
   const modelId = useId();
-  const [draftKey, setDraftKey] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     void loadConfig();
     void loadModels();
   }, [loadConfig, loadModels]);
 
-  const configured = config?.configured ?? false;
   const model = config?.model ?? '';
 
   // Only models OpenRouter currently offers. A retired id is not in this list, so it cannot be
@@ -171,19 +166,6 @@ function AiSettings(): React.JSX.Element {
     if (a.codeCapable !== b.codeCapable) return a.codeCapable ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
-
-  const save = async (): Promise<void> => {
-    if (draftKey.trim().length === 0) return;
-    setSaving(true);
-    setError(null);
-    const message = await setKey(draftKey.trim(), model);
-    setSaving(false);
-    if (message !== null) {
-      setError(message);
-      return;
-    }
-    setDraftKey('');
-  };
 
   return (
     <Group title="AI (bring your own key)">
@@ -284,47 +266,105 @@ function AiSettings(): React.JSX.Element {
         <p className="text-xs text-warn-text">{models.notice}</p>
       )}
 
-      {configured ? (
-        <div className="flex items-center justify-between gap-4">
-          <span className="min-w-0 truncate text-sm text-fg">
-            Key configured <span className="text-fg-muted">({config?.keyHint ?? '••••'})</span>
-          </span>
-          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void clearKey()}>
-            Remove key
-          </Button>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <label htmlFor={keyId} className="text-sm text-fg">
-            OpenRouter API key
-          </label>
-          <div className="flex items-center gap-2">
-            <Input
-              id={keyId}
-              type="password"
-              autoComplete="off"
-              placeholder="sk-or-v1-…"
-              value={draftKey}
-              onChange={(e) => {
-                setDraftKey(e.target.value);
-              }}
-              // min-w-0: an input is a flex item with an intrinsic minimum width, so `flex-1` alone
-              // will not let it shrink and it pushes the button out of a narrow pane instead.
-              className="min-w-0 flex-1"
-            />
-            <Button
-              size="sm"
-              className="shrink-0"
-              onClick={() => void save()}
-              disabled={saving || draftKey.trim().length === 0}
-            >
-              Save
-            </Button>
-          </div>
-          {error !== null && <span className="text-xs text-danger-text">{error}</span>}
-        </div>
-      )}
+      <PrimaryKeyField />
     </Group>
+  );
+}
+
+/**
+ * The primary key field: paste any provider's key and it files itself.
+ *
+ * This slot used to be "OpenRouter API key", wired to the legacy single-key store — the reason a
+ * Gemini key pasted here ended up in the OpenRouter slot and was rejected by a provider it was never
+ * issued for. It now reads the key's own prefix, writes it to the matching provider, enables that
+ * provider and moves it to the head of the chain.
+ *
+ * It REFUSES an unrecognised key rather than guessing. Filing it under a default would produce a 401
+ * from a provider the user never chose, which is a worse outcome than being told plainly that the
+ * key was not recognised and the named slots below are the way in.
+ *
+ * The per-provider slots below are unchanged and remain the explicit path: saving there is about one
+ * named provider and never reorders the chain.
+ */
+export function PrimaryKeyField(): React.JSX.Element {
+  const loadConfig = useAiStore((s) => s.loadConfig);
+  const inputId = useId();
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const trimmed = draft.trim();
+  // Detected on every keystroke, so the confirmation appears while pasting rather than after Save.
+  const detected = trimmed === '' ? null : detectProvider(trimmed);
+
+  const save = async (): Promise<void> => {
+    if (detected === null) return;
+    setSaving(true);
+    setError(null);
+    const result = await invoke('providers:setKey', {
+      id: detected.id,
+      key: trimmed,
+      makePrimary: true,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    // Cleared on success only — a failed save must not lose a key the user may not be able to re-copy.
+    setDraft('');
+    // "Is AI set up?" just changed, and the Problems panel reads it from the config.
+    void loadConfig();
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={inputId} className="text-sm text-fg">
+        Primary API key
+      </label>
+      <div className="flex items-center gap-2">
+        <Input
+          id={inputId}
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Paste a key from any provider"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void save();
+          }}
+          // min-w-0: an input is a flex item with an intrinsic minimum width, so `flex-1` alone will
+          // not let it shrink and it pushes the button out of a narrow pane instead.
+          className="min-w-0 flex-1"
+        />
+        <Button
+          size="sm"
+          className="shrink-0"
+          onClick={() => void save()}
+          disabled={saving || detected === null}
+        >
+          Save
+        </Button>
+      </div>
+
+      {/* Detection feedback, before Save rather than after: the user should be able to see the key
+          landed in the right place while they can still change their mind about it. */}
+      {detected !== null && (
+        <p className="flex items-center gap-1.5 text-xs text-success-text">
+          <span aria-hidden="true">✓</span>
+          Detected <span className="font-medium">{detected.label}</span> — saving will make it your
+          primary provider.
+        </p>
+      )}
+      {trimmed !== '' && detected === null && (
+        <p className="text-xs text-warn-text">Unknown provider — use slots below.</p>
+      )}
+      {error !== null && <span className="text-xs text-danger-text">{error}</span>}
+    </div>
   );
 }
 

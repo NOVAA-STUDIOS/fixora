@@ -120,9 +120,14 @@ export function registerProviderHandlers(deps: {
    * touched: which provider goes first is a separate decision, and taking it for them here would
    * silently reorder a chain they may have arranged deliberately.
    */
-  registerHandler('providers:setKey', ({ id, key }) => {
+  registerHandler('providers:setKey', ({ id, key, makePrimary }) => {
     deps.credentials.setKey(id, key);
     deps.registry.setEnabled(id, true);
+    // The primary field detected this provider from the key itself, so the user's intent is "use
+    // this one" — which means the head of the chain, not merely enabled somewhere in it. The
+    // per-provider slots below never set this: an explicit save into a named row is not a claim
+    // about priority, and silently reordering there would undo an order the user chose by hand.
+    if (makePrimary === true) deps.registry.makePrimary(id);
     // Abort anything in flight: a run already issued was built from the PREVIOUS credential, and
     // letting it finish would report that key's verdict against the one just saved.
     deps.onCredentialChange?.();

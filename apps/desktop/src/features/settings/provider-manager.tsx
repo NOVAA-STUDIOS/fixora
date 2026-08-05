@@ -4,6 +4,7 @@ import { Button, Input, Switch, cn } from '@fixora/ui';
 import { useEffect, useId, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
+import { useAiStore } from '../../stores/ai-store.js';
 
 /**
  * The provider manager.
@@ -39,6 +40,16 @@ export function ProviderManager(): React.JSX.Element {
     if (result.ok) {
       setProviders(result.value.providers);
       setError(null);
+      /**
+       * Re-read the AI config, because "is AI set up?" just changed.
+       *
+       * `config.configured` is what the Problems panel reads to choose between Repair and "Set up AI
+       * to repair", and it was only ever fetched on mount. Saving a key here updated the registry and
+       * the credential store and left that flag stale, so a user who configured a provider in these
+       * slots kept being told to set one up. The legacy field appeared to work only because it went
+       * through `ai-store.setKey`, which refreshes the config as a side effect.
+       */
+      void useAiStore.getState().loadConfig();
     } else {
       // A failed write must not leave the list showing a change that did not happen.
       setError(result.error.message);

@@ -53,6 +53,13 @@ export interface ProviderRegistry {
   moveUp(id: string): void;
   /** Swap with the neighbour below. No-op at the bottom. */
   moveDown(id: string): void;
+  /**
+   * Move to the head of the chain — the provider tried first.
+   *
+   * A move rather than a swap: the rest of the order is preserved, shifted down by one. Repeated
+   * `moveUp` calls would reach the same place but reorder everything they passed on the way.
+   */
+  makePrimary(id: string): void;
 }
 
 export interface ProviderRegistryOptions {
@@ -183,6 +190,14 @@ export function createProviderRegistry(options: ProviderRegistryOptions): Provid
     },
     moveDown: (id) => {
       swap(id, 1);
+    },
+    makePrimary: (id) => {
+      const from = state.order.indexOf(id);
+      // Unknown, or already first: nothing to do, and no write to persist.
+      if (from <= 0) return;
+      state.order.splice(from, 1);
+      state.order.unshift(id);
+      persist();
     },
   };
 }

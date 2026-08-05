@@ -49,6 +49,10 @@ async function harness(initial: Row[] = [
       const i = rows.findIndex((r) => r.id === id);
       if (i > 0) [rows[i - 1], rows[i]] = [rows[i] as Row, rows[i - 1] as Row];
     }),
+    makePrimary: vi.fn((id: string) => {
+      const i = rows.findIndex((r) => r.id === id);
+      if (i > 0) rows.unshift(...rows.splice(i, 1));
+    }),
     moveDown: vi.fn((id: string) => {
       const i = rows.findIndex((r) => r.id === id);
       if (i >= 0 && i < rows.length - 1) [rows[i], rows[i + 1]] = [rows[i + 1] as Row, rows[i] as Row];
@@ -313,5 +317,57 @@ describe('providers:clearKey — removes ONE credential', () => {
     const { call, registry } = await harness();
     await call('providers:clearKey', { id: 'gemini' });
     expect(registry.setEnabled).not.toHaveBeenCalledWith('gemini', false);
+  });
+});
+
+/**
+ * The primary field's save, and the bug behind "Set up AI to repair" over a configured provider.
+ */
+describe('providers:setKey — primary slot', () => {
+  it('a NON-PRIMARY provider with a key counts as configured', async () => {
+    // The reported bug. A key saved into any slot — not just the first — must make the app consider
+    // AI set up; the chain tries every enabled, credentialed provider in order.
+    const { call, keys } = await harness([
+      { id: 'openrouter', enabled: true, model: '', baseUrl: '' },
+      { id: 'gemini', enabled: false, model: '', baseUrl: '' },
+    ]);
+    await call('providers:setKey', { id: 'gemini', key: 'AIza-x' });
+
+    expect(keys.get('gemini')).toBe('AIza-x');
+    const { providers } = (await call('providers:list', {})) as {
+      providers: { id: string; enabled: boolean; hasKey: boolean; priority: number }[];
+    };
+    const gemini = providers.find((p) => p.id === 'gemini');
+    expect(gemini?.hasKey).toBe(true);
+    // Enabled by the save, which is what makes it a candidate at all.
+    expect(gemini?.enabled).toBe(true);
+  });
+
+  it('makePrimary moves the provider to the head of the chain', async () => {
+    const { call } = await harness([
+      { id: 'openrouter', enabled: true, model: '', baseUrl: '' },
+      { id: 'openai', enabled: false, model: '', baseUrl: '' },
+      { id: 'gemini', enabled: false, model: '', baseUrl: '' },
+    ]);
+    const { providers } = (await call('providers:setKey', {
+      id: 'gemini',
+      key: 'AIza-x',
+      makePrimary: true,
+    })) as {
+      providers: { id: string; enabled: boolean; hasKey: boolean; priority: number }[];
+    };
+    expect(providers.map((p) => p.id)).toEqual(['gemini', 'openrouter', 'openai']);
+    expect(providers[0]?.priority).toBe(1);
+  });
+
+  it('WITHOUT makePrimary the order is untouched — a named slot is not a priority claim', async () => {
+    const { call } = await harness([
+      { id: 'openrouter', enabled: true, model: '', baseUrl: '' },
+      { id: 'gemini', enabled: false, model: '', baseUrl: '' },
+    ]);
+    const { providers } = (await call('providers:setKey', { id: 'gemini', key: 'AIza-x' })) as {
+      providers: { id: string; enabled: boolean; hasKey: boolean; priority: number }[];
+    };
+    expect(providers.map((p) => p.id)).toEqual(['openrouter', 'gemini']);
   });
 });
