@@ -124,7 +124,8 @@ if (!gotTheLock) {
 
       // AI (M5, BYOK). core-ai is pure and bundled into main (no WASM), so the provider call runs
       // direct from the main process with the user's keychain-stored key. The renderer never sees it.
-      const keyStore = createKeyStore({ dir: app.getPath('userData'), cipher: safeStorageCipher });
+      // No cipher here any more: this store holds only the legacy model id, never a credential.
+      const keyStore = createKeyStore({ dir: app.getPath('userData') });
       const repairHistory = createRepairHistoryRepository(driver);
       // Verification runs on its OWN worker (ADR-003 overlay), isolated from workspace analysis.
       const verificationHost = createAnalysisHost(join(__dirname, 'analysis-worker.mjs'));

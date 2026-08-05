@@ -58,8 +58,6 @@ export const channels = [
   'providers:setKey',
   'providers:clearKey',
   'ai:getConfig',
-  'ai:setKey',
-  'ai:clearKey',
   'ai:setModel',
   'ai:listModels',
   'ai:run',

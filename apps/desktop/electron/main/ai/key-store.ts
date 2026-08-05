@@ -1,86 +1,87 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { UserFacingError, type AiConfig, UNRESOLVED_MODEL } from '@fixora/shared-types';
+import { type AiConfig, UNRESOLVED_MODEL } from '@fixora/shared-types';
 
-/** The persisted half of AiConfig — everything the keychain actually owns. */
+/** The persisted half of AiConfig — everything this store actually owns. */
 export type StoredAiConfig = Omit<AiConfig, 'capabilities' | 'suggestedModel'>;
 
-import type { SecretCipher } from './cipher.js';
-
 /**
- * The BYOK key store (Security §5, ADR-016 spirit for keys). The provider key is encrypted with the
- * OS keychain and written to `userData/ai-credentials.json`; the plaintext exists only transiently in
- * this process when a provider call needs it, and it is **never** returned across IPC. The renderer
- * gets an `AiConfig` — configured, model, and a last-few-chars hint — and nothing more.
+ * The v1 single-slot store, reduced to the one thing still live: the chosen model.
  *
- * The stored file holds the ciphertext, the non-sensitive hint, and the chosen model. If the file is
- * missing or unreadable we start unconfigured; a corrupt credentials file must never crash the app.
+ * It began as the BYOK KEY store — one encrypted credential in `userData/ai-credentials.json`, which
+ * `ai:setKey` wrote and every provider was built from. Per-provider credentials replaced that
+ * (`credentials/credential-store.ts`), and the key half here became not merely unused but actively
+ * misleading: three separate bugs this cycle came from code reading this file and concluding the user
+ * had configured nothing, while their real credential sat in the v2 store.
+ *
+ * So the credential half is gone — `setKey`, `clearKey`, `getKey`, `hasKey`, the ciphertext, the hint
+ * and the cipher dependency. Nothing reads a key from here, and now nothing can.
+ *
+ * What remains is the legacy MODEL, and it remains for two reasons: `ai:setModel` is still live (the
+ * "switch to a capable model" button), and `provider-registry.ts` reads this file on first run to
+ * adopt an existing user's OpenRouter model into the registry. Deleting it would silently reset the
+ * model for everyone upgrading, which is precisely the kind of breakage a beta should not ship.
+ *
+ * `configured` is retained on the returned shape because the wire type carries it, and is always
+ * false here — `ai:getConfig` overrides it with the registry-derived answer, which is the only one
+ * that has been true since credentials became per-provider.
  */
 
-interface StoredCredentials {
-  keyEnc: string | null;
-  hint: string | null;
+interface StoredModel {
   model: string;
-}
-
-function hintFor(key: string): string {
-  const tail = key.slice(-4);
-  return tail.length === 0 ? '••••' : `••••${tail}`;
 }
 
 export interface KeyStore {
   /**
    * What is STORED. Capabilities are deliberately absent: they are a property of the provider's
-   * catalogue, not of the keychain, and this store must not pretend to know them. `ai:getConfig`
+   * catalogue, not of this file, and this store must not pretend to know them. `ai:getConfig`
    * joins the two.
    */
   getConfig(): StoredAiConfig;
-  setKey(key: string, model?: string): StoredAiConfig;
-  clearKey(): StoredAiConfig;
   setModel(model: string): StoredAiConfig;
-  hasKey(): boolean;
-  /** Main-process only. Never expose this across IPC. */
-  getKey(): string | null;
 }
 
 export interface KeyStoreOptions {
   dir: string;
-  cipher: SecretCipher;
   fileName?: string;
 }
 
 export function createKeyStore(options: KeyStoreOptions): KeyStore {
   const file = join(options.dir, options.fileName ?? 'ai-credentials.json');
-  const { cipher } = options;
 
-  const state: StoredCredentials = load();
+  const state: StoredModel = load();
 
-  function load(): StoredCredentials {
+  function load(): StoredModel {
     try {
-      const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<StoredCredentials>;
-      return {
-        keyEnc: typeof parsed.keyEnc === 'string' ? parsed.keyEnc : null,
-        hint: typeof parsed.hint === 'string' ? parsed.hint : null,
-        // Stored as-is. Whether the id still exists is the catalogue's call, made at resolve time —
-        // this layer does not guess, and must never migrate on a read that never checked.
-        model: typeof parsed.model === 'string' ? parsed.model : UNRESOLVED_MODEL,
-      };
+      const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<StoredModel>;
+      // Stored as-is. Whether the id still exists is the catalogue's call, made at resolve time —
+      // this layer does not guess, and must never migrate on a read that never checked.
+      return { model: typeof parsed.model === 'string' ? parsed.model : UNRESOLVED_MODEL };
     } catch {
-      // Missing or corrupt — start clean. Losing a stored key degrades to "paste it again", never a crash.
-      return { keyEnc: null, hint: null, model: UNRESOLVED_MODEL };
+      // Missing or corrupt — start clean. A corrupt file must never crash the app.
+      return { model: UNRESOLVED_MODEL };
     }
   }
 
+  /**
+   * Rewrites the file with the model alone.
+   *
+   * Any `keyEnc`/`hint` a previous version left behind is therefore dropped the first time the model
+   * changes. That is deliberate: the credential it held has been unreadable by this app since the key
+   * half was removed, so keeping the ciphertext on disk would preserve a secret nothing can use.
+   */
   function persist(): void {
     writeFileSync(file, JSON.stringify(state), { encoding: 'utf8', mode: 0o600 });
   }
 
   function config(): StoredAiConfig {
     return {
-      configured: state.keyEnc !== null,
+      // Always false. `ai:getConfig` replaces this with `anyProviderConfigured`, which asks the
+      // registry — the only source that has been correct since keys became per-provider.
+      configured: false,
       model: state.model,
-      keyHint: state.hint,
+      keyHint: null,
       migratedFrom: null,
     };
   }
@@ -88,48 +89,10 @@ export function createKeyStore(options: KeyStoreOptions): KeyStore {
   return {
     getConfig: config,
 
-    setKey(key, model) {
-      if (!cipher.isAvailable()) {
-        // No OS keychain (rare: some Linux setups). We refuse to persist plaintext — the honest
-        // failure is "encryption unavailable", surfaced as unconfigured, not a silent plaintext write.
-        throw new UserFacingError(
-          'Your OS keychain is unavailable, so Fixora will not store the key — it refuses to save a provider key in plain text.',
-          {
-            code: 'keychain_unavailable',
-            action: { type: 'retry', label: 'Try again' },
-            stage: 'keystore',
-          },
-        );
-      }
-      state.keyEnc = cipher.encrypt(key);
-      state.hint = hintFor(key);
-      if (model !== undefined) state.model = model;
-      persist();
-      return config();
-    },
-
-    clearKey() {
-      state.keyEnc = null;
-      state.hint = null;
-      persist();
-      return config();
-    },
-
     setModel(model) {
       state.model = model;
       persist();
       return config();
-    },
-
-    hasKey: () => state.keyEnc !== null,
-
-    getKey() {
-      if (state.keyEnc === null) return null;
-      try {
-        return cipher.decrypt(state.keyEnc);
-      } catch {
-        return null;
-      }
     },
   };
 }

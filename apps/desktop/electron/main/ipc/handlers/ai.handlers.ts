@@ -45,8 +45,8 @@ import { emitToWindow } from '../emit.js';
 import { registerHandler } from '../router.js';
 
 /**
- * AI handlers (M5, BYOK). The key is write-only from the renderer's side: `ai:setKey` accepts one and
- * hands it to the keychain-backed store; no channel ever returns it. `ai:run` grounds a task on a
+ * AI handlers (M5, BYOK). Credentials moved to the per-provider `providers:*` channels; nothing here
+ * accepts or returns key material any more. `ai:run` grounds a task on a
  * stored finding and streams the result — the secret gate runs inside the service before any provider
  * call. `ai:applyRepair` is the one place we modify the user's code, and only for a repair they accepted:
  * it splices the verified replacement into the file through the same path guard reads use.
@@ -59,23 +59,9 @@ import { registerHandler } from '../router.js';
  */
 export const DEFAULT_RUN_TIMEOUT_MS = 180_000;
 
-/**
- * The provider the legacy single-key store has always represented. Named once so the two writes in
- * `ai:setKey`/`ai:clearKey` cannot drift apart from each other.
- */
-const DEFAULT_PROVIDER_ID = 'openrouter';
-
 export function registerAiHandlers(deps: {
   keyStore: KeyStore;
-  /**
-   * The store the ORCHESTRATOR actually reads (`orchestrator.ts` → `credentials.getKey(id)`).
-   *
-   * `keyStore` is the v1 single-key file and is now only the renderer's config surface plus the
-   * downgrade path. Saving a key wrote v1 alone, so the new key never reached the store the provider
-   * is built from — and because the v2 store only migrates from v1 when its own file is ABSENT, a
-   * restart did not repair it either. That is the "new key saved, still quota exceeded, even after
-   * restarting" defect. Both stores are written together now, so they cannot diverge.
-   */
+  /** The only credential store. `orchestrator.ts` builds every provider from it. */
   credentials: CredentialStore;
   /** Read to answer "is AI set up?" the same way the chain walk answers it. */
   registry: ProviderRegistry;
@@ -112,10 +98,10 @@ export function registerAiHandlers(deps: {
     /**
      * Whether AI is set up, answered by the REGISTRY rather than by the legacy single-key store.
      *
-     * `StoredAiConfig.configured` is `keyEnc !== null` on the v1 file (`key-store.ts:81`), which only
-     * `ai:setKey` ever writes and only for OpenRouter. Once keys became per-provider, a user who
-     * configured Gemini had a working chain and an empty v1 file — so the Problems panel offered
-     * "Set up AI to repair" and disabled Repair over a provider that would have answered.
+     * `StoredAiConfig.configured` is hardcoded false now that the v1 store holds no credential; it
+     * once meant "the single OpenRouter key exists". A user who configured Gemini therefore had a
+     * working chain and a false flag — the Problems panel offered "Set up AI to repair" and disabled
+     * Repair over a provider that would have answered.
      *
      * Overridden here rather than at each call site because every config-returning channel funnels
      * through this function, and the panel must not be able to disagree with the walk.
@@ -238,51 +224,6 @@ export function registerAiHandlers(deps: {
    * after the switch and be read as the new key failing. The orchestrator holds no adapter between
    * calls (`resolveChain` builds one per run from `credentials.getKey`), so nothing else caches the
    * old key: the next run constructs a provider from the newest settings by itself.
-   */
-  registerHandler('ai:setKey', async ({ key, model }) => {
-    deps.credentials.setKey(DEFAULT_PROVIDER_ID, key);
-    deps.aiService.cancel();
-    return enrich(deps.keyStore.setKey(key, model));
-  });
-
-  registerHandler('ai:clearKey', async () => {
-    /**
-     * Removal has to clear BOTH stores, and a failure in one must not leave the other holding a key.
-     *
-     * The v2 store is what the provider is built from; the v1 file is the downgrade path. But v1 is
-     * also the RESURRECTION path: `credential-store.ts`'s `migrateLegacy` adopts the v1 key whenever
-     * the v2 file is absent or unreadable. So a removal that cleared v2 and then threw before
-     * clearing v1 would look successful, and the next launch that could not read the v2 file would
-     * hand the deleted key straight back. "Remove Key" has to mean the key is gone, permanently and
-     * on every path.
-     *
-     * Both clears are therefore attempted regardless of the first one's outcome, and the failure is
-     * only re-thrown after that — so the worst case is a reported error with nothing left behind,
-     * never a silent partial removal.
-     */
-    let failure: Error | null = null;
-    try {
-      deps.credentials.clearKey(DEFAULT_PROVIDER_ID);
-    } catch (error) {
-      failure = error instanceof Error ? error : new Error(String(error));
-    }
-    deps.aiService.cancel();
-    let config;
-    try {
-      config = deps.keyStore.clearKey();
-    } catch (error) {
-      // v1 could not be cleared. It is the resurrection path, so this cannot be swallowed. The
-      // FIRST failure wins when both stores failed: it is the one that started the cascade.
-      throw failure ?? (error instanceof Error ? error : new Error(String(error)));
-    }
-    if (failure !== null) throw failure;
-    return enrich(config);
-  });
-
-  /**
-   * The model is part of the provider configuration, so switching it gets the same treatment as
-   * switching the key: a run already in flight was issued against the PREVIOUS model, and letting it
-   * finish would report that model's verdict — a quota refusal, say — against the one just chosen.
    */
   registerHandler('ai:setModel', async ({ model }) => {
     deps.aiService.cancel();

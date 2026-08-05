@@ -70,16 +70,12 @@ function baseDeps(overrides: {
   orchestrator?: Orchestrator;
 }): AiServiceDeps {
   const keyStore = {
-    getKey: () => 'sk-or-test',
     getConfig: () => ({
       configured: true,
       model: 'anthropic/claude-3.5-sonnet',
       keyHint: '••••',
       migratedFrom: null,
     }),
-    hasKey: () => true,
-    setKey: () => ({ configured: true, model: 'm', keyHint: null, migratedFrom: null }),
-    clearKey: () => ({ configured: false, model: 'm', keyHint: null, migratedFrom: null }),
     setModel: () => ({ configured: true, model: 'm', keyHint: null, migratedFrom: null }),
   } satisfies KeyStore;
 

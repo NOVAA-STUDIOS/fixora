@@ -37,8 +37,6 @@ type AiState = {
   dismissMigrationNotice: () => void;
 
   loadConfig: () => Promise<void>;
-  setKey: (key: string, model?: string) => Promise<string | null>;
-  clearKey: () => Promise<void>;
   setModel: (model: string) => Promise<void>;
 
   status: AiRunStatus;
@@ -186,24 +184,6 @@ export const useAiStore = create<AiState>((set, get) => ({
    * `providerStateChanged` clears the run state and supersedes anything still in flight, so a late
    * result from the previous key cannot land afterwards and re-assert the stale verdict.
    */
-  setKey: async (key, model) => {
-    // Captured BEFORE the reset clears it — the reset is what makes the retry decision unavailable
-    // a line later.
-    const previous = get();
-    const result = await invoke('ai:setKey', model === undefined ? { key } : { key, model });
-    if (!result.ok) return result.error.message;
-
-    set({ config: result.value, ...providerStateChanged() });
-    void resumeAfterQuota(previous, get);
-    return null;
-  },
-
-  clearKey: async () => {
-    const result = await invoke('ai:clearKey', {});
-    // Removing the key is a provider change too: whatever the old one failed with is now history.
-    if (result.ok) set({ config: result.value, ...providerStateChanged() });
-  },
-
   setModel: async (model) => {
     const previous = get();
     const result = await invoke('ai:setModel', { model });

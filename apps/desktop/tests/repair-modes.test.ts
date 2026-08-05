@@ -111,7 +111,6 @@ function capture() {
 function deps(all: Finding[], captured: ReturnType<typeof capture>): AiServiceDeps {
   return {
     keyStore: {
-      getKey: () => 'sk-test',
       getConfig: () => ({ configured: true, model: 'm', keyHint: null, migratedFrom: null }),
     } as unknown as KeyStore,
     findings: {

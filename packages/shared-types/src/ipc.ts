@@ -187,7 +187,7 @@ export const contracts = {
   'analysis:summary': { request: empty, response: FindingsSummarySchema },
 
   // AI (M5, BYOK). Config is readable/settable by the renderer, but the key is write-only from its
-  // point of view: `ai:setKey` takes one and it goes to the OS keychain; nothing ever returns it.
+  // point of view: `providers:setKey` takes one and it goes to the OS keychain; nothing returns it.
   // `ai:run` executes a grounded task against a finding — the secret gate runs inside, before any
   // provider call — and streams prose via `ai:delta`, resolving to a typed outcome value.
   /**
@@ -233,7 +233,7 @@ export const contracts = {
     response: ProviderListSchema,
   },
   /**
-   * Save a key for ONE named provider. The id is the point: the older `ai:setKey` hardcodes
+   * Save a key for ONE named provider. The id is the point: the removed `ai:setKey` hardcoded
    * OpenRouter, which made every provider after the first unusable.
    */
   'providers:setKey': {
@@ -250,11 +250,6 @@ export const contracts = {
     response: ProviderListSchema,
   },
   'ai:getConfig': { request: empty, response: AiConfigSchema },
-  'ai:setKey': {
-    request: z.object({ key: z.string().min(1), model: z.string().min(1).optional() }),
-    response: AiConfigSchema,
-  },
-  'ai:clearKey': { request: empty, response: AiConfigSchema },
   'ai:setModel': { request: z.object({ model: z.string().min(1) }), response: AiConfigSchema },
   // The live OpenRouter catalogue, for the model picker. Public endpoint, no key involved — the
   // list can be shown before the user has configured anything.

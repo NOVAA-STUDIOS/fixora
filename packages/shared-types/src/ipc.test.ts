@@ -38,20 +38,19 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'analysis:cancel',
       'analysis:list',
       'analysis:summary',
-      // Provider management (Phase 2). Read plus five mutations, all scoped to the provider
-      // registry: enable/disable, priority, model and base URL. None of them touches a credential —
-      // key material still moves only through 'ai:setKey'/'ai:clearKey'.
+      // Provider management. Read, the registry mutations, and the per-provider credential writes —
+      // which are now the ONLY way key material moves: the single-slot 'ai:setKey'/'ai:clearKey'
+      // pair is gone, along with the v1 store it wrote.
       'providers:list',
       'providers:setEnabled',
       'providers:moveUp',
       'providers:moveDown',
       'providers:setModel',
+      'providers:listModels',
       'providers:setBaseUrl',
       'providers:setKey',
       'providers:clearKey',
       'ai:getConfig',
-      'ai:setKey',
-      'ai:clearKey',
       'ai:setModel',
       'ai:listModels',
       'ai:run',

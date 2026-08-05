@@ -21,7 +21,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Finding } from '@fixora/shared-types';
-import { app, safeStorage } from 'electron';
+import { app } from 'electron';
 
 import { createAiService } from '../main/ai/ai-service.js';
 import { safeStorageCipher } from '../main/ai/cipher.js';
@@ -197,11 +197,10 @@ async function main(): Promise<number> {
 
   // ---- the app's own profile, so safeStorage can decrypt what the app wrote ----
   const credentialsPath = join(app.getPath('userData'), 'ai-credentials.json');
-  const stored = JSON.parse(readFileSync(credentialsPath, 'utf8')) as {
-    keyEnc: string;
-    model: string;
-  };
-  const apiKey = safeStorage.decryptString(Buffer.from(stored.keyEnc, 'base64'));
+  // Only the model is read here now. The credential comes from the v2 per-provider store, which the
+  // acceptance orchestrator below constructs exactly as main does — so this harness exercises the
+  // real credential path rather than a decrypted copy of a file the app no longer writes keys to.
+  const stored = JSON.parse(readFileSync(credentialsPath, 'utf8')) as { model: string };
   const model = stored.model;
 
   // ---- a real workspace on disk ----
@@ -257,22 +256,8 @@ async function main(): Promise<number> {
 
       // ---- 2. the real service: provider call + overlay verification ----
       const keyStore: KeyStore = {
-        getKey: () => apiKey,
         getConfig: (): StoredAiConfig => ({
           configured: true,
-          model,
-          keyHint: null,
-          migratedFrom: null,
-        }),
-        hasKey: () => true,
-        setKey: (): StoredAiConfig => ({
-          configured: true,
-          model,
-          keyHint: null,
-          migratedFrom: null,
-        }),
-        clearKey: (): StoredAiConfig => ({
-          configured: false,
           model,
           keyHint: null,
           migratedFrom: null,

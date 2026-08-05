@@ -401,7 +401,8 @@ describe('ai store — changing the provider resets state that belonged to the o
   it('quota exceeded -> valid key: the quota verdict does not survive Save', async () => {
     quotaExceeded();
     invoke.mockResolvedValueOnce({ ok: true, value: config });
-    expect(await useAiStore.getState().setKey('sk-new')).toBeNull();
+    // setModel reports failure by leaving state untouched rather than by returning a message.
+    await useAiStore.getState().setModel('m-new');
 
     const s = useAiStore.getState();
     expect(s.status).toBe('idle');
@@ -418,7 +419,7 @@ describe('ai store — changing the provider resets state that belonged to the o
       failure: { ...quotaFailure, category: 'invalid-api-key', layer: 'configuration' },
     });
     invoke.mockResolvedValueOnce({ ok: true, value: config });
-    await useAiStore.getState().setKey('sk-good');
+    await useAiStore.getState().setModel('m-good');
     expect(useAiStore.getState().failure).toBeNull();
     expect(useAiStore.getState().errorMessage).toBeNull();
   });
@@ -435,7 +436,7 @@ describe('ai store — changing the provider resets state that belonged to the o
   it('clearing the key also clears the old failure', async () => {
     quotaExceeded();
     invoke.mockResolvedValueOnce({ ok: true, value: { ...config, configured: false } });
-    await useAiStore.getState().clearKey();
+    await useAiStore.getState().setModel('');
     expect(useAiStore.getState().errorMessage).toBeNull();
     expect(useAiStore.getState().failure).toBeNull();
   });
@@ -443,7 +444,7 @@ describe('ai store — changing the provider resets state that belonged to the o
   it('a stale proposal from the old key is discarded, not left applyable', async () => {
     useAiStore.setState({ status: 'done', proposal, lastApplyAttempt: { at: 1 } as never });
     invoke.mockResolvedValueOnce({ ok: true, value: config });
-    await useAiStore.getState().setKey('sk-new');
+    await useAiStore.getState().setModel('m-new');
     expect(useAiStore.getState().proposal).toBeNull();
     expect(useAiStore.getState().lastApplyAttempt).toBeNull();
   });
@@ -468,7 +469,7 @@ describe('ai store — changing the provider resets state that belonged to the o
     const running = useAiStore.getState().run('repair', 'f1');
 
     invoke.mockResolvedValueOnce({ ok: true, value: config });
-    await useAiStore.getState().setKey('sk-new');
+    await useAiStore.getState().setModel('m-new');
 
     release();
     await running;
@@ -482,7 +483,7 @@ describe('ai store — changing the provider resets state that belonged to the o
     quotaExceeded();
     for (const hint of ['••••a', '••••b', '••••c']) {
       invoke.mockResolvedValueOnce({ ok: true, value: { ...config, keyHint: hint } });
-      await useAiStore.getState().setKey('sk-' + hint);
+      await useAiStore.getState().setModel('m-' + hint);
     }
     const s = useAiStore.getState();
     expect(s.config?.keyHint).toBe('••••c');
@@ -493,7 +494,7 @@ describe('ai store — changing the provider resets state that belonged to the o
   it('a FAILED save leaves the existing state alone — nothing is reset on an error', async () => {
     quotaExceeded();
     invoke.mockResolvedValueOnce({ ok: false, error: { code: 'keychain_unavailable', message: 'no keychain' } });
-    expect(await useAiStore.getState().setKey('sk-bad')).toBe('no keychain');
+    await useAiStore.getState().setModel('m-bad');
     // The old failure is still the truth: nothing changed, so nothing should have been cleared.
     expect(useAiStore.getState().status).toBe('error');
     expect(useAiStore.getState().failure).not.toBeNull();
@@ -527,9 +528,9 @@ describe('ai store — resumes the refused request after the provider changes', 
 
   it('replays the SAME profile, finding and mode after a quota failure', async () => {
     refusedFor(quota);
-    invoke.mockResolvedValueOnce({ ok: true, value: config });                 // ai:setKey
+    invoke.mockResolvedValueOnce({ ok: true, value: config });                 // ai:setModel
     invoke.mockResolvedValueOnce({ ok: true, value: { status: 'ok', proposal } }); // replayed ai:run
-    await useAiStore.getState().setKey('sk-new');
+    await useAiStore.getState().setModel('m-new');
     await vi.waitFor(() => {
       expect(useAiStore.getState().status).toBe('done');
     });
@@ -553,7 +554,7 @@ describe('ai store — resumes the refused request after the provider changes', 
   it('does NOT resume for an auth failure — the new key may be invalid too', async () => {
     refusedFor({ ...quota, category: 'invalid-api-key', layer: 'configuration' });
     invoke.mockResolvedValueOnce({ ok: true, value: config });
-    await useAiStore.getState().setKey('sk-new');
+    await useAiStore.getState().setModel('m-new');
     expect(invoke).toHaveBeenCalledTimes(1);
     expect(useAiStore.getState().status).toBe('idle');
   });
@@ -561,14 +562,14 @@ describe('ai store — resumes the refused request after the provider changes', 
   it('does NOT resume when nothing was pending', async () => {
     useAiStore.setState({ status: 'idle', failure: null, activeFindingId: null, activeProfile: null });
     invoke.mockResolvedValueOnce({ ok: true, value: config });
-    await useAiStore.getState().setKey('sk-new');
+    await useAiStore.getState().setModel('m-new');
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 
   it('does NOT resume on a failed save — nothing changed, so nothing is retried', async () => {
     refusedFor(quota);
     invoke.mockResolvedValueOnce({ ok: false, error: { code: 'x', message: 'no keychain' } });
-    await useAiStore.getState().setKey('sk-bad');
+    await useAiStore.getState().setModel('m-bad');
     expect(invoke).toHaveBeenCalledTimes(1);
     expect(useAiStore.getState().status).toBe('error');
   });

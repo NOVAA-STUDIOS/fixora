@@ -3,18 +3,20 @@
   "version": "1.0.0-beta.1",
   "private": true,
   "type": "module",
-  "description": "Fixora \u00e2\u20ac\u201d the workspace you open when the code is already broken.",
+  "description": "Fixora â€” the workspace you open when the code is already broken.",
   "packageManager": "pnpm@11.12.0",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
+    "predev": "pnpm --filter @fixora/core-ai build",
     "dev": "turbo run dev --filter=@fixora/desktop",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "pretest": "pnpm --filter @fixora/core-ai build",
     "test": "turbo run test",
     "gate:contrast": "turbo run gate:contrast",
     "gate:boundaries": "depcruise --config .dependency-cruiser.cjs apps packages tooling",

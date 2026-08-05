@@ -118,11 +118,7 @@ const answers = (): ProviderEvent[] => [{ type: 'text_delta', text: REPAIR_JSON 
 
 function deps(provider: AIProvider, catalogue: readonly CatalogueModel[]): AiServiceDeps {
   const keyStore = {
-    getKey: () => 'sk-or-test',
     getConfig: () => ({ configured: true, model: CONFIGURED, keyHint: '••••', migratedFrom: null }),
-    hasKey: () => true,
-    setKey: () => ({ configured: true, model: CONFIGURED, keyHint: null, migratedFrom: null }),
-    clearKey: () => ({ configured: false, model: CONFIGURED, keyHint: null, migratedFrom: null }),
     setModel: () => ({ configured: true, model: CONFIGURED, keyHint: null, migratedFrom: null }),
   } satisfies KeyStore;
 
