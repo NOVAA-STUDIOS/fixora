@@ -5,6 +5,7 @@ import {
   categoryRank,
   classifyFinding,
   countByCategory,
+  countByExtension,
   FINDING_CATEGORY_ORDER,
 } from './finding-category.js';
 
@@ -183,5 +184,67 @@ describe('grouping helpers', () => {
     expect(categoryRank(finding({ repair: 'safe-auto' }))).toBeLessThan(
       categoryRank(finding({ severity: 'info', repair: 'manual' })),
     );
+  });
+});
+
+/**
+ * The Problems header's file-type breakdown.
+ *
+ * It answers "which languages are these problems in", which is why the last dot segment wins and a
+ * test file counts as its language rather than as a type of its own.
+ */
+function at(file: string): Finding {
+  return finding({ location: { file, startLine: 1, startCol: 1, endLine: 1, endCol: 1 } });
+}
+
+describe('countByExtension', () => {
+  it('groups by extension, most problems first', () => {
+    expect(
+      countByExtension([at('a.ts'), at('b.css'), at('c.ts'), at('d.ts'), at('e.css')]),
+    ).toEqual([
+      { extension: 'ts', count: 3 },
+      { extension: 'css', count: 2 },
+    ]);
+  });
+
+  it('omits types with no problems — a clean workspace shows nothing, not a row of zeroes', () => {
+    expect(countByExtension([])).toEqual([]);
+    expect(countByExtension([at('only.py')])).toEqual([{ extension: 'py', count: 1 }]);
+  });
+
+  it('breaks ties alphabetically, so equal types do not swap places between runs', () => {
+    expect(countByExtension([at('a.ts'), at('b.css'), at('c.py')])).toEqual([
+      { extension: 'css', count: 1 },
+      { extension: 'py', count: 1 },
+      { extension: 'ts', count: 1 },
+    ]);
+  });
+
+  it('counts a multi-dot file as its LAST segment — a test file is still TypeScript', () => {
+    expect(countByExtension([at('src/x.test.ts'), at('src/y.ts')])).toEqual([
+      { extension: 'ts', count: 2 },
+    ]);
+  });
+
+  it('normalises case, so .TS and .ts are one type', () => {
+    expect(countByExtension([at('A.TS'), at('b.ts')])).toEqual([{ extension: 'ts', count: 2 }]);
+  });
+
+  it('treats a dotfile as having no extension, despite the dot', () => {
+    // `.gitignore` is a name, not an extension — reporting a `gitignore` file type would be wrong.
+    expect(countByExtension([at('.gitignore')])).toEqual([{ extension: '?', count: 1 }]);
+  });
+
+  it('handles a file with no extension and a trailing dot', () => {
+    expect(countByExtension([at('Makefile'), at('weird.')])).toEqual([{ extension: '?', count: 2 }]);
+  });
+
+  it('reads the extension from the basename, not from a dotted directory', () => {
+    // `src/v1.2/handler` has a dot in the PATH but none in the file name.
+    expect(countByExtension([at('src/v1.2/handler')])).toEqual([{ extension: '?', count: 1 }]);
+  });
+
+  it('handles Windows separators, which is what the analyzer emits on win32', () => {
+    expect(countByExtension([at('src\\deep\\a.py')])).toEqual([{ extension: 'py', count: 1 }]);
   });
 });

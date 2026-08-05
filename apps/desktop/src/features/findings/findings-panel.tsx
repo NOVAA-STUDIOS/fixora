@@ -1,6 +1,7 @@
 import {
   categoryRank,
   countByCategory,
+  countByExtension,
   FINDING_CATEGORY_LABEL,
   FINDING_CATEGORY_ORDER,
   type FindingCategory,
@@ -87,6 +88,9 @@ export function FindingsPanel(): React.JSX.Element {
     .slice()
     .sort((a, b) => categoryRank(a) - categoryRank(b));
   const categoryCounts = countByCategory(visible);
+  // Same list the panel shows: ignored findings are excluded, so the breakdown always agrees with
+  // the rows below it and re-derives on every run, ignore and applied fix.
+  const extensionCounts = countByExtension(visible);
   const hiddenHere = findings.length - visible.length;
 
   // One click, or Enter/Space on the keyboard-active row, does the whole job: describe it, open
@@ -113,9 +117,31 @@ export function FindingsPanel(): React.JSX.Element {
       className="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
     >
       <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
-        <h2 className="truncate text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+        <h2 className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
           Problems
         </h2>
+        {/*
+          File-type breakdown, on the heading's own line. `min-w-0` + `overflow-hidden` so a project
+          spanning many languages shortens this list rather than pushing Re-run off the header —
+          the button is the control, and it stays reachable at any width.
+        */}
+        {extensionCounts.length > 0 && (
+          <ul
+            aria-label="Problems by file type"
+            className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+          >
+            {extensionCounts.map(({ extension, count }) => (
+              <li
+                key={extension}
+                className="shrink-0 text-[11px] tabular-nums whitespace-nowrap text-fg-muted"
+              >
+                <span className="font-mono">{extension}</span>
+                {': '}
+                <span className="font-medium text-fg-secondary">{count}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         {status === 'running' ? (
           <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void cancel()}>
             Cancel

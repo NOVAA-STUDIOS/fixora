@@ -237,6 +237,8 @@ export {
   categoryRank,
   classifyFinding,
   countByCategory,
+  countByExtension,
+  type ExtensionCount,
   FINDING_CATEGORY_LABEL,
   FINDING_CATEGORY_ORDER,
   type FindingCategory,

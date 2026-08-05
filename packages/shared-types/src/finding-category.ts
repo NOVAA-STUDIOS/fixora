@@ -132,6 +132,49 @@ export function countByCategory(
   return counts;
 }
 
+/** One file type and how many findings sit in files of that type. */
+export interface ExtensionCount {
+  /** Lower-case, no leading dot — `ts`, `py`. `?` when the path has no usable extension. */
+  readonly extension: string;
+  readonly count: number;
+}
+
+/** Files with no extension at all, or a name that is only a dot-suffix (`.gitignore`). */
+const NO_EXTENSION = '?';
+
+/**
+ * The extension of a finding's file, normalised for display.
+ *
+ * Takes the LAST dot segment, so `component.test.ts` counts as `ts` rather than as its own type —
+ * the question the header answers is "which languages are these problems in", and a test file is
+ * still TypeScript. A dotfile like `.gitignore` has no extension despite containing a dot, which is
+ * why the dot must be found past the first character of the basename.
+ */
+function extensionOf(path: string): string {
+  const basename = path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
+  const dot = basename.lastIndexOf('.');
+  if (dot <= 0 || dot === basename.length - 1) return NO_EXTENSION;
+  return basename.slice(dot + 1).toLowerCase();
+}
+
+/**
+ * Counts per file type, most problems first — the Problems header's breakdown.
+ *
+ * Only types with at least one finding appear, so the header shows nothing at all for a clean
+ * workspace rather than a row of zeroes. Ties break alphabetically, because a count-only sort leaves
+ * equal types swapping places between runs for no reason the user can see.
+ */
+export function countByExtension(findings: readonly Finding[]): ExtensionCount[] {
+  const counts = new Map<string, number>();
+  for (const finding of findings) {
+    const extension = extensionOf(finding.location.file);
+    counts.set(extension, (counts.get(extension) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([extension, count]) => ({ extension, count }))
+    .sort((a, b) => b.count - a.count || a.extension.localeCompare(b.extension));
+}
+
 /** Sort key so the list clusters by category without changing which findings are shown. */
 export function categoryRank(finding: Finding): number {
   return FINDING_CATEGORY_ORDER.indexOf(classifyFinding(finding).category);

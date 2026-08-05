@@ -1,5 +1,5 @@
 import type { Finding } from '@fixora/shared-types';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -295,5 +295,72 @@ describe('Repair button visibility and the four repair states', () => {
       expect(await screen.findByText(label)).toBeInTheDocument();
       view.unmount();
     }
+  });
+});
+
+/**
+ * The header's file-type breakdown.
+ *
+ * The grouping itself is pinned in `finding-category.test.ts`; these cover what only the panel can
+ * answer — that it is driven by the same list the rows are, so it can never disagree with what is
+ * on screen, and that it stays out of the way when there is nothing to say.
+ */
+describe('FindingsPanel — file-type breakdown', () => {
+  const at = (id: string, file: string) =>
+    finding({ id, location: { file, startLine: 1, startCol: 1, endLine: 1, endCol: 1 } });
+
+  it('lists each file type with its count, most problems first', () => {
+    useFindingsStore.setState({
+      findings: [at('1', 'a.ts'), at('2', 'b.css'), at('3', 'c.ts')],
+    });
+    render(<FindingsPanel />);
+    const items = within(screen.getByLabelText('Problems by file type')).getAllByRole('listitem');
+    expect(items.map((li) => li.textContent)).toEqual(['ts: 2', 'css: 1']);
+  });
+
+  it('renders nothing at all when there are no problems', () => {
+    render(<FindingsPanel />);
+    expect(screen.queryByLabelText('Problems by file type')).toBeNull();
+  });
+
+  it('EXCLUDES ignored findings, so it agrees with the rows below it', () => {
+    useFindingsStore.setState({
+      findings: [at('1', 'a.ts'), at('2', 'b.css'), at('3', 'c.css')],
+      ignoredIds: ['2', '3'],
+    });
+    render(<FindingsPanel />);
+    const items = within(screen.getByLabelText('Problems by file type')).getAllByRole('listitem');
+    // css is gone entirely rather than showing 0 — both its findings were ignored.
+    expect(items.map((li) => li.textContent)).toEqual(['ts: 1']);
+  });
+
+  it('re-derives when the findings change — a fixed problem leaves the breakdown', async () => {
+    useFindingsStore.setState({ findings: [at('1', 'a.py'), at('2', 'b.py')] });
+    render(<FindingsPanel />);
+    expect(
+      within(screen.getByLabelText('Problems by file type')).getAllByRole('listitem')[0]
+        ?.textContent,
+    ).toBe('py: 2');
+
+    act(() => {
+      useFindingsStore.setState({ findings: [at('1', 'a.py')] });
+    });
+    await waitFor(() => {
+      expect(
+        within(screen.getByLabelText('Problems by file type')).getAllByRole('listitem')[0]
+          ?.textContent,
+      ).toBe('py: 1');
+    });
+  });
+
+  it('does not push the Re-run control out of the header', () => {
+    // Many languages must shorten the list, never displace the one control in the header.
+    useFindingsStore.setState({
+      findings: ['ts', 'css', 'py', 'html', 'go', 'json', 'rs', 'rb'].map((ext, i) =>
+        at(String(i), `f${String(i)}.${ext}`),
+      ),
+    });
+    render(<FindingsPanel />);
+    expect(screen.getByRole('button', { name: /Run analysis|Re-run/ })).toBeInTheDocument();
   });
 });
