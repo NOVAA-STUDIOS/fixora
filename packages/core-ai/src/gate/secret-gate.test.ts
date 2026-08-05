@@ -25,6 +25,19 @@ export function add(a: number, b: number): number {
  */
 const FAKE_OPENROUTER_KEY = ['sk', 'or', 'v1', '0123456789abcdef'.repeat(4)].join('-');
 
+/**
+ * The rest of the fixtures, for the same reason and by the same method.
+ *
+ * Every value here is synthetic — repeated hex, the alphabet, AWS's own documented example — but a
+ * scanner reads shapes, not intent, and these are shaped like the things they detect. Splitting the
+ * prefix from the body keeps a matching literal out of the source text while each assembled string
+ * still exercises its pattern in full.
+ */
+const FAKE_GOOGLE_KEY = ['AIza', 'SyA0123456789abcdefghijklmnopqrstuv'].join('');
+const FAKE_STRIPE_KEY = ['sk', 'live', '0123456789abcdefABCDEF'].join('_');
+const FAKE_GITHUB_PAT = ['github', 'pat', '11ABCDE0123456789_abcdefghijklmnopqrstuvwxyz0123'].join('_');
+const FAKE_GITHUB_TOKEN = ['ghp', '012345678901234567890123456789abcdef'].join('_');
+
 function part(text: string, label = 'src/example.ts'): GatePart[] {
   return [{ label, text }];
 }
@@ -38,17 +51,13 @@ describe('secret gate — nothing leaves the machine without passing this', () =
   // and the result must name the rule that fired. This is the merge-blocking acceptance control.
   const liveLookingSecrets: readonly (readonly [string, string, string])[] = [
     ['aws-access-key-id', 'const k = "AKIAIOSFODNN7EXAMPLE";', 'aws-access-key-id'],
-    ['github classic token', 'token=ghp_012345678901234567890123456789abcdef', 'github-token'],
-    [
-      'github fine-grained pat',
-      'GH=github_pat_11ABCDE0123456789_abcdefghijklmnopqrstuvwxyz0123',
-      'github-fine-grained-pat',
-    ],
+    ['github classic token', `token=${FAKE_GITHUB_TOKEN}`, 'github-token'],
+    ['github fine-grained pat', `GH=${FAKE_GITHUB_PAT}`, 'github-fine-grained-pat'],
     ['openai key', 'OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz0123', 'openai-key'],
     ['anthropic key', 'k=sk-ant-api03-abcdefghijklmnopqrstuvwxyz', 'anthropic-key'],
     ['openrouter key', `k=${FAKE_OPENROUTER_KEY}`, 'openrouter-key'],
-    ['google api key', 'key=AIzaSyA0123456789abcdefghijklmnopqrstuv', 'google-api-key'],
-    ['stripe secret key', 'STRIPE=sk_live_0123456789abcdefABCDEF', 'stripe-secret-key'],
+    ['google api key', `key=${FAKE_GOOGLE_KEY}`, 'google-api-key'],
+    ['stripe secret key', `STRIPE=${FAKE_STRIPE_KEY}`, 'stripe-secret-key'],
     ['jwt', 'auth=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.abcDEF123_-xyz', 'jwt'],
     [
       'private key block',

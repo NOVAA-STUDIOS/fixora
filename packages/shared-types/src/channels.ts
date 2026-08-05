@@ -57,6 +57,10 @@ export const channels = [
   // user pasting a Gemini key silently overwrote their OpenRouter one — these take the id.
   'providers:setKey',
   'providers:clearKey',
+  // First-run agreement to the Terms and Privacy Policy.
+  'consent:get',
+  'consent:accept',
+  'consent:decline',
   'ai:getConfig',
   'ai:setModel',
   'ai:listModels',

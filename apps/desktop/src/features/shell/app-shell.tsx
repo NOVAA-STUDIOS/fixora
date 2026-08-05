@@ -2,6 +2,7 @@ import { FullDiffOverlay } from '../ai/full-diff-overlay.js';
 import { CommandPalette } from '../commands/command-palette.js';
 import { CommandProvider } from '../commands/command-provider.js';
 import { useAppCommands } from '../commands/use-app-commands.js';
+import { ConsentGate } from '../consent/consent-gate.js';
 import { WorkspaceSwitchGuard } from '../workspace/workspace-switch-guard.js';
 
 import { ActivityRail } from './activity-rail.js';
@@ -23,7 +24,13 @@ export function AppShell(): React.JSX.Element {
   const commands = useAppCommands();
 
   return (
-    <CommandProvider commands={commands}>
+    /*
+      The agreement wraps EVERYTHING, including the command provider. It renders the app only once
+      consent exists, so no part of the product — not the palette, not a keybinding — is reachable
+      before the user has agreed to the terms that cover using it.
+    */
+    <ConsentGate>
+      <CommandProvider commands={commands}>
       {/*
         The shell is the *chrome*, and it sits on the darkest surface in the palette. The panes
         inside it are raised surfaces floating on that base with a gutter between them.
@@ -47,7 +54,8 @@ export function AppShell(): React.JSX.Element {
       {/* Opened on demand from the inline review; renders nothing until then. */}
       <FullDiffOverlay />
       <Toaster />
-      <WorkspaceSwitchGuard />
-    </CommandProvider>
+        <WorkspaceSwitchGuard />
+      </CommandProvider>
+    </ConsentGate>
   );
 }

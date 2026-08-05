@@ -249,6 +249,23 @@ export const contracts = {
     request: z.object({ id: z.string().min(1) }),
     response: ProviderListSchema,
   },
+  /**
+   * First-run agreement. Read on launch; the shell renders nothing else until it answers.
+   *
+   * `decline` quits the app, so it has no meaningful response — the renderer never sees one.
+   */
+  'consent:get': {
+    request: z.object({}),
+    response: z.object({ accepted: z.boolean() }),
+  },
+  'consent:accept': {
+    request: z.object({}),
+    response: z.object({ accepted: z.boolean() }),
+  },
+  'consent:decline': {
+    request: z.object({}),
+    response: z.object({}),
+  },
   'ai:getConfig': { request: empty, response: AiConfigSchema },
   'ai:setModel': { request: z.object({ model: z.string().min(1) }), response: AiConfigSchema },
   // The live OpenRouter catalogue, for the model picker. Public endpoint, no key involved — the

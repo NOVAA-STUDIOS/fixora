@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Fixora — Privacy</title>
+    <title>Fixora — Privacy Policy</title>
     <meta name="description" content="What Fixora does and does not do with your code and data." />
     <style>
       :root {
@@ -61,60 +61,152 @@
         padding: 1px 5px;
         border-radius: 4px;
       }
+      .meta {
+        font-size: 14px;
+        margin: 4px 0 0;
+      }
+      /* Wide content scrolls inside its own box, so the page never scrolls sideways on a phone. */
+      .scroll-x {
+        overflow-x: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 12px 0 4px;
+        font-size: 15px;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+        color: var(--fg-muted);
+      }
+      th {
+        color: var(--fg);
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .also {
+        margin-top: 48px;
+        border-top: 1px solid var(--border);
+        padding-top: 20px;
+        font-size: 14px;
+      }
     </style>
   </head>
   <body>
     <div class="wrap">
       <a class="back" href="/">← Fixora</a>
-      <h1>Privacy</h1>
-      <p>
-        Fixora is a desktop app that runs on your machine. This page describes exactly what it does
-        with your code and data. In the beta it is <b>bring-your-own-key (BYOK)</b>: there is no
-        Fixora account and no Fixora server involved in analysis or AI.
+      <h1>Privacy Policy</h1>
+      <p class="meta">Effective date: August 5, 2026</p>
+      <p class="meta">Publisher: NOVAA Studios</p>
+      <p class="meta">
+        Contact: <a href="mailto:nova.team.support@gmail.com">nova.team.support@gmail.com</a>
       </p>
 
-      <h2>Your code</h2>
+      <h2>1. What We Collect</h2>
+      <p>We collect almost nothing. Fixora is designed to be local-first.</p>
+      <div class="scroll-x">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Collected?</th>
+              <th>Where it goes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Your source code</td>
+              <td>Never</td>
+              <td>Stays on your machine (except to your AI provider)</td>
+            </tr>
+            <tr>
+              <td>API keys</td>
+              <td>Never</td>
+              <td>Stored encrypted locally only</td>
+            </tr>
+            <tr>
+              <td>Your name/email</td>
+              <td>Never</td>
+              <td>We don&rsquo;t ask</td>
+            </tr>
+            <tr>
+              <td>Anonymous usage events</td>
+              <td>Only if you opt in</td>
+              <td>Counted only — no code, no filenames</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>2. Your AI Provider</h2>
       <p>
-        Analysis and verification run <b>locally</b>. When you ask for an AI repair, the relevant
-        slice of code (the target symbol and its evidence — never your whole repo) is sent
-        <b>directly to the AI provider you chose</b>, using your own API key. It does not pass
-        through any Fixora server. A <b>secret gate</b> scans every outbound payload and refuses to
-        send anything containing an API key, private key, token, or other credential.
+        When you run a repair, your code is sent to the AI provider you configured. That
+        provider&rsquo;s own privacy policy applies. We recommend reviewing:
+      </p>
+      <ul>
+        <li>
+          Google Gemini Privacy:
+          <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer noopener"
+            >policies.google.com/privacy</a
+          >
+        </li>
+        <li>
+          OpenAI Privacy:
+          <a
+            href="https://openai.com/policies/privacy-policy"
+            target="_blank"
+            rel="noreferrer noopener"
+            >openai.com/policies/privacy-policy</a
+          >
+        </li>
+        <li>
+          Anthropic Privacy:
+          <a href="https://www.anthropic.com/privacy" target="_blank" rel="noreferrer noopener"
+            >anthropic.com/privacy</a
+          >
+        </li>
+        <li>
+          Groq Privacy:
+          <a href="https://groq.com/privacy-policy/" target="_blank" rel="noreferrer noopener"
+            >groq.com/privacy-policy</a
+          >
+        </li>
+      </ul>
+
+      <h2>3. Local Storage</h2>
+      <p>Fixora stores the following on your machine only:</p>
+      <ul>
+        <li>Your encrypted API keys</li>
+        <li>Your provider preferences and settings</li>
+        <li>Repair history (local database)</li>
+      </ul>
+      <p>None of this is transmitted to NOVAA Studios.</p>
+
+      <h2>4. Telemetry</h2>
+      <p>
+        Anonymous telemetry is off by default. If you enable it, we receive only event counts —
+        never your code, file names, or any identifiable information.
       </p>
 
-      <h2>Your API key</h2>
+      <h2>5. Children&rsquo;s Privacy</h2>
       <p>
-        Your provider key is stored encrypted using your operating system's keychain
-        (<code>DPAPI</code>/Keychain) and is read only in the app's main process at the moment of a
-        request. It is never written in plaintext, never shown in the interface after you save it,
-        and never sent anywhere except the provider.
+        Fixora is not directed at children under 13. We do not knowingly collect data from children.
       </p>
 
-      <h2>What is stored, and where</h2>
+      <h2>6. Changes</h2>
       <p>
-        Your repair history — including the before/after code and each verification verdict — is
-        stored in a local database on your machine (<code>%APPDATA%/Fixora</code> on Windows). It
-        never leaves your device. Nothing about your code, file paths, prompts, or findings is
-        logged or transmitted to us.
+        We may update this policy. We will notify you via the app or website for significant
+        changes.
       </p>
 
-      <h2>Telemetry</h2>
-      <p>
-        Telemetry is <b>off by default</b>. No usage data is sent in the beta. If a future version
-        adds opt-in telemetry, it will be anonymous, event-level (e.g. "a fix was applied"), and
-        will never include your code, file names, or repository identity — and it will remain off
-        unless you turn it on.
-      </p>
+      <h2>7. Contact</h2>
+      <p><a href="mailto:nova.team.support@gmail.com">nova.team.support@gmail.com</a></p>
 
-      <h2>Third parties</h2>
-      <p>
-        When you use AI, your chosen provider (e.g. OpenRouter and the model it routes to) receives
-        the code slice for that request under <b>their</b> privacy terms. Choose a provider you
-        trust; you can use a local model to avoid any third party entirely.
-      </p>
-
-      <h2>Contact</h2>
-      <p>Questions: <a href="mailto:privacy@fixora.dev">privacy@fixora.dev</a>.</p>
+      <p class="also"><a href="terms.html">Terms of Service</a> · <a href="/">Back to Fixora</a></p>
     </div>
   </body>
 </html>

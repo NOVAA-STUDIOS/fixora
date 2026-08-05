@@ -13,6 +13,7 @@ import { createOrchestrator } from './ai/providers/orchestrator.js';
 import { createProviderRegistry } from './ai/providers/provider-registry.js';
 import { createAnalysisHost } from './analysis/analysis-host.js';
 import { createAnalysisService } from './analysis/analysis-service.js';
+import { createConsentStore } from './consent/consent-store.js';
 import { openDatabase } from './db/database.js';
 import {
   createFileIndexRepository,
@@ -22,6 +23,7 @@ import {
 } from './db/repositories.js';
 import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
+import { registerConsentHandlers } from './ipc/handlers/consent.handlers.js';
 import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
 import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
 import { registerProviderHandlers } from './ipc/handlers/providers.handlers.js';
@@ -220,6 +222,11 @@ if (!gotTheLock) {
           aiService.cancel();
         },
       });
+      // First-run agreement. Registered before the AI handlers so the shell can ask on launch.
+      registerConsentHandlers({
+        consent: createConsentStore({ dir: app.getPath('userData') }),
+      });
+
       registerAiHandlers({
         keyStore,
         credentials,

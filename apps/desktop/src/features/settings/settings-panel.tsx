@@ -67,9 +67,45 @@ export function SettingsPanel(): React.JSX.Element {
           <LicenseSettings />
           <PrivacySettings />
           <Keybindings />
+          <LegalLinks />
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * The published Terms and Privacy Policy.
+ *
+ * Plain anchors with target=_blank: main's `setWindowOpenHandler` routes those through the guarded
+ * `openExternal` (navigation-guard.ts), so they open in the real browser and cannot navigate the app
+ * window. No IPC channel is needed, and adding one would be a second, less-guarded path to the same
+ * capability.
+ */
+const TERMS_URL = 'https://novaa-studios.github.io/fixora/terms.html';
+const PRIVACY_URL = 'https://novaa-studios.github.io/fixora/privacy.html';
+
+function LegalLinks(): React.JSX.Element {
+  return (
+    <div className="flex items-center gap-3 border-t border-border-subtle pt-6 text-xs text-fg-muted">
+      <a
+        href={TERMS_URL}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-accent-text hover:underline"
+      >
+        Terms of Service
+      </a>
+      <span aria-hidden="true">·</span>
+      <a
+        href={PRIVACY_URL}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-accent-text hover:underline"
+      >
+        Privacy Policy
+      </a>
+    </div>
   );
 }
 
