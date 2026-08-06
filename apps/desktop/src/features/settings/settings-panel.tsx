@@ -18,7 +18,7 @@ import { useUiStore } from '../../stores/ui-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
 
-import { detectProvider } from './detect-provider.js';
+import { detectProvider, normaliseKey } from './detect-provider.js';
 import { ModelPicker } from './model-picker.js';
 import { ProviderManager } from './provider-manager.js';
 
@@ -329,7 +329,10 @@ export function PrimaryKeyField(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const trimmed = draft.trim();
+  // Normalised, not merely trimmed — and the SAVED value is this one. Detecting a key and then
+  // storing the raw paste would send the invisible character to the provider, which answers 401 and
+  // sends the user hunting for a problem with their key rather than with the space in front of it.
+  const trimmed = normaliseKey(draft);
   // Detected on every keystroke, so the confirmation appears while pasting rather than after Save.
   const detected = trimmed === '' ? null : detectProvider(trimmed);
 

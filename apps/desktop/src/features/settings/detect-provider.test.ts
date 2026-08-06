@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { detectProvider } from './detect-provider.js';
+import { detectProvider, normaliseKey } from './detect-provider.js';
 
 /**
  * Key prefix detection.
@@ -56,5 +56,46 @@ describe('detectProvider', () => {
     // `aiza…` is not a Google key; accepting it would file someone else's key under Gemini.
     expect(detectProvider('aizaSyD-abc')).toBeNull();
     expect(detectProvider('GSK_abc')).toBeNull();
+  });
+});
+
+/**
+ * What a paste actually carries.
+ *
+ * `trim()` removes whitespace and nothing else, so one zero-width space in front of a key breaks
+ * `startsWith` for EVERY prefix at once — which is exactly what "all five providers report unknown"
+ * looks like from the outside. These pin the normalisation, one case per way a key arrives dirty.
+ */
+describe('normaliseKey — a key survives how it was copied', () => {
+  it('strips a leading zero-width space, which trim() leaves behind', () => {
+    expect(detectProvider('\u200Bsk-or-v1-abc')?.id).toBe('openrouter');
+  });
+
+  it('strips a BOM, the usual souvenir of a copy out of a web page', () => {
+    expect(detectProvider('\uFEFFsk-ant-api03-x')?.id).toBe('anthropic');
+  });
+
+  it('strips a soft hyphen and a word joiner', () => {
+    expect(detectProvider('\u00ADAIzaSyD-x')?.id).toBe('gemini');
+    expect(detectProvider('\u2060gsk_x')?.id).toBe('groq');
+  });
+
+  it('strips control characters that are not whitespace', () => {
+    expect(detectProvider('\u0000sk-proj-x')?.id).toBe('openai');
+  });
+
+  it('strips surrounding quotes — the other way keys get copied', () => {
+    expect(detectProvider('"sk-or-v1-abc"')?.id).toBe('openrouter');
+    expect(detectProvider("'gsk_x'")?.id).toBe('groq');
+    expect(detectProvider('`AIzaSyD-x`')?.id).toBe('gemini');
+  });
+
+  it('leaves a clean key untouched', () => {
+    expect(normaliseKey('sk-or-v1-abc')).toBe('sk-or-v1-abc');
+  });
+
+  it('still refuses a genuinely unknown key after normalising', () => {
+    // Hardening must not turn into "accept anything" — an unrecognised prefix is still unknown.
+    expect(detectProvider('\u200B"hf_abc"')).toBeNull();
   });
 });

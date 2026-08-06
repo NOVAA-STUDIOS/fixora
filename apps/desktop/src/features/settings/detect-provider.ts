@@ -38,8 +38,31 @@ const RULES: readonly (DetectedProvider & { prefix: string })[] = [
  * newline, and refusing that would be a puzzle rather than a safeguard. Case is significant — these
  * are literal prefixes the vendors issue, and matching loosely would accept keys that are not theirs.
  */
+/**
+ * Everything a pasted key can arrive wrapped in.
+ *
+ * `trim()` removes whitespace, and nothing else. A key copied out of a provider dashboard, a docs
+ * page or a chat message routinely carries a zero-width space, a BOM, or a word-joiner in front of
+ * it — invisible characters that survive `trim()` and break `startsWith` for EVERY prefix at once.
+ * That is the signature of "all five providers report unknown": not a broken pattern, one unseen
+ * character ahead of the text.
+ *
+ * Surrounding quotes and backticks go too, because the other common way to copy a key is out of a
+ * code sample where it was already a string literal.
+ */
+// Matching control characters is the POINT here: a key pasted from a terminal or a mangled
+// clipboard can carry NUL or an escape byte. The rule exists to catch people who wrote one by
+// accident, which is the opposite of this.
+// eslint-disable-next-line no-control-regex
+const INVISIBLE = /[\u200B-\u200D\uFEFF\u2060\u00AD\u0000-\u001F\u007F]/gu;
+
+/** Strip what a paste can carry so the prefix is the first thing left. Exported for tests. */
+export function normaliseKey(key: string): string {
+  return key.replace(INVISIBLE, '').trim().replace(/^["'`]+|["'`]+$/g, '').trim();
+}
+
 export function detectProvider(key: string): DetectedProvider | null {
-  const trimmed = key.trim();
+  const trimmed = normaliseKey(key);
   for (const rule of RULES) {
     if (trimmed.startsWith(rule.prefix)) return { id: rule.id, label: rule.label };
   }

@@ -6,6 +6,8 @@ import { useEffect, useId, useState } from 'react';
 import { invoke } from '../../lib/bridge.js';
 import { useAiStore } from '../../stores/ai-store.js';
 
+import { normaliseKey } from './detect-provider.js';
+
 /**
  * The provider manager.
  *
@@ -245,7 +247,9 @@ function ProviderKeyField({
   const inputId = useId();
 
   const save = async (): Promise<void> => {
-    const key = draft.trim();
+    // Same normalisation as the primary field: a slot save is just as likely to receive a key with a
+    // zero-width character in front of it, and the provider would reject it as invalid.
+    const key = normaliseKey(draft);
     if (key === '') return;
     setBusy(true);
     try {
