@@ -1,0 +1,34 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # package:win, not build: `build` only compiles to out/ — the .exe under release/ needs the
+      # full electron-builder pass. --publish is deliberately omitted here so this step cannot also
+      # create a release; the upload step below is the one place that happens.
+      - run: pnpm --filter @fixora/desktop package:win
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: apps/desktop/release/*.exe
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
