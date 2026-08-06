@@ -1,6 +1,6 @@
 {
   "name": "@fixora/desktop",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.9",
   "private": true,
   "description": "Fixora desktop shell (Electron).",
   "//type": "Deliberately NOT type:module. A sandboxed preload (sandbox: true, Security section 2) must be CommonJS — Electron does not support an ESM preload in a sandboxed renderer. The renderer itself is still ESM; Vite handles it.",
