@@ -25,8 +25,11 @@ const PLACEHOLDERS = {
 
 /** Assets referenced by the page that must actually exist in the deployed directory. */
 const REQUIRED_ASSETS = [
-  'screenshots/problems.png',
-  'screenshots/verified-repair.png',
+  'screenshots/01-problems-repair.png',
+  'screenshots/02-diff-view.png',
+  'screenshots/03-files-details.png',
+  'screenshots/04-home-screen.png',
+  'screenshots/05-settings-providers.png',
   'privacy.html',
   '.well-known/security.txt',
 ];
