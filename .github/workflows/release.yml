@@ -55,8 +55,10 @@ jobs:
       - name: Point the website's Download links at this tag
         shell: bash
         run: |
+          git stash
           git fetch origin main
           git checkout main
+          git stash pop
           version="${GITHUB_REF_NAME#v}"
           sed -i -E "s#v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?/Fixora-Setup-[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?\.exe#${GITHUB_REF_NAME}/Fixora-Setup-${version}.exe#g" website/index.html
           if ! git diff --quiet -- website/index.html; then
