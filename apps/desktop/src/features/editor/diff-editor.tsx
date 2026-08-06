@@ -90,6 +90,10 @@ export function DiffEditor({
       useInlineViewWhenSpaceIsLimited: true,
       renderSideBySideInlineBreakpoint: SIDE_BY_SIDE_MIN_WIDTH,
       ignoreTrimWhitespace: false,
+      // Cheaper diff computation than the 'advanced' default — coarser hunk boundaries on rare
+      // pathological inputs, but this diffs one repair-sized patch at a time, not arbitrary files,
+      // so the accuracy 'advanced' buys is not worth its cost here.
+      diffAlgorithm: 'legacy',
       // 13px was the app-chrome size applied to code in a pane where code is the content.
       // The diff is the artifact under review; it gets the editor's reading size, not a caption's.
       fontSize: 13.5,
