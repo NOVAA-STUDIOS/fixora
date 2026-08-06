@@ -36,7 +36,9 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: apps/desktop/release/*.exe
+          files: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/latest.yml
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
