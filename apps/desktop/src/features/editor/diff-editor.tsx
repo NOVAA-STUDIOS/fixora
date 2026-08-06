@@ -89,6 +89,9 @@ export function DiffEditor({
       renderOverviewRuler: false,
       scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false },
       scrollBeyondLastLine: false,
+      // Monaco's own scroller, not a CSS overflow box — `smoothScrolling` is its equivalent of
+      // `scroll-behavior: smooth` for the wheel/keyboard/goto-line jumps it renders itself.
+      smoothScrolling: true,
       // Without this the diff's own horizontal scrollbar is the only way to read a long line, and
       // in a narrow pane that means every line.
       wordWrap: 'on',
