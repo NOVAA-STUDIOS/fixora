@@ -60,6 +60,7 @@ publish:
   owner: NOVAA-STUDIOS
   repo: fixora
   releaseType: draft
+  publishAutoUpdate: true
 
 nodeGypRebuild: false
 npmRebuild: false

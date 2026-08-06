@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint electron src electron.vite.config.ts --max-warnings 0",
     "test": "vitest run",
-    "package:win": "pnpm --filter @fixora/core-analysis build && pnpm clean && electron-vite build && node scripts/prepackage.mjs && electron-builder --win --config electron-builder.yml && node scripts/postpackage.mjs",
+    "package:win": "pnpm --filter @fixora/core-analysis build && pnpm clean && electron-vite build && node scripts/prepackage.mjs && electron-builder --win --config electron-builder.yml --publish never && node scripts/postpackage.mjs",
     "release": "pnpm --filter @fixora/core-analysis build && pnpm clean && electron-vite build && node scripts/prepackage.mjs && electron-builder --win --config electron-builder.yml --publish always && node scripts/postpackage.mjs",
     "package:dir": "pnpm --filter @fixora/core-analysis build && pnpm clean && electron-vite build && node scripts/prepackage.mjs && electron-builder --dir --win --config electron-builder.yml && node scripts/postpackage.mjs",
     "prepackage": "node scripts/prepackage.mjs",
