@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fixora — Privacy Policy</title>
+    <meta name="description" content="What Fixora does and does not do with your code and data." />
+    <style>
+      :root {
+        --bg: #0b0b0f;
+        --fg: #ecebf3;
+        --fg-muted: #a0a0b0;
+        --accent: #8b5cf6;
+        --border: #262633;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #fbfbfd;
+          --fg: #16161d;
+          --fg-muted: #5c5c6b;
+          --accent: #7c3aed;
+          --border: #e6e6ee;
+        }
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.7;
+      }
+      .wrap {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 56px 24px 80px;
+      }
+      a {
+        color: var(--accent);
+      }
+      h1 {
+        letter-spacing: -0.02em;
+      }
+      h2 {
+        margin-top: 36px;
+        letter-spacing: -0.01em;
+      }
+      p,
+      li {
+        color: var(--fg-muted);
+      }
+      b {
+        color: var(--fg);
+      }
+      .back {
+        color: var(--fg-muted);
+        text-decoration: none;
+        font-size: 14px;
+      }
+      code {
+        background: color-mix(in srgb, var(--fg) 8%, transparent);
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+      .meta {
+        font-size: 14px;
+        margin: 4px 0 0;
+      }
+      /* Wide content scrolls inside its own box, so the page never scrolls sideways on a phone. */
+      .scroll-x {
+        overflow-x: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 12px 0 4px;
+        font-size: 15px;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+        color: var(--fg-muted);
+      }
+      th {
+        color: var(--fg);
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .also {
+        margin-top: 48px;
+        border-top: 1px solid var(--border);
+        padding-top: 20px;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <a class="back" href="/">← Fixora</a>
+      <h1>Privacy Policy</h1>
+      <p class="meta">Effective date: August 5, 2026</p>
+      <p class="meta">Publisher: NOVAA Studios</p>
+      <p class="meta">
+        Contact: <a href="mailto:nova.team.support@gmail.com">nova.team.support@gmail.com</a>
+      </p>
+
+      <h2>1. What We Collect</h2>
+      <p>We collect almost nothing. Fixora is designed to be local-first.</p>
+      <div class="scroll-x">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Collected?</th>
+              <th>Where it goes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Your source code</td>
+              <td>Never</td>
+              <td>Stays on your machine (except to your AI provider)</td>
+            </tr>
+            <tr>
+              <td>API keys</td>
+              <td>Never</td>
+              <td>Stored encrypted locally only</td>
+            </tr>
+            <tr>
+              <td>Your name/email</td>
+              <td>Never</td>
+              <td>We don&rsquo;t ask</td>
+            </tr>
+            <tr>
+              <td>Anonymous usage events</td>
+              <td>Only if you opt in</td>
+              <td>Counted only — no code, no filenames</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>2. Your AI Provider</h2>
+      <p>
+        When you run a repair, your code is sent to the AI provider you configured. That
+        provider&rsquo;s own privacy policy applies. We recommend reviewing:
+      </p>
+      <ul>
+        <li>
+          Google Gemini Privacy:
+          <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer noopener"
+            >policies.google.com/privacy</a
+          >
+        </li>
+        <li>
+          OpenAI Privacy:
+          <a
+            href="https://openai.com/policies/privacy-policy"
+            target="_blank"
+            rel="noreferrer noopener"
+            >openai.com/policies/privacy-policy</a
+          >
+        </li>
+        <li>
+          Anthropic Privacy:
+          <a href="https://www.anthropic.com/privacy" target="_blank" rel="noreferrer noopener"
+            >anthropic.com/privacy</a
+          >
+        </li>
+        <li>
+          Groq Privacy:
+          <a href="https://groq.com/privacy-policy/" target="_blank" rel="noreferrer noopener"
+            >groq.com/privacy-policy</a
+          >
+        </li>
+      </ul>
+
+      <h2>3. Local Storage</h2>
+      <p>Fixora stores the following on your machine only:</p>
+      <ul>
+        <li>Your encrypted API keys</li>
+        <li>Your provider preferences and settings</li>
+        <li>Repair history (local database)</li>
+      </ul>
+      <p>None of this is transmitted to NOVAA Studios.</p>
+
+      <h2>4. Telemetry</h2>
+      <p>
+        Anonymous telemetry is off by default. If you enable it, we receive only event counts —
+        never your code, file names, or any identifiable information.
+      </p>
+
+      <h2>5. Children&rsquo;s Privacy</h2>
+      <p>
+        Fixora is not directed at children under 13. We do not knowingly collect data from children.
+      </p>
+
+      <h2>6. Changes</h2>
+      <p>
+        We may update this policy. We will notify you via the app or website for significant
+        changes.
+      </p>
+
+      <h2>7. Contact</h2>
+      <p><a href="mailto:nova.team.support@gmail.com">nova.team.support@gmail.com</a></p>
+
+      <p class="also"><a href="terms.html">Terms of Service</a> · <a href="/">Back to Fixora</a></p>
+    </div>
+  </body>
+</html>
