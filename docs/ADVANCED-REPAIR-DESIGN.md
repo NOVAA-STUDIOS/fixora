@@ -3,6 +3,17 @@
 **Status:** APPROVED, implementing milestone by milestone.
 **Baseline:** `main` @ `7d7b284`
 
+> **Superseded, splice range only.** This document's "What this is not" section and the target-range
+> description below describe the ORIGINAL design: splice the root cause's own scope, possibly widened
+> by its group. Advanced Repair now targets the WHOLE FILE — same splice range as `ai-file` — and
+> collects every non-manual finding in the file into one request, so it can resolve cross-cutting
+> problems a scope-bounded patch cannot see. `groupByRootCause` still runs and still identifies the
+> root cause for the Root Cause View; it no longer decides what gets sent or spliced. Retries are
+> capped at 1 (`ADVANCED_VERIFY_RETRY_LIMIT`), not the standard 3, since a whole-file request already
+> costs more per attempt. Everything else on this page — the grouping algorithm itself, the safety
+> argument (verification/Apply gate unchanged) — still holds. See `ai-service.ts`'s `patchTarget` for
+> the current behaviour.
+
 ## What this is not
 
 Not a bigger `ai-file` (whole-file rewrite). `ai-file` stays exactly as it is today — a separate,

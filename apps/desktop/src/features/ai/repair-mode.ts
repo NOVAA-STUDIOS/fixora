@@ -51,11 +51,11 @@ export const REPAIR_MODES: readonly RepairModeInfo[] = [
     mode: 'advanced',
     label: 'Advanced Repair',
     description:
-      'Finds the ROOT CAUSE behind this problem — which may be a different finding elsewhere — and fixes it with one coherent, minimal patch. Not a bigger rewrite: the same verification, applied to a smarter target.',
-    scopeLabel: 'Root cause + directly related findings',
+      'Collects every problem in the file and sends them to the AI together in one request, so it can resolve issues that depend on each other rather than fixing them one at a time. Re-verifies the whole file afterward and retries once, automatically, if anything is still wrong.',
+    scopeLabel: 'Entire file — every repairable problem, fixed together',
     advanced: true,
     warning:
-      'Advanced Repair may target a different location than the one you selected, when the analyzer traces this problem to a root cause elsewhere in the file. It never rewrites the whole file blindly, and it is still verified before you can apply it — nothing is written until you press Apply.',
+      'This replaces the WHOLE FILE, not just the code around one problem — the largest change Fixora can make, and the most that can go wrong in one step. It is still verified before you can apply it, and you will review the full diff first. Nothing is written until you press Apply.',
   },
 ];
 

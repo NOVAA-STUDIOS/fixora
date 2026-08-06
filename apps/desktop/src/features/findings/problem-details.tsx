@@ -333,11 +333,11 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
           onOpenChange={setConfirmAdvanced}
           title={
             mode === 'advanced'
-              ? 'Run Advanced Repair on this problem?'
+              ? 'Run Advanced Repair on this file?'
               : 'Run AI File Repair on this whole file?'
           }
           description={repairModeInfo(mode).warning ?? ''}
-          confirmLabel={mode === 'advanced' ? 'Find root cause' : 'Analyze whole file'}
+          confirmLabel={mode === 'advanced' ? 'Fix every problem' : 'Analyze whole file'}
           onConfirm={() => {
             void runAi('repair', finding.id, mode);
           }}

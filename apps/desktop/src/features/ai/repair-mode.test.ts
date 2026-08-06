@@ -34,16 +34,22 @@ describe('repair modes', () => {
   });
 
   /**
-   * Advanced Repair is a STANDALONE engine, not a bigger version of `ai-file` — it targets a
-   * root-cause-computed range, never the whole file blindly, and it can land on a different
-   * location than the one selected. Its own warning must say so, distinctly from ai-file's.
+   * Advanced Repair now shares `ai-file`'s splice range — the whole file — because it collects
+   * every problem in the file into one request rather than fixing them one at a time. What
+   * distinguishes it is no longer a smaller blast radius (it isn't one — the warning must say the
+   * same "whole file, largest change" thing ai-file's does), but the single combined request and the
+   * capped single retry, both described in `description`, not in `warning`.
    */
-  it('Advanced Repair warns that it may retarget, and never claims to touch the whole file', () => {
+  it('Advanced Repair warns, same as ai-file, that it replaces the whole file', () => {
     const warning = repairModeInfo('advanced').warning ?? '';
-    expect(warning).toMatch(/different location|root cause/i);
+    expect(warning).toMatch(/whole file/i);
     expect(warning).toMatch(/verified/i);
-    // Reassures it will NOT blindly touch the whole file — must never instead CLAIM to replace it.
-    expect(warning.toLowerCase()).not.toContain('replaces the whole file');
+  });
+
+  it('Advanced Repair’s description is what actually distinguishes it: one combined request, one retry', () => {
+    const description = repairModeInfo('advanced').description;
+    expect(description).toMatch(/together|one request/i);
+    expect(description).toMatch(/retr(y|ies)/i);
   });
 
   it('the advanced mode warns, in plain words, that it replaces the whole file', () => {

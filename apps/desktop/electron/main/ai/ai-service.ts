@@ -192,6 +192,16 @@ const SCHEMA_ERROR = Symbol('schema_error');
 const VERIFY_RETRY_LIMIT = 3;
 
 /**
+ * Advanced Repair's own, smaller retry budget.
+ *
+ * It already sends the whole file with every problem in it listed in one request — a single attempt
+ * costs more (a bigger prompt, a bigger diff to verify) than a scope-bounded one, and a model that
+ * has not resolved everything in the file on its first correction, fed the verifier's own diagnostic,
+ * is unlikely to on a third. One retry, not three.
+ */
+const ADVANCED_VERIFY_RETRY_LIMIT = 1;
+
+/**
  * The last parse failure, so run() can report the real reason instead of a generic sentence.
  * Set by finalize(), read once by run().
  */
@@ -599,8 +609,13 @@ export function createAiService(deps: AiServiceDeps): AiService {
        *  - `finding` / `related-scope` keep the resolved scope exactly. `related-scope` does not widen
        *    the patch; it only lets the same patch resolve everything already inside it. That is what
        *    makes the merge safe: minimality is unchanged, only thoroughness improves.
-       *  - `ai-file` replaces the whole file. That is the largest edit the app can make, which is why
-       *    it is advanced-only, warned before it runs, and never selected automatically.
+       *  - `ai-file` and `advanced` both replace the whole file. That is the largest edit the app can
+       *    make, which is why both are advanced-only, warned before they run, and never selected
+       *    automatically. Advanced Repair used to target only its root-cause group's own scope; it now
+       *    collects every non-manual finding in the file into ONE request, on the reasoning that a
+       *    model shown the whole file and the complete list of what is wrong in it can resolve
+       *    cross-cutting problems a scope-bounded patch cannot even see. `advancedGroup` below still
+       *    identifies the primary root cause for the Root Cause View — it no longer decides the range.
        */
       const mode: RepairMode = request.mode ?? 'finding';
       const fileLineCount = content.split(/\r?\n/).length;
@@ -642,33 +657,20 @@ export function createAiService(deps: AiServiceDeps): AiService {
        * and spliced into another.
        */
       let patchTarget: Target =
-        mode === 'ai-file'
+        mode === 'ai-file' || mode === 'advanced'
           ? { symbolName: null, startLine: 1, endLine: fileLineCount }
-          : mode === 'advanced' && advancedGroup !== null
-            ? {
-                symbolName: advancedGroup.rootCause.evidence.enclosingSymbol?.name ?? null,
-                startLine: advancedGroup.targetRange.startLine,
-                endLine: advancedGroup.targetRange.endLine,
-              }
-            : target;
+          : target;
 
       const withinPatch = (f: Finding): boolean =>
         f.location.startLine >= patchTarget.startLine &&
         f.location.startLine <= patchTarget.endLine;
       // `manual` findings are never merged in: the analyzer already judged that no machine should
-      // guess them, and bundling one into a patch would launder that refusal.
-      //
-      // Advanced Repair uses the GROUP's own merge decision (root-cause-grouping.ts already applied
-      // the manual exclusion, and — critically — the identifier/scope distinction that decides how
-      // far a patch may safely widen) rather than the generic "anything on a line inside the range"
-      // rule, which would sweep in loosely-adjacent findings the grouping deliberately did not vouch
-      // for.
-      let mergeable: readonly Finding[] =
-        mode === 'finding'
-          ? []
-          : mode === 'advanced'
-            ? (advancedGroup?.mergeable ?? [])
-            : siblings.filter((f) => withinPatch(f) && f.repair !== 'manual');
+      // guess them, and bundling one into a patch would launder that refusal. Everything else inside
+      // the patch range is fair game — for `ai-file` and `advanced` that range is the whole file, so
+      // this is every other non-manual finding the file has.
+      let mergeable: readonly Finding[] = mode === 'finding'
+        ? []
+        : siblings.filter((f) => withinPatch(f) && f.repair !== 'manual');
       let skipped = siblings.filter((f) => !mergeable.includes(f));
 
       // Manual Validation Phase 2 instrumentation. Observes only — every stage is recorded so a
@@ -696,11 +698,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
         prerequisite?: string,
       ): ReturnType<typeof prepareRequest> => {
         mergeable =
-          mode === 'finding'
-            ? []
-            : mode === 'advanced'
-              ? (advancedGroup?.mergeable ?? [])
-              : siblings.filter((f) => withinPatch(f) && f.repair !== 'manual');
+          mode === 'finding' ? [] : siblings.filter((f) => withinPatch(f) && f.repair !== 'manual');
         skipped = siblings.filter((f) => !mergeable.includes(f));
         trace.target(patchTarget, content).related(mergeable);
 
@@ -800,8 +798,9 @@ export function createAiService(deps: AiServiceDeps): AiService {
        */
       const escalateScope = async (failed: VerificationReport): Promise<ProviderRequest | null> => {
         if (escalations.count >= SCOPE_ESCALATION_LIMIT) return null;
-        // `ai-file` already spans the file — there is nothing above it but the file itself.
-        if (mode === 'ai-file') return null;
+        // `ai-file` and `advanced` already span the file — there is nothing above it but the file
+        // itself.
+        if (mode === 'ai-file' || mode === 'advanced') return null;
 
         const dependent = detectDependentFailure(failed, patchTarget);
         if (dependent === null) return null;
@@ -1251,9 +1250,13 @@ export function createAiService(deps: AiServiceDeps): AiService {
         let lastText = stream.ok ? stream.text : '';
         /** Lint-targeted retries spent. Capped at one — see the block inside the loop. */
         let lintRetries = 0;
+        // Advanced Repair already re-analyzes the WHOLE file on every attempt (its target is the
+        // whole file — see `patchTarget` above), so "verify no errors remain, retry once if they do"
+        // is this same loop, just capped tighter.
+        const retryLimit = mode === 'advanced' ? ADVANCED_VERIFY_RETRY_LIMIT : VERIFY_RETRY_LIMIT;
         for (
           let attempt = 1;
-          attempt <= VERIFY_RETRY_LIMIT &&
+          attempt <= retryLimit &&
           response !== SCHEMA_ERROR &&
           lastVerification.current !== null &&
           !aborted();
@@ -1262,7 +1265,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
           const failed = lastVerification.current;
           console.error('[ai:run] verification failed — retrying', {
             attempt,
-            of: VERIFY_RETRY_LIMIT,
+            of: retryLimit,
             verdict: failed.verdict,
             syntaxOk: failed.syntaxOk,
             newFindingCount: failed.newFindingCount,
