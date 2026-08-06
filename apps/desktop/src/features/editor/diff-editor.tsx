@@ -112,9 +112,11 @@ export function DiffEditor({
       // Monaco's own scroller, not a CSS overflow box — `smoothScrolling` is its equivalent of
       // `scroll-behavior: smooth` for the wheel/keyboard/goto-line jumps it renders itself.
       smoothScrolling: true,
-      // Below 1: a full notch of the wheel moves less than a full page, which reads as less
-      // twitchy over a diff than the editor default.
-      mouseWheelScrollSensitivity: 0.3,
+      // Above 1: a full notch of the wheel moves MORE than the editor default — faster travel
+      // through a patch that can run to hundreds of lines.
+      mouseWheelScrollSensitivity: 1.5,
+      // The Alt-held multiplier on top of the above, for closing a long diff out quickly.
+      fastScrollSensitivity: 5,
       // A trackpad's diagonal wobble on an otherwise-vertical scroll must not read as horizontal
       // drift — this locks the gesture to whichever axis it actually started on.
       scrollPredominantAxis: true,
