@@ -101,7 +101,13 @@ export function DiffEditor({
       smoothScrolling: true,
       // Below 1: a full notch of the wheel moves less than a full page, which reads as less
       // twitchy over a diff than the editor default.
-      mouseWheelScrollSensitivity: 0.5,
+      mouseWheelScrollSensitivity: 0.3,
+      // A trackpad's diagonal wobble on an otherwise-vertical scroll must not read as horizontal
+      // drift — this locks the gesture to whichever axis it actually started on.
+      scrollPredominantAxis: true,
+      // Ctrl/Cmd+wheel would otherwise zoom the diff's font size, which a trackpad's own pinch
+      // gesture already does more predictably — this stops the wheel from doing it a second way.
+      mouseWheelZoom: false,
       // Without this the diff's own horizontal scrollbar is the only way to read a long line, and
       // in a narrow pane that means every line.
       wordWrap: 'on',
