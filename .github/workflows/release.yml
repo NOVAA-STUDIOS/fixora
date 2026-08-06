@@ -29,6 +29,8 @@ jobs:
       # full electron-builder pass. --publish is deliberately omitted here so this step cannot also
       # create a release; the upload step below is the one place that happens.
       - run: pnpm --filter @fixora/desktop package:win
+        env:
+          ELECTRON_BUILDER_SKIP_PUBLISH: 'true'
 
       - uses: softprops/action-gh-release@v2
         with:
