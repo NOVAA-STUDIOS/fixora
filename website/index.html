@@ -128,7 +128,45 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 12px;
         height: 60px;
+        flex-wrap: nowrap;
+      }
+      .nav nav {
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+        min-width: 0;
+      }
+      /* Below 1100px the two legal links move to the footer's job, not the nav's. */
+      @media (max-width: 1100px) {
+        .nav a.link[href$='terms.html'],
+        .nav a.link[href$='privacy.html'] {
+          display: none;
+        }
+      }
+      /* Below 860px, keep the links that actually explain the product; drop the rest. */
+      @media (max-width: 860px) {
+        .nav a.link[href='#screenshots'],
+        .nav a.link[href='#faq'] {
+          display: none;
+        }
+        .nav a.link {
+          margin-left: 14px;
+          font-size: 13px;
+        }
+      }
+      /* Below 640px, one line for links plus Download is still the requirement — this is what
+         gives up before that breaks: shrink further, then drop "How it works" too. */
+      @media (max-width: 640px) {
+        .nav a.link[href='#how'] {
+          display: none;
+        }
+        .nav a.link {
+          margin-left: 10px;
+          font-size: 12px;
+        }
       }
       .brand {
         display: flex;
