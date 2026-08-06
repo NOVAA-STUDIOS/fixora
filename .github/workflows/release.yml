@@ -21,6 +21,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Workspace packages (shared-types, core-ai, …) built BEFORE the app: package:win links
+      # against their dist output, and a stale one is a wrong build that still succeeds.
+      - run: pnpm -r --filter=!@fixora/desktop build
+
       # package:win, not build: `build` only compiles to out/ — the .exe under release/ needs the
       # full electron-builder pass. --publish is deliberately omitted here so this step cannot also
       # create a release; the upload step below is the one place that happens.
