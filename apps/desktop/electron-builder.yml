@@ -100,3 +100,4 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
+  artifactName: Fixora-Setup.exe
