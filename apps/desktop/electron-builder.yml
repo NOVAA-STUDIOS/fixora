@@ -69,7 +69,7 @@ npmRebuild: false
 win:
   target:
     - nsis
-  artifactName: ${productName}-Setup-${version}.${ext}
+  artifactName: Fixora-Setup.exe
   # KNOWN LIMITATION — this flag controls two things, and we only want to skip one of them.
   #
   # It gates code signing (which we genuinely do not do yet: ADR-021 defers it to the paid launch)
