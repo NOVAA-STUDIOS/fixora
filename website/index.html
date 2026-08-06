@@ -449,12 +449,12 @@
         </p>
         <div class="grid">
           <div class="card">
-            <h3>Analysis with your own tools</h3>
+            <h3>10 analyzers, running in parallel</h3>
             <p>
-              Fixora runs your project's ESLint, TypeScript, Ruff, mypy, go vet and Semgrep — your
-              config, your rules — plus built-in complexity, JSON and CSS/HTML checks. All ten run
-              concurrently, so the wall-clock cost is the slowest one, not their sum. Findings are
-              grounded in real tool output, not a model's opinion.
+              ESLint, TypeScript, Ruff, mypy, go vet and Semgrep — your config, your rules — plus
+              built-in complexity, JSON and CSS/HTML checks. All ten run concurrently: ~30s first
+              run on a mid-size project, ~266ms on a re-run once unchanged files are cached.
+              Findings are grounded in real tool output, not a model's opinion.
             </p>
           </div>
           <div class="card">
@@ -467,8 +467,9 @@
           <div class="card">
             <h3>Verified repair</h3>
             <p>
-              Every AI repair is applied in a throwaway copy, re-analysed, and syntax-checked. You
-              see a verdict — verified, unresolved, or regression — before you can apply it.
+              Every AI repair is applied in a throwaway copy, re-analysed, and syntax-checked before
+              a single byte touches your real file. You see a verdict — verified, unresolved, or
+              regression — before you can apply it.
             </p>
           </div>
           <div class="card">
@@ -592,10 +593,10 @@
         <p class="lede">These aren't marketing lines — they're how the product is built.</p>
         <ul class="claims">
           <li>
-            <b>Bring your own key.</b> Fixora talks to 8 providers — OpenRouter, OpenAI, Anthropic,
-            Google Gemini, Groq, Azure OpenAI, Ollama and LM Studio — straight from the app to the
-            one you choose. If it fails or hits a rate limit, Fixora fails over to the next enabled
-            provider in your priority order. There is no Fixora server on the AI path.
+            <b>8 AI providers, with automatic failover.</b> OpenRouter, OpenAI, Anthropic, Google
+            Gemini, Groq, Azure OpenAI, Ollama and LM Studio — straight from the app to the one you
+            choose. If it fails or hits a rate limit, Fixora fails over to the next enabled provider
+            in your priority order. There is no Fixora server on the AI path.
           </li>
           <li>
             <b>Your key is encrypted</b> with your OS keychain and never leaves the main process —
@@ -757,11 +758,27 @@
       </div>
     </section>
 
+    <section id="changelog">
+      <div class="wrap">
+        <p class="eyebrow">Changelog</p>
+        <h2>What's new</h2>
+        <ul class="claims">
+          <li>
+            <b>v1.0.0-beta.1</b> — Initial public beta. 8 AI providers, parallel analysis (10
+            analyzers), per-provider encrypted key storage, smart provider detection, explainable
+            repairs.
+          </li>
+        </ul>
+      </div>
+    </section>
+
     <footer>
       <div class="wrap">
         Fixora — verified AI code repair. Public Beta. ·
         <a href="/terms.html">Terms of Service</a> · <a href="/privacy.html">Privacy Policy</a> ·
-        <a href="/.well-known/security.txt">Security</a>
+        <a href="/.well-known/security.txt">Security</a> ·
+        <a href="https://github.com/NOVAA-STUDIOS/fixora">GitHub</a> ·
+        <a href="mailto:nova.team.support@gmail.com">Contact</a>
         · Made for developers who don't trust AI blindly.
       </div>
     </footer>
