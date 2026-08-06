@@ -25,6 +25,7 @@ export function DiffEditor({
   startLine = 1,
   sideBySide,
   onLineClick,
+  wordWrap = true,
 }: {
   original: string;
   modified: string;
@@ -41,6 +42,14 @@ export function DiffEditor({
   sideBySide?: boolean | undefined;
   /** Called with the REAL file line when a line in the diff is clicked. */
   onLineClick?: (fileLine: number) => void;
+  /**
+   * Wrapping forces Monaco off its fixed-row-height fast path, so every scroll can re-layout the
+   * wrapped lines in view — real cost, not a perception. Worth paying in a narrow pane, where the
+   * alternative is a horizontal scrollbar on every long line; not worth it in the full-diff overlay,
+   * which has the width to show a long line without wrapping it. Defaults on, matching the original
+   * (narrow-pane) behaviour.
+   */
+  wordWrap?: boolean;
 }): React.JSX.Element {
   /**
    * Nothing to compare. A repair whose replacement came back empty is a real outcome — the Apply
@@ -109,8 +118,9 @@ export function DiffEditor({
       // gesture already does more predictably — this stops the wheel from doing it a second way.
       mouseWheelZoom: false,
       // Without this the diff's own horizontal scrollbar is the only way to read a long line, and
-      // in a narrow pane that means every line.
-      wordWrap: 'on',
+      // in a narrow pane that means every line — see the `wordWrap` prop doc for the scroll-cost
+      // tradeoff this makes against that.
+      wordWrap: wordWrap ? 'on' : 'off',
     });
     editorRef.current = editor;
 
@@ -134,7 +144,9 @@ export function DiffEditor({
       models?.modified.dispose();
       editorRef.current = null;
     };
-  }, [nothingToDiff]);
+    // `wordWrap` is a per-usage constant in both call sites, never expected to change at runtime;
+    // included so it can't silently go stale rather than because a live toggle is a real case.
+  }, [nothingToDiff, wordWrap]);
 
   useEffect(() => {
     const editor = editorRef.current;

@@ -93,6 +93,9 @@ export function FullDiffOverlay(): React.JSX.Element | null {
             language={monacoLanguageFor(proposal.target.file)}
             startLine={proposal.target.startLine}
             sideBySide={view === 'split'}
+            // Wide enough to show a long line without wrapping it — and wrapping costs Monaco its
+            // fixed-row-height scroll fast path, so off here is strictly better in this view.
+            wordWrap={false}
           />
         </div>
       </div>
