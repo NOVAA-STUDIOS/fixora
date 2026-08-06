@@ -48,10 +48,11 @@ extraResources:
   - from: build/icon.png
     to: icon.png
 
-# GitHub Releases. Draft only: the build is UNSIGNED (see `signAndEditExecutable` below), so a
-# published installer would meet users with a SmartScreen warning and no way to verify it. A draft
-# uploads the artifacts and waits — release notes, a SmartScreen check and the decision to ship stay
-# manual until signing lands (ADR-021).
+# GitHub Releases. `releaseType: release` — a `--publish always` run goes stright to a published
+# release the moment it uploads, with no draft review step. The build is still UNSIGNED (see
+# `signAndEditExecutable` below), so this is what puts a SmartScreen-warned, unverifiable installer
+# in front of real users automatically; there is no manual gate left before that happens (ADR-021
+# deferred signing, not this decision).
 #
 # Requires GH_TOKEN in the environment at publish time; it is never stored in this file. See
 # docs/RELEASING.md.
@@ -59,7 +60,7 @@ publish:
   provider: github
   owner: NOVAA-STUDIOS
   repo: fixora
-  releaseType: draft
+  releaseType: release
   publishAutoUpdate: true
 
 nodeGypRebuild: false
