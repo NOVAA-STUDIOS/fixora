@@ -50,6 +50,13 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%238b5cf6'/%3E%3Cpath d='m20 24.5 3 3 5.5-6.5' stroke='%23fff' stroke-width='2.75' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"
     />
 
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -94,8 +101,8 @@
       }
       body {
         margin: 0;
-        font-family:
-          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+          Arial, sans-serif;
         background: var(--bg);
         color: var(--fg);
         line-height: 1.6;
@@ -146,7 +153,9 @@
         color: var(--fg);
       }
       .btn {
+        position: relative;
         display: inline-block;
+        overflow: hidden;
         padding: 12px 20px;
         border-radius: 10px;
         font-weight: 600;
@@ -159,6 +168,23 @@
       }
       .btn:active {
         transform: translateY(1px);
+      }
+      /* Shimmer: a light band swept across on hover, clipped by the button's own border-radius. */
+      .btn::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          115deg,
+          transparent 40%,
+          rgba(255, 255, 255, 0.35) 50%,
+          transparent 60%
+        );
+        transform: translateX(-120%);
+      }
+      .btn:hover::after {
+        transform: translateX(120%);
+        transition: transform 0.6s ease;
       }
       .btn-primary {
         background: var(--accent);
@@ -179,16 +205,23 @@
         padding: 72px 0;
         border-bottom: 1px solid var(--border);
       }
+      h1,
+      h2,
+      h3 {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+      }
       h1 {
         font-size: clamp(34px, 6vw, 56px);
         line-height: 1.08;
         letter-spacing: -0.02em;
         margin: 0 0 18px;
+        font-weight: 800;
       }
       h2 {
         font-size: clamp(24px, 4vw, 32px);
         letter-spacing: -0.01em;
         margin: 0 0 12px;
+        font-weight: 700;
       }
       .lede {
         font-size: clamp(17px, 2.4vw, 20px);
@@ -196,15 +229,98 @@
         max-width: 640px;
       }
       .eyebrow {
-        color: var(--accent);
-        font-weight: 600;
+        color: #8b5cf6;
+        font-weight: 700;
         font-size: 13px;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.16em;
         text-transform: uppercase;
+      }
+
+      /* Scroll-triggered reveal: JS toggles .visible once a heading/card enters the viewport. */
+      .fade-in {
+        opacity: 0;
+        transform: translateY(20px);
+        transition:
+          opacity 0.6s ease,
+          transform 0.6s ease;
+      }
+      .fade-in.visible {
+        opacity: 1;
+        transform: translateY(0);
       }
 
       .hero {
         padding-top: 88px;
+      }
+      /* Cycles the three phrases with a typed-out reveal. Each span owns an identical 33%-wide
+         active window inside one shared 9s loop; staggering animation-delay by a third of the
+         duration is what makes them take turns instead of overlapping. */
+      .typewriter {
+        position: relative;
+        height: 1.3em;
+        margin: 2px 0 20px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: clamp(18px, 2.6vw, 24px);
+        color: #8b5cf6;
+      }
+      .typewriter span {
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: inline-block;
+        overflow: hidden;
+        white-space: nowrap;
+        border-right: 2px solid #8b5cf6;
+        width: 0;
+        opacity: 0;
+        animation-duration: 9s;
+        animation-timing-function: steps(20, end);
+        animation-iteration-count: infinite;
+        animation-name: type-cycle;
+      }
+      /* Each span's own character count, so the caret stops where its text actually ends. */
+      .typewriter span:nth-child(1) {
+        --w: 13ch;
+        animation-delay: 0s;
+      }
+      .typewriter span:nth-child(2) {
+        --w: 13ch;
+        animation-delay: -6s;
+      }
+      .typewriter span:nth-child(3) {
+        --w: 20ch;
+        animation-delay: -3s;
+      }
+      @keyframes type-cycle {
+        0% {
+          width: 0;
+          opacity: 1;
+        }
+        3% {
+          opacity: 1;
+        }
+        30% {
+          width: var(--w);
+          opacity: 1;
+        }
+        33% {
+          width: var(--w);
+          opacity: 0;
+        }
+        100% {
+          width: var(--w);
+          opacity: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .typewriter span {
+          animation: none;
+        }
+        .typewriter span:first-child {
+          width: auto;
+          opacity: 1;
+          border-right: none;
+        }
       }
       .cta-row {
         display: flex;
@@ -285,9 +401,18 @@
       }
       .card {
         background: var(--surface);
-        border: 1px solid var(--border);
+        border: 1px solid rgba(139, 92, 246, 0.15);
         border-radius: var(--radius);
         padding: 22px;
+        transition:
+          box-shadow 0.25s ease,
+          border-color 0.25s ease,
+          transform 0.25s ease;
+      }
+      .card:hover {
+        box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+        border-color: rgba(139, 92, 246, 0.4);
+        transform: translateY(-2px);
       }
       .card h3 {
         margin: 0 0 8px;
@@ -415,6 +540,11 @@
       <div class="wrap">
         <p class="eyebrow">Verified AI Code Repair</p>
         <h1>Fix smarter.<br />Ship faster.</h1>
+        <div class="typewriter" aria-hidden="true">
+          <span>Fix smarter.</span>
+          <span>Ship faster.</span>
+          <span>Trust every repair.</span>
+        </div>
         <p class="lede">
           Fixora repairs your code with AI you can actually trust — every fix is
           <b style="color: var(--fg)">verified against your own linters and type-checker</b> before
@@ -782,5 +912,29 @@
         · Made for developers who don't trust AI blindly.
       </div>
     </footer>
+
+    <script>
+      // Progressive enhancement: elements start plain, and only get the fade-in treatment once JS
+      // has confirmed it can also reveal them again — a script error between these two lines would
+      // otherwise leave every heading and card invisible.
+      (function () {
+        if (!('IntersectionObserver' in window)) return;
+        var targets = document.querySelectorAll('section h2, .card');
+        var io = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (!entry.isIntersecting) return;
+              entry.target.classList.add('visible');
+              io.unobserve(entry.target);
+            });
+          },
+          { threshold: 0.15 },
+        );
+        targets.forEach(function (t) {
+          t.classList.add('fade-in');
+          io.observe(t);
+        });
+      })();
+    </script>
   </body>
 </html>
