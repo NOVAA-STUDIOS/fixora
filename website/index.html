@@ -374,28 +374,6 @@
         font-size: 15px;
       }
 
-      form.capture {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 22px;
-        max-width: 480px;
-      }
-      form.capture input {
-        flex: 1;
-        min-width: 200px;
-        padding: 12px 14px;
-        border-radius: 10px;
-        border: 1px solid var(--border);
-        background: var(--surface);
-        color: var(--fg);
-        font-size: 15px;
-      }
-      form.capture input:focus {
-        outline: 2px solid var(--accent);
-        outline-offset: 1px;
-      }
-
       footer {
         padding: 40px 0 64px;
         color: var(--fg-muted);
@@ -657,21 +635,10 @@
 
     <section>
       <div class="wrap">
-        <p class="eyebrow">Stay in the loop</p>
-        <h2>Get beta updates</h2>
-        <p class="lede">
-          Occasional email on new releases and what changed. No spam, unsubscribe anytime.
-        </p>
-        <form class="capture" action="mailto:nova.team.support@gmail.com" method="get">
-          <input
-            type="email"
-            name="email"
-            placeholder="you@example.com"
-            required
-            aria-label="Email address"
-          />
-          <button class="btn btn-primary" type="submit">Notify me</button>
-        </form>
+        <p class="eyebrow">Contact</p>
+        <h2>Get in touch</h2>
+        <p class="lede">Questions, bug reports, or tell us what broke.</p>
+        <a class="btn btn-primary" href="mailto:nova.team.support@gmail.com">Email us</a>
       </div>
     </section>
 
