@@ -91,6 +91,6 @@ export function registerUpdateHandlers(): void {
       console.error('[updater] update:install called with nothing downloaded — ignored');
       return;
     }
-    autoUpdater.quitAndInstall();
+    autoUpdater.quitAndInstall(true, true);
   });
 }
