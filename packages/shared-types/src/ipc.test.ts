@@ -74,6 +74,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'suggestions:export',
       'suggestions:share',
       'suggestions:shareViaGmail',
+      'update:install',
     ]);
   });
 });

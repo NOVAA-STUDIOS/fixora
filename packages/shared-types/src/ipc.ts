@@ -356,6 +356,9 @@ export const contracts = {
     request: z.object({ id: z.string().min(1) }),
     response: ShareViaGmailResponseSchema,
   },
+  // Applies an update `update:downloaded` already reported ready. Quits and restarts, so there is
+  // no response to wait for — the process that would receive it is the one being replaced.
+  'update:install': { request: empty, response: z.void() },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

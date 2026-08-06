@@ -10,9 +10,13 @@ export {
 export {
   eventContracts,
   WindowMaximizedChangedSchema,
+  UpdateAvailableSchema,
+  UpdateDownloadedSchema,
   type EventContracts,
   type EventPayloadOf,
   type WindowMaximizedChanged,
+  type UpdateAvailable,
+  type UpdateDownloaded,
 } from './events.js';
 export {
   err,

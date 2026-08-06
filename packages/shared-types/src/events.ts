@@ -24,6 +24,14 @@ export type WindowMaximizedChanged = z.infer<typeof WindowMaximizedChangedSchema
 export const FindingsAddedSchema = z.object({ findings: z.array(FindingSchema) });
 export type FindingsAdded = z.infer<typeof FindingsAddedSchema>;
 
+/** A newer build exists and has started downloading in the background. */
+export const UpdateAvailableSchema = z.object({ version: z.string() });
+export type UpdateAvailable = z.infer<typeof UpdateAvailableSchema>;
+
+/** The download finished; `update:install` will quit and relaunch on it. */
+export const UpdateDownloadedSchema = z.object({ version: z.string() });
+export type UpdateDownloaded = z.infer<typeof UpdateDownloadedSchema>;
+
 export const eventContracts = {
   'window:maximizedChanged': WindowMaximizedChangedSchema,
   'workspace:filesChanged': FilesChangedSchema,
@@ -31,6 +39,8 @@ export const eventContracts = {
   'analysis:state': AnalysisStateSchema,
   'ai:delta': AiDeltaSchema,
   'ai:runState': AiRunStateSchema,
+  'update:available': UpdateAvailableSchema,
+  'update:downloaded': UpdateDownloadedSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

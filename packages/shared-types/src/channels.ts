@@ -89,6 +89,9 @@ export const channels = [
   // Sprint F1.5: the Gmail web-compose fallback, offered when 'suggestions:share' reports
   // no_mail_client.
   'suggestions:shareViaGmail',
+  // Auto-update. The renderer never drives the check — main starts it on launch — this is the one
+  // decision that stays with the user: applying the already-downloaded update quits and restarts.
+  'update:install',
 ] as const;
 
 export type Channel = (typeof channels)[number];
@@ -110,6 +113,8 @@ export const eventChannels = [
   'analysis:state',
   'ai:delta',
   'ai:runState',
+  'update:available',
+  'update:downloaded',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

@@ -39,6 +39,7 @@ import { createWorkspaceService } from './services/workspace-service.js';
 import { createSuggestionRepository } from './suggestions/suggestion-repository.js';
 import { createSuggestionService } from './suggestions/suggestion-service.js';
 import { createSuggestionStorage } from './suggestions/suggestion-storage.js';
+import { initAutoUpdater, registerUpdateHandlers } from './updater.js';
 import { createVerificationService } from './verification/verification-service.js';
 import { createMainWindow } from './windows/main-window.js';
 
@@ -250,6 +251,7 @@ if (!gotTheLock) {
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
       registerLicenseHandlers({ license });
+      registerUpdateHandlers();
 
       // Suggestion System (Sprint F1, F1.1). Not workspace-scoped — feedback about Fixora itself, so
       // it is available whether or not a project is open, same as Settings. appVersion/platform are
@@ -295,6 +297,13 @@ if (!gotTheLock) {
       });
 
       createMainWindow(devServerUrl);
+
+      // After the window exists: an update-available push with nowhere to land is just a dropped
+      // event (see `initAutoUpdater`'s window lookup), and there is no reason to race launch for it.
+      // Once per app run, not per window — the `activate` path below re-creates the window on
+      // macOS without relaunching the process, and a second check on every dock click would spam
+      // GitHub's release API for nothing.
+      initAutoUpdater();
 
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
