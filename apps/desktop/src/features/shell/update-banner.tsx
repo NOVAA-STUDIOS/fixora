@@ -26,7 +26,7 @@ export function UpdateBanner(): React.JSX.Element | null {
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-4 left-4 z-50 flex max-w-xs items-center gap-3 rounded-lg border border-border-subtle bg-raised px-3 py-2.5 shadow-lg"
+      className="fixed top-4 right-4 z-50 flex max-w-xs items-center gap-3 rounded-lg border border-border-subtle bg-raised px-3 py-2.5 shadow-lg"
     >
       {update.status === 'available' ? (
         <p className="text-xs text-fg-secondary">
