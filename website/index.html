@@ -10,9 +10,10 @@
     />
     <!--
       Owner: replace these placeholders before publishing —
-        DOWNLOAD_URL   the Windows installer link (a published GitHub release asset)
-        STRIPE_URL     your Stripe Payment Link for the Supporter/Pro license
-        FORM_ACTION    your email-capture endpoint (Buttondown/Formspree/etc.)
+        (resolved) DOWNLOAD_URL now points at the v1.0.0-beta.1 GitHub release asset. That asset
+        only exists once the release is PUBLISHED — a draft release 404s this link for everyone.
+        (removed)  STRIPE_URL and the Supporter/Pro card.
+        (resolved) FORM_ACTION is a mailto:, so "Notify me" opens the visitor's mail client.
         DOCS_URL       the hosted user guide
         ISSUES_URL     the issue tracker
 
@@ -427,7 +428,7 @@
           <a class="link" href="#faq">FAQ</a>
           <a class="link" href="/terms.html">Terms of Service</a>
           <a class="link" href="/privacy.html">Privacy Policy</a>
-          <a class="link" href="DOWNLOAD_URL">Download</a>
+          <a class="link" href="https://github.com/NOVAA-STUDIOS/fixora/releases/download/v1.0.0-beta.1/Fixora-Setup-1.0.0-beta.1.exe">Download</a>
         </nav>
       </div>
     </header>
@@ -442,7 +443,7 @@
           you apply it. Bring your own key. Your code never leaves your machine.
         </p>
         <div class="cta-row">
-          <a class="btn btn-primary" href="DOWNLOAD_URL">Download for Windows</a>
+          <a class="btn btn-primary" href="https://github.com/NOVAA-STUDIOS/fixora/releases/download/v1.0.0-beta.1/Fixora-Setup-1.0.0-beta.1.exe">Download for Windows</a>
           <a class="btn btn-ghost" href="#how">See how it works</a>
           <span class="cta-note">Free with your own API key · Public Beta</span>
         </div>
@@ -636,7 +637,7 @@
     <section id="pricing">
       <div class="wrap">
         <p class="eyebrow">Pricing</p>
-        <h2>Free with your key. Support if it helps you.</h2>
+        <h2>Free with your key.</h2>
         <div class="price-grid">
           <div class="price">
             <div>Free</div>
@@ -648,19 +649,7 @@
               <li>✓ Local history &amp; diff review</li>
               <li>✓ Any OpenRouter model</li>
             </ul>
-            <a class="btn btn-ghost" href="DOWNLOAD_URL">Download</a>
-          </div>
-          <div class="price pro">
-            <div>Supporter / Pro</div>
-            <div class="amt">One-time</div>
-            <div class="cta-note">Fund development · lock in early-supporter benefits</div>
-            <ul>
-              <li>✓ Everything in Free</li>
-              <li>✓ Supporter badge in-app</li>
-              <li>✓ Early-supporter pricing for v1.1</li>
-              <li>✓ A verified, private dev tool that keeps improving</li>
-            </ul>
-            <a class="btn btn-primary" href="STRIPE_URL">Become a supporter</a>
+            <a class="btn btn-ghost" href="https://github.com/NOVAA-STUDIOS/fixora/releases/download/v1.0.0-beta.1/Fixora-Setup-1.0.0-beta.1.exe">Download</a>
           </div>
         </div>
       </div>
@@ -673,7 +662,7 @@
         <p class="lede">
           Occasional email on new releases and what changed. No spam, unsubscribe anytime.
         </p>
-        <form class="capture" action="FORM_ACTION" method="post">
+        <form class="capture" action="mailto:nova.team.support@gmail.com" method="get">
           <input
             type="email"
             name="email"
