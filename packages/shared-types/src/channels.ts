@@ -115,6 +115,7 @@ export const eventChannels = [
   'ai:runState',
   'update:available',
   'update:downloaded',
+  'update:error',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

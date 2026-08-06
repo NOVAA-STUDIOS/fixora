@@ -12,11 +12,13 @@ export {
   WindowMaximizedChangedSchema,
   UpdateAvailableSchema,
   UpdateDownloadedSchema,
+  UpdateErrorSchema,
   type EventContracts,
   type EventPayloadOf,
   type WindowMaximizedChanged,
   type UpdateAvailable,
   type UpdateDownloaded,
+  type UpdateError,
 } from './events.js';
 export {
   err,

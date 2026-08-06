@@ -32,6 +32,10 @@ export type UpdateAvailable = z.infer<typeof UpdateAvailableSchema>;
 export const UpdateDownloadedSchema = z.object({ version: z.string() });
 export type UpdateDownloaded = z.infer<typeof UpdateDownloadedSchema>;
 
+/** The check or download failed — never fatal to the app, but worth the renderer knowing. */
+export const UpdateErrorSchema = z.object({ message: z.string() });
+export type UpdateError = z.infer<typeof UpdateErrorSchema>;
+
 export const eventContracts = {
   'window:maximizedChanged': WindowMaximizedChangedSchema,
   'workspace:filesChanged': FilesChangedSchema,
@@ -41,6 +45,7 @@ export const eventContracts = {
   'ai:runState': AiRunStateSchema,
   'update:available': UpdateAvailableSchema,
   'update:downloaded': UpdateDownloadedSchema,
+  'update:error': UpdateErrorSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;
