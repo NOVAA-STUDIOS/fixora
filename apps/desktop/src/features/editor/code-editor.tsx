@@ -8,6 +8,7 @@ import { useFindingsStore } from '../findings/findings-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { setActiveEditor } from './active-editor.js';
+import { useEditorStatusStore } from './editor-status-store.js';
 import { useEditorStore } from './editor-store.js';
 import { InlineRepairBar } from './inline-repair-bar.js';
 import { mountInlineRepair, type InlineRepairView } from './inline-repair.js';
@@ -75,7 +76,10 @@ export function CodeEditor({
       folding: el.clientWidth >= MINIMAP_MIN_WIDTH,
       scrollBeyondLastLine: false,
       fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--fx-font-mono'),
-      fontSize: 13,
+      fontSize: 14,
+      // VS Code's own editor gives the text room above/below the first and last line rather than
+      // butting them against the pane edge.
+      padding: { top: 8, bottom: 8 },
       renderWhitespace: 'selection',
       // The line the caret is on, highlighted in both the text and the gutter — Monaco's own
       // default ('line') only does the text; 'all' is what makes the current line findable at a
@@ -94,9 +98,19 @@ export function CodeEditor({
       multiCursorModifier: 'alt',
       quickSuggestions: true,
       suggestOnTriggerCharacters: true,
+      // Suggestions drawn from words already in the open files, not just the active language
+      // service's own completions — real for every language Monaco tokenizes, including ones
+      // with no semantic worker (CSS/HTML/JSON have real language-service IntelliSense already,
+      // via monaco-setup.ts's workers; Python and everything else get this word-based layer,
+      // which is genuinely all Monaco itself can offer without an actual language server).
+      wordBasedSuggestions: 'allDocuments',
     });
     editorRef.current = editor;
     setActiveEditor(editor);
+
+    const cursorSub = editor.onDidChangeCursorPosition((e) => {
+      useEditorStatusStore.getState().setPosition(e.position.lineNumber, e.position.column);
+    });
 
     // Ctrl/Cmd+S saves the file the editor is showing.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -122,6 +136,8 @@ export function CodeEditor({
 
     return () => {
       observer.disconnect();
+      cursorSub.dispose();
+      useEditorStatusStore.getState().clear();
       // Detach before teardown. Monaco's language services are worker-backed and asynchronous —
       // tokenization, links, folding — and each holds the model it was started against. Disposing
       // the editor while one is in flight leaves that request resolving into a torn-down editor,
@@ -142,6 +158,9 @@ export function CodeEditor({
     const monaco = setupMonaco();
     const model = modelFor(monaco, relPath, content, language);
     editor.setModel(model);
+    useEditorStatusStore.getState().setLanguage(language);
+    const pos = editor.getPosition();
+    if (pos !== null) useEditorStatusStore.getState().setPosition(pos.lineNumber, pos.column);
     let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
     const sub = model.onDidChangeContent(() => {
       useEditorStore.getState().syncDirty(relPath);

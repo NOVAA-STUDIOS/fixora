@@ -1,4 +1,5 @@
 import { useUiStore } from '../../stores/ui-store.js';
+import { useEditorStatusStore } from '../editor/editor-status-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
@@ -16,6 +17,9 @@ export function StatusBar(): React.JSX.Element {
   const workspace = useWorkspaceStore((s) => s.workspace);
   const summary = useFindingsStore((s) => s.summary);
   const status = useFindingsStore((s) => s.status);
+  const line = useEditorStatusStore((s) => s.line);
+  const column = useEditorStatusStore((s) => s.column);
+  const language = useEditorStatusStore((s) => s.language);
 
   const analysis =
     status === 'running'
@@ -53,6 +57,17 @@ export function StatusBar(): React.JSX.Element {
         status-bar-item pattern), and titled with what clicking does.
       */}
       <div className="flex h-full shrink-0 items-center">
+        {line !== null && column !== null && (
+          <span className="flex h-full shrink-0 items-center px-2.5">
+            Ln {line}, Col {column}
+          </span>
+        )}
+        {language !== null && (
+          <span className="flex h-full shrink-0 items-center px-2.5 capitalize">{language}</span>
+        )}
+        {line !== null && (
+          <span className="flex h-full shrink-0 items-center px-2.5">UTF-8</span>
+        )}
         <StatusButton
           onClick={toggleDensity}
           title={`Density: ${density}. Click to switch.`}

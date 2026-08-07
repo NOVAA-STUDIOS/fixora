@@ -1,4 +1,4 @@
-import { ConfirmDialog, WinCloseIcon, cn } from '@fixora/ui';
+import { ConfirmDialog, FileIcon, WinCloseIcon, cn } from '@fixora/ui';
 import { useEffect, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
@@ -14,6 +14,38 @@ import { disposeModel } from './models.js';
  * which owns it from then on (ADR-015). Closing a tab disposes its model so a large repo does not
  * accumulate every file ever opened in memory.
  */
+/**
+ * Tab icons, colour-coded by extension — the same generic file glyph the tree uses
+ * (`file-tree.tsx`), tinted rather than swapped for a per-language icon set: distinguishing tabs
+ * by colour at a glance is the useful part of "VS Code-like" tab icons; a full icon-per-language
+ * asset library is a much larger, separate investment this does not attempt.
+ */
+const EXTENSION_COLOR: Record<string, string> = {
+  ts: 'text-[#3178c6]',
+  tsx: 'text-[#3178c6]',
+  js: 'text-[#f1c40f]',
+  jsx: 'text-[#f1c40f]',
+  mjs: 'text-[#f1c40f]',
+  cjs: 'text-[#f1c40f]',
+  py: 'text-[#3572a5]',
+  json: 'text-[#f1c40f]',
+  css: 'text-[#42a5f5]',
+  scss: 'text-[#c6538c]',
+  html: 'text-[#e34c26]',
+  md: 'text-fg-secondary',
+  yml: 'text-[#cb171e]',
+  yaml: 'text-[#cb171e]',
+  go: 'text-[#00add8]',
+  rs: 'text-[#dea584]',
+};
+
+function TabFileIcon({ name }: { name: string }): React.JSX.Element {
+  const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
+  return (
+    <FileIcon className={cn('size-3.5 shrink-0', EXTENSION_COLOR[ext] ?? 'text-fg-muted')} />
+  );
+}
+
 export function EditorArea(): React.JSX.Element {
   const tabs = useEditorStore((s) => s.tabs);
   const activeTab = useEditorStore((s) => s.activeTab);
@@ -94,6 +126,7 @@ export function EditorArea(): React.JSX.Element {
                   className="flex min-w-0 max-w-40 items-center gap-1.5 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
                   title={isDirty ? `${tab.relPath} — unsaved changes` : tab.relPath}
                 >
+                  <TabFileIcon name={tab.name} />
                   <span className="min-w-0 truncate">{tab.name}</span>
                   {isDirty && (
                     <span
