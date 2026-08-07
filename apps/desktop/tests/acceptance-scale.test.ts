@@ -124,5 +124,8 @@ describe('M2 scale acceptance: a 10,000-file repo', () => {
     driver.close();
     // Reading + SHA-256 hashing 10k files is intentionally heavy; it runs off first paint, so this
     // is not gated by the 2s budget — the generous timeout reflects that it is background work.
-  }, 30_000);
+    // Raised from 30s: indexFiles now yields to the event loop every 200 files (main-process
+    // responsiveness fix) rather than walking in one synchronous call, and 50 real `setImmediate`
+    // round-trips add wall-clock time this test's budget has to accommodate.
+  }, 60_000);
 });

@@ -24,6 +24,7 @@ describe('ActivityRail', () => {
       'Files',
       'Problems',
       'History',
+      'Terminal',
       'Suggest',
       'Settings',
     ]);

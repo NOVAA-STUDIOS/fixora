@@ -10,6 +10,7 @@ import { FindingsPanel } from '../findings/findings-panel.js';
 import { HistoryPanel } from '../history/history-panel.js';
 import { SettingsPanel } from '../settings/settings-panel.js';
 import { SuggestionPanel } from '../suggestions/suggestion-panel.js';
+import { TerminalPanel } from '../terminal/terminal-panel.js';
 import { WorkspacePanel } from '../workspace/workspace-panel.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
@@ -97,6 +98,16 @@ export function Workbench(): React.JSX.Element {
     return (
       <ErrorBoundary label="Settings">
         <SettingsPanel />
+      </ErrorBoundary>
+    );
+  }
+
+  // Full width, like Settings/Diagnostics: a shell session is not something a tree-plus-editor
+  // split serves — it wants the room a primary/editor/ai three-way split would take away from it.
+  if (activeView === 'terminal') {
+    return (
+      <ErrorBoundary label="Terminal">
+        <TerminalPanel />
       </ErrorBoundary>
     );
   }

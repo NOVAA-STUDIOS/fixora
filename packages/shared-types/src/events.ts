@@ -36,6 +36,17 @@ export type UpdateDownloaded = z.infer<typeof UpdateDownloadedSchema>;
 export const UpdateErrorSchema = z.object({ message: z.string() });
 export type UpdateError = z.infer<typeof UpdateErrorSchema>;
 
+/** A chunk of PTY output, keyed by the session id `terminal:create` was called with. */
+export const TerminalDataSchema = z.object({ id: z.string().min(1), data: z.string() });
+export type TerminalData = z.infer<typeof TerminalDataSchema>;
+
+/** The shell process exited — the renderer stops writing to this session and may tear it down. */
+export const TerminalExitSchema = z.object({
+  id: z.string().min(1),
+  exitCode: z.number().int(),
+});
+export type TerminalExit = z.infer<typeof TerminalExitSchema>;
+
 export const eventContracts = {
   'window:maximizedChanged': WindowMaximizedChangedSchema,
   'workspace:filesChanged': FilesChangedSchema,
@@ -46,6 +57,8 @@ export const eventContracts = {
   'update:available': UpdateAvailableSchema,
   'update:downloaded': UpdateDownloadedSchema,
   'update:error': UpdateErrorSchema,
+  'terminal:data': TerminalDataSchema,
+  'terminal:exit': TerminalExitSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

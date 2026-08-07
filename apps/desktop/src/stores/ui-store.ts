@@ -20,7 +20,8 @@ export type ActivityView =
   | 'history'
   | 'suggestions'
   | 'settings'
-  | 'diagnostics';
+  | 'diagnostics'
+  | 'terminal';
 
 /** One view's pane proportions, keyed by panel id. */
 export type PaneSizes = Record<string, number>;
@@ -38,6 +39,7 @@ const VIEWS: readonly ActivityView[] = [
   'suggestions',
   'settings',
   'diagnostics',
+  'terminal',
 ];
 
 /**

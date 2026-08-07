@@ -92,6 +92,12 @@ export const channels = [
   // Auto-update. The renderer never drives the check — main starts it on launch — this is the one
   // decision that stays with the user: applying the already-downloaded update quits and restarts.
   'update:install',
+  // Integrated terminal. `create` spawns a shell rooted at the open workspace; `write`/`resize`
+  // drive the running session; `dispose` kills it. One session per terminal tab, keyed by id.
+  'terminal:create',
+  'terminal:write',
+  'terminal:resize',
+  'terminal:dispose',
 ] as const;
 
 export type Channel = (typeof channels)[number];
@@ -116,6 +122,9 @@ export const eventChannels = [
   'update:available',
   'update:downloaded',
   'update:error',
+  // Terminal output/exit, streamed per-session (keyed by the id `terminal:create` returned).
+  'terminal:data',
+  'terminal:exit',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

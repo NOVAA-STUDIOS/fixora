@@ -23,11 +23,14 @@
   "//dependencies": "Only @fixora/core-analysis is a RUNTIME dependency: the ESM analysis worker imports it from disk (out/main/analysis-worker.mjs) so it can resolve tree-sitter WASM via import.meta.url. Every other @fixora/* package is bundled into the CJS main and the renderer by electron-vite, which makes them build-time inputs — they belong in devDependencies. Keeping them here also broke packaging: electron-builder's production-dependency walker follows pnpm's workspace symlinks out to packages/*, then refuses the realpath for being outside apps/desktop.",
   "dependencies": {
     "@fixora/core-analysis": "workspace:*",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "chokidar": "5.0.0",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.9",
     "ignore": "7.0.6",
     "monaco-editor": "0.55.1",
+    "node-pty": "^1.1.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "zustand": "5.0.14"
@@ -59,4 +62,3 @@
   },
   "author": "Fixora"
 }
-

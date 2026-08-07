@@ -13,12 +13,16 @@ export {
   UpdateAvailableSchema,
   UpdateDownloadedSchema,
   UpdateErrorSchema,
+  TerminalDataSchema,
+  TerminalExitSchema,
   type EventContracts,
   type EventPayloadOf,
   type WindowMaximizedChanged,
   type UpdateAvailable,
   type UpdateDownloaded,
   type UpdateError,
+  type TerminalData,
+  type TerminalExit,
 } from './events.js';
 export {
   err,

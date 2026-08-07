@@ -20,6 +20,9 @@ allowBuilds:
   # Pulled in transitively; its postinstall writes a service-worker file we never register.
   # We do not mock the network this way. It gets nothing.
   msw: false
+  # The integrated terminal's native PTY binding — node-gyp-built, and there is no JS fallback:
+  # without this the module import fails outright, not degrades.
+  node-pty: true
 
 minimumReleaseAgeExclude:
   - dependency-cruiser@18.1.0

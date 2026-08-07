@@ -1,4 +1,12 @@
-import { AlertIcon, ClockIcon, FolderIcon, LightbulbIcon, SettingsIcon, cn } from '@fixora/ui';
+import {
+  AlertIcon,
+  ClockIcon,
+  FolderIcon,
+  LightbulbIcon,
+  SettingsIcon,
+  TerminalIcon,
+  cn,
+} from '@fixora/ui';
 
 import { useUiStore, type ActivityView } from '../../stores/ui-store.js';
 
@@ -12,6 +20,7 @@ const items: RailItem[] = [
   { view: 'workspace', label: 'Files', Icon: FolderIcon },
   { view: 'findings', label: 'Problems', Icon: AlertIcon },
   { view: 'history', label: 'History', Icon: ClockIcon },
+  { view: 'terminal', label: 'Terminal', Icon: TerminalIcon },
   { view: 'suggestions', label: 'Suggest', Icon: LightbulbIcon },
   { view: 'settings', label: 'Settings', Icon: SettingsIcon },
 ];

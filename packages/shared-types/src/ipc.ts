@@ -359,6 +359,27 @@ export const contracts = {
   // Applies an update `update:downloaded` already reported ready. Quits and restarts, so there is
   // no response to wait for — the process that would receive it is the one being replaced.
   'update:install': { request: empty, response: z.void() },
+
+  // Integrated terminal (node-pty). One PTY session per `id`, which the renderer mints — a UUID
+  // per terminal tab — so main never has to hand back a session handle for the renderer to hold.
+  'terminal:create': {
+    request: z.object({ id: z.string().min(1), cols: z.number().int().positive(), rows: z.number().int().positive() }),
+    response: z.object({ shell: z.string() }),
+  },
+  // Raw keystrokes/paste data, unvalidated beyond "is a string" — a terminal's whole job is to
+  // accept arbitrary bytes and hand them to the shell; that is not a channel this app can sanitise.
+  'terminal:write': {
+    request: z.object({ id: z.string().min(1), data: z.string() }),
+    response: z.void(),
+  },
+  'terminal:resize': {
+    request: z.object({ id: z.string().min(1), cols: z.number().int().positive(), rows: z.number().int().positive() }),
+    response: z.void(),
+  },
+  'terminal:dispose': {
+    request: z.object({ id: z.string().min(1) }),
+    response: z.void(),
+  },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

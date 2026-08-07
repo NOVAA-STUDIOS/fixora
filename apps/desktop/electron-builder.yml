@@ -34,6 +34,9 @@ asarUnpack:
   # Recursive, so this also covers vendor/ruff/ruff.exe — a native executable cannot be spawned from
   # inside an asar, the same constraint that governs the tree-sitter WASM below it.
   - node_modules/@fixora/core-analysis/**
+  # node-pty's native binding (pty.node) plus its conpty helper binaries on Windows — same
+  # asar-cannot-hold-a-loadable-native-module constraint as the two entries above.
+  - node_modules/node-pty/**
 
 # The window icon, read at runtime by `main-window.ts`.
 #

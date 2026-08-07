@@ -96,6 +96,15 @@ export function ClockIcon(props: IconProps): React.JSX.Element {
   );
 }
 
+export function TerminalIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="m4 5 6 6-6 6" />
+      <path d="M12 17h8" />
+    </Icon>
+  );
+}
+
 export function SettingsIcon(props: IconProps): React.JSX.Element {
   return (
     <Icon {...props}>
