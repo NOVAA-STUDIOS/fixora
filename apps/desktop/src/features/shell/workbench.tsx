@@ -8,6 +8,8 @@ import { EditModeTabs, ProceedView, type EditMode } from '../ai/proceed-panel.js
 import { EditorArea } from '../editor/editor-area.js';
 import { FindingsPanel } from '../findings/findings-panel.js';
 import { HistoryPanel } from '../history/history-panel.js';
+import { PackagesPanel } from '../packages/packages-panel.js';
+import { SearchPanel } from '../search/search-panel.js';
 import { SettingsPanel } from '../settings/settings-panel.js';
 import { SuggestionPanel } from '../suggestions/suggestion-panel.js';
 import { TerminalPanel } from '../terminal/terminal-panel.js';
@@ -37,12 +39,18 @@ const DEFAULT_LAYOUT: Record<string, Record<string, number>> = {
   findings: { primary: 28, editor: 46, ai: 26 },
   // History rows carry a verdict, a rationale and a file — wider than a tree, narrower than problems.
   history: { primary: 25, editor: 50, ai: 25 },
+  // Search results carry a filename, a line and up to three lines of context — closer to problems'
+  // width need than the tree's.
+  search: { primary: 28, editor: 46, ai: 26 },
+  packages: { primary: 26, editor: 48, ai: 26 },
 };
 
 function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
   if (view === 'workspace') return <WorkspacePanel />;
   if (view === 'findings') return <FindingsPanel />;
   if (view === 'history') return <HistoryPanel />;
+  if (view === 'search') return <SearchPanel />;
+  if (view === 'packages') return <PackagesPanel />;
   return <PrimaryPlaceholder />;
 }
 
