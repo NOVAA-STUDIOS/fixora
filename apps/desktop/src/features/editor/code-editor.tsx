@@ -276,6 +276,10 @@ export function CodeEditor({
     // TWICE per tick (one CodeEditor instance per pane) — debounced so a long analysis run on a
     // large project does not fire a steady stream of IPC round-trips for its whole duration.
     const timer = setTimeout(() => {
+      // Same reasoning as file-tree.tsx's useFileSeverity — an AI repair in flight is main-process
+      // work of its own; skip this cycle rather than add to it. Cheap to skip: the next
+      // findingsSummary/relPath change (or the repair finishing and re-verifying) retries it.
+      if (useAiStore.getState().status === 'running') return;
       performance.mark('squiggle-fetch-start');
       void invoke('analysis:list', { filter: { relPath } }).then((result) => {
         performance.mark('squiggle-fetch-end');

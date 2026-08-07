@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { basename } from '../../lib/path.js';
+import { useAiStore } from '../../stores/ai-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 type GitStatus = {
@@ -30,6 +31,13 @@ export function SourceControlPanel(): React.JSX.Element {
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refresh = (): void => {
     const runNow = (): void => {
+      // An AI repair in flight is main-process work of its own — defer rather than add a `git`
+      // shell-out to the same window; retry shortly instead of dropping the refresh entirely.
+      if (useAiStore.getState().status === 'running') {
+        if (pendingRef.current !== null) clearTimeout(pendingRef.current);
+        pendingRef.current = setTimeout(runNow, 2000);
+        return;
+      }
       lastRunRef.current = Date.now();
       performance.mark('git-status-fetch-start');
       void invoke('git:status', {}).then((result) => {

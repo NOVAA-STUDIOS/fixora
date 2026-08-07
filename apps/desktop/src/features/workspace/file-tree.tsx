@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useRowHeight } from '../../hooks/use-density-metrics.js';
 import { invoke } from '../../lib/bridge.js';
+import { useAiStore } from '../../stores/ai-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 
 import { useFileActions } from './file-context-menu.js';
@@ -37,7 +38,15 @@ function useFileSeverity(): Map<string, Severity> {
     let cancelled = false;
     if (timerRef.current !== null) clearTimeout(timerRef.current);
 
-    timerRef.current = setTimeout(() => {
+    const fire = (): void => {
+      // An AI repair call is main-process work of its own (the provider fetch, then verification
+      // on the analysis worker) — background traffic unrelated to it firing in the same window
+      // compounds whatever main is already busy with. Reschedule rather than fetch now; the next
+      // attempt re-checks, so this drains on its own once the repair settles.
+      if (useAiStore.getState().status === 'running') {
+        timerRef.current = setTimeout(fire, FILE_SEVERITY_DEBOUNCE_MS);
+        return;
+      }
       performance.mark('file-severity-fetch-start');
       void invoke('analysis:list', {}).then((result) => {
         performance.mark('file-severity-fetch-end');
@@ -52,7 +61,8 @@ function useFileSeverity(): Map<string, Severity> {
         }
         setBySeverity(map);
       });
-    }, FILE_SEVERITY_DEBOUNCE_MS);
+    };
+    timerRef.current = setTimeout(fire, FILE_SEVERITY_DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
