@@ -2,6 +2,7 @@ import type { DirEntryInfo, WorkspaceInfo } from '@fixora/shared-types';
 import { create } from 'zustand';
 
 import { invoke } from '../../lib/bridge.js';
+import { dirname } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useEditorStore } from '../editor/editor-store.js';
@@ -93,6 +94,13 @@ type WorkspaceState = {
   reopenLast: () => Promise<void>;
   /** Re-fetch a directory's children in place (used by the file watcher). */
   refreshDir: (relPath: string) => Promise<void>;
+  /** File tree context menu / "+" button. Each returns an error message on failure (shown by the
+   * caller — a toast or an inline message), null on success, and refreshes the affected
+   * directory's listing itself so callers never have to remember to. */
+  createFile: (dirRelPath: string, name: string) => Promise<string | null>;
+  createFolder: (dirRelPath: string, name: string) => Promise<string | null>;
+  renameEntry: (relPath: string, newName: string) => Promise<string | null>;
+  deleteEntry: (relPath: string) => Promise<string | null>;
   /** The user confirmed discarding unsaved edits — carry out the action `pendingAction` named. */
   confirmPendingAction: () => Promise<void>;
   /** The user backed out — stay on the current workspace, unsaved edits untouched. */
@@ -347,6 +355,38 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (listed.ok) {
       set({ nodes: reconcileChildren(get().nodes, relPath, node.depth + 1, listed.value.entries) });
     }
+  },
+
+  createFile: async (dirRelPath, name) => {
+    const relPath = dirRelPath === '' ? name : `${dirRelPath}/${name}`;
+    const result = await invoke('fs:createFile', { relPath });
+    if (!result.ok) return result.error.message;
+    await get().refreshDir(dirRelPath);
+    return null;
+  },
+
+  createFolder: async (dirRelPath, name) => {
+    const relPath = dirRelPath === '' ? name : `${dirRelPath}/${name}`;
+    const result = await invoke('fs:createDir', { relPath });
+    if (!result.ok) return result.error.message;
+    await get().refreshDir(dirRelPath);
+    return null;
+  },
+
+  renameEntry: async (relPath, newName) => {
+    const dir = dirname(relPath);
+    const toRelPath = dir === '' ? newName : `${dir}/${newName}`;
+    const result = await invoke('fs:rename', { fromRelPath: relPath, toRelPath });
+    if (!result.ok) return result.error.message;
+    await get().refreshDir(dir);
+    return null;
+  },
+
+  deleteEntry: async (relPath) => {
+    const result = await invoke('fs:delete', { relPath });
+    if (!result.ok) return result.error.message;
+    await get().refreshDir(dirname(relPath));
+    return null;
   },
 }));
 

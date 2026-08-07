@@ -6,7 +6,15 @@ import {
 } from '@fixora/shared-types';
 import { BrowserWindow, dialog } from 'electron';
 
-import { listDirectory, readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
+import {
+  createDirectory,
+  createFile,
+  deletePath,
+  listDirectory,
+  readTextFile,
+  renamePath,
+  writeTextFile,
+} from '../../services/fs/fs-service.js';
 import { createWorkspaceWatcher, type WorkspaceWatcher } from '../../services/fs/watcher.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { emitToWindow } from '../emit.js';
@@ -157,6 +165,25 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
   registerHandler('fs:writeFile', ({ relPath, content }) => {
     const { rootPath } = service.requireRoot();
     writeTextFile(rootPath, relPath, content);
+  });
+
+  // File tree context menu / "+" button. Same guards as read/write: workspace-relative,
+  // path-guarded, refused for a secrets-denylisted path.
+  registerHandler('fs:createFile', ({ relPath }) => {
+    const { rootPath } = service.requireRoot();
+    createFile(rootPath, relPath);
+  });
+  registerHandler('fs:createDir', ({ relPath }) => {
+    const { rootPath } = service.requireRoot();
+    createDirectory(rootPath, relPath);
+  });
+  registerHandler('fs:rename', ({ fromRelPath, toRelPath }) => {
+    const { rootPath } = service.requireRoot();
+    renamePath(rootPath, fromRelPath, toRelPath);
+  });
+  registerHandler('fs:delete', ({ relPath }) => {
+    const { rootPath } = service.requireRoot();
+    deletePath(rootPath, relPath);
   });
 }
 

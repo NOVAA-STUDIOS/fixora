@@ -175,6 +175,22 @@ export const contracts = {
     request: z.object({ relPath: z.string().min(1), content: z.string() }),
     response: z.void(),
   },
+  'fs:createFile': {
+    request: z.object({ relPath: z.string().min(1) }),
+    response: z.void(),
+  },
+  'fs:createDir': {
+    request: z.object({ relPath: z.string().min(1) }),
+    response: z.void(),
+  },
+  'fs:rename': {
+    request: z.object({ fromRelPath: z.string().min(1), toRelPath: z.string().min(1) }),
+    response: z.void(),
+  },
+  'fs:delete': {
+    request: z.object({ relPath: z.string().min(1) }),
+    response: z.void(),
+  },
 
   // Analysis (M3). `analysis:run` kicks off a workspace analysis in the isolated utility process
   // (ADR-017); findings stream back as `analysis:findingsAdded` events and are persisted, so the

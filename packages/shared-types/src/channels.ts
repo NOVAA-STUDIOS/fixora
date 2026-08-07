@@ -39,6 +39,11 @@ export const channels = [
   'fs:listDir',
   'fs:readFile',
   'fs:writeFile',
+  // File tree context menu / "+" button: New File, New Folder, Rename, Delete.
+  'fs:createFile',
+  'fs:createDir',
+  'fs:rename',
+  'fs:delete',
   'analysis:run',
   'analysis:cancel',
   'analysis:list',

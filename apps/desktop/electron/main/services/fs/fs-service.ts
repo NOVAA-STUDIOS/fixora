@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import {
+  existsSync,
   lstatSync,
+  mkdirSync,
   readFileSync,
   readdirSync,
   renameSync,
@@ -271,6 +273,85 @@ export function verifyWrittenFile(absolute: string, normalized: string, content:
       },
     );
   }
+}
+
+/** True if a workspace-relative path already exists — used by the create/rename operations below
+ * to fail with a clear "already there" message rather than an OS errno. */
+function exists(root: string, relPath: string): boolean {
+  return existsSync(assertInsideWorkspace(join(root, relPath), root));
+}
+
+/** File tree "New File" — refuses if the path already exists or is secret-denylisted. Creates the
+ * file empty; the editor opens it immediately after via the normal fs:readFile path. */
+export function createFile(root: string, relPath: string): void {
+  const normalized = relPath.replace(/\\/g, '/');
+  if (isSecretPath(normalized)) throw new SecretFileError(normalized);
+  if (exists(root, relPath)) {
+    throw new UserFacingError('A file or folder with this name already exists here.', {
+      code: 'already_exists',
+      action: { type: 'none', label: 'Dismiss' },
+      stage: 'fs',
+    });
+  }
+  const absolute = assertInsideWorkspace(join(root, relPath), root);
+  fsTry('create', normalized, () => {
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(absolute, '', 'utf8');
+  });
+}
+
+/** File tree "New Folder". */
+export function createDirectory(root: string, relPath: string): void {
+  const normalized = relPath.replace(/\\/g, '/');
+  if (exists(root, relPath)) {
+    throw new UserFacingError('A file or folder with this name already exists here.', {
+      code: 'already_exists',
+      action: { type: 'none', label: 'Dismiss' },
+      stage: 'fs',
+    });
+  }
+  const absolute = assertInsideWorkspace(join(root, relPath), root);
+  fsTry('create', normalized, () => {
+    mkdirSync(absolute, { recursive: true });
+  });
+}
+
+/**
+ * File tree Rename — also used for a same-directory move if a caller ever wants one, but the tree
+ * only ever changes the final path segment. Both endpoints are guarded independently: the target
+ * must land inside the workspace exactly as much as the source must have started there.
+ */
+export function renamePath(root: string, fromRelPath: string, toRelPath: string): void {
+  const fromNormalized = fromRelPath.replace(/\\/g, '/');
+  const toNormalized = toRelPath.replace(/\\/g, '/');
+  if (isSecretPath(fromNormalized) || isSecretPath(toNormalized)) {
+    throw new SecretFileError(isSecretPath(fromNormalized) ? fromNormalized : toNormalized);
+  }
+  if (exists(root, toRelPath)) {
+    throw new UserFacingError('A file or folder with this name already exists here.', {
+      code: 'already_exists',
+      action: { type: 'none', label: 'Dismiss' },
+      stage: 'fs',
+    });
+  }
+  const fromAbsolute = assertInsideWorkspace(join(root, fromRelPath), root);
+  const toAbsolute = assertInsideWorkspace(join(root, toRelPath), root);
+  fsTry('rename', fromNormalized, () => {
+    mkdirSync(dirname(toAbsolute), { recursive: true });
+    renameSync(fromAbsolute, toAbsolute);
+  });
+}
+
+/** File tree Delete — moves to nothing-recoverable by design (Electron has no cross-platform
+ * trash API in main without an extra dependency); the confirmation dialog on the renderer side is
+ * what stands in for "are you sure", the same as `workspace:removeRecent` and closing a workspace. */
+export function deletePath(root: string, relPath: string): void {
+  const normalized = relPath.replace(/\\/g, '/');
+  if (isSecretPath(normalized)) throw new SecretFileError(normalized);
+  const absolute = assertInsideWorkspace(join(root, relPath), root);
+  fsTry('delete', normalized, () => {
+    rmSync(absolute, { recursive: true, force: false });
+  });
 }
 
 export class SecretFileError extends Error {

@@ -1,9 +1,10 @@
 import type { WorkspaceInfo } from '@fixora/shared-types';
-import { Button, ChevronDownIcon, FolderIcon, WinCloseIcon, cn } from '@fixora/ui';
+import { Button, ChevronDownIcon, FolderIcon, PlusIcon, WinCloseIcon, cn } from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 
+import { useFileActions } from './file-context-menu.js';
 import { FileTree } from './file-tree.js';
 import { useWorkspaceStore } from './workspace-store.js';
 
@@ -34,6 +35,7 @@ export function WorkspacePanel(): React.JSX.Element {
           >
             {workspace.name}
           </h2>
+          <NewAtRootButton />
           <OpenMenu />
         </header>
         <div className="min-h-0 min-w-0 flex-1">
@@ -122,6 +124,29 @@ export function WorkspacePanel(): React.JSX.Element {
  * shared `WorkspaceSwitchGuard` dialog mounted in `AppShell`), so this menu cannot forget the
  * check the way it once could (beta audit A2).
  */
+/** The "+" button — New File/New Folder at the workspace root. Right-clicking a row in the tree
+ * itself opens the same menu scoped to that row instead (`file-context-menu.tsx`). */
+function NewAtRootButton(): React.JSX.Element {
+  const { openMenu, menu } = useFileActions();
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="New file or folder"
+        title="New file or folder"
+        onClick={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          openMenu({ relPath: '', kind: 'root' }, rect.left, rect.bottom + 4);
+        }}
+        className="flex items-center rounded p-1 text-fg-secondary hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+      >
+        <PlusIcon className="size-3.5" />
+      </button>
+      {menu}
+    </>
+  );
+}
+
 function OpenMenu(): React.JSX.Element {
   const pickAndOpen = useWorkspaceStore((s) => s.pickAndOpen);
   const openPath = useWorkspaceStore((s) => s.openPath);

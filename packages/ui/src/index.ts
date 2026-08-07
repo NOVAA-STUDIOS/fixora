@@ -34,6 +34,7 @@ export {
   SettingsIcon,
   TerminalIcon,
   PackageIcon,
+  PlusIcon,
   WinMinimizeIcon,
   WinMaximizeIcon,
   WinRestoreIcon,

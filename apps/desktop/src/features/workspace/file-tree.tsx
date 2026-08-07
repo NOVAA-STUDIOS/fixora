@@ -2,6 +2,7 @@ import { ChevronDownIcon, ChevronRightIcon, FileIcon, FolderIcon, RefreshIcon, V
 
 import { useRowHeight } from '../../hooks/use-density-metrics.js';
 
+import { useFileActions } from './file-context-menu.js';
 import { useWorkspaceStore, type TreeNode } from './workspace-store.js';
 
 /**
@@ -23,18 +24,26 @@ export function FileTree(): React.JSX.Element {
   const toggleDir = useWorkspaceStore((s) => s.toggleDir);
   const selectFile = useWorkspaceStore((s) => s.selectFile);
   const rowHeight = useRowHeight();
+  const { openMenu, menu } = useFileActions();
 
   // A successfully opened workspace with zero visible entries (an empty folder, or one where
   // everything is `.gitignore`d) previously rendered a blank pane indistinguishable from "still
   // loading" or "broken" (beta audit A2, Empty states finding).
   if (nodes.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center">
+      <div
+        className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          openMenu({ relPath: '', kind: 'root' }, e.clientX, e.clientY);
+        }}
+      >
         <FolderIcon className="size-5 text-fg-muted" />
         <p className="text-sm font-medium text-fg">No visible files</p>
         <p className="max-w-xs text-xs leading-relaxed text-fg-muted">
           This folder is empty, or everything in it is excluded by .gitignore.
         </p>
+        {menu}
       </div>
     );
   }
@@ -48,23 +57,29 @@ export function FileTree(): React.JSX.Element {
   };
 
   return (
-    <VirtualList
-      label="File tree"
-      items={nodes}
-      getKey={(node) => node.relPath}
-      estimateRowHeight={rowHeight}
-      onActivate={activate}
-      renderItem={(node) => (
-        <TreeRow
-          node={node}
-          height={rowHeight}
-          selected={node.relPath === selected}
-          onActivate={() => {
-            activate(node);
-          }}
-        />
-      )}
-    />
+    <>
+      <VirtualList
+        label="File tree"
+        items={nodes}
+        getKey={(node) => node.relPath}
+        estimateRowHeight={rowHeight}
+        onActivate={activate}
+        renderItem={(node) => (
+          <TreeRow
+            node={node}
+            height={rowHeight}
+            selected={node.relPath === selected}
+            onActivate={() => {
+              activate(node);
+            }}
+            onContextMenu={(x, y) => {
+              openMenu({ relPath: node.relPath, kind: node.kind }, x, y);
+            }}
+          />
+        )}
+      />
+      {menu}
+    </>
   );
 }
 
@@ -73,11 +88,13 @@ function TreeRow({
   height,
   selected,
   onActivate,
+  onContextMenu,
 }: {
   node: TreeNode;
   height: number;
   selected: boolean;
   onActivate: () => void;
+  onContextMenu: (x: number, y: number) => void;
 }): React.JSX.Element {
   return (
     <button
@@ -87,6 +104,10 @@ function TreeRow({
       // only Tab-based reachability changes.
       tabIndex={-1}
       onClick={onActivate}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContextMenu(e.clientX, e.clientY);
+      }}
       // Indent by depth. The chevron column is fixed so files and folders align.
       // The height must be the virtualizer's stride exactly, or rows gap or overlap; both come from
       // the same density token rather than a class that would have to be kept in step by hand.
