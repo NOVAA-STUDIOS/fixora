@@ -24,6 +24,15 @@ export type TerminalService = {
  * change event for this — `.process` is a synchronous getter — so a light poll is the only way. */
 const TITLE_POLL_MS = 1000;
 
+/**
+ * How long output is accumulated before being emitted as one `terminal:data` message. A chatty
+ * command (a build's own log spam, a fast `cat` of a large file) can fire node-pty's `onData`
+ * dozens of times a second, each currently its own IPC round-trip + renderer write + xterm
+ * re-render; batching within one frame's worth of time coalesces that into one message without
+ * making output feel delayed — 16ms is imperceptible, the same budget a 60fps frame gets.
+ */
+const OUTPUT_BATCH_MS = 16;
+
 export function createTerminalService(deps: {
   onData: (id: string, data: string) => void;
   onExit: (id: string, exitCode: number) => void;
@@ -32,6 +41,28 @@ export function createTerminalService(deps: {
   const sessions = new Map<string, pty.IPty>();
   const titlePolls = new Map<string, NodeJS.Timeout>();
   const lastTitle = new Map<string, string>();
+  const outputBuffers = new Map<string, string>();
+  const outputTimers = new Map<string, NodeJS.Timeout>();
+
+  function flushOutput(id: string): void {
+    const buffered = outputBuffers.get(id);
+    outputTimers.delete(id);
+    if (buffered === undefined) return;
+    outputBuffers.delete(id);
+    deps.onData(id, buffered);
+  }
+
+  function queueOutput(id: string, data: string): void {
+    const existing = outputBuffers.get(id);
+    outputBuffers.set(id, existing === undefined ? data : existing + data);
+    if (outputTimers.has(id)) return;
+    outputTimers.set(
+      id,
+      setTimeout(() => {
+        flushOutput(id);
+      }, OUTPUT_BATCH_MS),
+    );
+  }
 
   return {
     create(id, cwd, cols, rows, shellId) {
@@ -50,7 +81,7 @@ export function createTerminalService(deps: {
       });
       sessions.set(id, child);
       child.onData((data) => {
-        deps.onData(id, data);
+        queueOutput(id, data);
       });
       child.onExit(({ exitCode }) => {
         sessions.delete(id);
@@ -58,6 +89,11 @@ export function createTerminalService(deps: {
         if (timer !== undefined) clearInterval(timer);
         titlePolls.delete(id);
         lastTitle.delete(id);
+        // Whatever was buffered must still reach the renderer — an exit right after a chatty
+        // command's last output must not silently drop it.
+        const outputTimer = outputTimers.get(id);
+        if (outputTimer !== undefined) clearTimeout(outputTimer);
+        flushOutput(id);
         deps.onExit(id, exitCode);
       });
 
@@ -95,6 +131,10 @@ export function createTerminalService(deps: {
       if (timer !== undefined) clearInterval(timer);
       titlePolls.delete(id);
       lastTitle.delete(id);
+      const outputTimer = outputTimers.get(id);
+      if (outputTimer !== undefined) clearTimeout(outputTimer);
+      outputTimers.delete(id);
+      outputBuffers.delete(id);
       if (child === undefined) return;
       sessions.delete(id);
       child.kill();
@@ -104,6 +144,9 @@ export function createTerminalService(deps: {
       for (const timer of titlePolls.values()) clearInterval(timer);
       titlePolls.clear();
       lastTitle.clear();
+      for (const timer of outputTimers.values()) clearTimeout(timer);
+      outputTimers.clear();
+      outputBuffers.clear();
       for (const [id, child] of sessions) {
         sessions.delete(id);
         child.kill();

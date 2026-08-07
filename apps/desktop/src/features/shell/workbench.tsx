@@ -1,5 +1,5 @@
 import { PanelGroupRoot, ResizablePanel, ResizeHandle } from '@fixora/ui';
-import { useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 
 import { ErrorBoundary } from '../../app/error-boundary.js';
 import { useUiStore } from '../../stores/ui-store.js';
@@ -8,18 +8,35 @@ import { EditModeTabs, ProceedView, type EditMode } from '../ai/proceed-panel.js
 import { EditorArea } from '../editor/editor-area.js';
 import { FindingsPanel } from '../findings/findings-panel.js';
 import { HistoryPanel } from '../history/history-panel.js';
-import { PackagesPanel } from '../packages/packages-panel.js';
-import { SearchPanel } from '../search/search-panel.js';
 import { SettingsPanel } from '../settings/settings-panel.js';
-import { SourceControlPanel } from '../source-control/source-control-panel.js';
 import { SuggestionPanel } from '../suggestions/suggestion-panel.js';
-import { TerminalPanel } from '../terminal/terminal-panel.js';
 import { WorkspacePanel } from '../workspace/workspace-panel.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { HomeScreen } from './home-screen.js';
 import { PrimaryPlaceholder } from './placeholder-views.js';
 import { WorkspaceDiagnostics } from './workspace-diagnostics.js';
+
+// Code-split: each pulls in a chunk of weight (xterm+addons, npm/PyPI search clients, git diff
+// rendering) that a session which never opens that view shouldn't pay for at startup.
+const PackagesPanel = lazy(() =>
+  import('../packages/packages-panel.js').then((m) => ({ default: m.PackagesPanel })),
+);
+const SearchPanel = lazy(() =>
+  import('../search/search-panel.js').then((m) => ({ default: m.SearchPanel })),
+);
+const SourceControlPanel = lazy(() =>
+  import('../source-control/source-control-panel.js').then((m) => ({
+    default: m.SourceControlPanel,
+  })),
+);
+const TerminalPanel = lazy(() =>
+  import('../terminal/terminal-panel.js').then((m) => ({ default: m.TerminalPanel })),
+);
+
+function PanelFallback(): React.JSX.Element {
+  return <div className="flex h-full items-center justify-center text-xs text-fg-muted">Loading…</div>;
+}
 
 /**
  * Default proportions, per view.
@@ -51,9 +68,24 @@ function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
   if (view === 'workspace') return <WorkspacePanel />;
   if (view === 'findings') return <FindingsPanel />;
   if (view === 'history') return <HistoryPanel />;
-  if (view === 'search') return <SearchPanel />;
-  if (view === 'packages') return <PackagesPanel />;
-  if (view === 'sourceControl') return <SourceControlPanel />;
+  if (view === 'search')
+    return (
+      <Suspense fallback={<PanelFallback />}>
+        <SearchPanel />
+      </Suspense>
+    );
+  if (view === 'packages')
+    return (
+      <Suspense fallback={<PanelFallback />}>
+        <PackagesPanel />
+      </Suspense>
+    );
+  if (view === 'sourceControl')
+    return (
+      <Suspense fallback={<PanelFallback />}>
+        <SourceControlPanel />
+      </Suspense>
+    );
   return <PrimaryPlaceholder />;
 }
 
@@ -70,13 +102,22 @@ function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
  */
 export function Workbench(): React.JSX.Element {
   const activeView = useUiStore((s) => s.activeView);
+  // Deferred until the user first opens Terminal — not up front on app boot — but once mounted it
+  // stays mounted forever (see the comment below): the CSS-hidden trick that keeps background
+  // shells alive only works if this flag never goes back to false.
+  const everActivatedTerminal = useRef(false);
+  if (activeView === 'terminal') everActivatedTerminal.current = true;
   return (
     <>
-      <div className={activeView === 'terminal' ? 'flex min-h-0 flex-1' : 'hidden'}>
-        <ErrorBoundary label="Terminal">
-          <TerminalPanel />
-        </ErrorBoundary>
-      </div>
+      {everActivatedTerminal.current && (
+        <div className={activeView === 'terminal' ? 'flex min-h-0 flex-1' : 'hidden'}>
+          <ErrorBoundary label="Terminal">
+            <Suspense fallback={<PanelFallback />}>
+              <TerminalPanel />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+      )}
       {activeView !== 'terminal' && <WorkbenchContent />}
     </>
   );

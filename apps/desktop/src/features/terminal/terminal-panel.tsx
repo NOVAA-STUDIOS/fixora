@@ -2,10 +2,12 @@ import '@xterm/xterm/css/xterm.css';
 
 import { dark, light } from '@fixora/tokens';
 import { ChevronDownIcon, PlusIcon, SearchIcon, TerminalIcon, WinCloseIcon, cn } from '@fixora/ui';
+import { CanvasAddon } from '@xterm/addon-canvas';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal as XTerm } from '@xterm/xterm';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
 import { useUiStore } from '../../stores/ui-store.js';
@@ -223,7 +225,14 @@ function TerminalTab({
   );
 }
 
-function TerminalInstance({
+/**
+ * Memoized: `TerminalPanel` re-renders on every session-list change (a new tab opening, another
+ * tab's title updating), and without this every OTHER already-mounted TerminalInstance re-rendered
+ * along with it — wasted work, since xterm itself is imperative (mounted once into `container` via
+ * a ref, per the mount effect below) and has nothing to gain from a parent re-render it doesn't
+ * also need new props from.
+ */
+const TerminalInstance = memo(function TerminalInstance({
   sessionId,
   visible,
 }: {
@@ -262,6 +271,15 @@ function TerminalInstance({
       // opts xterm out of its own default handling for exactly those combinations so the
       // interception is the only thing that fires, not both.
       rightClickSelectsWord: false,
+      // Bounded so an extremely chatty command (a build's own log spam, `git log` on a huge repo)
+      // does not grow the terminal's retained line buffer without limit for the life of the tab.
+      scrollback: 1000,
+      // xterm.js's modern replacement for the old `windowsMode` option (renamed when the package
+      // moved to the @xterm scope) — the ConPTY-aware reflow/scrollback heuristics node-pty's own
+      // Windows backend needs. node-pty always uses ConPTY on modern Windows, so this is safe
+      // unconditionally on this platform; `navigator.userAgent` is the only platform signal
+      // available here (the renderer is sandboxed, no `process.platform`).
+      ...(navigator.userAgent.includes('Windows') ? { windowsPty: { backend: 'conpty' } } : {}),
     });
     termRef.current = term;
     const fit = new FitAddon();
@@ -272,6 +290,26 @@ function TerminalInstance({
     term.loadAddon(search);
     term.open(el);
     fit.fit();
+
+    // WebGL rendering is dramatically cheaper than the DOM renderer for a terminal's own workload
+    // (a grid of monospace cells redrawn on every line of output) — falls back to the Canvas
+    // renderer, and from there to xterm's default DOM renderer, rather than a broken terminal, on
+    // a machine/driver combination WebGL2 does not work on (a real, not hypothetical, case —
+    // `WebglAddon` itself documents this fallback path).
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => {
+        webgl.dispose();
+      });
+      term.loadAddon(webgl);
+    } catch {
+      try {
+        term.loadAddon(new CanvasAddon());
+      } catch {
+        // Neither renderer initialized — xterm's own DOM renderer is what's left, and it is a
+        // correct (if slower) terminal, not a broken one.
+      }
+    }
 
     // Copy-on-Ctrl+C-with-a-selection, paste-on-Ctrl+V, clear-on-Ctrl+L, font size on Ctrl+=/-,
     // search on Ctrl+Shift+F — VS Code's own terminal keymap. `false` stops xterm from ALSO
@@ -484,4 +522,4 @@ function TerminalInstance({
       )}
     </div>
   );
-}
+});
