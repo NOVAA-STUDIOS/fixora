@@ -20,8 +20,8 @@
 // the exe all carry the stamped icon. Doing this in `postpackage` would be too late — the installer
 // would already contain the unstamped binary.
 //
-// Deliberately NOT touched: the version resource (ProductName still reports "Electron"). That is the
-// other half of what `signAndEditExecutable` would fix and it is a separate, non-icon concern.
+// Also rewrites the version resource below (ProductName/FileDescription/CompanyName), the other
+// half of what `signAndEditExecutable` would fix — same rationale, same pure-JS `resedit` path.
 //
 // CommonJS because electron-builder `require`s hook files.
 const { readFileSync, writeFileSync } = require('node:fs');
@@ -54,10 +54,24 @@ exports.default = async function stampExe(context) {
     icon.icons.map((item) => item.data),
   );
 
+  // The version resource — ProductName/FileDescription/CompanyName — is the other half of what
+  // `signAndEditExecutable` would fix (see file header). Each existing language block gets the
+  // same three keys, rather than assuming en-US is the only one electron-builder wrote.
+  for (const versionInfo of ResEdit.Resource.VersionInfo.fromEntries(resource.entries)) {
+    for (const lang of versionInfo.getAllLanguagesForStringValues()) {
+      versionInfo.setStringValues(lang, {
+        ProductName: 'Fixora',
+        FileDescription: 'Fixora - AI Code Repair',
+        CompanyName: 'NOVAA Studios',
+      });
+    }
+    versionInfo.outputToResourceEntries(resource.entries);
+  }
+
   resource.outputResource(exe);
   writeFileSync(exePath, Buffer.from(exe.generate()));
 
   console.log(
-    `stamp-exe: wrote ${String(icon.icons.length)} icon sizes into ${exePath}`,
+    `stamp-exe: wrote ${String(icon.icons.length)} icon sizes and version info into ${exePath}`,
   );
 };
