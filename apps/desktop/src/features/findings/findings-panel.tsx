@@ -458,7 +458,10 @@ function FindingRow({
         {aiConfigured ? (
           AI_ACTIONS.map((action) => {
             // Repair carries the four-state reason; the other profiles keep the model-capability one.
-            const blockedByState = action.profile === 'repair' && !isRepairAttemptable(repairState);
+            const blockedByState =
+              action.profile === 'repair' &&
+              repairState !== 'manual-only' &&
+              !isRepairAttemptable(repairState);
             const capability = capabilities[action.profile];
             const disabled = aiBusy || !capability.enabled || blockedByState;
             return (
