@@ -101,3 +101,5 @@ nsis:
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
   artifactName: Fixora-Setup.exe
+  createDesktopShortcut: always
+  shortcutName: Fixora
