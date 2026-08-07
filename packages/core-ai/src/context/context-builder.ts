@@ -110,6 +110,21 @@ function formatEvidence(finding: Finding, related: readonly Finding[] = []): str
         : [`Known fix: ${classification.suggestedFix}`]),
     );
   }
+  // Complexity findings have no deterministic fix, but a model can lower the metric while staying
+  // within "replace only the target symbol": nested local helpers and early returns are part of the
+  // SAME replacement text, never a second top-level declaration outside the range.
+  if (finding.ruleId === 'cyclomatic-complexity' || finding.ruleId === 'cognitive-complexity') {
+    lines.push(
+      '',
+      'This is a complexity finding: reduce the metric below its threshold by refactoring, not by',
+      'deleting logic. Techniques, in order of preference: (1) extract cohesive chunks of the body into',
+      'local helper functions declared inside this same replacement (a nested function or a',
+      'const-assigned closure) — this lowers the enclosing function\'s own complexity even though the',
+      'logic still runs in the same place; (2) flatten nested conditionals with early returns / guard',
+      'clauses instead of deep if/else nesting; (3) simplify redundant branches. The behaviour must be',
+      'unchanged — this is a structural refactor, not a logic change.',
+    );
+  }
   // Framed as additional problems to resolve within the SAME replacement, never as separate tasks:
   // the model returns one block of code for one range, so presenting these as extra jobs would
   // invite several edits it has no way to express.

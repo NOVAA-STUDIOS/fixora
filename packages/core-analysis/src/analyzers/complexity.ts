@@ -286,11 +286,13 @@ function complexityFinding(
       relatedLocations: [],
       toolOutput: { metric: ruleId, value, threshold },
     },
-    fixable: false,
-    // High complexity is advice, not a defect with a mechanical fix: how (or whether) to refactor is
-    // the developer's judgement, so this is never auto- or AI-applied.
-    repair: 'manual',
-    confidence: 1,
+    // No deterministic fix exists (there is no single mechanical rewrite for "too complex"), but a
+    // model can propose one — extract helper functions, flatten nested conditionals, simplify
+    // branching — and every AI repair is verified and shown as a diff before it can be applied, so
+    // the worst case is the user rejects it, not that a bad refactor lands silently.
+    fixable: true,
+    repair: 'ai-required',
+    confidence: 0.6,
   };
 }
 
