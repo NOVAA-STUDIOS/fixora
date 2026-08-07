@@ -36,6 +36,7 @@ import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
 import { createLicenseService } from './license/license-service.js';
 import { licensePublicKey } from './license/public-key.js';
 import { createMailService } from './services/mail/mail-service.js';
+import { migrateLegacyUserData } from './services/migrate-user-data.js';
 import { createWorkspaceService } from './services/workspace-service.js';
 import { createSuggestionRepository } from './suggestions/suggestion-repository.js';
 import { createSuggestionService } from './suggestions/suggestion-service.js';
@@ -113,6 +114,10 @@ if (!gotTheLock) {
         packaged: app.isPackaged,
         version: app.getVersion(),
       });
+
+      // Recovers provider credentials orphaned by a pre-`app.setName` build's wrongly-named
+      // userData dir (see the module doc). Must run before anything below opens `userData`.
+      migrateLegacyUserData(app.getPath('appData'), app.getPath('userData'));
 
       // Local persistence. A corrupt DB degrades to "history unavailable" and never blocks
       // launch (DB §1) — `openDatabase` returns `recovered` rather than throwing.

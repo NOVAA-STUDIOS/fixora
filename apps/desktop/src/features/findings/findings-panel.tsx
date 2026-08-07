@@ -211,9 +211,10 @@ export function FindingsPanel(): React.JSX.Element {
       </div>
 
       {/*
-        The backend caps a single page at 500 rows (`repositories.ts`'s `list()`); `summary` is the
-        true, unlimited count. Past that cap the two would silently disagree — "N problems" in the
-        filter tabs above claiming more than this list can actually scroll to (beta audit A4,
+        The backend caps a single page at 10,000 rows (`repositories.ts`'s `list()` — raised from
+        500, which a real project's finding count could actually reach); `summary` is the true,
+        unlimited count. Past that cap the two would silently disagree — "N problems" in the filter
+        tabs above claiming more than this list can actually scroll to (beta audit A4,
         Trustworthiness finding) — so say so explicitly rather than let the mismatch go unremarked.
       */}
       {isTruncated && (

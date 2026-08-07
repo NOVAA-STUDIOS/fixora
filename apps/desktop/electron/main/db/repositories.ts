@@ -207,8 +207,17 @@ export function createFindingsRepository(driver: SqliteDriver, now: () => number
       });
     },
 
-    /** Findings for a workspace, most-severe-then-file order, optionally filtered and paged. */
-    list(workspaceId: string, filter: FindingsFilter = {}, limit = 500, offset = 0): Finding[] {
+    /**
+     * Findings for a workspace, most-severe-then-file order, optionally filtered and paged.
+     *
+     * The default was 500 — the panel's own `VirtualList` already windows rendering to the visible
+     * rows (it holds tens of thousands of file-tree nodes without a rendering cost), so that number
+     * was never a rendering safety limit, only an arbitrary query cap that a real project's finding
+     * count (a large repo's first eslint/tsc run easily clears four figures) could hit and then show
+     * a "showing 500 of N — narrow by severity" note for findings the user never asked to hide.
+     * Raised well past that; still a real bound, not `undefined`, against a pathological input.
+     */
+    list(workspaceId: string, filter: FindingsFilter = {}, limit = 10_000, offset = 0): Finding[] {
       const where: string[] = ['workspace_id = ?'];
       const params: (string | number)[] = [workspaceId];
       if (filter.severity !== undefined) {

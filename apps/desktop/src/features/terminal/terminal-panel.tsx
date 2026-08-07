@@ -1,11 +1,21 @@
 import '@xterm/xterm/css/xterm.css';
 
+import { dark, light } from '@fixora/tokens';
+import { TerminalIcon } from '@fixora/ui';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { useEffect, useRef } from 'react';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
+import { useUiStore } from '../../stores/ui-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
+
+/** xterm needs concrete hex, not CSS variables — same constraint and source Monaco's theme uses
+ * (`monaco-theme.ts`), so the terminal's surface is the same canvas/text pair as the editor's. */
+function xtermTheme(appearance: 'dark' | 'light'): { background: string; foreground: string } {
+  const c = appearance === 'dark' ? dark : light;
+  return { background: c.bg.canvas, foreground: c.text.primary };
+}
 
 /**
  * The integrated terminal (Terminal tab, activity rail). One `node-pty` session per mount, rooted
@@ -18,7 +28,9 @@ import { useWorkspaceStore } from '../workspace/workspace-store.js';
  */
 export function TerminalPanel(): React.JSX.Element {
   const workspaceId = useWorkspaceStore((s) => s.workspace?.id ?? null);
+  const theme = useUiStore((s) => s.theme);
   const container = useRef<HTMLDivElement>(null);
+  const termRef = useRef<XTerm | null>(null);
 
   useEffect(() => {
     const el = container.current;
@@ -31,14 +43,14 @@ export function TerminalPanel(): React.JSX.Element {
     const term = new XTerm({
       cursorBlink: true,
       fontSize: 13,
+      // Same monospace stack as the editor (`diff-editor.tsx`) — a terminal that renders code
+      // output in a different font from the editor above it reads as two different tools bolted
+      // together rather than one workbench.
       fontFamily:
         'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-      // Colours only — never the font/cursor to a canvas the DOM inspector cannot help with. Kept
-      // deliberately independent of the app's own light/dark theme tokens: a terminal is styled
-      // like a terminal, matching what every other Electron IDE ships, and shell output that
-      // assumes a dark background (many CLIs colour for one) does not go illegible in light mode.
-      theme: { background: '#1a1b26', foreground: '#c0caf5' },
+      theme: xtermTheme(useUiStore.getState().theme),
     });
+    termRef.current = term;
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(el);
@@ -74,6 +86,7 @@ export function TerminalPanel(): React.JSX.Element {
 
     return () => {
       disposed = true;
+      termRef.current = null;
       resizeObserver.disconnect();
       onData.dispose();
       unsubscribeData();
@@ -83,13 +96,24 @@ export function TerminalPanel(): React.JSX.Element {
     };
   }, [workspaceId]);
 
+  // Same live-swap the editor does on a theme toggle (`monaco-theme.ts`'s `setTheme` effect) —
+  // without this the terminal stayed on whichever theme was active when the shell was opened.
+  useEffect(() => {
+    const term = termRef.current;
+    if (term !== null) term.options.theme = xtermTheme(theme);
+  }, [theme]);
+
   return (
-    <div
-      role="tabpanel"
-      aria-label="Terminal"
-      className="h-full w-full min-w-0 overflow-hidden bg-[#1a1b26] p-2"
-    >
-      <div ref={container} className="h-full w-full" />
+    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-canvas">
+      <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border-subtle bg-raised px-3">
+        <TerminalIcon className="size-3.5 shrink-0 text-fg-muted" />
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+          Terminal
+        </span>
+      </div>
+      <div role="tabpanel" aria-label="Terminal" className="min-h-0 flex-1 overflow-hidden p-2">
+        <div ref={container} className="h-full w-full" />
+      </div>
     </div>
   );
 }
