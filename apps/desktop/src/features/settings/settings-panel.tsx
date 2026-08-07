@@ -112,10 +112,13 @@ function LegalLinks(): React.JSX.Element {
 function AppearanceSettings(): React.JSX.Element {
   const theme = useUiStore((s) => s.theme);
   const density = useUiStore((s) => s.density);
+  const editorTheme = useUiStore((s) => s.editorTheme);
   const setTheme = useUiStore((s) => s.setTheme);
   const setDensity = useUiStore((s) => s.setDensity);
+  const setEditorTheme = useUiStore((s) => s.setEditorTheme);
   const themeId = useId();
   const densityId = useId();
+  const editorThemeId = useId();
 
   return (
     <Group title="Appearance">
@@ -156,6 +159,27 @@ function AppearanceSettings(): React.JSX.Element {
           <SelectContent>
             <SelectItem value="comfortable">Comfortable</SelectItem>
             <SelectItem value="compact">Compact</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Editor theme"
+        htmlFor={editorThemeId}
+        description="The code editor's own colour theme, independent of the app theme above."
+      >
+        <Select
+          value={editorTheme}
+          onValueChange={(v) => {
+            setEditorTheme(v as typeof editorTheme);
+          }}
+        >
+          <SelectTrigger id={editorThemeId} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fixora">Fixora (follows app theme)</SelectItem>
+            <SelectItem value="monokai">Monokai</SelectItem>
+            <SelectItem value="solarized-dark">Solarized Dark</SelectItem>
           </SelectContent>
         </Select>
       </Field>
