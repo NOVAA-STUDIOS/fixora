@@ -24,9 +24,21 @@ export function useRowHeight(): number {
  * is a multiple of the base row rather than a second token: it must move *with* density, but it was
  * never one row tall. The virtualizer measures the real rows (`dynamicRowHeight`); this is only the
  * first-paint estimate, which is why an approximation is honest here.
+ *
+ * `rowHeight * 3` overshot: it priced every line at the single-line-control height, but the title
+ * (13.5px/snug) and location (11px) lines in `FindingRow` are both shorter than that. Summing the
+ * card's own padding/gap tokens plus each line's real height gets first paint close enough that
+ * `dynamicRowHeight`'s measurement pass corrects a pixel drift instead of a visible reflow.
  */
 export function useFindingRowEstimate(): number {
-  return useRowHeight() * 3;
+  const density = useUiStore((s) => s.density);
+  const metrics = densities[density];
+  const paddingY = remToPx(metrics.cardPaddingY) * 2;
+  const gap = remToPx(metrics.cardGap);
+  const titleLine = 18; // text-[13.5px] leading-snug
+  const locationLine = 16; // text-[11px] row (badge + path)
+  const actionsRow = remToPx(metrics.rowHeight) * 0.75; // px-2 py-0.5 text-[11px] buttons
+  return paddingY + gap + titleLine + locationLine + actionsRow;
 }
 
 /**
