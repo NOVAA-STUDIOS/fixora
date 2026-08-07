@@ -4,6 +4,47 @@ import { app, clipboard, shell } from 'electron';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { registerHandler } from '../router.js';
 
+const CHANGELOG_URL = 'https://api.github.com/repos/NOVAA-STUDIOS/fixora/releases?per_page=10';
+const CHANGELOG_TIMEOUT_MS = 8000;
+
+type GithubRelease = { tag_name?: string; published_at?: string; body?: string | null };
+type ChangelogEntry = { version: string; date: string; body: string };
+
+// Session-lifetime cache — the dialog reopening (e.g. clicking the quick action again) must not
+// re-hit the network every time; a fresh app launch is a fresh cache, which is fine since a new
+// release landing mid-session is not something the user needs pushed to them.
+let cached: ChangelogEntry[] | null = null;
+
+async function fetchChangelog(): Promise<ChangelogEntry[]> {
+  if (cached !== null) return cached;
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, CHANGELOG_TIMEOUT_MS);
+  try {
+    const res = await fetch(CHANGELOG_URL, {
+      signal: controller.signal,
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!res.ok) return [];
+    const releases = (await res.json()) as GithubRelease[];
+    if (!Array.isArray(releases)) return [];
+    const entries = releases
+      .filter((r): r is GithubRelease & { tag_name: string } => typeof r.tag_name === 'string')
+      .map((r) => ({
+        version: r.tag_name,
+        date: r.published_at ?? '',
+        body: r.body ?? '',
+      }));
+    cached = entries;
+    return entries;
+  } catch {
+    return []; // offline, timed out, or a malformed response — degrades to "no releases", not an error
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * The one M0 channel. It exists to prove the whole path — renderer → preload → router →
  * handler → validated response → typed Result — with a payload that carries nothing sensitive,
@@ -22,6 +63,10 @@ export function registerSystemHandlers(deps: { workspace: WorkspaceService }): v
       electronVersion: process.versions.electron,
       isPackaged: app.isPackaged,
     };
+  });
+
+  registerHandler('system:getChangelog', async () => {
+    return { releases: await fetchChangelog() };
   });
 
   registerHandler('system:copyToClipboard', ({ text }) => {

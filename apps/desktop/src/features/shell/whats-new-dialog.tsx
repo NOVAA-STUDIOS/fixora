@@ -44,6 +44,22 @@ const HIGHLIGHTS: Highlight[] = [
   },
 ];
 
+type ChangelogEntry = { version: string; date: string; body: string };
+type ChangelogState =
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'ready'; releases: ChangelogEntry[] };
+
+// Module-level, not component state: the dialog unmounts on close, so a per-component cache
+// would refetch on every reopen — the whole point of caching for the session.
+let changelogCache: ChangelogEntry[] | null = null;
+
+/** Test-only: the cache is otherwise session-lifetime by design, so tests need a way back to a
+ * clean slate between cases. Not called anywhere in production code. */
+export function __resetChangelogCacheForTests(): void {
+  changelogCache = null;
+}
+
 export function WhatsNewDialog({
   open,
   onOpenChange,
@@ -52,6 +68,9 @@ export function WhatsNewDialog({
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
   const [version, setVersion] = useState<string | null>(null);
+  const [changelog, setChangelog] = useState<ChangelogState>(
+    changelogCache !== null ? { status: 'ready', releases: changelogCache } : { status: 'loading' },
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -59,6 +78,18 @@ export function WhatsNewDialog({
     void invoke('system:getAppInfo', {}).then((r) => {
       if (!cancelled && r.ok) setVersion(r.value.version);
     });
+    if (changelogCache === null) {
+      setChangelog({ status: 'loading' });
+      void invoke('system:getChangelog', {}).then((r) => {
+        if (cancelled) return;
+        if (!r.ok) {
+          setChangelog({ status: 'error' });
+          return;
+        }
+        changelogCache = r.value.releases;
+        setChangelog({ status: 'ready', releases: r.value.releases });
+      });
+    }
     return () => {
       cancelled = true;
     };
@@ -86,7 +117,55 @@ export function WhatsNewDialog({
         {version !== null && (
           <p className="pt-3 text-[11px] tabular-nums text-fg-muted">Running v{version}</p>
         )}
+
+        <div className="mt-4 flex flex-col gap-1 border-t border-border-subtle pt-4">
+          <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
+            Release notes
+          </span>
+          <ChangelogBody state={changelog} />
+        </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ChangelogBody({ state }: { state: ChangelogState }): React.JSX.Element {
+  if (state.status === 'loading') {
+    return (
+      <p role="status" className="py-3 text-xs text-fg-muted">
+        Loading release notes…
+      </p>
+    );
+  }
+  if (state.status === 'error') {
+    return (
+      <p role="alert" className="py-3 text-xs text-fg-muted">
+        Couldn&apos;t load release notes. Check your connection and reopen this dialog.
+      </p>
+    );
+  }
+  if (state.releases.length === 0) {
+    return <p className="py-3 text-xs text-fg-muted">No release notes available.</p>;
+  }
+  return (
+    <ul className="flex max-h-64 flex-col gap-3 overflow-y-auto">
+      {state.releases.map((r) => (
+        <li key={r.version} className="flex flex-col gap-1 rounded-lg bg-inset px-3 py-2.5">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-xs font-medium text-fg">{r.version}</span>
+            {r.date !== '' && (
+              <span className="shrink-0 text-[10px] tabular-nums text-fg-muted">
+                {new Date(r.date).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+          {/* No Markdown-rendering dependency in this app (see HIGHLIGHTS' own note above) — a
+              GitHub release body is rendered line-by-line rather than pulling one in for this. */}
+          <div className="whitespace-pre-line text-xs leading-relaxed text-fg-muted">
+            {r.body.trim() === '' ? 'No description provided.' : r.body}
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }

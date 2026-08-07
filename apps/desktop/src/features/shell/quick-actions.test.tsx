@@ -83,7 +83,10 @@ describe('QuickActions', () => {
   });
 
   it("What's new opens the in-app highlights dialog", async () => {
-    invoke.mockResolvedValue({ ok: true, value: { version: '0.9.0-beta.1' } });
+    invoke.mockImplementation((channel: string) => {
+      if (channel === 'system:getChangelog') return Promise.resolve({ ok: true, value: { releases: [] } });
+      return Promise.resolve({ ok: true, value: { version: '0.9.0-beta.1' } });
+    });
     render(<QuickActions />);
     await userEvent.click(screen.getByRole('button', { name: "What's new" }));
     expect(await screen.findByRole('heading', { name: "What's new" })).toBeTruthy();

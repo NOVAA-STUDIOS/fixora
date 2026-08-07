@@ -21,6 +21,7 @@
 /** Renderer → main request/response channels (invoke). */
 export const channels = [
   'system:getAppInfo',
+  'system:getChangelog',
   'system:revealInFolder',
   'system:copyToClipboard',
   'window:minimize',

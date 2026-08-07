@@ -87,6 +87,17 @@ export const contracts = {
     request: empty,
     response: AppInfoSchema,
   },
+  // GitHub Releases, fetched from main (Security §2: the renderer's CSP has no connect-src for
+  // api.github.com). An empty array is a valid, non-error outcome (offline, no releases yet) —
+  // same posture as packages:search degrading to no results rather than an error.
+  'system:getChangelog': {
+    request: empty,
+    response: z.object({
+      releases: z.array(
+        z.object({ version: z.string(), date: z.string(), body: z.string() }),
+      ),
+    }),
+  },
   // Custom title bar (frameless window). These are the privileged operations the renderer's
   // window-control buttons need — the renderer cannot minimise or close a window itself, by
   // design, so it asks main to. Each returns the resulting window state so the button's
