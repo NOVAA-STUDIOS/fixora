@@ -3,7 +3,7 @@ import { Button, PackageIcon, RefreshIcon, SearchIcon, VirtualList } from '@fixo
 import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
-import { useUiStore } from '../../stores/ui-store.js';
+import { useTerminalStore } from '../terminal/terminal-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 const DEBOUNCE_MS = 350;
@@ -22,7 +22,7 @@ function uninstallCommand(kind: 'npm' | 'pip', name: string): string {
 
 export function PackagesPanel(): React.JSX.Element {
   const hasWorkspace = useWorkspaceStore((s) => s.workspace !== null);
-  const runInTerminal = useUiStore((s) => s.runInTerminal);
+  const openWithCommand = useTerminalStore((s) => s.openWithCommand);
 
   const [list, setList] = useState<
     | { status: 'loading' }
@@ -139,7 +139,7 @@ export function PackagesPanel(): React.JSX.Element {
                   variant="secondary"
                   size="sm"
                   onClick={() => {
-                    runInTerminal(installCommand(kind, r.name, false));
+                    openWithCommand(installCommand(kind, r.name, false));
                   }}
                 >
                   Install
@@ -175,7 +175,7 @@ export function PackagesPanel(): React.JSX.Element {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    runInTerminal(uninstallCommand(kind, d.name));
+                    openWithCommand(uninstallCommand(kind, d.name));
                   }}
                 >
                   Uninstall

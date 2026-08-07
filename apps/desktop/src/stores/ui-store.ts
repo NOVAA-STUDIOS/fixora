@@ -23,7 +23,8 @@ export type ActivityView =
   | 'diagnostics'
   | 'terminal'
   | 'search'
-  | 'packages';
+  | 'packages'
+  | 'sourceControl';
 
 /** One view's pane proportions, keyed by panel id. */
 export type PaneSizes = Record<string, number>;
@@ -31,6 +32,7 @@ export type PaneSizes = Record<string, number>;
 export type PanelLayout = Record<string, PaneSizes>;
 
 const THEMES: readonly ThemeName[] = ['dark', 'light'];
+const EDITOR_THEMES: readonly UiState['editorTheme'][] = ['fixora', 'monokai', 'solarized-dark'];
 const DENSITIES: readonly DensityName[] = ['comfortable', 'compact'];
 // `diagnostics` is deliberately absent from the activity rail — it is reachable from the
 // command palette only. A debugging surface in the main navigation stops being one.
@@ -44,6 +46,7 @@ const VIEWS: readonly ActivityView[] = [
   'terminal',
   'search',
   'packages',
+  'sourceControl',
 ];
 
 /**
@@ -84,14 +87,6 @@ type UiState = {
   /** The New Project modal. Not persisted — same reasoning as `paletteOpen`. */
   newProjectOpen: boolean;
   /**
-   * A command queued for the Terminal tab to run as soon as its session is ready — how the
-   * Package Manager tab hands off an install/uninstall to a REAL shell rather than duplicating
-   * terminal wiring a third time (New Project's modal needed its own because no workspace/Terminal
-   * tab exists yet at that point; here one already does). `TerminalPanel` consumes and clears it
-   * on mount. Not persisted: a queued command surviving a restart would run unexpectedly.
-   */
-  pendingTerminalCommand: string | null;
-  /**
    * The traditional side-by-side diff, opened on demand from the inline review.
    *
    * Inline review is the default surface, so this is off unless the user asks for it — and, like the
@@ -117,6 +112,11 @@ type UiState = {
   /** Run the workspace's own formatter (Prettier/Ruff) on the file after every explicit save. On
    * by default — unlike autoSave, this only ever fires on an action the user already took. */
   formatOnSave: boolean;
+  /** The editor's own syntax-highlighting theme — independent of `theme` (the app chrome's
+   * light/dark), the same way VS Code's colour theme picker is independent of its OS-appearance
+   * follow setting. 'fixora' is the token-derived theme (`monaco-theme.ts`) that already follows
+   * `theme`; the other two are fixed regardless of it, same as any named VS Code theme. */
+  editorTheme: 'fixora' | 'monokai' | 'solarized-dark';
   /**
    * Reopen the last project on launch. **Off by default**: every launch starts on the Home screen
    * with a clean session, so a returning user is never dropped back into stale problems, a stale
@@ -133,29 +133,27 @@ type UiState = {
   setPaletteOpen: (open: boolean) => void;
   togglePalette: () => void;
   setNewProjectOpen: (open: boolean) => void;
-  /** Queue a command for the Terminal tab and switch to it. `null` clears with no switch. */
-  runInTerminal: (command: string) => void;
-  takePendingTerminalCommand: () => string | null;
   setPanelLayout: (view: string, sizes: PaneSizes) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
   setAutoSave: (enabled: boolean) => void;
   setFormatOnSave: (enabled: boolean) => void;
+  setEditorTheme: (theme: UiState['editorTheme']) => void;
   setReopenLastProject: (enabled: boolean) => void;
 };
 
 export const useUiStore = create<UiState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       theme: 'dark',
       density: 'comfortable',
       activeView: 'workspace',
       paletteOpen: false,
       newProjectOpen: false,
-      pendingTerminalCommand: null,
       panelLayout: {},
       telemetryEnabled: false,
       autoSave: false,
       formatOnSave: true,
+      editorTheme: 'fixora',
       reopenLastProject: false,
       fullDiffOpen: false,
 
@@ -190,14 +188,6 @@ export const useUiStore = create<UiState>()(
       setNewProjectOpen: (newProjectOpen) => {
         set({ newProjectOpen });
       },
-      runInTerminal: (command) => {
-        set({ pendingTerminalCommand: command, activeView: 'terminal' });
-      },
-      takePendingTerminalCommand: () => {
-        const command = get().pendingTerminalCommand;
-        set({ pendingTerminalCommand: null });
-        return command;
-      },
       setPanelLayout: (view, sizes) => {
         set((s) => ({ panelLayout: { ...s.panelLayout, [view]: sizes } }));
       },
@@ -209,6 +199,9 @@ export const useUiStore = create<UiState>()(
       },
       setFormatOnSave: (formatOnSave) => {
         set({ formatOnSave });
+      },
+      setEditorTheme: (editorTheme) => {
+        set({ editorTheme });
       },
       setReopenLastProject: (reopenLastProject) => {
         set({ reopenLastProject });
@@ -225,6 +218,7 @@ export const useUiStore = create<UiState>()(
         telemetryEnabled: s.telemetryEnabled,
         autoSave: s.autoSave,
         formatOnSave: s.formatOnSave,
+        editorTheme: s.editorTheme,
         reopenLastProject: s.reopenLastProject,
       }),
       // Rehydration is the trust boundary for persisted state (see `oneOf` above). Every value
@@ -252,6 +246,7 @@ export const useUiStore = create<UiState>()(
           // Defaults to true (unlike the two above): only an explicit persisted `false` opts out,
           // so a missing/corrupt value falls back to the feature's own default rather than off.
           formatOnSave: p.formatOnSave !== false,
+          editorTheme: oneOf(p.editorTheme, EDITOR_THEMES, current.editorTheme),
         };
       },
     },
