@@ -114,6 +114,9 @@ type UiState = {
    * is the behaviour every editor has trained people to expect.
    */
   autoSave: boolean;
+  /** Run the workspace's own formatter (Prettier/Ruff) on the file after every explicit save. On
+   * by default — unlike autoSave, this only ever fires on an action the user already took. */
+  formatOnSave: boolean;
   /**
    * Reopen the last project on launch. **Off by default**: every launch starts on the Home screen
    * with a clean session, so a returning user is never dropped back into stale problems, a stale
@@ -136,6 +139,7 @@ type UiState = {
   setPanelLayout: (view: string, sizes: PaneSizes) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
   setAutoSave: (enabled: boolean) => void;
+  setFormatOnSave: (enabled: boolean) => void;
   setReopenLastProject: (enabled: boolean) => void;
 };
 
@@ -151,6 +155,7 @@ export const useUiStore = create<UiState>()(
       panelLayout: {},
       telemetryEnabled: false,
       autoSave: false,
+      formatOnSave: true,
       reopenLastProject: false,
       fullDiffOpen: false,
 
@@ -202,6 +207,9 @@ export const useUiStore = create<UiState>()(
       setAutoSave: (autoSave) => {
         set({ autoSave });
       },
+      setFormatOnSave: (formatOnSave) => {
+        set({ formatOnSave });
+      },
       setReopenLastProject: (reopenLastProject) => {
         set({ reopenLastProject });
       },
@@ -216,6 +224,7 @@ export const useUiStore = create<UiState>()(
         panelLayout: s.panelLayout,
         telemetryEnabled: s.telemetryEnabled,
         autoSave: s.autoSave,
+        formatOnSave: s.formatOnSave,
         reopenLastProject: s.reopenLastProject,
       }),
       // Rehydration is the trust boundary for persisted state (see `oneOf` above). Every value
@@ -240,6 +249,9 @@ export const useUiStore = create<UiState>()(
           // toggle silently reset to off each launch. Same fail-closed rule: only an explicit true
           // opts in to reopening a project.
           reopenLastProject: p.reopenLastProject === true,
+          // Defaults to true (unlike the two above): only an explicit persisted `false` opts out,
+          // so a missing/corrupt value falls back to the feature's own default rather than off.
+          formatOnSave: p.formatOnSave !== false,
         };
       },
     },

@@ -111,6 +111,34 @@ export interface MicroRepairJob {
   onError: (message: string) => void;
 }
 
+/**
+ * Format-on-save. `formatGate` (the same gate a repair's patch has to pass before Apply) lives in
+ * `@fixora/core-analysis` and is resolved/run here for the identical reason `deterministicRepair`
+ * is: it is ESM and the CJS main process cannot `require` it. Runs against the REAL file (already
+ * saved by the time this fires), not an overlay — formatting is a mutation the user asked for by
+ * saving, not something to preview.
+ */
+export interface FormatJob {
+  id: string;
+  root: string;
+  absFile: string;
+  language: Language;
+  timeoutMs?: number;
+  onResult: (result: FormatResult) => void;
+  onError: (message: string) => void;
+}
+
+export interface FormatResult {
+  /** Did a formatter run at all? False when the language has none available (never an error). */
+  ran: boolean;
+  /** Did it complete without erroring? Meaningless when `ran` is false. */
+  ok: boolean;
+  formatter: string | null;
+  message: string | null;
+  /** The file's content after the attempt — always present, whether or not formatting changed it. */
+  content: string;
+}
+
 type ActiveJob =
   | {
       kind: 'analyze';
@@ -140,6 +168,13 @@ type ActiveJob =
       timer: NodeJS.Timeout;
       onResult: MicroRepairJob['onResult'];
       onError: MicroRepairJob['onError'];
+    }
+  | {
+      kind: 'format';
+      id: string;
+      timer: NodeJS.Timeout;
+      onResult: FormatJob['onResult'];
+      onError: FormatJob['onError'];
     };
 
 /**
@@ -157,6 +192,8 @@ const VERIFY_TIMEOUT_MS = 180_000;
 const SCOPE_TIMEOUT_MS = 30_000;
 /** A micro-repair is one edit-apply + one re-parse of a single file — same order of cost as scope selection. */
 const MICRO_REPAIR_TIMEOUT_MS = 30_000;
+/** One formatter invocation on one file — the same order of cost as a micro-repair. */
+const FORMAT_TIMEOUT_MS = 30_000;
 
 /** A message from the worker — validated structurally before use (it crosses a process boundary). */
 type WorkerMessage =
@@ -174,6 +211,15 @@ type WorkerMessage =
     }
   | { type: 'scopeResult'; jobId: string; scope: EditScope }
   | { type: 'microRepairResult'; jobId: string; result: MicroRepairResult | null }
+  | {
+      type: 'formatResult';
+      jobId: string;
+      ran: boolean;
+      ok: boolean;
+      formatter: string | null;
+      message: string | null;
+      content: string;
+    }
   | { type: 'error'; jobId: string; message: string };
 
 /** `null` means "no autofix could be applied cleanly" — a valid, expected outcome, not a shape error. */
@@ -277,6 +323,19 @@ function asWorkerMessage(value: unknown): WorkerMessage | null {
       result: asMicroRepairResult(m['result']),
     };
   }
+  if (m['type'] === 'formatResult') {
+    const formatter = m['formatter'];
+    const message = m['message'];
+    return {
+      type: 'formatResult',
+      jobId: String(m['jobId']),
+      ran: m['ran'] === true,
+      ok: m['ok'] === true,
+      formatter: typeof formatter === 'string' ? formatter : null,
+      message: typeof message === 'string' ? message : null,
+      content: typeof m['content'] === 'string' ? m['content'] : '',
+    };
+  }
   if (m['type'] === 'done')
     return { type: 'done', jobId: String(m['jobId']), aborted: m['aborted'] === true };
   if (m['type'] === 'error')
@@ -291,6 +350,8 @@ export interface AnalysisHost {
   resolveScope(job: ResolveScopeJob): void;
   /** Q2 Fix #2A: apply a tool-authored autofix in the worker, where `deterministicRepair` lives. */
   microRepair(job: MicroRepairJob): void;
+  /** Format-on-save: run the workspace's own formatter (Prettier/Ruff) against a real, saved file. */
+  format(job: FormatJob): void;
   cancel(): void;
   dispose(): void;
 }
@@ -334,6 +395,19 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
       if (message.type === 'microRepairResult') {
         finish(job);
         job.onResult(message.result);
+      }
+      return;
+    }
+    if (job.kind === 'format') {
+      if (message.type === 'formatResult') {
+        finish(job);
+        job.onResult({
+          ran: message.ran,
+          ok: message.ok,
+          formatter: message.formatter,
+          message: message.message,
+          content: message.content,
+        });
       }
       return;
     }
@@ -500,6 +574,27 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
         source: job.source,
         language: job.language,
         filePath: job.filePath,
+      });
+    },
+
+    format(job: FormatJob): void {
+      this.cancel();
+      const child = ensureWorker();
+      const timer = setTimeout(() => {
+        const stalled = active;
+        kill();
+        if (stalled !== null) {
+          active = null;
+          stalled.onError('Formatting timed out.');
+        }
+      }, job.timeoutMs ?? FORMAT_TIMEOUT_MS);
+      active = { kind: 'format', id: job.id, timer, onResult: job.onResult, onError: job.onError };
+      child.postMessage({
+        type: 'format',
+        jobId: job.id,
+        root: job.root,
+        absFile: job.absFile,
+        language: job.language,
       });
     },
 

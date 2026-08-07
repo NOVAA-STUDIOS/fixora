@@ -79,6 +79,10 @@ port.on('message', (event) => {
   }
   if (message.type === 'microRepair') {
     void runMicroRepair(message);
+    return;
+  }
+  if (message.type === 'format') {
+    void runFormat(message);
   }
 });
 
@@ -120,6 +124,31 @@ async function runMicroRepair({ jobId, finding, source, language, filePath }) {
   try {
     const result = await deterministicRepair({ finding, source, language, filePath });
     port.postMessage({ type: 'microRepairResult', jobId, result });
+  } catch (error) {
+    port.postMessage({ type: 'error', jobId, message: String(error) });
+  }
+}
+
+/**
+ * Format-on-save. `formatGate` mutates `absFile` in place when a formatter is available and the
+ * file is well-formed; this re-reads it afterward so main gets the post-format content back in
+ * the same round trip rather than a second `fs:readFile` call. `content` is always the file's
+ * current bytes, whether or not formatting ran or changed anything — the caller does not need to
+ * special-case "nothing happened".
+ */
+async function runFormat({ jobId, root, absFile, language }) {
+  try {
+    const result = await formatGate({ root, absFile, language });
+    const content = readFileSync(absFile, 'utf8');
+    port.postMessage({
+      type: 'formatResult',
+      jobId,
+      ran: result.ran,
+      ok: result.ok,
+      formatter: result.formatter ?? null,
+      message: result.message ?? null,
+      content,
+    });
   } catch (error) {
     port.postMessage({ type: 'error', jobId, message: String(error) });
   }

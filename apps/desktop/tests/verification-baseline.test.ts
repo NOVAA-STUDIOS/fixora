@@ -49,6 +49,7 @@ function hostReturning(result: VerifyResult): AnalysisHost & { lastJob: () => Ve
     },
     resolveScope: vi.fn(),
     microRepair: vi.fn(),
+    format: vi.fn(),
     cancel: vi.fn(),
     dispose: vi.fn(),
   };

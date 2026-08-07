@@ -497,16 +497,26 @@ function LicenseSettings(): React.JSX.Element {
 function EditorSettings(): React.JSX.Element {
   const autoSave = useUiStore((s) => s.autoSave);
   const setAutoSave = useUiStore((s) => s.setAutoSave);
-  const switchId = useId();
+  const formatOnSave = useUiStore((s) => s.formatOnSave);
+  const setFormatOnSave = useUiStore((s) => s.setFormatOnSave);
+  const autoSaveId = useId();
+  const formatOnSaveId = useId();
 
   return (
     <Group title="Editor">
       <ToggleField
         label="Auto save"
-        htmlFor={switchId}
+        htmlFor={autoSaveId}
         description="Off by default. When on, an edited file is written about a second after you stop typing. Fixora only ever writes files inside the open project, and a verified repair is still applied through its own reviewed flow."
         checked={autoSave}
         onCheckedChange={setAutoSave}
+      />
+      <ToggleField
+        label="Format on save"
+        htmlFor={formatOnSaveId}
+        description="On by default. Runs the project's own formatter (Prettier for JS/TS/CSS/etc., Ruff for Python) on a file after you save it — only when one is available; a project with no formatter configured is left exactly as you wrote it."
+        checked={formatOnSave}
+        onCheckedChange={setFormatOnSave}
       />
     </Group>
   );

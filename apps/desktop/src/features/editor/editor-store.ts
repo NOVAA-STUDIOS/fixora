@@ -2,8 +2,9 @@ import { create } from 'zustand';
 
 import { invoke } from '../../lib/bridge.js';
 import { basename } from '../../lib/path.js';
+import { useUiStore } from '../../stores/ui-store.js';
 
-import { disposeModel, isModelDirty, markModelSaved, modelTextFor } from './models.js';
+import { disposeModel, isModelDirty, markModelSaved, modelTextFor, refreshModelText } from './models.js';
 
 /**
  * Open editor tabs (ADR-015: Monaco owns the *text*; this store owns *which files are open*, *which is
@@ -114,6 +115,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     markModelSaved(target);
     get().markClean(target);
+
+    // Best-effort: formatting is a courtesy on top of a save that already succeeded, never a
+    // reason to report the save itself as failed. A formatter erroring (a genuine syntax problem
+    // the save just introduced) is silently left as-is — the file the user saved is still on disk
+    // exactly as they wrote it, which is the correct fallback, not a dropped error.
+    if (useUiStore.getState().formatOnSave) {
+      void invoke('editor:formatFile', { relPath: target }).then((formatted) => {
+        if (formatted.ok && formatted.value.ran && formatted.value.ok) {
+          refreshModelText(target, formatted.value.content);
+          markModelSaved(target);
+          get().syncDirty(target);
+        }
+      });
+    }
+
     return true;
   },
 }));
