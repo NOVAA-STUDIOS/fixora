@@ -1,3 +1,5 @@
+import { statSync } from 'node:fs';
+
 import { UserFacingError } from '@fixora/shared-types';
 import { app, type BrowserWindow } from 'electron';
 
@@ -7,10 +9,11 @@ import { emitToWindow } from '../emit.js';
 import { registerHandler } from '../router.js';
 
 /**
- * Integrated terminal handlers. Every session is rooted at the open workspace's folder — there is
- * no channel to open one anywhere else, the same trust shape as `fs:*` (Security §3). The id is
- * minted by the renderer (one per tab) so create/write/resize/dispose all address a session by a
- * value main never has to allocate or hand back.
+ * Integrated terminal handlers. `terminal:create` is rooted at the open workspace's folder;
+ * `terminal:createScratch` at an explicit directory the user picked (New Project scaffolding,
+ * before a workspace exists) — both refuse anything the renderer merely typed, the same trust
+ * shape as `fs:*` (Security §3). The id is minted by the renderer (one per tab/session) so
+ * write/resize/dispose all address a session by a value main never has to allocate or hand back.
  *
  * Output/exit are pushed to whichever window created the session, looked up at emit time (like
  * the updater does) rather than captured once, since the callback outlives any single IPC call.
@@ -45,6 +48,31 @@ export function registerTerminalHandlers(workspace: WorkspaceService): void {
     }
     if (window !== null) windowsBySession.set(id, window);
     const shell = service.create(id, open.rootPath, cols, rows);
+    return { shell };
+  });
+
+  registerHandler('terminal:createScratch', ({ id, cwd, cols, rows }, { window }) => {
+    if (!workspace.isUserAuthorized(cwd)) {
+      throw new UserFacingError(
+        'Fixora only opens a terminal in a folder you picked yourself or have opened before.',
+        { code: 'unauthorized_path', action: { type: 'none', label: 'Dismiss' }, stage: 'workspace' },
+      );
+    }
+    let isDir: boolean;
+    try {
+      isDir = statSync(cwd).isDirectory();
+    } catch {
+      isDir = false;
+    }
+    if (!isDir) {
+      throw new UserFacingError('That folder no longer exists.', {
+        code: 'not_a_folder',
+        action: { type: 'none', label: 'Dismiss' },
+        stage: 'workspace',
+      });
+    }
+    if (window !== null) windowsBySession.set(id, window);
+    const shell = service.create(id, cwd, cols, rows);
     return { shell };
   });
 

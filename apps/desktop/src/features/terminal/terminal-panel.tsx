@@ -71,7 +71,14 @@ export function TerminalPanel(): React.JSX.Element {
         void invoke('terminal:dispose', { id });
         return;
       }
-      if (!result.ok) term.writeln(`\r\n[failed to start a shell: ${result.error.message}]`);
+      if (!result.ok) {
+        term.writeln(`\r\n[failed to start a shell: ${result.error.message}]`);
+        return;
+      }
+      // A command queued by another tab (Package Manager's install/uninstall) — run it as if the
+      // user had typed it, then clear it so re-mounting this tab later doesn't replay it.
+      const pending = useUiStore.getState().takePendingTerminalCommand();
+      if (pending !== null) void invoke('terminal:write', { id, data: `${pending}\r` });
     });
 
     const onData = term.onData((data) => {

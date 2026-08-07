@@ -15,7 +15,9 @@ import {
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
 import { LicenseStatusSchema } from './license.js';
+import { PackageListSchema, PackageSearchResponseSchema } from './packages-manager.js';
 import { ProviderListSchema } from './providers.js';
+import { SearchResponseSchema } from './search.js';
 import {
   ShareSuggestionResponseSchema,
   ShareViaGmailResponseSchema,
@@ -366,6 +368,17 @@ export const contracts = {
     request: z.object({ id: z.string().min(1), cols: z.number().int().positive(), rows: z.number().int().positive() }),
     response: z.object({ shell: z.string() }),
   },
+  // Same session model, rooted at an explicit directory instead of the open workspace — see the
+  // channel's own doc comment in channels.ts for the authorization rule.
+  'terminal:createScratch': {
+    request: z.object({
+      id: z.string().min(1),
+      cwd: z.string().min(1),
+      cols: z.number().int().positive(),
+      rows: z.number().int().positive(),
+    }),
+    response: z.object({ shell: z.string() }),
+  },
   // Raw keystrokes/paste data, unvalidated beyond "is a string" — a terminal's whole job is to
   // accept arbitrary bytes and hand them to the shell; that is not a channel this app can sanitise.
   'terminal:write': {
@@ -379,6 +392,25 @@ export const contracts = {
   'terminal:dispose': {
     request: z.object({ id: z.string().min(1) }),
     response: z.void(),
+  },
+
+  // Full-text search. One-shot: main chunks/yields internally (search-service.ts) so it never
+  // blocks the event loop even on a 100k+ file project, and a stale request's response is simply
+  // ignored by the renderer (a generation counter) when a newer one has already been sent — no
+  // separate cancel channel needed, unlike analysis which is a long-lived streamed run.
+  'search:query': {
+    request: z.object({ query: z.string().min(1) }),
+    response: SearchResponseSchema,
+  },
+
+  'packages:list': { request: empty, response: PackageListSchema },
+  // npm/PyPI registry search — a network call FROM MAIN, never from the renderer directly (the
+  // renderer has no fetch to the outside world under the CSP; Security §2). Empty results is a
+  // valid, non-error outcome (offline, no matches), not something the caller needs to distinguish
+  // from "found nothing" — errors surface through the ordinary IPC error channel.
+  'packages:search': {
+    request: z.object({ query: z.string().min(1) }),
+    response: PackageSearchResponseSchema,
   },
 } as const satisfies Record<Channel, Contract>;
 

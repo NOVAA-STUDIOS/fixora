@@ -21,7 +21,9 @@ export type ActivityView =
   | 'suggestions'
   | 'settings'
   | 'diagnostics'
-  | 'terminal';
+  | 'terminal'
+  | 'search'
+  | 'packages';
 
 /** One view's pane proportions, keyed by panel id. */
 export type PaneSizes = Record<string, number>;
@@ -40,6 +42,8 @@ const VIEWS: readonly ActivityView[] = [
   'settings',
   'diagnostics',
   'terminal',
+  'search',
+  'packages',
 ];
 
 /**
@@ -77,6 +81,16 @@ type UiState = {
   activeView: ActivityView;
   /** Not persisted — a palette open across restarts would be a bug, not a feature. */
   paletteOpen: boolean;
+  /** The New Project modal. Not persisted — same reasoning as `paletteOpen`. */
+  newProjectOpen: boolean;
+  /**
+   * A command queued for the Terminal tab to run as soon as its session is ready — how the
+   * Package Manager tab hands off an install/uninstall to a REAL shell rather than duplicating
+   * terminal wiring a third time (New Project's modal needed its own because no workspace/Terminal
+   * tab exists yet at that point; here one already does). `TerminalPanel` consumes and clears it
+   * on mount. Not persisted: a queued command surviving a restart would run unexpectedly.
+   */
+  pendingTerminalCommand: string | null;
   /**
    * The traditional side-by-side diff, opened on demand from the inline review.
    *
@@ -115,6 +129,10 @@ type UiState = {
   setActiveView: (view: ActivityView) => void;
   setPaletteOpen: (open: boolean) => void;
   togglePalette: () => void;
+  setNewProjectOpen: (open: boolean) => void;
+  /** Queue a command for the Terminal tab and switch to it. `null` clears with no switch. */
+  runInTerminal: (command: string) => void;
+  takePendingTerminalCommand: () => string | null;
   setPanelLayout: (view: string, sizes: PaneSizes) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
   setAutoSave: (enabled: boolean) => void;
@@ -123,11 +141,13 @@ type UiState = {
 
 export const useUiStore = create<UiState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       theme: 'dark',
       density: 'comfortable',
       activeView: 'workspace',
       paletteOpen: false,
+      newProjectOpen: false,
+      pendingTerminalCommand: null,
       panelLayout: {},
       telemetryEnabled: false,
       autoSave: false,
@@ -161,6 +181,17 @@ export const useUiStore = create<UiState>()(
       },
       togglePalette: () => {
         set((s) => ({ paletteOpen: !s.paletteOpen }));
+      },
+      setNewProjectOpen: (newProjectOpen) => {
+        set({ newProjectOpen });
+      },
+      runInTerminal: (command) => {
+        set({ pendingTerminalCommand: command, activeView: 'terminal' });
+      },
+      takePendingTerminalCommand: () => {
+        const command = get().pendingTerminalCommand;
+        set({ pendingTerminalCommand: null });
+        return command;
       },
       setPanelLayout: (view, sizes) => {
         set((s) => ({ panelLayout: { ...s.panelLayout, [view]: sizes } }));

@@ -33,6 +33,7 @@ export {
   ClockIcon,
   SettingsIcon,
   TerminalIcon,
+  PackageIcon,
   WinMinimizeIcon,
   WinMaximizeIcon,
   WinRestoreIcon,

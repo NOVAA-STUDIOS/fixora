@@ -22,8 +22,10 @@ describe('ActivityRail', () => {
     const buttons = nav.querySelectorAll('button');
     expect([...buttons].map((b) => b.getAttribute('aria-label'))).toEqual([
       'Files',
+      'Search',
       'Problems',
       'History',
+      'Packages',
       'Terminal',
       'Suggest',
       'Settings',

@@ -3,6 +3,8 @@ import {
   ClockIcon,
   FolderIcon,
   LightbulbIcon,
+  PackageIcon,
+  SearchIcon,
   SettingsIcon,
   TerminalIcon,
   cn,
@@ -18,8 +20,10 @@ type RailItem = {
 
 const items: RailItem[] = [
   { view: 'workspace', label: 'Files', Icon: FolderIcon },
+  { view: 'search', label: 'Search', Icon: SearchIcon },
   { view: 'findings', label: 'Problems', Icon: AlertIcon },
   { view: 'history', label: 'History', Icon: ClockIcon },
+  { view: 'packages', label: 'Packages', Icon: PackageIcon },
   { view: 'terminal', label: 'Terminal', Icon: TerminalIcon },
   { view: 'suggestions', label: 'Suggest', Icon: LightbulbIcon },
   { view: 'settings', label: 'Settings', Icon: SettingsIcon },

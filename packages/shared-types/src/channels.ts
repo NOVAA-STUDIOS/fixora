@@ -95,9 +95,23 @@ export const channels = [
   // Integrated terminal. `create` spawns a shell rooted at the open workspace; `write`/`resize`
   // drive the running session; `dispose` kills it. One session per terminal tab, keyed by id.
   'terminal:create',
+  // A shell rooted at a directory the user just picked in a native dialog, not the open workspace
+  // — the one case that needs one before a project exists (scaffolding a New Project). Gated by
+  // the SAME authorization rule `workspace:open` uses (picked this session, or a known recent),
+  // never an arbitrary renderer-supplied path.
+  'terminal:createScratch',
   'terminal:write',
   'terminal:resize',
   'terminal:dispose',
+  // Full-text project search (one-shot request/response — see search-service.ts for why this
+  // doesn't need a cancel channel the way analysis does).
+  'search:query',
+  // Package Manager tab. Listing/searching are the only main-process work — install/uninstall run
+  // as an ordinary command in the real Terminal tab (a pending-command handoff in ui-store), not a
+  // separate execution path, so "shown in terminal" and "handles errors gracefully" both fall out
+  // of it being a real shell rather than something this app has to interpret the outcome of.
+  'packages:list',
+  'packages:search',
 ] as const;
 
 export type Channel = (typeof channels)[number];

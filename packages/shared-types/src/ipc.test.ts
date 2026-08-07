@@ -76,9 +76,13 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'suggestions:shareViaGmail',
       'update:install',
       'terminal:create',
+      'terminal:createScratch',
       'terminal:write',
       'terminal:resize',
       'terminal:dispose',
+      'search:query',
+      'packages:list',
+      'packages:search',
     ]);
   });
 });

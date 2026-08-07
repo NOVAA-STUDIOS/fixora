@@ -210,6 +210,26 @@ export {
 } from './providers.js';
 
 export {
+  SearchMatchSchema,
+  SearchResponseSchema,
+  type SearchMatch,
+  type SearchResponse,
+} from './search.js';
+
+export {
+  ManifestKindSchema,
+  PackageDependencySchema,
+  PackageListSchema,
+  PackageSearchResultSchema,
+  PackageSearchResponseSchema,
+  type ManifestKind,
+  type PackageDependency,
+  type PackageList,
+  type PackageSearchResult,
+  type PackageSearchResponse,
+} from './packages-manager.js';
+
+export {
   canProbe,
   formatAgo,
   healthColour,
