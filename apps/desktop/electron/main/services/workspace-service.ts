@@ -177,7 +177,10 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
      * `fs:listDir` calls the tree's own first paint depends on. Chunking keeps main responsive
      * without the complexity of moving this into the analysis worker process.
      */
-    async indexFiles(workspace: OpenWorkspace, maxFiles = 50_000): Promise<number> {
+    // Raised from 50k: a large monorepo's real, non-ignored file count can exceed that, and the
+    // walk itself yields (see YIELD_EVERY below), so the ceiling is no longer what protects main's
+    // responsiveness — this is now purely a sanity bound against pathological input.
+    async indexFiles(workspace: OpenWorkspace, maxFiles = 200_000): Promise<number> {
       const YIELD_EVERY = 200;
       const records: Parameters<FileIndexRepository['replaceAll']>[1] = [];
       const yieldToEventLoop = (): Promise<void> =>

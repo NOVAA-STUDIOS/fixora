@@ -45,6 +45,10 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
       deps.findings.clearWorkspace(open.id);
       emit(window, { status: 'running' });
 
+      // Streamed as findings arrive, so a long run on a large project shows proof of life instead
+      // of the static "Analyzing…" placeholder sitting unchanged for minutes.
+      let findingsSoFar = 0;
+
       // Capability detection and all engine work happen in the isolated worker (ADR-017); main only
       // hands over the vetted targets. This keeps the ESM engine (and its WASM) out of the CJS main.
       deps.host.run({
@@ -55,6 +59,8 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
           deps.findings.replaceForFile(open.id, file, findings);
           if (!window.isDestroyed() && findings.length > 0) {
             emitToWindow(window, 'analysis:findingsAdded', { findings });
+            findingsSoFar += findings.length;
+            emit(window, { status: 'running', findingsSoFar });
           }
         },
         onDone: () => {

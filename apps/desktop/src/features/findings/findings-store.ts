@@ -17,6 +17,8 @@ type FindingsState = {
   findings: Finding[];
   summary: FindingsSummary | null;
   status: AnalysisStatus;
+  /** Findings streamed in so far during a running analysis — proof of life on a long run. */
+  findingsSoFar: number | null;
   filter: FindingsFilter;
   error: string | null;
 
@@ -47,6 +49,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   findings: [],
   summary: null,
   status: 'idle',
+  findingsSoFar: null,
   filter: {},
   error: null,
   ignoredIds: [],
@@ -64,7 +67,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   },
 
   run: async () => {
-    set({ status: 'running', error: null });
+    set({ status: 'running', error: null, findingsSoFar: null });
     const result = await invoke('analysis:run', {});
     if (!result.ok) set({ status: 'error', error: result.error.message });
   },
@@ -104,6 +107,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
       set({
         status: state.status,
         ...(state.summary !== undefined ? { summary: state.summary } : {}),
+        ...(state.findingsSoFar !== undefined ? { findingsSoFar: state.findingsSoFar } : {}),
       });
       if (state.status === 'error') set({ error: state.message ?? 'Analysis failed.' });
       if (state.status === 'done') void get().refresh();

@@ -142,7 +142,17 @@ type ActiveJob =
       onError: MicroRepairJob['onError'];
     };
 
-const DEFAULT_TIMEOUT_MS = 180_000;
+/**
+ * Full-workspace analysis. 180s was tuned for a mid-size repo; a large monorepo (tens of thousands
+ * of files, eslint/tsc/mypy each walking the whole tree) legitimately takes longer than that to
+ * finish a clean run, and a timeout mid-run reports "Analysis timed out" for work that was still
+ * making progress. Raised 5x — cancellation (below) is still the fast path for a run the user
+ * actually wants to stop.
+ */
+const DEFAULT_TIMEOUT_MS = 900_000;
+/** Verification overlays and re-checks ONE file — unrelated to workspace size, so it keeps the
+ * original budget rather than inheriting the full-run timeout above. */
+const VERIFY_TIMEOUT_MS = 180_000;
 /** Scope selection is one parse of one file — seconds, not minutes. A stall here must not hang the UI. */
 const SCOPE_TIMEOUT_MS = 30_000;
 /** A micro-repair is one edit-apply + one re-parse of a single file — same order of cost as scope selection. */
@@ -419,7 +429,7 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
           active = null;
           stalled.onError('Verification timed out.');
         }
-      }, job.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      }, job.timeoutMs ?? VERIFY_TIMEOUT_MS);
       active = { kind: 'verify', id: job.id, timer, onResult: job.onResult, onError: job.onError };
       child.postMessage({
         type: 'verify',

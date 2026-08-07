@@ -58,6 +58,7 @@ export function FindingsPanel(): React.JSX.Element {
   const findings = useFindingsStore((s) => s.findings);
   const summary = useFindingsStore((s) => s.summary);
   const status = useFindingsStore((s) => s.status);
+  const findingsSoFar = useFindingsStore((s) => s.findingsSoFar);
   const error = useFindingsStore((s) => s.error);
   const filter = useFindingsStore((s) => s.filter);
   const ignoredIds = useFindingsStore((s) => s.ignoredIds);
@@ -250,6 +251,7 @@ export function FindingsPanel(): React.JSX.Element {
       {visible.length === 0 ? (
         <EmptyState
           status={status}
+          findingsSoFar={findingsSoFar}
           hasWorkspace={workspace !== null}
           summary={summary}
           filterActive={filter.severity !== undefined}
@@ -519,6 +521,7 @@ function FindingRow({
 
 function EmptyState({
   status,
+  findingsSoFar,
   hasWorkspace,
   summary,
   filterActive,
@@ -528,6 +531,7 @@ function EmptyState({
   onShowHidden,
 }: {
   status: string;
+  findingsSoFar: number | null;
   hasWorkspace: boolean;
   summary: { total: number } | null;
   filterActive: boolean;
@@ -554,7 +558,16 @@ function EmptyState({
   }
   if (status === 'running') {
     return (
-      <Centered title="Analyzing…" body="Running your linters and type-checker on this project." />
+      <Centered
+        title="Analyzing…"
+        body={
+          findingsSoFar === null
+            ? 'Running your linters and type-checker on this project.'
+            : // Proof of life on a large project: a multi-minute run with no visible change reads
+              // as frozen, not as working. Updates as findings stream in, well before the run ends.
+              `${String(findingsSoFar)} problem${findingsSoFar === 1 ? '' : 's'} found so far — still running.`
+        }
+      />
     );
   }
   if (summary === null) {

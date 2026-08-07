@@ -231,5 +231,11 @@ export const AnalysisStateSchema = z.object({
   status: z.enum(['idle', 'running', 'done', 'error']),
   summary: FindingsSummarySchema.optional(),
   message: z.string().optional(),
+  /**
+   * Findings streamed in so far, while `status: 'running'` — proof of life on a large project
+   * where a full run can take minutes. Absent (rather than 0) until the first batch arrives, so
+   * the panel can tell "just started" from "ran and found nothing yet".
+   */
+  findingsSoFar: z.number().int().nonnegative().optional(),
 });
 export type AnalysisState = z.infer<typeof AnalysisStateSchema>;
