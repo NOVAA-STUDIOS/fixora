@@ -11,6 +11,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -41,11 +43,28 @@ jobs:
 
       - run: dir apps\desktop\release
 
+      - name: Generate release notes from git log
+        shell: bash
+        run: |
+          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${{ github.ref_name }}$" | head -n1)
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="${{ github.ref_name }}"
+          else
+            RANGE="$PREV_TAG..${{ github.ref_name }}"
+          fi
+          git log "$RANGE" --pretty=format:'%s' \
+            | grep -viE '^(chore|merge)' \
+            | sed 's/^/- /' > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "- No notable changes." > RELEASE_NOTES.md
+          fi
+
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             apps/desktop/release/*.exe
             apps/desktop/release/latest.yml
+          body_path: RELEASE_NOTES.md
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

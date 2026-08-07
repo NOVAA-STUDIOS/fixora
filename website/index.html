@@ -961,15 +961,37 @@
       <div class="wrap">
         <p class="eyebrow">Changelog</p>
         <h2>What's new</h2>
-        <ul class="claims">
-          <li>
-            <b>v1.0.0-beta.1</b> — Initial public beta. 8 AI providers, parallel analysis (10
-            analyzers), per-provider encrypted key storage, smart provider detection, explainable
-            repairs.
-          </li>
+        <ul class="claims" id="changelog-list">
+          <li>Loading releases…</li>
         </ul>
       </div>
     </section>
+    <script>
+      (function () {
+        var list = document.getElementById('changelog-list');
+        fetch('https://api.github.com/repos/NOVAA-STUDIOS/fixora/releases')
+          .then(function (res) {
+            if (!res.ok) throw new Error('GitHub API error');
+            return res.json();
+          })
+          .then(function (releases) {
+            if (!Array.isArray(releases) || releases.length === 0) {
+              list.innerHTML = '<li>No releases yet.</li>';
+              return;
+            }
+            list.innerHTML = releases
+              .map(function (r) {
+                var tag = String(r.tag_name || '').replace(/[<>&]/g, '');
+                var body = String(r.body || 'No description.').replace(/[<>&]/g, '');
+                return '<li><b>' + tag + '</b> — ' + body + '</li>';
+              })
+              .join('');
+          })
+          .catch(function () {
+            list.innerHTML = '<li>Could not load changelog — see the Releases page on GitHub.</li>';
+          });
+      })();
+    </script>
 
     <footer>
       <div class="wrap">
