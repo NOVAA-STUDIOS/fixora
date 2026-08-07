@@ -28,6 +28,12 @@ afterAll(() => {
   }
 });
 
+// FileTree now queries `analysis:list` directly (problem-severity dots, unfiltered by the Problems
+// panel's own filter — see `useFileSeverity` in file-tree.tsx) rather than only going through the
+// mocked workspace store, so it needs the same bridge mock `findings-panel.test.tsx` uses.
+const invoke = vi.hoisted(() => vi.fn());
+vi.mock('../../lib/bridge.js', () => ({ invoke, subscribe: () => () => undefined }));
+
 const toggleDir = vi.hoisted(() => vi.fn());
 const selectFile = vi.hoisted(() => vi.fn());
 let nodes: TreeNode[] = [];
@@ -55,6 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   nodes = [];
   selectedFile = null;
+  invoke.mockResolvedValue({ ok: true, value: { findings: [] } });
 });
 
 describe('FileTree — empty state', () => {

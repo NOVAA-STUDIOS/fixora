@@ -1,9 +1,52 @@
+import type { Severity } from '@fixora/shared-types';
 import { ChevronDownIcon, ChevronRightIcon, FileIcon, FolderIcon, RefreshIcon, VirtualList, cn } from '@fixora/ui';
+import { useEffect, useState } from 'react';
 
 import { useRowHeight } from '../../hooks/use-density-metrics.js';
+import { invoke } from '../../lib/bridge.js';
+import { useFindingsStore } from '../findings/findings-store.js';
 
 import { useFileActions } from './file-context-menu.js';
 import { useWorkspaceStore, type TreeNode } from './workspace-store.js';
+
+const SEVERITY_RANK: Record<Severity, number> = { error: 2, warning: 1, info: 0 };
+const SEVERITY_DOT: Record<Severity, string> = {
+  error: 'bg-danger',
+  warning: 'bg-warn',
+  info: 'bg-border-strong',
+};
+
+/**
+ * Worst severity per file, for the tree's problem dots. Queried unfiltered (not from the findings
+ * store's own `findings`, which reflects whatever severity filter the Problems panel currently has
+ * active) — the same reasoning `code-editor.tsx`'s error squiggles already follow: the tree must
+ * show every file with a problem regardless of what the panel is filtered to. Refetched whenever
+ * `summary` changes, which fires on every analysis progress tick and on completion.
+ */
+function useFileSeverity(): Map<string, Severity> {
+  const summary = useFindingsStore((s) => s.summary);
+  const [bySeverity, setBySeverity] = useState<Map<string, Severity>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    void invoke('analysis:list', {}).then((result) => {
+      if (cancelled || !result.ok) return;
+      const map = new Map<string, Severity>();
+      for (const f of result.value.findings) {
+        const current = map.get(f.location.file);
+        if (current === undefined || SEVERITY_RANK[f.severity] > SEVERITY_RANK[current]) {
+          map.set(f.location.file, f.severity);
+        }
+      }
+      setBySeverity(map);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [summary]);
+
+  return bySeverity;
+}
 
 /**
  * The virtualised file tree (roadmap M2). It renders the workspace store's flat visible-node list
@@ -25,6 +68,7 @@ export function FileTree(): React.JSX.Element {
   const selectFile = useWorkspaceStore((s) => s.selectFile);
   const rowHeight = useRowHeight();
   const { openMenu, menu } = useFileActions();
+  const fileSeverity = useFileSeverity();
 
   // A successfully opened workspace with zero visible entries (an empty folder, or one where
   // everything is `.gitignore`d) previously rendered a blank pane indistinguishable from "still
@@ -69,6 +113,7 @@ export function FileTree(): React.JSX.Element {
             node={node}
             height={rowHeight}
             selected={node.relPath === selected}
+            severity={fileSeverity.get(node.relPath)}
             onActivate={() => {
               activate(node);
             }}
@@ -87,12 +132,14 @@ function TreeRow({
   node,
   height,
   selected,
+  severity,
   onActivate,
   onContextMenu,
 }: {
   node: TreeNode;
   height: number;
   selected: boolean;
+  severity?: Severity | undefined;
   onActivate: () => void;
   onContextMenu: (x: number, y: number) => void;
 }): React.JSX.Element {
@@ -142,6 +189,12 @@ function TreeRow({
       {/* min-w-0: a flex child defaults to min-width:auto, which refuses to shrink below its text
           and makes `truncate` a no-op — a long filename would push the row into a sideways scroll. */}
       <span className="min-w-0 truncate">{node.name}</span>
+      {severity !== undefined && (
+        <span
+          aria-label={`Has ${severity}s`}
+          className={cn('size-1.5 shrink-0 rounded-full', SEVERITY_DOT[severity])}
+        />
+      )}
     </button>
   );
 }
