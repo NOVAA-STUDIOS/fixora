@@ -7,7 +7,7 @@ import {
   type RepairMode,
   type TaskProfile,
 } from '@fixora/shared-types';
-import { Button, ConfirmDialog, cn } from '@fixora/ui';
+import { AlertIcon, Button, ConfirmDialog, cn } from '@fixora/ui';
 import { useId, useState } from 'react';
 
 import { useAiStore } from '../../stores/ai-store.js';
@@ -223,6 +223,32 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
           </a>
         )}
       </div>
+
+      {/* Manual-only guidance. Purely informational — Repair itself is NOT disabled for these (the
+          user is entitled to attempt it anyway; see use-capability.ts), this just sets the right
+          expectation before they do, since an analyzer marking a rule "manual" is usually right
+          that the correct change is a judgment call a model is unlikely to get for free. */}
+      {repairState === 'manual-only' && (
+        <div className="flex flex-col gap-2 border-t border-border-subtle bg-inset px-3 py-2.5">
+          <div className="flex items-start gap-2">
+            <AlertIcon className="mt-0.5 size-3.5 shrink-0 text-fg-muted" />
+            <p className="text-[11px] leading-relaxed text-fg-secondary [overflow-wrap:anywhere]">
+              This finding requires manual refactoring. Use Explain to understand the change
+              needed, then edit the file directly.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="self-start"
+            onClick={() => {
+              revealAt(finding.location);
+            }}
+          >
+            Open in Editor
+          </Button>
+        </div>
+      )}
 
       {/* Why Repair is unavailable, explained here once, rather than in three tooltips — whether the
           cause is an incapable model (bug-fix sprint: wording no longer assumes it always is) or a

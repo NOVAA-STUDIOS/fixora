@@ -117,6 +117,12 @@ type UiState = {
    * follow setting. 'fixora' is the token-derived theme (`monaco-theme.ts`) that already follows
    * `theme`; the other two are fixed regardless of it, same as any named VS Code theme. */
   editorTheme: 'fixora' | 'monokai' | 'solarized-dark';
+  /** On by default. */
+  minimapEnabled: boolean;
+  terminalFontSize: number;
+  /** The view active before the last Ctrl+` switched to Terminal — what Ctrl+` switches BACK to.
+   * Not persisted: a restart starting mid-toggle makes no sense. */
+  lastNonTerminalView: ActivityView;
   /**
    * Reopen the last project on launch. **Off by default**: every launch starts on the Home screen
    * with a clean session, so a returning user is never dropped back into stale problems, a stale
@@ -138,12 +144,17 @@ type UiState = {
   setAutoSave: (enabled: boolean) => void;
   setFormatOnSave: (enabled: boolean) => void;
   setEditorTheme: (theme: UiState['editorTheme']) => void;
+  setMinimapEnabled: (enabled: boolean) => void;
+  setTerminalFontSize: (size: number) => void;
+  /** Ctrl+`, callable from anywhere: shows Terminal if it wasn't active, or switches back to
+   * whatever was active before if it already was. */
+  toggleTerminal: () => void;
   setReopenLastProject: (enabled: boolean) => void;
 };
 
 export const useUiStore = create<UiState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       theme: 'dark',
       density: 'comfortable',
       activeView: 'workspace',
@@ -154,6 +165,9 @@ export const useUiStore = create<UiState>()(
       autoSave: false,
       formatOnSave: true,
       editorTheme: 'fixora',
+      minimapEnabled: true,
+      terminalFontSize: 13,
+      lastNonTerminalView: 'workspace',
       reopenLastProject: false,
       fullDiffOpen: false,
 
@@ -203,6 +217,22 @@ export const useUiStore = create<UiState>()(
       setEditorTheme: (editorTheme) => {
         set({ editorTheme });
       },
+      setMinimapEnabled: (minimapEnabled) => {
+        set({ minimapEnabled });
+      },
+      setTerminalFontSize: (terminalFontSize) => {
+        // Clamped: unbounded growth via a stuck key repeat, or a corrupt persisted value, must not
+        // scale the terminal past what the pane can render usefully.
+        set({ terminalFontSize: Math.max(8, Math.min(32, terminalFontSize)) });
+      },
+      toggleTerminal: () => {
+        const { activeView, lastNonTerminalView } = get();
+        if (activeView === 'terminal') {
+          set({ activeView: lastNonTerminalView });
+        } else {
+          set({ activeView: 'terminal', lastNonTerminalView: activeView });
+        }
+      },
       setReopenLastProject: (reopenLastProject) => {
         set({ reopenLastProject });
       },
@@ -219,6 +249,8 @@ export const useUiStore = create<UiState>()(
         autoSave: s.autoSave,
         formatOnSave: s.formatOnSave,
         editorTheme: s.editorTheme,
+        minimapEnabled: s.minimapEnabled,
+        terminalFontSize: s.terminalFontSize,
         reopenLastProject: s.reopenLastProject,
       }),
       // Rehydration is the trust boundary for persisted state (see `oneOf` above). Every value
@@ -247,6 +279,11 @@ export const useUiStore = create<UiState>()(
           // so a missing/corrupt value falls back to the feature's own default rather than off.
           formatOnSave: p.formatOnSave !== false,
           editorTheme: oneOf(p.editorTheme, EDITOR_THEMES, current.editorTheme),
+          minimapEnabled: p.minimapEnabled !== false,
+          terminalFontSize:
+            typeof p.terminalFontSize === 'number' && p.terminalFontSize >= 8 && p.terminalFontSize <= 32
+              ? p.terminalFontSize
+              : current.terminalFontSize,
         };
       },
     },

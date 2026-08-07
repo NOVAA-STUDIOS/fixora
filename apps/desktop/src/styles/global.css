@@ -116,6 +116,28 @@
   opacity: 0.7;
 }
 
+/* Minimap: a subtle separator from the code it summarises, softened overall (Monaco has no native
+   "soften"/"fade edges" option — this is the CSS approximation), and a vertical fade at the top and
+   bottom so it reads as a floating overview rather than a hard-edged panel. */
+.monaco-editor .minimap {
+  border-left: 1px solid var(--fx-color-border-subtle);
+  opacity: 0.85;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 16px,
+    black calc(100% - 16px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 16px,
+    black calc(100% - 16px),
+    transparent 100%
+  );
+}
+
 /*
  * Splash screen motion. Both are applied through Tailwind's `motion-safe:` variant, so a user with
  * "reduce motion" set sees the composed screen without any of it.

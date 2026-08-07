@@ -53,6 +53,7 @@ export function CodeEditor({
   const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const theme = useUiStore((s) => s.theme);
   const editorTheme = useUiStore((s) => s.editorTheme);
+  const minimapEnabled = useUiStore((s) => s.minimapEnabled);
   const revealTarget = useWorkspaceStore((s) => s.revealTarget);
   const proposal = useAiStore((s) => s.proposal);
   // Changes on every analysis progress tick and on completion — the trigger to re-fetch this
@@ -73,7 +74,19 @@ export function CodeEditor({
       readOnly: false,
       theme: resolveEditorTheme(useUiStore.getState().editorTheme, useUiStore.getState().theme),
       automaticLayout: true,
-      minimap: { enabled: el.clientWidth >= MINIMAP_MIN_WIDTH },
+      minimap: {
+        enabled: useUiStore.getState().minimapEnabled && el.clientWidth >= MINIMAP_MIN_WIDTH,
+        // Monaco has no literal pixel-width option — width is a product of maxColumn (how much of
+        // the line the thumbnail covers) and character scale. This combination renders roughly
+        // 60px wide rather than the ~90–120px default, "reduce width" translated into the knobs
+        // Monaco actually exposes.
+        maxColumn: 30,
+        scale: 1,
+        // Blocks, not glyphs — a softer, more abstract thumbnail than rendering actual character
+        // shapes at minimap scale, and cheaper to paint.
+        renderCharacters: false,
+        showSlider: 'mouseover',
+      },
       folding: el.clientWidth >= MINIMAP_MIN_WIDTH,
       scrollBeyondLastLine: false,
       fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--fx-font-mono'),
@@ -137,10 +150,13 @@ export function CodeEditor({
     let minimapOn = el.clientWidth >= MINIMAP_MIN_WIDTH;
     const observer = new ResizeObserver(([entry]) => {
       const width = entry?.contentRect.width ?? 0;
-      const next = width >= MINIMAP_MIN_WIDTH;
-      if (next === minimapOn) return;
-      minimapOn = next;
-      editor.updateOptions({ minimap: { enabled: next }, folding: next });
+      const wideEnough = width >= MINIMAP_MIN_WIDTH;
+      if (wideEnough === minimapOn) return;
+      minimapOn = wideEnough;
+      editor.updateOptions({
+        minimap: { enabled: useUiStore.getState().minimapEnabled && wideEnough },
+        folding: wideEnough,
+      });
     });
     observer.observe(el);
 
@@ -198,6 +214,15 @@ export function CodeEditor({
   useEffect(() => {
     setupMonaco().editor.setTheme(resolveEditorTheme(editorTheme, theme));
   }, [theme, editorTheme]);
+
+  // Settings > Minimap toggle, live — still gated by the width-responsive rule above (Settings can
+  // turn it on, but a pane too narrow to afford it stays off regardless).
+  useEffect(() => {
+    const editor = editorRef.current;
+    const el = container.current;
+    if (editor === null || el === null) return;
+    editor.updateOptions({ minimap: { enabled: minimapEnabled && el.clientWidth >= MINIMAP_MIN_WIDTH } });
+  }, [minimapEnabled]);
 
   // Jump to + highlight a finding's range when this file is the reveal target (clicking a finding).
   // `token` is in the deps so re-clicking the same finding re-reveals it.

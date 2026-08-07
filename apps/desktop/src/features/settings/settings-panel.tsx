@@ -113,12 +113,15 @@ function AppearanceSettings(): React.JSX.Element {
   const theme = useUiStore((s) => s.theme);
   const density = useUiStore((s) => s.density);
   const editorTheme = useUiStore((s) => s.editorTheme);
+  const minimapEnabled = useUiStore((s) => s.minimapEnabled);
   const setTheme = useUiStore((s) => s.setTheme);
   const setDensity = useUiStore((s) => s.setDensity);
   const setEditorTheme = useUiStore((s) => s.setEditorTheme);
+  const setMinimapEnabled = useUiStore((s) => s.setMinimapEnabled);
   const themeId = useId();
   const densityId = useId();
   const editorThemeId = useId();
+  const minimapId = useId();
 
   return (
     <Group title="Appearance">
@@ -183,6 +186,13 @@ function AppearanceSettings(): React.JSX.Element {
           </SelectContent>
         </Select>
       </Field>
+      <ToggleField
+        label="Minimap"
+        htmlFor={minimapId}
+        description="On by default. The code overview on the editor's right edge; also hidden automatically in a narrow pane regardless of this."
+        checked={minimapEnabled}
+        onCheckedChange={setMinimapEnabled}
+      />
     </Group>
   );
 }
