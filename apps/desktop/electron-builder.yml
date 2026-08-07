@@ -19,6 +19,14 @@ directories:
 files:
   - out/**/*
   - package.json
+  # Explicit include, not left to electron-builder's automatic production-dependency walker: that
+  # walker follows pnpm's node_modules symlink to the real store path (node_modules/.pnpm/node-pty@*/
+  # node_modules/node-pty), which sits outside apps/desktop — the exact "refuses the realpath for
+  # being outside apps/desktop" bug the //dependencies comment above documents for the @fixora/*
+  # packages. A "Cannot find module 'node-pty'" in the packaged app, with node-pty present and
+  # working in dev, is that walker silently dropping it. A glob include does not depend on realpath
+  # resolution the way the dependency walker does, so it is unaffected by the same bug.
+  - node_modules/node-pty/**
   - '!node_modules/@fixora/core-ai/**'
   - '!node_modules/@fixora/shared-types/**'
   - '!node_modules/@fixora/tokens/**'
