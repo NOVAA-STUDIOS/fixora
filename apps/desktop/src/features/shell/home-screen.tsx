@@ -24,6 +24,7 @@ export function HomeScreen(): React.JSX.Element {
   const opening = useWorkspaceStore((s) => s.opening);
   const error = useWorkspaceStore((s) => s.error);
   const togglePalette = useUiStore((s) => s.togglePalette);
+  const setNewProjectOpen = useUiStore((s) => s.setNewProjectOpen);
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto rounded-lg border border-border-subtle bg-raised">
@@ -52,6 +53,15 @@ export function HomeScreen(): React.JSX.Element {
             >
               <FolderIcon className="size-4" />
               {opening ? 'Opening…' : 'Open folder'}
+            </Button>
+            <Button
+              variant="secondary"
+              size="lg"
+              onClick={() => {
+                setNewProjectOpen(true);
+              }}
+            >
+              New Project
             </Button>
           </div>
           <p className="flex items-center gap-1.5 text-xs text-fg-muted">

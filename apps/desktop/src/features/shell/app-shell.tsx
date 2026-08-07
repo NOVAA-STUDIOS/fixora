@@ -6,6 +6,7 @@ import { ConsentGate } from '../consent/consent-gate.js';
 import { WorkspaceSwitchGuard } from '../workspace/workspace-switch-guard.js';
 
 import { ActivityRail } from './activity-rail.js';
+import { NewProjectModal } from './new-project-modal.js';
 import { StatusBar } from './status-bar.js';
 import { TitleBar } from './title-bar.js';
 import { Toaster } from './toaster.js';
@@ -56,6 +57,7 @@ export function AppShell(): React.JSX.Element {
       <FullDiffOverlay />
       <Toaster />
       <UpdateBanner />
+        <NewProjectModal />
         <WorkspaceSwitchGuard />
       </CommandProvider>
     </ConsentGate>
