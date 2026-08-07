@@ -1,10 +1,11 @@
 import type * as monaco from 'monaco-editor';
 import { useEffect, useRef, useState } from 'react';
 
+import { invoke } from '../../lib/bridge.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
+import { useFindingsStore } from '../findings/findings-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
-
 
 import { setActiveEditor } from './active-editor.js';
 import { useEditorStore } from './editor-store.js';
@@ -52,6 +53,10 @@ export function CodeEditor({
   const theme = useUiStore((s) => s.theme);
   const revealTarget = useWorkspaceStore((s) => s.revealTarget);
   const proposal = useAiStore((s) => s.proposal);
+  // Changes on every analysis progress tick and on completion — the trigger to re-fetch this
+  // file's own findings, independent of whatever severity filter the Problems panel currently has
+  // active (unfiltered is the only correct answer for "what's wrong in the file I'm looking at").
+  const findingsSummary = useFindingsStore((s) => s.summary);
   const inlineViewRef = useRef<InlineRepairView | null>(null);
   const [hunkPosition, setHunkPosition] = useState<{ index: number; total: number } | null>(null);
 
@@ -67,10 +72,28 @@ export function CodeEditor({
       theme: themeForAppearance(useUiStore.getState().theme),
       automaticLayout: true,
       minimap: { enabled: el.clientWidth >= MINIMAP_MIN_WIDTH },
+      folding: el.clientWidth >= MINIMAP_MIN_WIDTH,
       scrollBeyondLastLine: false,
       fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--fx-font-mono'),
       fontSize: 13,
       renderWhitespace: 'selection',
+      // The line the caret is on, highlighted in both the text and the gutter — Monaco's own
+      // default ('line') only does the text; 'all' is what makes the current line findable at a
+      // glance in a long file, which is the point of asking for it explicitly.
+      renderLineHighlight: 'all',
+      lineNumbers: 'on',
+      // All of these are Monaco's own defaults already (the full `monaco-editor` bundle — see
+      // monaco-setup.ts — registers bracket matching, auto-closing, auto-indent, multi-cursor and
+      // the find/replace widget as standard contributions). Made explicit rather than left
+      // implicit: a later change to Monaco's defaults, or to this options object, must not silently
+      // turn one of these off.
+      matchBrackets: 'always',
+      autoClosingBrackets: 'always',
+      autoClosingQuotes: 'always',
+      autoIndent: 'full',
+      multiCursorModifier: 'alt',
+      quickSuggestions: true,
+      suggestOnTriggerCharacters: true,
     });
     editorRef.current = editor;
     setActiveEditor(editor);
@@ -179,6 +202,103 @@ export function CodeEditor({
       },
     ]);
   }, [revealTarget, relPath, content]);
+
+  /**
+   * Error squiggles: every current finding in this file, drawn as a Monaco marker (red/yellow/blue
+   * underline, hover tooltip with the message — Monaco's own rendering, not a custom decoration).
+   * Queried directly with `{ relPath }` rather than read from the findings store's own `findings`
+   * array, because that array reflects whatever severity filter the Problems panel currently has
+   * active — the editor must show every problem in the open file regardless of what the panel is
+   * filtered to. `findingsSummary` is the trigger to re-run this: it changes on every analysis
+   * progress tick and on completion, which is when the answer could have changed.
+   */
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (editor === null) return;
+    let cancelled = false;
+    void invoke('analysis:list', { filter: { relPath } }).then((result) => {
+      if (cancelled || !result.ok) return;
+      const model = editor.getModel();
+      if (model === null) return;
+      const monacoApi = setupMonaco();
+      const severityOf = (s: string): monaco.MarkerSeverity =>
+        s === 'error'
+          ? monacoApi.MarkerSeverity.Error
+          : s === 'warning'
+            ? monacoApi.MarkerSeverity.Warning
+            : monacoApi.MarkerSeverity.Info;
+      monacoApi.editor.setModelMarkers(
+        model,
+        'fixora',
+        result.value.findings.map((f) => ({
+          severity: severityOf(f.severity),
+          startLineNumber: f.location.startLine,
+          startColumn: f.location.startCol,
+          endLineNumber: f.location.endLine,
+          endColumn: f.location.endCol,
+          message: f.message,
+          source: f.source,
+        })),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [relPath, findingsSummary]);
+
+  /**
+   * Git blame, current line only — the same scope VS Code's own built-in "current line blame"
+   * uses, not GitLens's every-line-annotated mode. A decoration per line in a large file is a real
+   * rendering cost for information almost never read on more than one line at a time; one
+   * decoration that follows the caret gives the same answer ("who wrote this, and when") at a
+   * fraction of the cost, and is exactly what `git-blame-service.ts` is scoped for (best-effort,
+   * no error surfaced when there is nothing to show — a fresh file, an untracked one, or no git
+   * repository at all are all silently empty rather than a banner).
+   */
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (editor === null) return;
+    let cancelled = false;
+    let blameByLine = new Map<number, { author: string; authorTimeUnix: number; summary: string }>();
+    let blameDecorations: monaco.editor.IEditorDecorationsCollection | null = null;
+
+    const paint = (): void => {
+      const model = editor.getModel();
+      if (model === null) return;
+      const line = editor.getPosition()?.lineNumber;
+      const blame = line === undefined ? undefined : blameByLine.get(line);
+      blameDecorations ??= editor.createDecorationsCollection();
+      if (blame === undefined) {
+        blameDecorations.set([]);
+        return;
+      }
+      const when = new Date(blame.authorTimeUnix * 1000).toLocaleDateString();
+      blameDecorations.set([
+        {
+          range: new (setupMonaco().Range)(line ?? 1, Number.MAX_SAFE_INTEGER, line ?? 1, Number.MAX_SAFE_INTEGER),
+          options: {
+            after: {
+              content: `  ${blame.author}, ${when} — ${blame.summary}`,
+              inlineClassName: 'fx-blame-inline',
+            },
+          },
+        },
+      ]);
+    };
+
+    void invoke('editor:gitBlame', { relPath }).then((result) => {
+      if (cancelled || !result.ok) return;
+      blameByLine = new Map(result.value.lines.map((l) => [l.line, l]));
+      paint();
+    });
+
+    const sub = editor.onDidChangeCursorPosition(paint);
+    return () => {
+      cancelled = true;
+      sub.dispose();
+      blameDecorations?.clear();
+    };
+  }, [relPath]);
 
   /**
    * The inline repair review (editor-first workflow).

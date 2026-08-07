@@ -151,6 +151,7 @@ export function EditorArea(): React.JSX.Element {
           {saveError}
         </p>
       )}
+      {activeTab !== null && <Breadcrumbs relPath={activeTab} />}
       <div className="min-h-0 flex-1">
         {activeTab !== null && <ActiveFile key={activeTab} relPath={activeTab} />}
       </div>
@@ -179,6 +180,32 @@ export function EditorArea(): React.JSX.Element {
  * so switching tabs unmounts the previous fetch state cleanly. The Monaco *model* is cached across
  * mounts, so re-activating a tab does not re-read the file.
  */
+/**
+ * Path-segment breadcrumbs above the editor. Deliberately scoped to the path only — a "current
+ * function" segment (what VS Code's own breadcrumbs add via document symbols) needs a
+ * DocumentSymbolProvider per language wired through Monaco and kept in sync with cursor position,
+ * a materially bigger feature than a path display; noted here rather than left unmentioned so the
+ * gap is a documented choice, not an oversight.
+ */
+function Breadcrumbs({ relPath }: { relPath: string }): React.JSX.Element {
+  const segments = relPath.split('/').filter((s) => s !== '');
+  return (
+    <div
+      aria-label="Breadcrumb"
+      className="flex h-6 shrink-0 items-center gap-1 overflow-x-auto border-b border-border-subtle bg-raised px-3 text-[11px] text-fg-muted"
+    >
+      {segments.map((segment, i) => (
+        <span key={`${segment}-${String(i)}`} className="flex shrink-0 items-center gap-1">
+          {i > 0 && <span className="text-fg-muted/50">/</span>}
+          <span className={i === segments.length - 1 ? 'text-fg-secondary' : undefined}>
+            {segment}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function ActiveFile({ relPath }: { relPath: string }): React.JSX.Element {
   const [state, setState] = useState<
     | { status: 'loading' }

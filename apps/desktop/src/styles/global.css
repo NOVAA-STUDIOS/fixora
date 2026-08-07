@@ -108,6 +108,14 @@
   box-shadow: inset 3px 0 0 0 var(--fx-color-accent);
 }
 
+/* Git blame, current line — code-editor.tsx's `after` decoration. Muted and small: it is
+   reference information beside the code, never meant to compete with it for attention. */
+.fx-blame-inline {
+  color: var(--fx-color-fg-muted);
+  font-style: italic;
+  opacity: 0.7;
+}
+
 /*
  * Splash screen motion. Both are applied through Tailwind's `motion-safe:` variant, so a user with
  * "reduce motion" set sees the composed screen without any of it.

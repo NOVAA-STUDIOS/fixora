@@ -24,9 +24,11 @@ import {
 import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
 import { registerConsentHandlers } from './ipc/handlers/consent.handlers.js';
+import { registerEditorHandlers } from './ipc/handlers/editor.handlers.js';
 import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
 import { registerPackageManagerHandlers } from './ipc/handlers/package-manager.handlers.js';
 import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
+import { registerProjectHandlers } from './ipc/handlers/project.handlers.js';
 import { registerProviderHandlers } from './ipc/handlers/providers.handlers.js';
 import { registerSearchHandlers } from './ipc/handlers/search.handlers.js';
 import { registerSuggestionHandlers } from './ipc/handlers/suggestions.handlers.js';
@@ -226,6 +228,7 @@ if (!gotTheLock) {
       registerSystemHandlers({ workspace: workspaceService });
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
+      registerEditorHandlers(workspaceService, analysisHost);
       registerAnalysisHandlers(analysisService);
       registerProviderHandlers({
         registry: providerRegistry,
@@ -269,6 +272,7 @@ if (!gotTheLock) {
       registerTerminalHandlers(workspaceService);
       registerSearchHandlers(workspaceService);
       registerPackageManagerHandlers(workspaceService);
+      registerProjectHandlers(workspaceService);
 
       // Suggestion System (Sprint F1, F1.1). Not workspace-scoped — feedback about Fixora itself, so
       // it is available whether or not a project is open, same as Settings. appVersion/platform are
