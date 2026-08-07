@@ -246,33 +246,43 @@ export function CodeEditor({
     const editor = editorRef.current;
     if (editor === null) return;
     let cancelled = false;
-    void invoke('analysis:list', { filter: { relPath } }).then((result) => {
-      if (cancelled || !result.ok) return;
-      const model = editor.getModel();
-      if (model === null) return;
-      const monacoApi = setupMonaco();
-      const severityOf = (s: string): monaco.MarkerSeverity =>
-        s === 'error'
-          ? monacoApi.MarkerSeverity.Error
-          : s === 'warning'
-            ? monacoApi.MarkerSeverity.Warning
-            : monacoApi.MarkerSeverity.Info;
-      monacoApi.editor.setModelMarkers(
-        model,
-        'fixora',
-        result.value.findings.map((f) => ({
-          severity: severityOf(f.severity),
-          startLineNumber: f.location.startLine,
-          startColumn: f.location.startCol,
-          endLineNumber: f.location.endLine,
-          endColumn: f.location.endCol,
-          message: f.message,
-          source: f.source,
-        })),
-      );
-    });
+    // Same reasoning as file-tree.tsx's useFileSeverity: `findingsSummary` changes roughly every
+    // 200ms during a burst of streaming findings, and with a split pane open this fetch runs
+    // TWICE per tick (one CodeEditor instance per pane) — debounced so a long analysis run on a
+    // large project does not fire a steady stream of IPC round-trips for its whole duration.
+    const timer = setTimeout(() => {
+      performance.mark('squiggle-fetch-start');
+      void invoke('analysis:list', { filter: { relPath } }).then((result) => {
+        performance.mark('squiggle-fetch-end');
+        performance.measure('squiggle-fetch', 'squiggle-fetch-start', 'squiggle-fetch-end');
+        if (cancelled || !result.ok) return;
+        const model = editor.getModel();
+        if (model === null) return;
+        const monacoApi = setupMonaco();
+        const severityOf = (s: string): monaco.MarkerSeverity =>
+          s === 'error'
+            ? monacoApi.MarkerSeverity.Error
+            : s === 'warning'
+              ? monacoApi.MarkerSeverity.Warning
+              : monacoApi.MarkerSeverity.Info;
+        monacoApi.editor.setModelMarkers(
+          model,
+          'fixora',
+          result.value.findings.map((f) => ({
+            severity: severityOf(f.severity),
+            startLineNumber: f.location.startLine,
+            startColumn: f.location.startCol,
+            endLineNumber: f.location.endLine,
+            endColumn: f.location.endCol,
+            message: f.message,
+            source: f.source,
+          })),
+        );
+      });
+    }, 1500);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [relPath, findingsSummary]);
 

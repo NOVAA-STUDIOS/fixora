@@ -1,5 +1,5 @@
 import { Button, GitBranchIcon, RefreshIcon } from '@fixora/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { basename } from '../../lib/path.js';
@@ -24,10 +24,27 @@ export function SourceControlPanel(): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Throttled to at most one `git status` per 2s: stage/unstage each call refresh(), and clicking
+  // through several files in quick succession must not fire one shell-out per click.
+  const lastRunRef = useRef(0);
+  const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refresh = (): void => {
-    void invoke('git:status', {}).then((result) => {
-      if (result.ok) setStatus(result.value);
-    });
+    const runNow = (): void => {
+      lastRunRef.current = Date.now();
+      performance.mark('git-status-fetch-start');
+      void invoke('git:status', {}).then((result) => {
+        performance.mark('git-status-fetch-end');
+        performance.measure('git-status-fetch', 'git-status-fetch-start', 'git-status-fetch-end');
+        if (result.ok) setStatus(result.value);
+      });
+    };
+    const elapsed = Date.now() - lastRunRef.current;
+    if (elapsed >= 2000) {
+      runNow();
+      return;
+    }
+    if (pendingRef.current !== null) clearTimeout(pendingRef.current);
+    pendingRef.current = setTimeout(runNow, 2000 - elapsed);
   };
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 import type { Severity } from '@fixora/shared-types';
 import { ChevronDownIcon, ChevronRightIcon, FileIcon, FolderIcon, RefreshIcon, VirtualList, cn } from '@fixora/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useRowHeight } from '../../hooks/use-density-metrics.js';
 import { invoke } from '../../lib/bridge.js';
@@ -16,32 +16,47 @@ const SEVERITY_DOT: Record<Severity, string> = {
   info: 'bg-border-strong',
 };
 
+/** Bursts of `summary` changes (a debounced refresh on every `analysis:findingsAdded`, roughly
+ * every 200ms while a large project streams findings) must collapse into one fetch, not one per
+ * tick — an unfiltered fetch of a large project's whole findings list, refired every ~200ms for
+ * the duration of a multi-minute analysis run, is a real, measured freeze, not a hypothetical one. */
+const FILE_SEVERITY_DEBOUNCE_MS = 1500;
+
 /**
  * Worst severity per file, for the tree's problem dots. Queried unfiltered (not from the findings
  * store's own `findings`, which reflects whatever severity filter the Problems panel currently has
  * active) — the same reasoning `code-editor.tsx`'s error squiggles already follow: the tree must
- * show every file with a problem regardless of what the panel is filtered to. Refetched whenever
- * `summary` changes, which fires on every analysis progress tick and on completion.
+ * show every file with a problem regardless of what the panel is filtered to.
  */
 function useFileSeverity(): Map<string, Severity> {
   const summary = useFindingsStore((s) => s.summary);
   const [bySeverity, setBySeverity] = useState<Map<string, Severity>>(new Map());
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void invoke('analysis:list', {}).then((result) => {
-      if (cancelled || !result.ok) return;
-      const map = new Map<string, Severity>();
-      for (const f of result.value.findings) {
-        const current = map.get(f.location.file);
-        if (current === undefined || SEVERITY_RANK[f.severity] > SEVERITY_RANK[current]) {
-          map.set(f.location.file, f.severity);
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
+
+    timerRef.current = setTimeout(() => {
+      performance.mark('file-severity-fetch-start');
+      void invoke('analysis:list', {}).then((result) => {
+        performance.mark('file-severity-fetch-end');
+        performance.measure('file-severity-fetch', 'file-severity-fetch-start', 'file-severity-fetch-end');
+        if (cancelled || !result.ok) return;
+        const map = new Map<string, Severity>();
+        for (const f of result.value.findings) {
+          const current = map.get(f.location.file);
+          if (current === undefined || SEVERITY_RANK[f.severity] > SEVERITY_RANK[current]) {
+            map.set(f.location.file, f.severity);
+          }
         }
-      }
-      setBySeverity(map);
-    });
+        setBySeverity(map);
+      });
+    }, FILE_SEVERITY_DEBOUNCE_MS);
+
     return () => {
       cancelled = true;
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
     };
   }, [summary]);
 
