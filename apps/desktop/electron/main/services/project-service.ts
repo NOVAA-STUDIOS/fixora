@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { PROJECT_TEMPLATES, UserFacingError } from '@fixora/shared-types';
@@ -50,6 +51,19 @@ export async function createProject(
   }
 
   const projectPath = join(parentDir, name);
+
+  // Checked upfront rather than by matching each tool's own wording for "already exists" —
+  // create-vite, npm init, express-generator and python's venv all phrase that differently, and a
+  // pre-flight check catches every template uniformly instead of pattern-matching heterogeneous
+  // tool output. Also fails in well under a second, rather than after `npx` has already spent time
+  // resolving a package just to hit the same wall the check below would have caught immediately.
+  if (existsSync(projectPath)) {
+    throw new UserFacingError(
+      'A folder with this name already exists. Please choose a different folder or project name.',
+      { code: 'contract_violation', action: { type: 'none', label: 'Dismiss' }, stage: 'workspace' },
+    );
+  }
+
   const command = template.command(name);
 
   await new Promise<void>((resolve, reject) => {
