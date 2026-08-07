@@ -108,11 +108,11 @@ describe('workspace service', () => {
     rmSync(other, { recursive: true, force: true });
   });
 
-  it('indexes files, honouring ignore rules (no node_modules, no .gitignore matches)', () => {
+  it('indexes files, honouring ignore rules (no node_modules, no .gitignore matches)', async () => {
     const { service, driver } = makeService();
     service.open(repo);
     const open = service.requireRoot();
-    const count = service.indexFiles(open);
+    const count = await service.indexFiles(open);
     // src/a.ts, src/b.go, and .gitignore itself — but NOT ignored.txt or node_modules/dep.js.
     const paths = driver
       .prepare('SELECT rel_path FROM files_index ORDER BY rel_path')
@@ -151,10 +151,10 @@ describe('workspace service', () => {
     second.driver.close();
   });
 
-  it('gives every indexed source file a content hash and language', () => {
+  it('gives every indexed source file a content hash and language', async () => {
     const { service, driver } = makeService();
     service.open(repo);
-    service.indexFiles(service.requireRoot());
+    await service.indexFiles(service.requireRoot());
     const row = driver
       .prepare('SELECT language, content_hash FROM files_index WHERE rel_path = ?')
       .get('src/a.ts');

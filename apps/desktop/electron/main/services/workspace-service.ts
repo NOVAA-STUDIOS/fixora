@@ -170,11 +170,22 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
      * calls; this index feeds M3's analysis, so it can take its time in the background. Returns the
      * number of files indexed. Symlinked directories are not descended (loop-safe, and the guard
      * would reject them anyway).
+     *
+     * Yields to the event loop every `YIELD_EVERY` files (`setImmediate`) instead of walking the
+     * whole tree in one synchronous call. A 50k-file repo hashed in one go held the main process's
+     * event loop for seconds — during which every pending IPC call stalls, including the
+     * `fs:listDir` calls the tree's own first paint depends on. Chunking keeps main responsive
+     * without the complexity of moving this into the analysis worker process.
      */
-    indexFiles(workspace: OpenWorkspace, maxFiles = 50_000): number {
+    async indexFiles(workspace: OpenWorkspace, maxFiles = 50_000): Promise<number> {
+      const YIELD_EVERY = 200;
       const records: Parameters<FileIndexRepository['replaceAll']>[1] = [];
+      const yieldToEventLoop = (): Promise<void> =>
+        new Promise((resolve) => {
+          setImmediate(resolve);
+        });
 
-      const walk = (relDir: string): void => {
+      const walk = async (relDir: string): Promise<void> => {
         if (records.length >= maxFiles) return;
         let entries;
         try {
@@ -193,7 +204,7 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
           if (entry.isSymbolicLink()) continue;
           if (entry.isDirectory()) {
             if (workspace.ignore.ignores(`${childRel}/`)) continue;
-            walk(childRel);
+            await walk(childRel);
           } else if (entry.isFile()) {
             if (workspace.ignore.ignores(childRel)) continue;
             const abs = join(workspace.rootPath, childRel);
@@ -209,11 +220,12 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
             } catch {
               // vanished between readdir and stat — skip
             }
+            if (records.length % YIELD_EVERY === 0) await yieldToEventLoop();
           }
         }
       };
 
-      walk('');
+      await walk('');
       deps.files.replaceAll(workspace.id, records);
       return records.length;
     },

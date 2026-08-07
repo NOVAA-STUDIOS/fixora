@@ -75,11 +75,9 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     ensureWatching(service, window);
     // Kick off indexing in the background; do not await it (first paint must not wait).
     setImmediate(() => {
-      try {
-        service.indexFiles(open);
-      } catch {
+      service.indexFiles(open).catch(() => {
         // Indexing feeds M3; a failure here must not break opening the workspace.
-      }
+      });
     });
     return { workspace: toInfo(workspace) };
   });

@@ -103,7 +103,7 @@ describe('M2 scale acceptance: a 10,000-file repo', () => {
     driver.close();
   });
 
-  it('indexes all 10,000 files in the background (off first paint)', () => {
+  it('indexes all 10,000 files in the background (off first paint)', async () => {
     const { driver } = openDatabase({ dir: dbDir });
     const files = createFileIndexRepository(driver);
     const service = createWorkspaceService({
@@ -113,7 +113,7 @@ describe('M2 scale acceptance: a 10,000-file repo', () => {
     const { workspace } = service.open(root);
     const open = service.requireRoot();
 
-    const count = service.indexFiles(open);
+    const count = await service.indexFiles(open);
     // Every non-ignored file is indexed and persisted; this proves the walk + hash pipeline scales.
     // The +1 is the .gitignore itself (a real file); the 200 dist/ bundles and build.log are excluded
     // by the ignore rules, so a passing count is also proof the ignore filter holds at 10k scale.
