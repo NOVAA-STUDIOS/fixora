@@ -118,6 +118,12 @@ export const channels = [
   // Git blame for the open file — best-effort (see git-blame-service.ts): a project with no repo,
   // no git binary, or an untracked file all resolve to an empty result, never an error.
   'editor:gitBlame',
+  // Source Control tab: status/stage/unstage/commit, all shelling out to the user's own `git` —
+  // best-effort, same as editor:gitBlame (no repo/no git binary resolves gracefully, never errors).
+  'git:status',
+  'git:stage',
+  'git:unstage',
+  'git:commit',
   // New Project: runs a template's scaffold command as a plain background child process (never a
   // visible terminal) rooted at a directory the user picked, gated by the same authorization rule
   // workspace:open uses.

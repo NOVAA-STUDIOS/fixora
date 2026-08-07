@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react';
+
+import { invoke } from '../../lib/bridge.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useEditorStatusStore } from '../editor/editor-status-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
@@ -15,6 +18,16 @@ export function StatusBar(): React.JSX.Element {
   const toggleTheme = useUiStore((s) => s.toggleTheme);
 
   const workspace = useWorkspaceStore((s) => s.workspace);
+  const [branch, setBranch] = useState<string | null>(null);
+  useEffect(() => {
+    if (workspace === null) {
+      setBranch(null);
+      return;
+    }
+    void invoke('git:status', {}).then((result) => {
+      setBranch(result.ok ? result.value.branch : null);
+    });
+  }, [workspace]);
   const summary = useFindingsStore((s) => s.summary);
   const status = useFindingsStore((s) => s.status);
   const line = useEditorStatusStore((s) => s.line);
@@ -47,6 +60,14 @@ export function StatusBar(): React.JSX.Element {
               ·
             </span>
             <span className="shrink-0">{analysis}</span>
+            {branch !== null && (
+              <>
+                <span aria-hidden="true" className="text-border-strong">
+                  ·
+                </span>
+                <span className="shrink-0 truncate">{branch}</span>
+              </>
+            )}
           </>
         )}
       </div>

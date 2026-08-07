@@ -11,6 +11,7 @@ import { HistoryPanel } from '../history/history-panel.js';
 import { PackagesPanel } from '../packages/packages-panel.js';
 import { SearchPanel } from '../search/search-panel.js';
 import { SettingsPanel } from '../settings/settings-panel.js';
+import { SourceControlPanel } from '../source-control/source-control-panel.js';
 import { SuggestionPanel } from '../suggestions/suggestion-panel.js';
 import { TerminalPanel } from '../terminal/terminal-panel.js';
 import { WorkspacePanel } from '../workspace/workspace-panel.js';
@@ -43,6 +44,7 @@ const DEFAULT_LAYOUT: Record<string, Record<string, number>> = {
   // width need than the tree's.
   search: { primary: 28, editor: 46, ai: 26 },
   packages: { primary: 26, editor: 48, ai: 26 },
+  sourceControl: { primary: 28, editor: 46, ai: 26 },
 };
 
 function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
@@ -51,6 +53,7 @@ function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
   if (view === 'history') return <HistoryPanel />;
   if (view === 'search') return <SearchPanel />;
   if (view === 'packages') return <PackagesPanel />;
+  if (view === 'sourceControl') return <SourceControlPanel />;
   return <PrimaryPlaceholder />;
 }
 

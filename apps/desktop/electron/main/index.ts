@@ -25,6 +25,7 @@ import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
 import { registerConsentHandlers } from './ipc/handlers/consent.handlers.js';
 import { registerEditorHandlers } from './ipc/handlers/editor.handlers.js';
+import { registerGitHandlers } from './ipc/handlers/git.handlers.js';
 import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
 import { registerPackageManagerHandlers } from './ipc/handlers/package-manager.handlers.js';
 import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
@@ -229,6 +230,7 @@ if (!gotTheLock) {
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerEditorHandlers(workspaceService, analysisHost);
+      registerGitHandlers(workspaceService);
       registerAnalysisHandlers(analysisService);
       registerProviderHandlers({
         registry: providerRegistry,

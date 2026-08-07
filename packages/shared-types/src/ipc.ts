@@ -443,6 +443,18 @@ export const contracts = {
     }),
   },
 
+  'git:status': {
+    request: empty,
+    response: z.object({
+      branch: z.string().nullable(),
+      staged: z.array(z.object({ path: z.string(), status: z.string() })),
+      unstaged: z.array(z.object({ path: z.string(), status: z.string() })),
+    }),
+  },
+  'git:stage': { request: z.object({ relPath: z.string().min(1) }), response: z.void() },
+  'git:unstage': { request: z.object({ relPath: z.string().min(1) }), response: z.void() },
+  'git:commit': { request: z.object({ message: z.string().min(1) }), response: z.void() },
+
   'project:create': {
     request: z.object({
       parentDir: z.string().min(1),

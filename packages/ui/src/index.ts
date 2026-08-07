@@ -35,6 +35,7 @@ export {
   TerminalIcon,
   PackageIcon,
   PlusIcon,
+  GitBranchIcon,
   WinMinimizeIcon,
   WinMaximizeIcon,
   WinRestoreIcon,

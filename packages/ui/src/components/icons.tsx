@@ -123,6 +123,17 @@ export function PlusIcon(props: IconProps): React.JSX.Element {
   );
 }
 
+export function GitBranchIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <circle cx="6" cy="6" r="2.5" />
+      <circle cx="6" cy="18" r="2.5" />
+      <circle cx="18" cy="6" r="2.5" />
+      <path d="M6 8.5V15.5M18 8.5a6 6 0 0 1-6 6" />
+    </Icon>
+  );
+}
+
 export function SettingsIcon(props: IconProps): React.JSX.Element {
   return (
     <Icon {...props}>
