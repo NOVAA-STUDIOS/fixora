@@ -355,18 +355,32 @@ async function runJob(message) {
     const context = createAnalysisContext({ root: workspaceRoot, capabilities, files });
     const cache = cacheFor(workspaceRoot);
 
-    // Collect findings grouped by file, then post one batch per file. A file with no findings sends
-    // no message — main clears the workspace's findings at run start, so it correctly ends up empty.
+    // Grouped by file per message (one `fileFindings` per file, not per finding — that would be
+    // thousands of IPC round-trips on a large repo) but flushed as findings actually arrive, not
+    // buffered until the whole run ends. `analyzeWorkspace` is built to stream incrementally (see
+    // engine.ts) precisely so a large project's panel fills in as it goes; draining the generator
+    // into one map before posting anything threw that away — main's progress counter and the
+    // panel's live findings both sat frozen until the entire run finished, on a project where that
+    // could be minutes. A file with no findings still sends no message — main clears the
+    // workspace's findings at run start, so it correctly ends up empty.
+    const FLUSH_EVERY = 25; // findings accumulated since the last flush
     const byFile = new Map();
+    let sinceFlush = 0;
+    const flush = () => {
+      for (const [file, findings] of byFile) {
+        port.postMessage({ type: 'fileFindings', jobId, file, findings });
+      }
+      byFile.clear();
+      sinceFlush = 0;
+    };
     for await (const finding of analyzeWorkspace({ context, cache }, controller.signal)) {
       const list = byFile.get(finding.location.file);
       if (list === undefined) byFile.set(finding.location.file, [finding]);
       else list.push(finding);
+      sinceFlush += 1;
+      if (sinceFlush >= FLUSH_EVERY) flush();
     }
-    for (const [file, findings] of byFile) {
-      if (controller.signal.aborted) break;
-      port.postMessage({ type: 'fileFindings', jobId, file, findings });
-    }
+    if (!controller.signal.aborted) flush();
     port.postMessage({ type: 'done', jobId, aborted: controller.signal.aborted });
   } catch (error) {
     port.postMessage({ type: 'error', jobId, message: String(error) });

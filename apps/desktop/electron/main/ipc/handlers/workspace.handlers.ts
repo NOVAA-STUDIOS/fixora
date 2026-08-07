@@ -75,9 +75,19 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     ensureWatching(service, window);
     // Kick off indexing in the background; do not await it (first paint must not wait).
     setImmediate(() => {
-      service.indexFiles(open).catch(() => {
-        // Indexing feeds M3; a failure here must not break opening the workspace.
-      });
+      service
+        .indexFiles(open)
+        .then((fileCount) => {
+          // Informational only — the always-ignore set (ignore-rules.ts) already excludes
+          // node_modules/dist/build/out/etc from both the tree and analysis by default, so there
+          // is no toggle to offer here; this just tells the user their project is the size it is.
+          if (fileCount >= 50_000 && window !== null && !window.isDestroyed()) {
+            emitToWindow(window, 'workspace:largeProject', { fileCount });
+          }
+        })
+        .catch(() => {
+          // Indexing feeds M3; a failure here must not break opening the workspace.
+        });
     });
     return { workspace: toInfo(workspace) };
   });

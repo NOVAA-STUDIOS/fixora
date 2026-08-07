@@ -37,38 +37,52 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
   return {
     run(window: BrowserWindow): void {
       const open = deps.workspaces.requireRoot();
-      const targets = collectTargets(open);
-
-      // A fresh run supersedes the previous one. Clear first, then persist per file as results
-      // arrive — so a file that no longer has findings correctly ends up empty (the worker sends no
-      // message for a clean file).
-      deps.findings.clearWorkspace(open.id);
       emit(window, { status: 'running' });
 
-      // Streamed as findings arrive, so a long run on a large project shows proof of life instead
-      // of the static "Analyzing…" placeholder sitting unchanged for minutes.
-      let findingsSoFar = 0;
+      // Enumerating targets is itself an O(repo) walk (readdir/stat every file) — on a 100k+ file
+      // project this held main's event loop for the whole walk before the worker job was even
+      // sent, the same freeze `workspace-service.ts`'s indexFiles had. `collectTargets` now yields
+      // like that fix does, so this await is real background time, not one long synchronous call.
+      void collectTargets(open).then((targets) => {
+        // A workspace close/switch, or a newer run, may have superseded this one while the walk
+        // was still yielding — starting the worker against a stale root would attribute the wrong
+        // workspace's findings.
+        if (deps.workspaces.getCurrent()?.id !== open.id) return;
 
-      // Capability detection and all engine work happen in the isolated worker (ADR-017); main only
-      // hands over the vetted targets. This keeps the ESM engine (and its WASM) out of the CJS main.
-      deps.host.run({
-        id: randomUUID(),
-        workspaceRoot: open.rootPath,
-        targets,
-        onFileFindings: (file, findings) => {
-          deps.findings.replaceForFile(open.id, file, findings);
-          if (!window.isDestroyed() && findings.length > 0) {
-            emitToWindow(window, 'analysis:findingsAdded', { findings });
-            findingsSoFar += findings.length;
-            emit(window, { status: 'running', findingsSoFar });
-          }
-        },
-        onDone: () => {
-          emit(window, { status: 'done', summary: deps.findings.summary(open.id) });
-        },
-        onError: (message) => {
-          emit(window, { status: 'error', message });
-        },
+        // A fresh run supersedes the previous one. Clear first, then persist per file as results
+        // arrive — so a file that no longer has findings correctly ends up empty (the worker sends
+        // no message for a clean file).
+        deps.findings.clearWorkspace(open.id);
+
+        // Streamed as findings arrive, so a long run on a large project shows proof of life instead
+        // of the static "Analyzing…" placeholder sitting unchanged for minutes.
+        let findingsSoFar = 0;
+
+        // Capability detection and all engine work happen in the isolated worker (ADR-017); main
+        // only hands over the vetted targets. This keeps the ESM engine (and its WASM) out of main.
+        deps.host.run({
+          id: randomUUID(),
+          workspaceRoot: open.rootPath,
+          targets,
+          onFileFindings: (_file, findings) => {
+            // Insert-only (not replaceForFile): the worker now streams a file's findings across
+            // possibly several flushes rather than one message per file, and a delete-then-insert
+            // per flush would let a later batch erase an earlier one's rows for the same file. Safe
+            // here because clearWorkspace() above already emptied the workspace once for this run.
+            deps.findings.appendFindings(open.id, findings);
+            if (!window.isDestroyed() && findings.length > 0) {
+              emitToWindow(window, 'analysis:findingsAdded', { findings });
+              findingsSoFar += findings.length;
+              emit(window, { status: 'running', findingsSoFar });
+            }
+          },
+          onDone: () => {
+            emit(window, { status: 'done', summary: deps.findings.summary(open.id) });
+          },
+          onError: (message) => {
+            emit(window, { status: 'error', message });
+          },
+        });
       });
     },
 
@@ -91,16 +105,26 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
 
 export type AnalysisService = ReturnType<typeof createAnalysisService>;
 
+const YIELD_EVERY = 200;
+const yieldToEventLoop = (): Promise<void> =>
+  new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
 /**
  * Every analyzable file in the workspace: a language we support, not ignored, not secret, not
  * oversized, and inside the root. This is the same walk the indexer uses, filtered to what the
  * engine can act on — and it is where the path guard's guarantees are applied before a path is
  * handed to the (less privileged) worker.
+ *
+ * Yields to the event loop every `YIELD_EVERY` files, the same fix `workspace-service.ts`'s
+ * `indexFiles` applies — a synchronous walk over a 100k+ file repo (each entry a readdir/stat)
+ * held main's event loop, including every pending IPC call, for the walk's whole duration.
  */
-function collectTargets(open: OpenWorkspace): AnalysisTargetRef[] {
+async function collectTargets(open: OpenWorkspace): Promise<AnalysisTargetRef[]> {
   const targets: AnalysisTargetRef[] = [];
 
-  const walk = (relDir: string): void => {
+  const walk = async (relDir: string): Promise<void> => {
     let entries;
     try {
       entries = readdirSync(join(open.rootPath, relDir), { withFileTypes: true });
@@ -111,7 +135,7 @@ function collectTargets(open: OpenWorkspace): AnalysisTargetRef[] {
       const relPath = relDir === '' ? entry.name : posix.join(relDir, entry.name);
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
-        if (!open.ignore.ignores(`${relPath}/`)) walk(relPath);
+        if (!open.ignore.ignores(`${relPath}/`)) await walk(relPath);
         continue;
       }
       if (!entry.isFile()) continue;
@@ -125,9 +149,10 @@ function collectTargets(open: OpenWorkspace): AnalysisTargetRef[] {
         continue;
       }
       targets.push({ file: relPath, absPath, language });
+      if (targets.length % YIELD_EVERY === 0) await yieldToEventLoop();
     }
   };
 
-  walk('');
+  await walk('');
   return targets;
 }

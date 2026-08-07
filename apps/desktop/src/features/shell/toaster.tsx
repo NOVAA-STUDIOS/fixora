@@ -9,16 +9,33 @@ import {
   WinCloseIcon,
   cn,
 } from '@fixora/ui';
+import { useEffect } from 'react';
 
-import { useToastStore } from '../../stores/toast-store.js';
+import { subscribe } from '../../lib/bridge.js';
+import { toast, useToastStore } from '../../stores/toast-store.js';
 
 /**
  * The toast host. Mounted once in the shell; every surface pushes through `toast.*` rather than
  * owning its own notification state.
+ *
+ * Also owns the one push event with no dedicated store of its own (`workspace:largeProject`) — a
+ * single informational notice does not earn a store the way `update-store.ts` does for a
+ * multi-state banner, and this component is already the guaranteed-once mount point for it.
  */
 export function Toaster(): React.JSX.Element {
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
+
+  useEffect(
+    () =>
+      subscribe('workspace:largeProject', ({ fileCount }) => {
+        toast.success(
+          'Large project',
+          `${fileCount.toLocaleString()} files found. node_modules, dist, build and similar folders are excluded from analysis by default.`,
+        );
+      }),
+    [],
+  );
 
   return (
     <ToastProvider swipeDirection="right" duration={Infinity}>

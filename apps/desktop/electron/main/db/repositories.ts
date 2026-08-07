@@ -208,6 +208,48 @@ export function createFindingsRepository(driver: SqliteDriver, now: () => number
     },
 
     /**
+     * Pure insert, no per-file delete — for a live analysis run, where a file's findings can now
+     * arrive across several worker flushes rather than one message (the worker streams as findings
+     * are produced instead of buffering the whole run; see analysis-worker.mjs). `replaceForFile`'s
+     * delete-then-insert would let a LATER flush for a file wipe out an EARLIER one's rows for that
+     * same file. Safe as pure insert specifically because the run already cleared the whole
+     * workspace once via `clearWorkspace` before the first message — every row this appends is new
+     * within that run, never a correction of one already written.
+     */
+    appendFindings(workspaceId: string, findings: readonly Finding[]): void {
+      const ts = now();
+      driver.transaction(() => {
+        const insert = driver.prepare(
+          `INSERT OR REPLACE INTO findings
+             (id, workspace_id, finding_id, rel_path, source, rule_id, severity, category,
+              start_line, start_col, end_line, end_col, message, fixable, confidence, data_json, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        );
+        for (const f of findings) {
+          insert.run(
+            randomUUID(),
+            workspaceId,
+            f.id,
+            f.location.file,
+            f.source,
+            f.ruleId,
+            f.severity,
+            f.category,
+            f.location.startLine,
+            f.location.startCol,
+            f.location.endLine,
+            f.location.endCol,
+            f.message,
+            f.fixable ? 1 : 0,
+            f.confidence,
+            JSON.stringify(f),
+            ts,
+          );
+        }
+      });
+    },
+
+    /**
      * Findings for a workspace, most-severe-then-file order, optionally filtered and paged.
      *
      * The default was 500 — the panel's own `VirtualList` already windows rendering to the visible

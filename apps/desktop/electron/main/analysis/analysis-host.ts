@@ -371,6 +371,12 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
     const child = utilityProcess.fork(workerPath, [], {
       serviceName: 'fixora-analysis',
       stdio: 'ignore',
+      // A 100k+ file project holds every parsed AST + finding for files still in flight; Node's
+      // default old-space ceiling is tuned for a typical process, not this worst case, and an OOM
+      // kill is silent to the OS but not recoverable from inside V8. Raising it buys real headroom
+      // for a large repo; the `exit` handler below is still what makes a crash past even this limit
+      // a reported error + a respawned worker rather than a hang, which is the actual safety net.
+      execArgv: ['--max-old-space-size=4096'],
     });
     child.on('message', handleMessage);
     child.on('exit', () => {

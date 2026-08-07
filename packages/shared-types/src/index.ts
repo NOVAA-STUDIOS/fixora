@@ -15,6 +15,7 @@ export {
   UpdateErrorSchema,
   TerminalDataSchema,
   TerminalExitSchema,
+  WorkspaceLargeProjectSchema,
   type EventContracts,
   type EventPayloadOf,
   type WindowMaximizedChanged,
@@ -23,6 +24,7 @@ export {
   type UpdateError,
   type TerminalData,
   type TerminalExit,
+  type WorkspaceLargeProject,
 } from './events.js';
 export {
   err,
