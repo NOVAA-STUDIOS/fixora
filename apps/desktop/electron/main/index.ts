@@ -75,6 +75,12 @@ if (process.platform === 'win32') {
  */
 if (process.platform === 'win32') app.setAppUserModelId('dev.fixora.app');
 
+// `package.json`'s `name` is the scoped `@fixora/desktop`, which is what `app.getName()` would
+// otherwise report — the packaged build's `productName: Fixora` doesn't reach an unpackaged/dev
+// run. Setting it explicitly keeps dev and packaged runs consistent everywhere Electron surfaces
+// the app name (window title fallback, `userData` path, crash reports).
+app.setName('Fixora');
+
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
