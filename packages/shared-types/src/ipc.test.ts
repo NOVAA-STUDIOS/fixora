@@ -83,6 +83,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'terminal:write',
       'terminal:resize',
       'terminal:dispose',
+      'terminal:listShells',
       'search:query',
       'packages:list',
       'packages:search',

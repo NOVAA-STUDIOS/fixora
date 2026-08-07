@@ -103,6 +103,7 @@ export const channels = [
   'terminal:write',
   'terminal:resize',
   'terminal:dispose',
+  'terminal:listShells',
   // Full-text project search (one-shot request/response — see search-service.ts for why this
   // doesn't need a cancel channel the way analysis does).
   'search:query',
@@ -155,6 +156,7 @@ export const eventChannels = [
   // Terminal output/exit, streamed per-session (keyed by the id `terminal:create` returned).
   'terminal:data',
   'terminal:exit',
+  'terminal:title',
   // Fired once, after the background file index finishes, when the workspace is large enough
   // that the user should know analysis/tree performance is affected (default ignores already
   // exclude node_modules/dist/build/etc — see ignore-rules.ts — this is informational, not a

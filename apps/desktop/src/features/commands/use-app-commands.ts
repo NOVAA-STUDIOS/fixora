@@ -15,6 +15,7 @@ import type { Command } from './registry.js';
  */
 export function useAppCommands(): Command[] {
   const toggleTheme = useUiStore((s) => s.toggleTheme);
+  const toggleTerminal = useUiStore((s) => s.toggleTerminal);
   const toggleDensity = useUiStore((s) => s.toggleDensity);
   const setActiveView = useUiStore((s) => s.setActiveView);
   const togglePalette = useUiStore((s) => s.togglePalette);
@@ -60,6 +61,16 @@ export function useAppCommands(): Command[] {
         altKeybinding: 'mod+shift+p',
         run: () => {
           togglePalette();
+        },
+      },
+      {
+        id: 'terminal.toggle',
+        title: 'Toggle terminal',
+        group: 'View',
+        keybinding: 'mod+`',
+        keywords: ['shell', 'console'],
+        run: () => {
+          toggleTerminal();
         },
       },
       {
@@ -154,6 +165,7 @@ export function useAppCommands(): Command[] {
     ],
     [
       toggleTheme,
+      toggleTerminal,
       toggleDensity,
       setActiveView,
       togglePalette,

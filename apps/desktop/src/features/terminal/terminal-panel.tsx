@@ -1,106 +1,224 @@
 import '@xterm/xterm/css/xterm.css';
 
 import { dark, light } from '@fixora/tokens';
-import { PlusIcon, TerminalIcon, WinCloseIcon, cn } from '@fixora/ui';
+import { ChevronDownIcon, PlusIcon, SearchIcon, TerminalIcon, WinCloseIcon, cn } from '@fixora/ui';
 import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerm } from '@xterm/xterm';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
-import { useTerminalStore } from './terminal-store.js';
+import { useTerminalStore, type TerminalSession } from './terminal-store.js';
+
+type ShellOption = { id: string; label: string; command: string; args: string[] };
 
 /** xterm needs concrete hex, not CSS variables — same constraint and source Monaco's theme uses
  * (`monaco-theme.ts`), so the terminal's surface is the same canvas/text pair as the editor's. */
-function xtermTheme(appearance: 'dark' | 'light'): { background: string; foreground: string } {
+function xtermTheme(appearance: 'dark' | 'light'): {
+  background: string;
+  foreground: string;
+  cursor: string;
+} {
   const c = appearance === 'dark' ? dark : light;
-  return { background: c.bg.canvas, foreground: c.text.primary };
+  return { background: c.bg.canvas, foreground: c.text.primary, cursor: '#808080' };
 }
 
 /**
- * The integrated terminal (Terminal tab, activity rail) — now a tab strip over several persistent
- * sessions, VS Code-style: switching tabs hides/shows a session's pane via CSS rather than
- * unmounting it, so a background shell's output keeps accumulating and a running command keeps
- * running while you look at a different tab. Each `TerminalInstance` owns exactly one `node-pty`
+ * The integrated terminal (Terminal tab, activity rail; also `Workbench`'s always-mounted sibling
+ * — see its own doc comment for why). A tab strip over several persistent sessions, VS Code-style:
+ * switching tabs hides/shows a session's pane via CSS rather than unmounting it, so a background
+ * shell's output keeps accumulating and a running command keeps running while another tab — or
+ * another activity view entirely — is in view. Each `TerminalInstance` owns exactly one `node-pty`
  * session and exactly one xterm instance for its whole lifetime.
  */
 export function TerminalPanel(): React.JSX.Element {
   const workspaceId = useWorkspaceStore((s) => s.workspace?.id ?? null);
+  const isVisible = useUiStore((s) => s.activeView === 'terminal');
   const sessions = useTerminalStore((s) => s.sessions);
   const activeId = useTerminalStore((s) => s.activeId);
+  const splitId = useTerminalStore((s) => s.splitId);
   const addSession = useTerminalStore((s) => s.addSession);
   const closeSession = useTerminalStore((s) => s.closeSession);
   const setActive = useTerminalStore((s) => s.setActive);
+  const setSplit = useTerminalStore((s) => s.setSplit);
 
-  // The first tab, once — a workspace opening is what makes a terminal meaningful to have; this
-  // does not re-run on every remount because sessions.length is 0 only the very first time.
+  const [shells, setShells] = useState<ShellOption[]>([]);
   useEffect(() => {
-    if (workspaceId !== null && sessions.length === 0) addSession();
+    void invoke('terminal:listShells', {}).then((result) => {
+      if (result.ok) setShells(result.value.shells);
+    });
+  }, []);
+
+  const [shellMenuOpen, setShellMenuOpen] = useState(false);
+
+  // The first tab, once — created the first time the panel actually becomes visible (not eagerly
+  // the moment a workspace opens: TerminalPanel is now always mounted, per Workbench's own doc
+  // comment, so "first visible" is the right trigger for "a terminal is worth having open").
+  useEffect(() => {
+    if (workspaceId !== null && isVisible && sessions.length === 0) addSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId]);
+  }, [workspaceId, isVisible]);
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-canvas">
       <div className="flex h-9 shrink-0 items-stretch border-b border-border-subtle bg-raised">
         <div role="tablist" aria-label="Terminals" className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
           {sessions.map((session) => (
-            <div
+            <TerminalTab
               key={session.id}
-              className={cn(
-                'group flex shrink-0 items-center gap-1.5 border-r border-border-subtle pl-3 pr-1 text-xs',
-                session.id === activeId ? 'bg-canvas text-fg' : 'text-fg-muted hover:bg-hover hover:text-fg',
-              )}
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={session.id === activeId}
-                onClick={() => {
-                  setActive(session.id);
-                }}
-                className="flex items-center gap-1.5 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
-              >
-                <TerminalIcon className="size-3.5 shrink-0" />
-                <span className="whitespace-nowrap">{session.title}</span>
-              </button>
-              <button
-                type="button"
-                aria-label={`Close ${session.title}`}
-                onClick={() => {
-                  closeSession(session.id);
-                }}
-                className="rounded-sm p-0.5 text-fg-muted opacity-0 hover:bg-hover hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
-              >
-                <WinCloseIcon className="size-3" />
-              </button>
-            </div>
+              session={session}
+              active={session.id === activeId}
+              onSelect={() => {
+                setActive(session.id);
+              }}
+              onClose={() => {
+                closeSession(session.id);
+              }}
+              onSplit={() => {
+                setSplit(splitId === session.id ? null : session.id);
+              }}
+            />
           ))}
         </div>
-        <button
-          type="button"
-          aria-label="New terminal"
-          title="New terminal"
-          onClick={() => {
-            addSession();
-          }}
-          className="flex shrink-0 items-center border-l border-border-subtle px-2 text-fg-muted hover:bg-hover hover:text-fg"
-        >
-          <PlusIcon className="size-3.5" />
-        </button>
+        <div className="relative flex shrink-0 items-stretch border-l border-border-subtle">
+          <button
+            type="button"
+            aria-label="New terminal"
+            title="New terminal"
+            onClick={() => {
+              addSession();
+            }}
+            className="flex items-center px-2 text-fg-muted hover:bg-hover hover:text-fg"
+          >
+            <PlusIcon className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Choose shell"
+            aria-haspopup="menu"
+            aria-expanded={shellMenuOpen}
+            title="New terminal with a specific shell"
+            onClick={() => {
+              setShellMenuOpen((v) => !v);
+            }}
+            className="flex items-center px-1 text-fg-muted hover:bg-hover hover:text-fg"
+          >
+            <ChevronDownIcon className="size-3" />
+          </button>
+          {shellMenuOpen && (
+            <>
+              <button
+                type="button"
+                aria-hidden="true"
+                tabIndex={-1}
+                className="fixed inset-0 z-40 cursor-default"
+                onClick={() => {
+                  setShellMenuOpen(false);
+                }}
+              />
+              <div
+                role="menu"
+                aria-label="Available shells"
+                className="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+              >
+                {shells.map((shell) => (
+                  <button
+                    key={shell.id}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      addSession(undefined, shell.id);
+                      setShellMenuOpen(false);
+                    }}
+                    className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-fg hover:bg-hover"
+                  >
+                    {shell.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1">
         {sessions.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-xs text-fg-muted">
+          <div className="flex h-full w-full items-center justify-center text-xs text-fg-muted">
             No terminal open
           </div>
         ) : (
-          sessions.map((session) => (
-            <TerminalInstance key={session.id} sessionId={session.id} visible={session.id === activeId} />
-          ))
+          <>
+            <div className={cn('min-h-0 min-w-0', splitId !== null ? 'flex-1 border-r border-border-subtle' : 'flex-1')}>
+              {sessions.map((session) => (
+                <TerminalInstance key={session.id} sessionId={session.id} visible={session.id === activeId} />
+              ))}
+            </div>
+            {splitId !== null && (
+              <div className="min-h-0 min-w-0 flex-1">
+                <TerminalInstance sessionId={splitId} visible />
+              </div>
+            )}
+          </>
         )}
       </div>
+    </div>
+  );
+}
+
+function TerminalTab({
+  session,
+  active,
+  onSelect,
+  onClose,
+  onSplit,
+}: {
+  session: TerminalSession;
+  active: boolean;
+  onSelect: () => void;
+  onClose: () => void;
+  onSplit: () => void;
+}): React.JSX.Element {
+  const label = session.processName ?? session.title;
+  return (
+    <div
+      className={cn(
+        'group flex shrink-0 items-center gap-1.5 border-r border-border-subtle pl-3 pr-1 text-xs',
+        active ? 'bg-canvas text-fg' : 'text-fg-muted hover:bg-hover hover:text-fg',
+      )}
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={active}
+        onClick={onSelect}
+        title={session.shellLabel === '' ? label : `${label} — ${session.shellLabel}`}
+        className="flex items-center gap-1.5 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
+      >
+        <TerminalIcon className="size-3.5 shrink-0" />
+        <span className="whitespace-nowrap">{label}</span>
+        {session.shellLabel !== '' && (
+          <span className="whitespace-nowrap text-[10px] text-fg-muted">{session.shellLabel}</span>
+        )}
+      </button>
+      <button
+        type="button"
+        aria-label={`Split with ${label}`}
+        title="Split terminal"
+        onClick={onSplit}
+        className="rounded-sm p-0.5 text-fg-muted opacity-0 hover:bg-hover hover:text-fg group-hover:opacity-100 focus-visible:opacity-100"
+      >
+        <TerminalIcon className="size-3" />
+      </button>
+      <button
+        type="button"
+        aria-label={`Close ${label}`}
+        onClick={onClose}
+        className="rounded-sm p-0.5 text-fg-muted opacity-0 hover:bg-hover hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+      >
+        <WinCloseIcon className="size-3" />
+      </button>
     </div>
   );
 }
@@ -113,30 +231,85 @@ function TerminalInstance({
   visible: boolean;
 }): React.JSX.Element {
   const theme = useUiStore((s) => s.theme);
+  const fontSize = useUiStore((s) => s.terminalFontSize);
+  const setTerminalFontSize = useUiStore((s) => s.setTerminalFontSize);
+  const setProcessName = useTerminalStore((s) => s.setProcessName);
+  const setShellLabel = useTerminalStore((s) => s.setShellLabel);
   const container = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const searchRef = useRef<SearchAddon | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const el = container.current;
     if (el === null) return;
 
+    const session = useTerminalStore.getState().sessions.find((s) => s.id === sessionId);
     const term = new XTerm({
       cursorBlink: true,
-      fontSize: 13,
+      fontSize: useUiStore.getState().terminalFontSize,
       // Same monospace stack as the editor (`diff-editor.tsx`) — a terminal that renders code
       // output in a different font from the editor above it reads as two different tools bolted
       // together rather than one workbench.
       fontFamily:
         'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
       theme: xtermTheme(useUiStore.getState().theme),
+      // Ctrl+C/Ctrl+V/Ctrl+L/Ctrl+=/Ctrl+-/Ctrl+Shift+F are all intercepted below (copy-on-selection,
+      // paste, clear, font size, search) rather than forwarded as raw bytes to the shell — this
+      // opts xterm out of its own default handling for exactly those combinations so the
+      // interception is the only thing that fires, not both.
+      rightClickSelectsWord: false,
     });
     termRef.current = term;
     const fit = new FitAddon();
     fitRef.current = fit;
     term.loadAddon(fit);
+    const search = new SearchAddon();
+    searchRef.current = search;
+    term.loadAddon(search);
     term.open(el);
     fit.fit();
+
+    // Copy-on-Ctrl+C-with-a-selection, paste-on-Ctrl+V, clear-on-Ctrl+L, font size on Ctrl+=/-,
+    // search on Ctrl+Shift+F — VS Code's own terminal keymap. `false` stops xterm from ALSO
+    // handling the keystroke itself (forwarding it to the shell as a raw byte).
+    // No disposable to hold onto — attachCustomKeyEventHandler is `void`; it lives and dies with
+    // the terminal instance itself, torn down by term.dispose() below.
+    term.attachCustomKeyEventHandler((event) => {
+      if (event.type !== 'keydown') return true;
+      const mod = event.ctrlKey || event.metaKey;
+      if (!mod) return true;
+      if (event.key === 'c' && term.hasSelection()) {
+        void navigator.clipboard.writeText(term.getSelection());
+        return false;
+      }
+      if (event.key === 'v') {
+        void navigator.clipboard.readText().then((text) => {
+          void invoke('terminal:write', { id: sessionId, data: text });
+        });
+        return false;
+      }
+      if (event.key === 'l') {
+        term.clear();
+        return false;
+      }
+      if (event.key === '=' || event.key === '+') {
+        setTerminalFontSize(useUiStore.getState().terminalFontSize + 1);
+        return false;
+      }
+      if (event.key === '-') {
+        setTerminalFontSize(useUiStore.getState().terminalFontSize - 1);
+        return false;
+      }
+      if (event.shiftKey && event.key.toLowerCase() === 'f') {
+        setSearchOpen((v) => !v);
+        return false;
+      }
+      return true;
+    });
 
     let disposed = false;
     const unsubscribeData = subscribe('terminal:data', (payload) => {
@@ -147,8 +320,16 @@ function TerminalInstance({
         term.writeln(`\r\n[process exited with code ${String(payload.exitCode)}]`);
       }
     });
+    const unsubscribeTitle = subscribe('terminal:title', (payload) => {
+      if (payload.id === sessionId) setProcessName(sessionId, payload.processName);
+    });
 
-    void invoke('terminal:create', { id: sessionId, cols: term.cols, rows: term.rows }).then((result) => {
+    void invoke('terminal:create', {
+      id: sessionId,
+      cols: term.cols,
+      rows: term.rows,
+      ...(session?.shellId !== undefined ? { shellId: session.shellId } : {}),
+    }).then((result) => {
       if (disposed) {
         void invoke('terminal:dispose', { id: sessionId });
         return;
@@ -157,6 +338,7 @@ function TerminalInstance({
         term.writeln(`\r\n[failed to start a shell: ${result.error.message}]`);
         return;
       }
+      setShellLabel(sessionId, result.value.shell);
       const pending = useTerminalStore.getState().takePendingCommand(sessionId);
       if (pending !== null) void invoke('terminal:write', { id: sessionId, data: `${pending}\r` });
     });
@@ -181,6 +363,7 @@ function TerminalInstance({
       onData.dispose();
       unsubscribeData();
       unsubscribeExit();
+      unsubscribeTitle();
       term.dispose();
       void invoke('terminal:dispose', { id: sessionId });
     };
@@ -200,13 +383,105 @@ function TerminalInstance({
     if (term !== null) term.options.theme = xtermTheme(theme);
   }, [theme]);
 
+  useEffect(() => {
+    const term = termRef.current;
+    if (term !== null) {
+      term.options.fontSize = fontSize;
+      fitRef.current?.fit();
+    }
+  }, [fontSize]);
+
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.findNext(searchQuery);
+  }, [searchQuery, searchOpen]);
+
   return (
     <div
       role="tabpanel"
       aria-label="Terminal"
-      className={cn('h-full w-full overflow-hidden p-2', !visible && 'hidden')}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setContextMenu({ x: e.clientX, y: e.clientY });
+      }}
+      className={cn('relative flex h-full w-full flex-col overflow-hidden', !visible && 'hidden')}
     >
-      <div ref={container} className="h-full w-full" />
+      {searchOpen && (
+        <div className="flex h-7 shrink-0 items-center gap-1.5 border-b border-border-subtle bg-raised px-2">
+          <SearchIcon className="size-3 shrink-0 text-fg-muted" />
+          <input
+            autoFocus
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              searchRef.current?.findNext(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setSearchOpen(false);
+              if (e.key === 'Enter') searchRef.current?.findNext(searchQuery);
+            }}
+            placeholder="Search terminal output"
+            className="min-w-0 flex-1 bg-transparent text-xs text-fg outline-none placeholder:text-fg-muted"
+          />
+          <button
+            type="button"
+            aria-label="Close search"
+            onClick={() => {
+              setSearchOpen(false);
+            }}
+            className="shrink-0 text-fg-muted hover:text-fg"
+          >
+            <WinCloseIcon className="size-3" />
+          </button>
+        </div>
+      )}
+      <div className="min-h-0 flex-1 p-2">
+        <div ref={container} className="h-full w-full" />
+      </div>
+      {contextMenu !== null && (
+        <>
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => {
+              setContextMenu(null);
+            }}
+          />
+          <div
+            role="menu"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            className="fixed z-50 w-36 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const term = termRef.current;
+                if (term?.hasSelection() === true) void navigator.clipboard.writeText(term.getSelection());
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-fg hover:bg-hover"
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                void navigator.clipboard.readText().then((text) => {
+                  void invoke('terminal:write', { id: sessionId, data: text });
+                });
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-fg hover:bg-hover"
+            >
+              Paste
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

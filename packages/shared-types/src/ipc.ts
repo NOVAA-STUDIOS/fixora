@@ -381,8 +381,23 @@ export const contracts = {
   // Integrated terminal (node-pty). One PTY session per `id`, which the renderer mints — a UUID
   // per terminal tab — so main never has to hand back a session handle for the renderer to hold.
   'terminal:create': {
-    request: z.object({ id: z.string().min(1), cols: z.number().int().positive(), rows: z.number().int().positive() }),
+    request: z.object({
+      id: z.string().min(1),
+      cols: z.number().int().positive(),
+      rows: z.number().int().positive(),
+      // A `shell-detection.ts` id ('powershell'|'cmd'|'git-bash'|'wsl'|...); omitted or unknown
+      // falls back to the platform default rather than erroring — see terminal-service.ts.
+      shellId: z.string().optional(),
+    }),
     response: z.object({ shell: z.string() }),
+  },
+  'terminal:listShells': {
+    request: empty,
+    response: z.object({
+      shells: z.array(
+        z.object({ id: z.string(), label: z.string(), command: z.string(), args: z.array(z.string()) }),
+      ),
+    }),
   },
   // Raw keystrokes/paste data, unvalidated beyond "is a string" — a terminal's whole job is to
   // accept arbitrary bytes and hand them to the shell; that is not a channel this app can sanitise.

@@ -62,8 +62,27 @@ function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
  * the AI panel. The layout is persisted through the store, so pane sizes survive a restart — the
  * library owns the live layout, the store owns the saved copy, and there is exactly one of each
  * (ADR-015). The centre is the editor; the AI panel arrives in M5.
+ *
+ * Terminal is a permanent sibling here, not a branch of `WorkbenchContent`'s per-view switch:
+ * mounted once and shown/hidden with a CSS class, never unmounted by switching to another activity
+ * view. Unmounting it would tear down every `TerminalInstance` and kill every shell — the opposite
+ * of Ctrl+`'s promise ("background shells keep running" while you look at something else).
  */
 export function Workbench(): React.JSX.Element {
+  const activeView = useUiStore((s) => s.activeView);
+  return (
+    <>
+      <div className={activeView === 'terminal' ? 'flex min-h-0 flex-1' : 'hidden'}>
+        <ErrorBoundary label="Terminal">
+          <TerminalPanel />
+        </ErrorBoundary>
+      </div>
+      {activeView !== 'terminal' && <WorkbenchContent />}
+    </>
+  );
+}
+
+function WorkbenchContent(): React.JSX.Element {
   const savedLayout = useUiStore((s) => s.panelLayout);
   const setPanelLayout = useUiStore((s) => s.setPanelLayout);
   const activeView = useUiStore((s) => s.activeView);
@@ -109,16 +128,6 @@ export function Workbench(): React.JSX.Element {
     return (
       <ErrorBoundary label="Settings">
         <SettingsPanel />
-      </ErrorBoundary>
-    );
-  }
-
-  // Full width, like Settings/Diagnostics: a shell session is not something a tree-plus-editor
-  // split serves — it wants the room a primary/editor/ai three-way split would take away from it.
-  if (activeView === 'terminal') {
-    return (
-      <ErrorBoundary label="Terminal">
-        <TerminalPanel />
       </ErrorBoundary>
     );
   }

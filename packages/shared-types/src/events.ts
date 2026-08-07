@@ -47,6 +47,10 @@ export const TerminalExitSchema = z.object({
 });
 export type TerminalExit = z.infer<typeof TerminalExitSchema>;
 
+/** The foreground process name changed (polled — node-pty has no change event for this). */
+export const TerminalTitleSchema = z.object({ id: z.string().min(1), processName: z.string() });
+export type TerminalTitle = z.infer<typeof TerminalTitleSchema>;
+
 /** The background index found this many analyzable files — large enough to be worth mentioning. */
 export const WorkspaceLargeProjectSchema = z.object({ fileCount: z.number().int().nonnegative() });
 export type WorkspaceLargeProject = z.infer<typeof WorkspaceLargeProjectSchema>;
@@ -63,6 +67,7 @@ export const eventContracts = {
   'update:error': UpdateErrorSchema,
   'terminal:data': TerminalDataSchema,
   'terminal:exit': TerminalExitSchema,
+  'terminal:title': TerminalTitleSchema,
   'workspace:largeProject': WorkspaceLargeProjectSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
