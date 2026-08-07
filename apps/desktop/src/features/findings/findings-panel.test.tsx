@@ -247,15 +247,14 @@ describe('Repair button visibility and the four repair states', () => {
     expect(repair).toBeEnabled();
   });
 
-  it('a manual-only finding still SHOWS Repair, disabled, explaining it needs judgment', async () => {
+  it('a manual-only finding still SHOWS Repair, enabled — the user may attempt it anyway', async () => {
     useFindingsStore.setState({
       findings: [finding({ repair: 'manual' })],
       status: 'done',
     });
     render(<FindingsPanel />);
     const repair = await screen.findByRole('button', { name: 'Repair' });
-    expect(repair).toBeDisabled();
-    expect(repair.getAttribute('title')).toMatch(/judgment|judgement/i);
+    expect(repair).toBeEnabled();
     expect(await screen.findByText('Manual')).toBeInTheDocument();
   });
 

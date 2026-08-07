@@ -22,29 +22,21 @@ export type Capability = {
 };
 
 /**
- * Bug-fix sprint, Phase 1: a `'manual'`-repair finding (its own correct change needs a human
- * judgment call — `repair-eligibility.ts`'s `evaluateRepairEligibility` already refuses it,
- * server-side, before any model call) used to render its Repair button exactly like any other
- * finding's — enabled, no tooltip — because this hook only ever checked MODEL capability, never the
- * finding's own repairability. The user could click it and only then learn, after a round trip,
- * that it was never going to work. `repairability` lets the button say so up front, the same way an
- * incapable model already does.
+ * `repairability` used to hard-disable Repair whenever a finding's `repair` strategy was
+ * `'manual'` — a stronger claim than the panel's own `manual-only` handling makes: an analyzer
+ * marking a rule ambiguous is not the same as no fix being attemptable, and the user is entitled
+ * to try AI repair on it anyway. Repair now gates on MODEL capability only, the same as every
+ * other finding; `repairability` is accepted but no longer special-cased.
  */
 export function useCapability(
   profile: 'explain' | 'repair' | 'test',
-  repairability?: RepairStrategy,
+  // Kept in the signature (unused) so call sites — and the tests pinning "no special-case
+  // regardless of value" — don't need to change. Leading `_`: TS's own noUnusedParameters
+  // already ignores it; the eslint-disable is for @typescript-eslint's stricter default.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _repairability?: RepairStrategy,
 ): Capability {
   const config = useAiStore((s) => s.config);
-
-  if (profile === 'repair' && repairability === 'manual') {
-    return {
-      enabled: false,
-      reason:
-        'This finding has no automatic or AI fix — the correct change needs your judgment, not a model.',
-      // A model switch cannot help here, unlike an incapable-model refusal — never suggest one.
-      suggestion: null,
-    };
-  }
 
   // No key is a different problem from an incapable model, and the UI already handles it
   // separately ("Set up AI to repair"). Report enabled so this hook does not double up on it.

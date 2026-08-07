@@ -68,7 +68,10 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
   const [mode, setMode] = useState<RepairMode>(DEFAULT_REPAIR_MODE);
   const [confirmAdvanced, setConfirmAdvanced] = useState(false);
   const repairState = repairStateFor(finding);
-  const repairBlocked = !isRepairAttemptable(repairState);
+  // manual-only must not block Repair here either — the same fix findings-panel.tsx already
+  // applies. A user who wants to attempt AI repair on a rule an analyzer merely judged ambiguous
+  // gets to try; refusing it entirely is a stronger claim than "no analyzer proposed one".
+  const repairBlocked = repairState !== 'manual-only' && !isRepairAttemptable(repairState);
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto">

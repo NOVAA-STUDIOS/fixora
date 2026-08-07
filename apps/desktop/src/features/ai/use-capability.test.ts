@@ -6,45 +6,49 @@ import { useAiStore } from '../../stores/ai-store.js';
 import { useCapability } from './use-capability.js';
 
 /**
- * Bug-fix sprint, Phase 1: a `'manual'`-repair finding's Repair button used to render exactly like
- * any other finding's — enabled, no tooltip — because this hook only ever checked MODEL capability,
- * never whether the finding itself could be auto-fixed at all. `evaluateRepairEligibility`
- * (main-process) already refused it with a precise reason, but only AFTER a click. These pin that
- * the reason is now available BEFORE the click, exactly like an incapable-model refusal already was.
+ * `repairability: 'manual'` used to hard-disable Repair regardless of model capability — a
+ * stronger claim than "no fix was proposed" that the user could not override. Repair must work
+ * for every finding type the model itself can attempt, so `useCapability` no longer special-cases
+ * `'manual'` at all; these pin that it now falls through to the same model-capability check every
+ * other repairability value already gets.
  */
 describe('useCapability', () => {
   beforeEach(() => {
     useAiStore.setState({ config: null });
   });
 
-  it('disables repair for a manual-only finding, with a precise reason and no model suggestion', () => {
+  it('does not disable repair for a manual finding when no model is configured yet', () => {
     const { result } = renderHook(() => useCapability('repair', 'manual'));
-    expect(result.current.enabled).toBe(false);
-    expect(result.current.reason).toMatch(/no automatic or AI fix/i);
-    expect(result.current.suggestion).toBeNull();
+    expect(result.current.enabled).toBe(true);
   });
 
-  it('is unaffected by manual-repair status even when AI is not configured yet', () => {
-    // "manual" always disables Repair, regardless of what config looks like — it is a property of
-    // the finding, not of the model.
+  it('leaves a manual finding to the same model-capability check as any other repairability', () => {
     useAiStore.setState({
       config: {
         configured: true,
-        model: 'test-model',
+        model: 'weak-model',
         keyHint: null,
         migratedFrom: null,
-        capabilities: null,
-        suggestedModel: { id: 'better-model', name: 'Better Model', free: true },
+        capabilities: {
+          structuredOutput: false,
+          contextLength: null,
+          profiles: {
+            repair: {
+              supported: false,
+              reason: 'This model cannot produce structured output.',
+              basis: 'catalogue',
+            },
+          },
+        },
+        suggestedModel: null,
       },
     });
-    const { result } = renderHook(() => useCapability('repair', 'manual'));
-    expect(result.current.enabled).toBe(false);
-    expect(result.current.suggestion).toBeNull(); // never suggest a model switch for a manual finding
-  });
-
-  it('does not disable explain/test for a manual-repair finding — the manual check is repair-only', () => {
-    expect(renderHook(() => useCapability('explain', 'manual')).result.current.enabled).toBe(true);
-    expect(renderHook(() => useCapability('test', 'manual')).result.current.enabled).toBe(true);
+    const manual = renderHook(() => useCapability('repair', 'manual')).result.current;
+    const aiRequired = renderHook(() => useCapability('repair', 'ai-required')).result.current;
+    // Same model, same profile — a manual finding gets no special treatment either way.
+    expect(manual).toEqual(aiRequired);
+    expect(manual.enabled).toBe(false);
+    expect(manual.reason).toBe('This model cannot produce structured output.');
   });
 
   it('leaves safe-auto/ai-required findings to the existing model-capability check, unaffected', () => {
