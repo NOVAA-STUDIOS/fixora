@@ -98,7 +98,8 @@ afterPack: scripts/stamp-exe.cjs
 nsis:
   oneClick: false
   perMachine: false
-  allowToChangeInstallationDirectory: true
+  allowToChangeInstallationDirectory: false
+  runAfterFinish: true
   deleteAppDataOnUninstall: false
   artifactName: Fixora-Setup.exe
   createDesktopShortcut: always
