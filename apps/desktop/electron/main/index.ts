@@ -2,6 +2,7 @@ import { join } from 'node:path';
 
 import { providerDescriptor } from '@fixora/core-ai';
 import { app, BrowserWindow } from 'electron';
+import log from 'electron-log';
 
 import { createAiService } from './ai/ai-service.js';
 import { safeStorageCipher } from './ai/cipher.js';
@@ -21,6 +22,7 @@ import {
   createRepairHistoryRepository,
   createWorkspaceRepository,
 } from './db/repositories.js';
+import { createGpuPreferenceStore } from './gpu-preference-store.js';
 import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
 import { registerConsentHandlers } from './ipc/handlers/consent.handlers.js';
@@ -64,10 +66,23 @@ import { createMainWindow } from './windows/main-window.js';
 // the screen: Chromium paints the DOM (verified — `#root` is fully populated) but the window keeps
 // showing its background colour until a resize forces a recomposite. To the user that is a black
 // screen on launch. Moving *compositing* to the CPU sidesteps the broken driver path while keeping
-// GPU *rasterisation*, so Monaco stays fast. Scoped to Windows, where this class of bug lives; this
+// GPU *rasterisation*, so Monaco stays fast — but it costs every OTHER user's rendering smoothness,
+// so it is no longer applied unconditionally. Per-machine decision via `gpuPreference`: try WITH
+// compositing by default; a launch that never reaches the renderer's first paint before the app
+// exits (crash or hang — the same failure mode a black screen is a symptom of) is auto-detected on
+// the NEXT launch and flips the flag from then on. A user who still sees a black screen despite
+// that can flip it manually in Settings. Scoped to Windows, where this class of bug lives; the
 // switch must be set before the GPU process starts, hence at module load, before anything else.
-if (process.platform === 'win32') {
-  app.commandLine.appendSwitch('disable-gpu-compositing');
+export const gpuPreference =
+  process.platform === 'win32' ? createGpuPreferenceStore(app.getPath('userData')) : null;
+if (gpuPreference !== null) {
+  if (gpuPreference.shouldDisableCompositing()) {
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+    log.info('[gpu] compositing disabled (previous launch failed to render, or user setting)');
+  } else {
+    gpuPreference.markLaunchPending();
+    log.info('[gpu] compositing enabled (default path)');
+  }
 }
 
 /**
@@ -226,7 +241,7 @@ if (!gotTheLock) {
         publicKey: licensePublicKey(),
       });
 
-      registerSystemHandlers({ workspace: workspaceService });
+      registerSystemHandlers({ workspace: workspaceService, gpuPreference });
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerEditorHandlers(workspaceService, analysisHost);
@@ -319,7 +334,7 @@ if (!gotTheLock) {
         driver.close();
       });
 
-      createMainWindow(devServerUrl);
+      createMainWindow(devServerUrl, () => gpuPreference?.markLaunchConfirmed());
 
       // After the window exists: an update-available push with nowhere to land is just a dropped
       // event (see `initAutoUpdater`'s window lookup), and there is no reason to race launch for it.

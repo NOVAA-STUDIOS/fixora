@@ -98,6 +98,18 @@ export const contracts = {
       ),
     }),
   },
+  // GPU compositing preference (Windows only elsewhere on non-Windows there is nothing to disable,
+  // so both read false/no-op — Settings still shows the toggle, it simply has no effect there).
+  // A manual change here takes effect on the NEXT launch, not live — the Chromium switch that
+  // controls this must be set before the GPU process starts.
+  'system:getGpuPreference': {
+    request: empty,
+    response: z.object({ disableCompositing: z.boolean(), platformSupported: z.boolean() }),
+  },
+  'system:setGpuCompositingDisabled': {
+    request: z.object({ disabled: z.boolean() }),
+    response: z.void(),
+  },
   // Custom title bar (frameless window). These are the privileged operations the renderer's
   // window-control buttons need — the renderer cannot minimise or close a window itself, by
   // design, so it asks main to. Each returns the resulting window state so the button's

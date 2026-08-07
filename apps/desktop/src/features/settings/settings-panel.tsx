@@ -62,6 +62,7 @@ export function SettingsPanel(): React.JSX.Element {
           <AppearanceSettings />
           <EditorSettings />
           <StartupSettings />
+          <PerformanceSettings />
           <AiSettings />
           <ProviderSettings />
           <LicenseSettings />
@@ -569,6 +570,45 @@ function StartupSettings(): React.JSX.Element {
         description="Off by default. Fixora opens on the Home screen with a clean session — no problems, assistant history, or unfinished repair carried over from last time. Turning this on reopens the folder; analysis always runs fresh."
         checked={reopenLastProject}
         onCheckedChange={setReopenLastProject}
+      />
+    </Group>
+  );
+}
+
+/**
+ * GPU compositing (Windows only). Main decides this per-machine on its own — a launch that never
+ * paints is auto-detected and disables compositing from the next launch on — so this toggle is a
+ * manual override for the case that doesn't self-detect: a driver that renders nothing usable on
+ * screen but doesn't crash or hang either. Main-owned state (it has to be set before the GPU
+ * process starts, long before any renderer preference could reach it), so this fetches/writes over
+ * IPC rather than through the ui-store like every other toggle on this page.
+ */
+function PerformanceSettings(): React.JSX.Element | null {
+  const [state, setState] = useState<{ disableCompositing: boolean } | null>(null);
+  const [supported, setSupported] = useState(true);
+  const switchId = useId();
+
+  useEffect(() => {
+    void invoke('system:getGpuPreference', {}).then((r) => {
+      if (!r.ok) return;
+      setSupported(r.value.platformSupported);
+      setState({ disableCompositing: r.value.disableCompositing });
+    });
+  }, []);
+
+  if (!supported || state === null) return null;
+
+  return (
+    <Group title="Performance">
+      <ToggleField
+        label="Disable GPU compositing"
+        htmlFor={switchId}
+        description="Off by default. Fixora already detects and works around a black-screen-on-launch driver bug automatically. Turn this on only if you still see a black window on startup — it trades smoother scrolling and animations for compatibility. Takes effect after restart."
+        checked={state.disableCompositing}
+        onCheckedChange={(v) => {
+          setState({ disableCompositing: v });
+          void invoke('system:setGpuCompositingDisabled', { disabled: v });
+        }}
       />
     </Group>
   );

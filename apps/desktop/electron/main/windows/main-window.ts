@@ -36,7 +36,10 @@ const ICON_PATH = app.isPackaged
   ? join(process.resourcesPath, 'icon.png')
   : join(__dirname, '../../build/icon.png');
 
-export function createMainWindow(devServerUrl: string | undefined): BrowserWindow {
+export function createMainWindow(
+  devServerUrl: string | undefined,
+  onFirstPaint?: () => void,
+): BrowserWindow {
   const window = new BrowserWindow({
     ...(existsSync(ICON_PATH) ? { icon: ICON_PATH } : {}),
     width: 1440,
@@ -94,6 +97,7 @@ export function createMainWindow(devServerUrl: string | undefined): BrowserWindo
 
   window.once('ready-to-show', () => {
     window.show();
+    onFirstPaint?.();
   });
 
   // The window can be maximised/restored by ways the renderer never sees — the OS snap shortcut

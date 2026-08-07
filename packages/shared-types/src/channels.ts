@@ -22,6 +22,8 @@
 export const channels = [
   'system:getAppInfo',
   'system:getChangelog',
+  'system:getGpuPreference',
+  'system:setGpuCompositingDisabled',
   'system:revealInFolder',
   'system:copyToClipboard',
   'window:minimize',

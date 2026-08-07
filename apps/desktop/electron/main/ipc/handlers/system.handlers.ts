@@ -1,6 +1,7 @@
 import { type AppInfo } from '@fixora/shared-types';
 import { app, clipboard, shell } from 'electron';
 
+import type { GpuPreferenceStore } from '../../gpu-preference-store.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { registerHandler } from '../router.js';
 
@@ -50,7 +51,10 @@ async function fetchChangelog(): Promise<ChangelogEntry[]> {
  * handler → validated response → typed Result — with a payload that carries nothing sensitive,
  * so the pattern can be reviewed on its merits before it is carrying a user's source code.
  */
-export function registerSystemHandlers(deps: { workspace: WorkspaceService }): void {
+export function registerSystemHandlers(deps: {
+  workspace: WorkspaceService;
+  gpuPreference: GpuPreferenceStore | null;
+}): void {
   registerHandler('system:getAppInfo', (): AppInfo => {
     return {
       name: app.getName(),
@@ -67,6 +71,15 @@ export function registerSystemHandlers(deps: { workspace: WorkspaceService }): v
 
   registerHandler('system:getChangelog', async () => {
     return { releases: await fetchChangelog() };
+  });
+
+  registerHandler('system:getGpuPreference', () => ({
+    disableCompositing: deps.gpuPreference?.shouldDisableCompositing() ?? false,
+    platformSupported: deps.gpuPreference !== null,
+  }));
+
+  registerHandler('system:setGpuCompositingDisabled', ({ disabled }) => {
+    deps.gpuPreference?.setUserPreference(disabled);
   });
 
   registerHandler('system:copyToClipboard', ({ text }) => {
