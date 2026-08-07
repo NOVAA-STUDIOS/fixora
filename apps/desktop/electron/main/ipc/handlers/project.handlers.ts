@@ -21,6 +21,11 @@ export function registerProjectHandlers(workspace: WorkspaceService): void {
       );
     }
     const path = await createProject(parentDir, name, templateId);
+    // The renderer's next call is workspace:open(path) to auto-open it — `path` itself was never
+    // picked (only its PARENT was, via workspace:pickFolder), so without this it would fail that
+    // channel's own authorization check with a confusing "Fixora only opens folders you picked"
+    // refusal for a folder main just created. Safe to authorize here: main just wrote it.
+    workspace.authorize(path);
     return { path };
   });
 }

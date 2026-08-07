@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { join } from 'node:path';
 
 import { PROJECT_TEMPLATES, UserFacingError } from '@fixora/shared-types';
@@ -6,7 +6,23 @@ import { PROJECT_TEMPLATES, UserFacingError } from '@fixora/shared-types';
 /** Tail of combined stdout/stderr kept for the error message — enough to show what actually went
  * wrong without unbounded memory growth on a scaffolder that logs a lot. */
 const OUTPUT_TAIL_BYTES = 4000;
-const CREATE_TIMEOUT_MS = 10 * 60 * 1000; // scaffolders fetch packages; slow, not hung
+/** A stuck scaffold read as "hanging indefinitely" — 60s is long enough for a real install to
+ * finish and short enough that a genuine hang is reported, not silently endured. */
+const CREATE_TIMEOUT_MS = 60_000;
+
+/**
+ * `child.kill()` alone only signals the immediate `cmd.exe` shell on Windows — it does not stop
+ * whatever `cmd.exe` itself spawned (npx, node, ...), a well-known Node/Windows gap. `taskkill
+ * /t /f` kills the whole process tree; without it, a timed-out scaffold could keep running (and
+ * keep writing into the half-created project folder) even after the user sees the timeout error.
+ */
+function killTree(pid: number | undefined): void {
+  if (pid === undefined) return;
+  execFile('taskkill', ['/pid', String(pid), '/t', '/f'], () => {
+    // Best-effort: the process may have already exited on its own between the timeout firing and
+    // this running, which taskkill reports as an error that is not worth surfacing.
+  });
+}
 
 /**
  * Runs a template's scaffold command as a plain background child process — never a terminal, never
@@ -52,7 +68,7 @@ export async function createProject(
     child.stderr.on('data', capture);
 
     const timer = setTimeout(() => {
-      child.kill();
+      killTree(child.pid);
       reject(
         new UserFacingError('The scaffold command took too long and was stopped.', {
           code: 'timeout',
