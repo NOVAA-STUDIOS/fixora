@@ -95,11 +95,6 @@ export const channels = [
   // Integrated terminal. `create` spawns a shell rooted at the open workspace; `write`/`resize`
   // drive the running session; `dispose` kills it. One session per terminal tab, keyed by id.
   'terminal:create',
-  // A shell rooted at a directory the user just picked in a native dialog, not the open workspace
-  // — the one case that needs one before a project exists (scaffolding a New Project). Gated by
-  // the SAME authorization rule `workspace:open` uses (picked this session, or a known recent),
-  // never an arbitrary renderer-supplied path.
-  'terminal:createScratch',
   'terminal:write',
   'terminal:resize',
   'terminal:dispose',
@@ -112,6 +107,16 @@ export const channels = [
   // of it being a real shell rather than something this app has to interpret the outcome of.
   'packages:list',
   'packages:search',
+  // Format-on-save: run the workspace's own formatter (Prettier/Ruff) against a file already
+  // written to disk, and return its content afterward so the editor model can be refreshed.
+  'editor:formatFile',
+  // Git blame for the open file — best-effort (see git-blame-service.ts): a project with no repo,
+  // no git binary, or an untracked file all resolve to an empty result, never an error.
+  'editor:gitBlame',
+  // New Project: runs a template's scaffold command as a plain background child process (never a
+  // visible terminal) rooted at a directory the user picked, gated by the same authorization rule
+  // workspace:open uses.
+  'project:create',
 ] as const;
 
 export type Channel = (typeof channels)[number];

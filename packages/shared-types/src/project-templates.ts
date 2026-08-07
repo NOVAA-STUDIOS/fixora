@@ -1,10 +1,19 @@
 /**
- * New Project scaffold commands. `cmd.exe` syntax (`&&` chaining) — the integrated terminal always
- * spawns `cmd.exe` on Windows (`terminal-service.ts`'s `shellFor()`), so this targets that shell
- * rather than trying to be POSIX-portable for a feature that only ever runs inside it.
+ * New Project scaffold commands. Shared between main (which is the only side that ever executes
+ * one — `project-service.ts`) and the renderer (which only needs the id/label/description to
+ * render the picker): main must never trust a raw command string from the renderer (invariant
+ * I2 — the renderer is hostile), so the renderer sends a `templateId` and main looks the real
+ * command up itself, against this SAME list.
+ *
+ * `cmd.exe` syntax (`&&` chaining) — `project-service.ts` runs these via
+ * `child_process.spawn(command, { shell: true })`, which on Windows is `cmd.exe /d /s /c
+ * "<command>"`. Every command must be genuinely non-interactive: this runs headless (no terminal,
+ * no PTY, nothing attached to its stdin), so a scaffolder falling back to a prompt would hang
+ * forever rather than show a stuck prompt — `npx`/`npm create` are always given an explicit
+ * `--yes`/non-interactive flag rather than relying on a tool's own default.
  *
  * Each scaffolds INTO `<name>` under the chosen parent directory — none of these commands `cd`
- * first, because the scratch terminal is already rooted there (`terminal:createScratch`).
+ * first, because `project-service.ts` spawns with `cwd` already set to the parent directory.
  */
 export type ProjectTemplate = {
   id: string;
@@ -18,7 +27,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     id: 'react',
     label: 'React',
     description: 'Vite + React, TypeScript',
-    command: (name) => `npm create vite@latest ${name} -- --template react-ts`,
+    command: (name) => `npx --yes create-vite@latest ${name} --template react-ts`,
   },
   {
     id: 'nextjs',
@@ -44,7 +53,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     id: 'vue',
     label: 'Vue',
     description: 'Vite + Vue, TypeScript',
-    command: (name) => `npm create vite@latest ${name} -- --template vue-ts`,
+    command: (name) => `npx --yes create-vite@latest ${name} --template vue-ts`,
   },
   {
     id: 'express',

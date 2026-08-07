@@ -216,6 +216,8 @@ export {
   type SearchResponse,
 } from './search.js';
 
+export { PROJECT_TEMPLATES, type ProjectTemplate } from './project-templates.js';
+
 export {
   ManifestKindSchema,
   PackageDependencySchema,

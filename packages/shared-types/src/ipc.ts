@@ -368,17 +368,6 @@ export const contracts = {
     request: z.object({ id: z.string().min(1), cols: z.number().int().positive(), rows: z.number().int().positive() }),
     response: z.object({ shell: z.string() }),
   },
-  // Same session model, rooted at an explicit directory instead of the open workspace — see the
-  // channel's own doc comment in channels.ts for the authorization rule.
-  'terminal:createScratch': {
-    request: z.object({
-      id: z.string().min(1),
-      cwd: z.string().min(1),
-      cols: z.number().int().positive(),
-      rows: z.number().int().positive(),
-    }),
-    response: z.object({ shell: z.string() }),
-  },
   // Raw keystrokes/paste data, unvalidated beyond "is a string" — a terminal's whole job is to
   // accept arbitrary bytes and hand them to the shell; that is not a channel this app can sanitise.
   'terminal:write': {
@@ -411,6 +400,40 @@ export const contracts = {
   'packages:search': {
     request: z.object({ query: z.string().min(1) }),
     response: PackageSearchResponseSchema,
+  },
+
+  'editor:formatFile': {
+    request: z.object({ relPath: z.string().min(1) }),
+    response: z.object({
+      ran: z.boolean(),
+      ok: z.boolean(),
+      formatter: z.string().nullable(),
+      message: z.string().nullable(),
+      content: z.string(),
+    }),
+  },
+
+  'editor:gitBlame': {
+    request: z.object({ relPath: z.string().min(1) }),
+    response: z.object({
+      lines: z.array(
+        z.object({
+          line: z.number().int().positive(),
+          author: z.string(),
+          authorTimeUnix: z.number().int().nonnegative(),
+          summary: z.string(),
+        }),
+      ),
+    }),
+  },
+
+  'project:create': {
+    request: z.object({
+      parentDir: z.string().min(1),
+      name: z.string().min(1),
+      templateId: z.string().min(1),
+    }),
+    response: z.object({ path: z.string() }),
   },
 } as const satisfies Record<Channel, Contract>;
 
