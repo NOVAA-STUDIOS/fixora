@@ -19,6 +19,9 @@ export type Command = {
    * Ctrl elsewhere, resolved at match time — one binding string, correct on every platform.
    */
   keybinding?: string;
+  /** A second binding for the same command (e.g. VS Code's Ctrl+Shift+P alongside Ctrl+K) —
+   * shown nowhere (the palette displays only `keybinding`), just another way to fire `run`. */
+  altKeybinding?: string;
   /** Extra words the palette should match on, beyond the title. */
   keywords?: string[];
   /** When false, the command is hidden from the palette and its keybinding is inert. */

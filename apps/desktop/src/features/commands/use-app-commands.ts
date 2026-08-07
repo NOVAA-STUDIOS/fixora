@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { useUiStore } from '../../stores/ui-store.js';
+import { useEditorStore } from '../editor/editor-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
@@ -20,6 +21,10 @@ export function useAppCommands(): Command[] {
   const setPaletteOpen = useUiStore((s) => s.setPaletteOpen);
   const pickAndOpen = useWorkspaceStore((s) => s.pickAndOpen);
   const runAnalysis = useFindingsStore((s) => s.run);
+  const tabs = useEditorStore((s) => s.tabs);
+  const activeTab = useEditorStore((s) => s.activeTab);
+  const splitRelPath = useEditorStore((s) => s.splitRelPath);
+  const setSplit = useEditorStore((s) => s.setSplit);
 
   return useMemo(
     () => [
@@ -51,8 +56,30 @@ export function useAppCommands(): Command[] {
         title: 'Open command palette',
         group: 'General',
         keybinding: 'mod+k',
+        // VS Code's own command-palette shortcut, offered alongside this app's existing mod+k.
+        altKeybinding: 'mod+shift+p',
         run: () => {
           togglePalette();
+        },
+      },
+      {
+        id: 'editor.toggleSplit',
+        title: splitRelPath === null ? 'Split editor right' : 'Close split editor',
+        group: 'View',
+        keybinding: 'mod+\\',
+        keywords: ['split', 'side by side'],
+        enabled: () => tabs.length > 0,
+        run: () => {
+          if (splitRelPath !== null) {
+            setSplit(null);
+            return;
+          }
+          // The next tab after the active one, wrapping — if there is only one tab open, split
+          // shows it against itself (the same file, two cursors/scroll positions), which is a real
+          // and useful case (comparing two parts of one long file), not a degenerate one.
+          const index = tabs.findIndex((t) => t.relPath === activeTab);
+          const other = tabs[(index + 1) % tabs.length] ?? tabs[0];
+          if (other !== undefined) setSplit(other.relPath);
         },
       },
       {
@@ -133,6 +160,10 @@ export function useAppCommands(): Command[] {
       setPaletteOpen,
       pickAndOpen,
       runAnalysis,
+      tabs,
+      activeTab,
+      splitRelPath,
+      setSplit,
     ],
   );
 }

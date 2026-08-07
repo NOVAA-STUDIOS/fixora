@@ -24,6 +24,10 @@ export type EditorTab = {
 type EditorState = {
   tabs: EditorTab[];
   activeTab: string | null;
+  /** A second file shown side-by-side with `activeTab` (Ctrl+\ / "Open to the Side") — a second
+   * Monaco instance viewing the same model cache (`models.ts`), which Monaco supports directly
+   * (it is how VS Code's own split view works); no second copy of any file's text exists. */
+  splitRelPath: string | null;
   /** Paths with unsaved edits. Drives the tab dot and the close confirmation. */
   dirty: string[];
   saving: string | null;
@@ -31,7 +35,13 @@ type EditorState = {
 
   openFile: (relPath: string, language: string | null) => void;
   closeTab: (relPath: string) => void;
+  /** Close every tab except `relPath`. */
+  closeOthers: (relPath: string) => void;
+  /** Close every tab (dirty ones left open — same rule as `closeOthers`). Distinct from `closeAll`,
+   * which is the workspace-close path and force-closes everything after its own confirmation. */
+  closeAllTabs: () => void;
   setActive: (relPath: string) => void;
+  setSplit: (relPath: string | null) => void;
   /** Recompute dirty from the model's own version baseline (see models.ts). */
   syncDirty: (relPath: string) => void;
   markClean: (relPath: string) => void;
@@ -45,6 +55,7 @@ type EditorState = {
 export const useEditorStore = create<EditorState>((set, get) => ({
   tabs: [],
   activeTab: null,
+  splitRelPath: null,
   dirty: [],
   saving: null,
   saveError: null,
@@ -71,11 +82,48 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       tabs: next,
       activeTab: nextActive,
       dirty: get().dirty.filter((p) => p !== relPath),
+      splitRelPath: get().splitRelPath === relPath ? null : get().splitRelPath,
+    });
+  },
+
+  closeOthers: (relPath) => {
+    const { tabs, dirty } = get();
+    // Never discard unsaved work silently: a dirty "other" tab stays open rather than being
+    // force-closed, the same rule the single-tab close confirmation enforces.
+    const toClose = tabs.filter((t) => t.relPath !== relPath && !dirty.includes(t.relPath));
+    for (const t of toClose) disposeModel(t.relPath);
+    const closedPaths = new Set(toClose.map((t) => t.relPath));
+    set((s) => ({
+      tabs: s.tabs.filter((t) => !closedPaths.has(t.relPath)),
+      activeTab: relPath,
+      splitRelPath: s.splitRelPath !== null && closedPaths.has(s.splitRelPath) ? null : s.splitRelPath,
+    }));
+  },
+
+  closeAllTabs: () => {
+    const { tabs, dirty } = get();
+    const toClose = tabs.filter((t) => !dirty.includes(t.relPath));
+    for (const t of toClose) disposeModel(t.relPath);
+    const closedPaths = new Set(toClose.map((t) => t.relPath));
+    set((s) => {
+      const remaining = s.tabs.filter((t) => !closedPaths.has(t.relPath));
+      return {
+        tabs: remaining,
+        activeTab: s.activeTab !== null && closedPaths.has(s.activeTab)
+          ? (remaining[0]?.relPath ?? null)
+          : s.activeTab,
+        splitRelPath:
+          s.splitRelPath !== null && closedPaths.has(s.splitRelPath) ? null : s.splitRelPath,
+      };
     });
   },
 
   setActive: (relPath) => {
     set({ activeTab: relPath });
+  },
+
+  setSplit: (relPath) => {
+    set({ splitRelPath: relPath });
   },
 
   syncDirty: (relPath) => {
@@ -96,7 +144,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   closeAll: () => {
     const abandoned = get().dirty;
     for (const tab of get().tabs) disposeModel(tab.relPath);
-    set({ tabs: [], activeTab: null, dirty: [], saving: null, saveError: null });
+    set({ tabs: [], activeTab: null, splitRelPath: null, dirty: [], saving: null, saveError: null });
     return abandoned;
   },
 

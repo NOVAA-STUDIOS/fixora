@@ -14,7 +14,7 @@ import { InlineRepairBar } from './inline-repair-bar.js';
 import { mountInlineRepair, type InlineRepairView } from './inline-repair.js';
 import { modelFor } from './models.js';
 import { setupMonaco } from './monaco-setup.js';
-import { themeForAppearance } from './monaco-theme.js';
+import { resolveEditorTheme } from './monaco-theme.js';
 
 /**
  * A single Monaco editor instance that swaps which model it shows as the active tab changes. One
@@ -52,6 +52,7 @@ export function CodeEditor({
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const theme = useUiStore((s) => s.theme);
+  const editorTheme = useUiStore((s) => s.editorTheme);
   const revealTarget = useWorkspaceStore((s) => s.revealTarget);
   const proposal = useAiStore((s) => s.proposal);
   // Changes on every analysis progress tick and on completion — the trigger to re-fetch this
@@ -70,7 +71,7 @@ export function CodeEditor({
       // Editable: Fixora is a place you fix code, not only read it. Writes still go through the
       // guarded fs:writeFile channel, and unsaved edits are tracked so nothing is lost silently.
       readOnly: false,
-      theme: themeForAppearance(useUiStore.getState().theme),
+      theme: resolveEditorTheme(useUiStore.getState().editorTheme, useUiStore.getState().theme),
       automaticLayout: true,
       minimap: { enabled: el.clientWidth >= MINIMAP_MIN_WIDTH },
       folding: el.clientWidth >= MINIMAP_MIN_WIDTH,
@@ -104,6 +105,15 @@ export function CodeEditor({
       // via monaco-setup.ts's workers; Python and everything else get this word-based layer,
       // which is genuinely all Monaco itself can offer without an actual language server).
       wordBasedSuggestions: 'allDocuments',
+      // The enclosing scope (function/class) pinned at the top while scrolling past it — Monaco's
+      // own built-in contribution, driven by the same folding-range/outline data folding uses.
+      stickyScroll: { enabled: true },
+      // Hover docs, Go to Definition (F12) and Go to References (Shift+F12) are Monaco's own
+      // standard contributions, explicit for the same reason as the options above. Real (type
+      // info, cross-file navigation) for TS/JS/JSON/CSS/HTML, which have an actual language-service
+      // worker (monaco-setup.ts); a language with none — Python included — has nothing for these to
+      // query, the same ceiling `wordBasedSuggestions` documents above.
+      hover: { enabled: true },
     });
     editorRef.current = editor;
     setActiveEditor(editor);
@@ -183,10 +193,11 @@ export function CodeEditor({
     };
   }, [relPath, content, language]);
 
-  // Follow the app theme.
+  // Follow the app theme (for 'fixora') and the editor theme setting (for a named theme, which
+  // stays fixed regardless of the app's own light/dark toggle).
   useEffect(() => {
-    setupMonaco().editor.setTheme(themeForAppearance(theme));
-  }, [theme]);
+    setupMonaco().editor.setTheme(resolveEditorTheme(editorTheme, theme));
+  }, [theme, editorTheme]);
 
   // Jump to + highlight a finding's range when this file is the reveal target (clicking a finding).
   // `token` is in the deps so re-clicking the same finding re-reveals it.

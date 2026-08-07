@@ -39,6 +39,19 @@ const EXTENSION_COLOR: Record<string, string> = {
   rs: 'text-[#dea584]',
 };
 
+function TabMenuItem({ label, onClick }: { label: string; onClick: () => void }): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-fg hover:bg-hover"
+    >
+      {label}
+    </button>
+  );
+}
+
 function TabFileIcon({ name }: { name: string }): React.JSX.Element {
   const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
   return (
@@ -49,12 +62,17 @@ function TabFileIcon({ name }: { name: string }): React.JSX.Element {
 export function EditorArea(): React.JSX.Element {
   const tabs = useEditorStore((s) => s.tabs);
   const activeTab = useEditorStore((s) => s.activeTab);
+  const splitRelPath = useEditorStore((s) => s.splitRelPath);
+  const setSplit = useEditorStore((s) => s.setSplit);
   const setActive = useEditorStore((s) => s.setActive);
   const closeTab = useEditorStore((s) => s.closeTab);
+  const closeOthers = useEditorStore((s) => s.closeOthers);
+  const closeAllTabs = useEditorStore((s) => s.closeAllTabs);
   const dirty = useEditorStore((s) => s.dirty);
   const saveError = useEditorStore((s) => s.saveError);
   const saving = useEditorStore((s) => s.saving);
   const save = useEditorStore((s) => s.save);
+  const [tabMenu, setTabMenu] = useState<{ relPath: string; x: number; y: number } | null>(null);
 
   // A file selected in the tree opens a tab here. This is the one cross-slice link, made explicit.
   // The tab awaiting a close-without-saving decision, or null. Held here rather than resolved with
@@ -123,6 +141,10 @@ export function EditorArea(): React.JSX.Element {
                   onClick={() => {
                     setActive(tab.relPath);
                   }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setTabMenu({ relPath: tab.relPath, x: e.clientX, y: e.clientY });
+                  }}
                   className="flex min-w-0 max-w-40 items-center gap-1.5 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
                   title={isDirty ? `${tab.relPath} — unsaved changes` : tab.relPath}
                 >
@@ -184,10 +206,104 @@ export function EditorArea(): React.JSX.Element {
           {saveError}
         </p>
       )}
-      {activeTab !== null && <Breadcrumbs relPath={activeTab} />}
-      <div className="min-h-0 flex-1">
-        {activeTab !== null && <ActiveFile key={activeTab} relPath={activeTab} />}
-      </div>
+      {splitRelPath === null ? (
+        <>
+          {activeTab !== null && <Breadcrumbs relPath={activeTab} />}
+          <div className="min-h-0 flex-1">
+            {activeTab !== null && <ActiveFile key={activeTab} relPath={activeTab} />}
+          </div>
+        </>
+      ) : (
+        <div className="flex min-h-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col border-r border-border-subtle">
+            {activeTab !== null && <Breadcrumbs relPath={activeTab} />}
+            <div className="min-h-0 flex-1">
+              {activeTab !== null && <ActiveFile key={activeTab} relPath={activeTab} />}
+            </div>
+          </div>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex h-6 shrink-0 items-center justify-between border-b border-border-subtle bg-raised px-3 text-[11px] text-fg-muted">
+              <span className="min-w-0 truncate">{splitRelPath}</span>
+              <button
+                type="button"
+                aria-label="Close split editor"
+                onClick={() => {
+                  setSplit(null);
+                }}
+                className="shrink-0 rounded p-0.5 hover:bg-hover hover:text-fg"
+              >
+                <WinCloseIcon className="size-3" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <ActiveFile key={splitRelPath} relPath={splitRelPath} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tabMenu !== null && (
+        <>
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => {
+              setTabMenu(null);
+            }}
+          />
+          <div
+            role="menu"
+            style={{ left: tabMenu.x, top: tabMenu.y }}
+            className="fixed z-50 w-48 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+          >
+            <TabMenuItem
+              label="Open to the Side"
+              onClick={() => {
+                setSplit(tabMenu.relPath);
+                setTabMenu(null);
+              }}
+            />
+            <div className="my-1 border-t border-border-subtle" />
+            <TabMenuItem
+              label="Close"
+              onClick={() => {
+                const relPath = tabMenu.relPath;
+                setTabMenu(null);
+                if (dirty.includes(relPath)) {
+                  setConfirmClose(relPath);
+                  return;
+                }
+                disposeModel(relPath);
+                closeTab(relPath);
+              }}
+            />
+            <TabMenuItem
+              label="Close Others"
+              onClick={() => {
+                closeOthers(tabMenu.relPath);
+                setTabMenu(null);
+              }}
+            />
+            <TabMenuItem
+              label="Close All"
+              onClick={() => {
+                closeAllTabs();
+                setTabMenu(null);
+              }}
+            />
+            <div className="my-1 border-t border-border-subtle" />
+            <TabMenuItem
+              label="Copy Path"
+              onClick={() => {
+                void invoke('system:copyToClipboard', { text: tabMenu.relPath });
+                setTabMenu(null);
+              }}
+            />
+          </div>
+        </>
+      )}
 
       <ConfirmDialog
         open={confirmClose !== null}

@@ -50,12 +50,14 @@ export function CommandProvider({
       // ref, so this effect never re-subscribes; `all()` returns the current registrations at
       // event time.
       for (const command of registry.all()) {
-        if (command.keybinding === undefined) continue;
-        if (!matchesBinding(event, command.keybinding)) continue;
+        const binding = [command.keybinding, command.altKeybinding].find(
+          (b) => b !== undefined && matchesBinding(event, b),
+        );
+        if (binding === undefined) continue;
 
         // A bare-key binding must not steal a keystroke the user is typing into a field. A
         // `mod`-based binding (⌘K) is a deliberate chord and fires anywhere.
-        if (inEditable && !command.keybinding.includes('mod')) continue;
+        if (inEditable && !binding.includes('mod')) continue;
         if (!isCommandEnabled(command)) continue;
 
         event.preventDefault();
