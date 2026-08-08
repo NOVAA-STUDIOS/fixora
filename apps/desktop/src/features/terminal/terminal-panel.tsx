@@ -1,12 +1,11 @@
 import '@xterm/xterm/css/xterm.css';
 
-import { dark, light } from '@fixora/tokens';
 import { ChevronDownIcon, PlusIcon, SearchIcon, TerminalIcon, WinCloseIcon, cn } from '@fixora/ui';
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { WebglAddon } from '@xterm/addon-webgl';
-import { Terminal as XTerm } from '@xterm/xterm';
+import { Terminal as XTerm, type ITheme } from '@xterm/xterm';
 import { memo, useEffect, useRef, useState } from 'react';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
@@ -17,15 +16,60 @@ import { useTerminalStore, type TerminalSession } from './terminal-store.js';
 
 type ShellOption = { id: string; label: string; command: string; args: string[] };
 
-/** xterm needs concrete hex, not CSS variables — same constraint and source Monaco's theme uses
- * (`monaco-theme.ts`), so the terminal's surface is the same canvas/text pair as the editor's. */
-function xtermTheme(appearance: 'dark' | 'light'): {
-  background: string;
-  foreground: string;
-  cursor: string;
-} {
-  const c = appearance === 'dark' ? dark : light;
-  return { background: c.bg.canvas, foreground: c.text.primary, cursor: '#808080' };
+/**
+ * xterm needs concrete hex, not CSS variables or the app's design tokens — a shell prompt commonly
+ * prints in plain ANSI white/black (`\x1b[37m`, `\x1b[30m`) regardless of the app's theme, and
+ * xterm's own default ANSI palette is tuned for a dark background. Without an explicit palette here,
+ * switching to Light left prompt text painted in near-white on a near-white background — invisible,
+ * not just low-contrast. Every ANSI slot is set for both themes so no code path can hit an
+ * unstyled default. Yellow is pinned to the same #e5c07b in both themes on request.
+ */
+const DARK_THEME: ITheme = {
+  background: '#1e1e1e',
+  foreground: '#d4d4d4',
+  cursor: '#808080',
+  black: '#1e1e1e',
+  red: '#e06c75',
+  green: '#98c379',
+  yellow: '#e5c07b',
+  blue: '#61afef',
+  magenta: '#c678dd',
+  cyan: '#56b6c2',
+  white: '#d4d4d4',
+  brightBlack: '#5c6370',
+  brightRed: '#e06c75',
+  brightGreen: '#98c379',
+  brightYellow: '#e5c07b',
+  brightBlue: '#61afef',
+  brightMagenta: '#c678dd',
+  brightCyan: '#56b6c2',
+  brightWhite: '#ffffff',
+};
+
+const LIGHT_THEME: ITheme = {
+  background: '#f5f5f5',
+  foreground: '#1e1e1e',
+  cursor: '#808080',
+  black: '#1e1e1e',
+  red: '#b3272d',
+  green: '#3a7a2e',
+  yellow: '#e5c07b',
+  blue: '#2464b4',
+  magenta: '#9331a8',
+  cyan: '#1a8a94',
+  white: '#3a3a3a',
+  brightBlack: '#6b6b6b',
+  brightRed: '#b3272d',
+  brightGreen: '#3a7a2e',
+  brightYellow: '#e5c07b',
+  brightBlue: '#2464b4',
+  brightMagenta: '#9331a8',
+  brightCyan: '#1a8a94',
+  brightWhite: '#1e1e1e',
+};
+
+function xtermTheme(appearance: 'dark' | 'light'): ITheme {
+  return appearance === 'dark' ? DARK_THEME : LIGHT_THEME;
 }
 
 /**
