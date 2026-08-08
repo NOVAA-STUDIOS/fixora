@@ -83,6 +83,16 @@ export function createTerminalService(deps: {
       child.onData((data) => {
         queueOutput(id, data);
       });
+
+      // Windows: node-pty's `.process` getter does not query the live foreground process the way
+      // it does on POSIX (tcgetpgrp) — ConPTY's `windowsTerminal.js` just returns back the `name`
+      // option this call passed in ('xterm-256color'), which is why the tab title showed that
+      // literal string instead of the shell. There is no live foreground-process signal available
+      // on Windows, so the shell's own label — already known at spawn time — is what we show and
+      // is emitted once rather than polled, since polling would only ever re-report the same value.
+      if (process.platform === 'win32') {
+        deps.onTitle(id, shell.label);
+      }
       child.onExit(({ exitCode }) => {
         sessions.delete(id);
         const timer = titlePolls.get(id);
@@ -97,19 +107,22 @@ export function createTerminalService(deps: {
         deps.onExit(id, exitCode);
       });
 
-      const timer = setInterval(() => {
-        let name: string;
-        try {
-          name = child.process;
-        } catch {
-          return; // the session died between the interval firing and this read
-        }
-        if (name !== lastTitle.get(id)) {
-          lastTitle.set(id, name);
-          deps.onTitle(id, name);
-        }
-      }, TITLE_POLL_MS);
-      titlePolls.set(id, timer);
+      // Only worth polling where `.process` is real (POSIX) — see the win32 branch above.
+      if (process.platform !== 'win32') {
+        const timer = setInterval(() => {
+          let name: string;
+          try {
+            name = child.process;
+          } catch {
+            return; // the session died between the interval firing and this read
+          }
+          if (name !== lastTitle.get(id)) {
+            lastTitle.set(id, name);
+            deps.onTitle(id, name);
+          }
+        }, TITLE_POLL_MS);
+        titlePolls.set(id, timer);
+      }
 
       return shell.label;
     },
