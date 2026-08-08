@@ -147,9 +147,9 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     service.close();
   });
 
-  registerHandler('fs:listDir', ({ relPath }) => {
+  registerHandler('fs:listDir', async ({ relPath }) => {
     const { rootPath, ignore } = service.requireRoot();
-    const entries: DirEntryInfo[] = listDirectory(rootPath, relPath, ignore);
+    const entries: DirEntryInfo[] = await listDirectory(rootPath, relPath, ignore);
     return { entries };
   });
 

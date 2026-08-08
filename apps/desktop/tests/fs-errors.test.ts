@@ -130,9 +130,9 @@ describe('fs-service — real filesystem conditions', () => {
     }
   });
 
-  it('reports a missing directory listing as an authored error', () => {
+  it('reports a missing directory listing as an authored error', async () => {
     try {
-      listDirectory(root, 'does-not-exist', loadIgnoreRules(root));
+      await listDirectory(root, 'does-not-exist', loadIgnoreRules(root));
       expect.unreachable('should have thrown');
     } catch (e) {
       expect(e).toBeInstanceOf(UserFacingError);

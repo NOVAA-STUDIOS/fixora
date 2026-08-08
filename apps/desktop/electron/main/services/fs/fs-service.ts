@@ -4,17 +4,17 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
   renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { readdir } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
 
 import { UserFacingError } from '@fixora/shared-types';
 
-import { fsTry } from './fs-errors.js';
+import { fsTry, fsTryAsync } from './fs-errors.js';
 import { type IgnoreMatcher } from './ignore-rules.js';
 import { detectLanguage } from './language.js';
 import { assertInsideWorkspace } from './path-guard.js';
@@ -51,10 +51,18 @@ const MAX_TEXT_BYTES = 8 * 1024 * 1024;
  * Ignored entries (`.gitignore` + always-ignore) are omitted. Directories sort before files, each
  * group alphabetical — the order a developer expects.
  */
-export function listDirectory(root: string, relPath: string, ignore: IgnoreMatcher): DirEntry[] {
+export async function listDirectory(
+  root: string,
+  relPath: string,
+  ignore: IgnoreMatcher,
+): Promise<DirEntry[]> {
   const absolute = assertInsideWorkspace(join(root, relPath), root);
-  const entries = fsTry('list', relPath === '' ? 'this folder' : relPath, () =>
-    readdirSync(absolute, { withFileTypes: true }),
+  // Async: this is the tree's lazy-expansion call, fired on every folder open and every directory
+  // the user expands. `readdirSync` blocked the whole main process — every pending IPC call, every
+  // window message — for as long as the OS took to answer, which on a large directory or a
+  // network/cloud-synced drive is exactly the multi-second stall that shows up as "Not Responding".
+  const entries = await fsTryAsync('list', relPath === '' ? 'this folder' : relPath, () =>
+    readdir(absolute, { withFileTypes: true }),
   );
 
   const result: DirEntry[] = [];

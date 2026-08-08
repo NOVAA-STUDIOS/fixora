@@ -80,7 +80,7 @@ afterAll(() => {
 });
 
 describe('M2 scale acceptance: a 10,000-file repo', () => {
-  it('opens and paints the root in well under 2s (lazy — cost is O(root), not O(repo))', () => {
+  it('opens and paints the root in well under 2s (lazy — cost is O(root), not O(repo))', async () => {
     const { driver } = openDatabase({ dir: dbDir });
     const service = createWorkspaceService({
       workspaces: createWorkspaceRepository(driver),
@@ -90,7 +90,7 @@ describe('M2 scale acceptance: a 10,000-file repo', () => {
     const start = performance.now();
     service.open(root);
     const workspace = service.requireRoot();
-    const rootEntries = listDirectory(workspace.rootPath, '', workspace.ignore);
+    const rootEntries = await listDirectory(workspace.rootPath, '', workspace.ignore);
     const elapsed = performance.now() - start;
 
     // The root holds the 100 module dirs (dist/ is ignored, so it is not listed even if present).

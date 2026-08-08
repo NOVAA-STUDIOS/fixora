@@ -364,13 +364,20 @@ if (!gotTheLock) {
   /**
    * A renderer process that dies takes its window with it, not the app. From M2 that window
    * may hold unsaved work, so the recovery path is a milestone-2 concern — but the listener
-   * exists now so the failure is visible in logs rather than silent.
+   * exists now so the failure is visible in logs rather than silent. `electron-log`, not
+   * `console.error`: a packaged build has no attached console, so that line would otherwise
+   * exist nowhere a user could ever hand back to us.
    */
   app.on('render-process-gone', (_event, _webContents, details) => {
-    console.error('[main] renderer process gone', { reason: details.reason });
+    log.error('[main] renderer process gone', { reason: details.reason });
   });
 
   app.on('child-process-gone', (_event, details) => {
-    console.error('[main] child process gone', { type: details.type, reason: details.reason });
+    log.error('[main] child process gone', { type: details.type, reason: details.reason });
   });
+
+  // A renderer that is alive but not pumping its message loop — the actual "(Not Responding)"
+  // state — is a DIFFERENT signal than either event above (both fire only once the process is
+  // gone). `unresponsive`/`responsive` are per-window, not per-app; attached in `main-window.ts`,
+  // next to `ready-to-show`, so every window this app creates gets the same coverage.
 }

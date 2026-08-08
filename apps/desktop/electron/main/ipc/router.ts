@@ -13,6 +13,7 @@ import {
   isUserFacingError,
 } from '@fixora/shared-types';
 import { BrowserWindow, ipcMain } from 'electron';
+import log from 'electron-log';
 
 /**
  * The typed IPC router (ADR-018).
@@ -123,9 +124,18 @@ export function mountRouter(): void {
 
       const window = BrowserWindow.fromWebContents(event.sender);
 
+      // Every handler runs on main's single event loop thread — one that blocks it (a synchronous
+      // fs call, a heavy computation) stalls every other pending IPC call and window message at
+      // once, which is what "Fixora (Not Responding)" actually is. Logged past 100ms so a slow
+      // handler shows up by name instead of as an unexplained stall the user has to reproduce.
+      const startedAt = performance.now();
       let response: unknown;
       try {
         response = await handler(parsedRequest.data, { requestId, window });
+        const elapsedMs = performance.now() - startedAt;
+        if (elapsedMs > 100) {
+          log.warn('[ipc] slow handler', { channel, requestId, elapsedMs: Math.round(elapsedMs) });
+        }
       } catch (error) {
         // MAIN gets everything. The log is on the user's own machine and is the only record of what
         // actually happened; logging just `error.name` made "Something went wrong" unfalsifiable
@@ -133,6 +143,7 @@ export function mountRouter(): void {
         console.error('[ipc] handler threw', {
           channel,
           requestId,
+          elapsedMs: Math.round(performance.now() - startedAt),
           name: error instanceof Error ? error.name : 'unknown',
           message: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,

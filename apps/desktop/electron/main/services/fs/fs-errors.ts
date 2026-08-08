@@ -130,3 +130,17 @@ export function fsTry<T>(operation: string, relPath: string, fn: () => T): T {
     throw toFsError(error, operation, relPath);
   }
 }
+
+/** Same translation, for an operation built on `node:fs/promises` instead of the `*Sync` family. */
+export async function fsTryAsync<T>(
+  operation: string,
+  relPath: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error instanceof UserFacingError) throw error;
+    throw toFsError(error, operation, relPath);
+  }
+}

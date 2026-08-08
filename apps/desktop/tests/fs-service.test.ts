@@ -39,8 +39,8 @@ afterAll(() => {
 describe('listDirectory (lazy, ignore-aware, sorted)', () => {
   const ignore = () => loadIgnoreRules(root);
 
-  it('lists the root: dirs first, ignored entries hidden', () => {
-    const names = listDirectory(root, '', ignore()).map((e) => `${e.kind}:${e.name}`);
+  it('lists the root: dirs first, ignored entries hidden', async () => {
+    const names = (await listDirectory(root, '', ignore())).map((e) => `${e.kind}:${e.name}`);
     // src/ is a dir and comes first; node_modules, .git, dist and *.log are ignored;
     // .env is shown in the tree (it is denied on *read*, not hidden from listing) — but the
     // always-ignore + .gitignore hide node_modules/.git/dist and debug.log.
@@ -54,8 +54,8 @@ describe('listDirectory (lazy, ignore-aware, sorted)', () => {
     expect(names.indexOf('dir:src')).toBeLessThan(names.indexOf('file:README.md'));
   });
 
-  it('detects language on files', () => {
-    const entries = listDirectory(root, 'src', ignore());
+  it('detects language on files', async () => {
+    const entries = await listDirectory(root, 'src', ignore());
     expect(entries.find((e) => e.name === 'a.ts')?.language).toBe('typescript');
     expect(entries.find((e) => e.name === 'b.py')?.language).toBe('python');
   });

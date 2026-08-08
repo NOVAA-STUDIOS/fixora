@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { dark } from '@fixora/tokens';
 import { BrowserWindow, app } from 'electron';
+import elog from 'electron-log';
 
 import { emitToWindow } from '../ipc/emit.js';
 import {
@@ -98,6 +99,18 @@ export function createMainWindow(
   window.once('ready-to-show', () => {
     window.show();
     onFirstPaint?.();
+  });
+
+  // The actual "(Not Responding)" state: the renderer's process is alive but has stopped pumping
+  // its message loop for several seconds (Chromium's own hang detector), typically because
+  // synchronous JS — a heavy computation, a blocking main-process IPC call it's awaiting — is
+  // holding the thread. Distinct from `render-process-gone` (index.ts), which only fires once the
+  // process has actually died; this is the earlier, more common case a user reports as freezing.
+  window.on('unresponsive', () => {
+    elog.error('[main] window unresponsive', { title: window.getTitle() });
+  });
+  window.on('responsive', () => {
+    elog.warn('[main] window responsive again', { title: window.getTitle() });
   });
 
   // The window can be maximised/restored by ways the renderer never sees — the OS snap shortcut
