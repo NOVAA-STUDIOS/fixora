@@ -23,6 +23,7 @@ import { useUiStore } from '../../stores/ui-store.js';
 import { useCapability } from '../ai/use-capability.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
+import { useBulkRepairStore } from './bulk-repair-store.js';
 import { useFindingsStore } from './findings-store.js';
 
 /**
@@ -74,6 +75,14 @@ export function FindingsPanel(): React.JSX.Element {
   const workspace = useWorkspaceStore((s) => s.workspace);
   const revealAt = useWorkspaceStore((s) => s.revealAt);
   const rowEstimate = useFindingRowEstimate();
+
+  const bulkStatus = useBulkRepairStore((s) => s.status);
+  const bulkTotal = useBulkRepairStore((s) => s.total);
+  const bulkIndex = useBulkRepairStore((s) => s.index);
+  const bulkSummary = useBulkRepairStore((s) => s.summary);
+  const bulkStart = useBulkRepairStore((s) => s.start);
+  const bulkCancel = useBulkRepairStore((s) => s.cancel);
+  const bulkDismiss = useBulkRepairStore((s) => s.dismiss);
 
   useEffect(() => listen(), [listen]);
   useEffect(() => {
@@ -143,6 +152,25 @@ export function FindingsPanel(): React.JSX.Element {
             ))}
           </ul>
         )}
+        {bulkStatus === 'running' ? (
+          <Button variant="ghost" size="sm" className="shrink-0" onClick={bulkCancel}>
+            Cancel
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0"
+            onClick={() => void bulkStart(visible)}
+            disabled={
+              workspace === null ||
+              status === 'running' ||
+              !visible.some((f) => isRepairAttemptable(repairStateFor(f)))
+            }
+          >
+            Repair All Repairable
+          </Button>
+        )}
         {status === 'running' ? (
           <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void cancel()}>
             Cancel
@@ -153,12 +181,40 @@ export function FindingsPanel(): React.JSX.Element {
             size="sm"
             className="shrink-0"
             onClick={() => void run()}
-            disabled={workspace === null}
+            disabled={workspace === null || bulkStatus === 'running'}
           >
             {summary === null ? 'Run analysis' : 'Re-run'}
           </Button>
         )}
       </header>
+
+      {bulkStatus === 'running' && (
+        <div
+          role="status"
+          className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-inset px-3 py-2"
+        >
+          <p className="text-xs text-fg-secondary">
+            Repairing {bulkIndex}/{bulkTotal}
+            {bulkIndex > 0 && bulkTotal > 0 ? '…' : ''}
+          </p>
+          <Button variant="ghost" size="sm" onClick={bulkCancel}>
+            Cancel
+          </Button>
+        </div>
+      )}
+      {bulkStatus === 'done' && bulkSummary !== null && (
+        <div
+          role="status"
+          className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-inset px-3 py-2"
+        >
+          <p className="text-xs text-fg-secondary">
+            {bulkSummary.repaired} repaired, {bulkSummary.skipped} skipped, {bulkSummary.failed} failed
+          </p>
+          <Button variant="ghost" size="sm" onClick={bulkDismiss}>
+            Dismiss
+          </Button>
+        </div>
+      )}
 
       {/*
         A failed run must never fall through silently to a generic empty state or leave stale
