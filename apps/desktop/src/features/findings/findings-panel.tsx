@@ -79,6 +79,7 @@ export function FindingsPanel(): React.JSX.Element {
   const bulkStatus = useBulkRepairStore((s) => s.status);
   const bulkTotal = useBulkRepairStore((s) => s.total);
   const bulkIndex = useBulkRepairStore((s) => s.index);
+  const bulkProgress = useBulkRepairStore((s) => s.progress);
   const bulkSummary = useBulkRepairStore((s) => s.summary);
   const bulkStart = useBulkRepairStore((s) => s.start);
   const bulkCancel = useBulkRepairStore((s) => s.cancel);
@@ -195,7 +196,8 @@ export function FindingsPanel(): React.JSX.Element {
         >
           <p className="text-xs text-fg-secondary">
             Repairing {bulkIndex}/{bulkTotal}
-            {bulkIndex > 0 && bulkTotal > 0 ? '…' : ''}
+            {bulkIndex > 0 && bulkTotal > 0 ? '…' : ''} ({bulkProgress.repaired} repaired,{' '}
+            {bulkProgress.failed} failed so far)
           </p>
           <Button variant="ghost" size="sm" onClick={bulkCancel}>
             Cancel

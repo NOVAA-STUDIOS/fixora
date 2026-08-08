@@ -20,6 +20,9 @@ interface BulkRepairState {
   /** 1-based position of the item currently in flight, for "Repairing N/Total". */
   index: number;
   currentFindingId: string | null;
+  /** Running tally, updated after every item — not just the final one — so the header can show
+   * live counts while the queue is still going, not only once it finishes. */
+  progress: BulkRepairSummary;
   summary: BulkRepairSummary | null;
   cancelRequested: boolean;
   start: (findings: readonly Finding[]) => Promise<void>;
@@ -27,11 +30,23 @@ interface BulkRepairState {
   dismiss: () => void;
 }
 
+/** A macrotask yield (`setTimeout`, not a plain `await`) between items. Awaiting the IPC round trip
+ * itself only yields to the microtask queue, which Chromium does not use to schedule a paint or
+ * flush a pending click — a queue of findings that resolve fast (an immediate 'blocked'/'error', no
+ * real model latency) could otherwise tick through hundreds of iterations back to back with no
+ * macrotask boundary at all, which is what left the window unable to paint or field the Cancel
+ * click ("Not Responding"), even though no single call was itself slow or blocking main. */
+const yieldToEventLoop = (): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+
 export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
   status: 'idle',
   total: 0,
   index: 0,
   currentFindingId: null,
+  progress: { repaired: 0, skipped: 0, failed: 0 },
   summary: null,
   cancelRequested: false,
 
@@ -46,6 +61,7 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
       total: queue.length,
       index: 0,
       currentFindingId: null,
+      progress: { repaired: 0, skipped: 0, failed: 0 },
       summary: null,
       cancelRequested: false,
     });
@@ -54,6 +70,10 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
     let failed = 0;
     let processed = 0;
 
+    // One repair in flight at a time, by construction — each iteration awaits the previous one's
+    // `run`/`applyRepair` to fully settle before the next starts. Raising this to run several
+    // concurrently would mean several proposals racing the ONE active slot ai-store holds
+    // (`activeFindingId`/`proposal`), which is a correctness hazard, not just a pacing one.
     for (const finding of queue) {
       if (get().cancelRequested) break;
       set({ index: processed + 1, currentFindingId: finding.id });
@@ -72,12 +92,22 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
         // regressing proposal the apply gate refuses — all genuine repair failures, not skips.
         failed += 1;
       }
+
+      // Progress after THIS item, not just at the end — and the macrotask yield that keeps the
+      // window painting and the Cancel button clickable between items (see yieldToEventLoop above).
+      set({ progress: { repaired, skipped: notRepairable, failed } });
+      await yieldToEventLoop();
     }
 
     // Cancelled before the queue finished: whatever was never reached is a skip, not a failure —
     // the user stopped the run, Fixora didn't give up on those findings.
     const skipped = notRepairable + (queue.length - processed);
-    set({ status: 'done', currentFindingId: null, summary: { repaired, skipped, failed } });
+    set({
+      status: 'done',
+      currentFindingId: null,
+      progress: { repaired, skipped, failed },
+      summary: { repaired, skipped, failed },
+    });
   },
 
   cancel: () => {
@@ -88,6 +118,13 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
   },
 
   dismiss: () => {
-    set({ status: 'idle', total: 0, index: 0, currentFindingId: null, summary: null });
+    set({
+      status: 'idle',
+      total: 0,
+      index: 0,
+      currentFindingId: null,
+      progress: { repaired: 0, skipped: 0, failed: 0 },
+      summary: null,
+    });
   },
 }));
