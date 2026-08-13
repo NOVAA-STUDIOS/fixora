@@ -178,6 +178,15 @@ export const AiRunRequestSchema = z.object({
   findingId: z.string().min(1),
   /** Absent means `finding` — the safe default, so an older caller keeps the old behaviour exactly. */
   mode: RepairModeSchema.optional(),
+  /**
+   * Explicit opt-in to attempt a `manual`-repairability finding through the normal verified/gated
+   * pipeline anyway (still schema-constrained, still parser/verifier/formatter-gated, still a
+   * reviewable diff — never a raw unverified write). Absent or false preserves the existing refusal
+   * ("AI Repair Unavailable") for every caller that doesn't explicitly ask for this, which today is
+   * every caller except "Repair All Repairable" — the single-click Repair button never sets it, so
+   * `manual` findings are refused there exactly as before.
+   */
+  allowManual: z.boolean().optional(),
 });
 export type AiRunRequest = z.infer<typeof AiRunRequestSchema>;
 

@@ -65,7 +65,12 @@ type AiState = {
   /** The last apply attempt, in full. Rendered by the diagnostics panel; never persisted. */
   lastApplyAttempt: ApplyAttempt | null;
 
-  run: (profile: TaskProfile, findingId: string, mode?: RepairMode) => Promise<void>;
+  run: (
+    profile: TaskProfile,
+    findingId: string,
+    mode?: RepairMode,
+    options?: { allowManual?: boolean },
+  ) => Promise<void>;
   /** Re-run the last attempted profile/finding — Proceed's Retry, mirrored for Repair/Explain/Test. */
   retry: () => Promise<void>;
   cancel: () => Promise<void>;
@@ -205,7 +210,7 @@ export const useAiStore = create<AiState>((set, get) => ({
   retryable: false,
   failure: null,
 
-  run: async (profile, findingId, mode) => {
+  run: async (profile, findingId, mode, options) => {
     // Claim this run. Any earlier one still awaiting its round-trip is now stale and will discard
     // its result rather than overwrite ours.
     const myToken = (runToken += 1);
@@ -236,10 +241,12 @@ export const useAiStore = create<AiState>((set, get) => ({
      */
     let result: Awaited<ReturnType<typeof invoke<'ai:run'>>>;
     try {
-      result = await invoke(
-        'ai:run',
-        mode === undefined ? { profile, findingId } : { profile, findingId, mode },
-      );
+      result = await invoke('ai:run', {
+        profile,
+        findingId,
+        ...(mode === undefined ? {} : { mode }),
+        ...(options?.allowManual === true ? { allowManual: true } : {}),
+      });
     } catch (error) {
       if (superseded()) return;
       set({

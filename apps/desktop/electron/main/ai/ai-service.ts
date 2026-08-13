@@ -435,6 +435,7 @@ export function createAiService(deps: AiServiceDeps): AiService {
           model: deps.keyStore.getConfig().model,
           repairCapable: true,
           configDiagnosis,
+          allowManual: request.allowManual === true,
         });
         if (!eligibility.repairable && eligibility.reason !== null) {
           console.error('[ai:run] repair not eligible', {
@@ -711,6 +712,8 @@ export function createAiService(deps: AiServiceDeps): AiService {
           finding,
           target: patchTarget,
           relatedFindings: mergeable,
+          attemptingManualRepair:
+            request.profile === 'repair' && finding.repair === 'manual' && request.allowManual === true,
           neighbours: repairNeighbours(content, finding),
           conventions: projectConventions({
             language,

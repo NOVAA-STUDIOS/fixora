@@ -61,6 +61,7 @@ export function FindingsPanel(): React.JSX.Element {
   const status = useFindingsStore((s) => s.status);
   const findingsSoFar = useFindingsStore((s) => s.findingsSoFar);
   const error = useFindingsStore((s) => s.error);
+  const warnings = useFindingsStore((s) => s.warnings);
   const filter = useFindingsStore((s) => s.filter);
   const ignoredIds = useFindingsStore((s) => s.ignoredIds);
   const refresh = useFindingsStore((s) => s.refresh);
@@ -166,7 +167,12 @@ export function FindingsPanel(): React.JSX.Element {
             disabled={
               workspace === null ||
               status === 'running' ||
-              !visible.some((f) => isRepairAttemptable(repairStateFor(f)))
+              // Bulk also attempts manual-only findings (via allowManual — see bulk-repair-store.ts),
+              // so the button stays enabled for those too, not just the strictly repairable ones.
+              !visible.some((f) => {
+                const state = repairStateFor(f);
+                return isRepairAttemptable(state) || state === 'manual-only';
+              })
             }
           >
             Repair All Repairable
@@ -207,14 +213,34 @@ export function FindingsPanel(): React.JSX.Element {
       {bulkStatus === 'done' && bulkSummary !== null && (
         <div
           role="status"
-          className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-inset px-3 py-2"
+          className="flex shrink-0 flex-col gap-1 border-b border-border-subtle bg-inset px-3 py-2"
         >
-          <p className="text-xs text-fg-secondary">
-            {bulkSummary.repaired} repaired, {bulkSummary.skipped} skipped, {bulkSummary.failed} failed
-          </p>
-          <Button variant="ghost" size="sm" onClick={bulkDismiss}>
-            Dismiss
-          </Button>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-fg-secondary">
+              {bulkSummary.repaired} repaired, {bulkSummary.skipped} skipped, {bulkSummary.failed} failed
+              {bulkSummary.needsManualFix.length > 0 &&
+                ` (${String(bulkSummary.needsManualFix.length)} need manual fix)`}
+              {bulkSummary.repaired > 0 &&
+                (status === 'running' ? ' — re-analyzing…' : ` — ${String(summary?.total ?? 0)} remaining`)}
+            </p>
+            <Button variant="ghost" size="sm" onClick={bulkDismiss}>
+              Dismiss
+            </Button>
+          </div>
+          {bulkSummary.needsManualFix.length > 0 && (
+            <ul className="flex flex-col gap-0.5">
+              {bulkSummary.needsManualFix.slice(0, 5).map((f) => (
+                <li key={f.findingId} className="text-[11px] text-fg-muted">
+                  <span className="font-mono">{f.ruleId}</span>: {f.reason}
+                </li>
+              ))}
+              {bulkSummary.needsManualFix.length > 5 && (
+                <li className="text-[11px] text-fg-muted">
+                  +{bulkSummary.needsManualFix.length - 5} more
+                </li>
+              )}
+            </ul>
+          )}
         </div>
       )}
 
@@ -237,6 +263,28 @@ export function FindingsPanel(): React.JSX.Element {
           <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void run()}>
             Try again
           </Button>
+        </div>
+      )}
+
+      {/*
+        NOV7-01: a tool killed at its timeout must be visible, never silently converted to a clean
+        "zero findings". `warnings` comes from the run's reliability notices; shown as a partial-
+        analysis banner so the empty state below is never read as "your code is clean".
+      */}
+      {warnings !== null && warnings.length > 0 && (
+        <div
+          role="status"
+          className="flex shrink-0 items-start gap-2 border-b border-border-subtle bg-warn-subtle px-3 py-2"
+        >
+          <AlertIcon className="mt-0.5 size-4 shrink-0 text-warn-text" />
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <p className="text-xs font-medium text-warn-text">Analysis was partial</p>
+            {warnings.map((w) => (
+              <p key={`${w.analyzerId}-${w.tool}`} className="text-xs leading-relaxed text-fg-secondary">
+                {w.message}
+              </p>
+            ))}
+          </div>
         </div>
       )}
 

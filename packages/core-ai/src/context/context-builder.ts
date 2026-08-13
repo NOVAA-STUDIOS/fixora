@@ -45,6 +45,14 @@ export interface ContextInput {
    * problems the model can plainly see.
    */
   readonly relatedFindings?: readonly Finding[];
+  /**
+   * True only when this is a `manual`-repairability finding being attempted anyway via `ai:run`'s
+   * `allowManual` opt-in ("Repair All Repairable" only — see `bulk-repair-store.ts`). Without this,
+   * `formatEvidence` would tell the model "Fixora will not repair this automatically" in the SAME
+   * prompt asking it to — that text exists for Explain, where it's true; here it would be stale and
+   * self-contradictory, since eligibility already refused every manual finding this flag isn't set for.
+   */
+  readonly attemptingManualRepair?: boolean;
   /** Ranked, droppable extra context (imports, referenced symbols) — best first. */
   readonly neighbours?: readonly GatePart[];
   /** Detected project conventions, e.g. 'TypeScript strict mode', 'test framework: vitest'. */
@@ -86,7 +94,11 @@ function sliceLines(content: string, startLine: number, endLine: number): string
   return lines.slice(from, to).join('\n');
 }
 
-function formatEvidence(finding: Finding, related: readonly Finding[] = []): string {
+function formatEvidence(
+  finding: Finding,
+  related: readonly Finding[] = [],
+  attemptingManualRepair = false,
+): string {
   const { location } = finding;
   const where = `${location.file}:${String(location.startLine)}:${String(location.startCol)}`;
   const lines = [
@@ -96,19 +108,33 @@ function formatEvidence(finding: Finding, related: readonly Finding[] = []): str
     'code in question:',
     finding.evidence.snippet,
   ];
-  // Why the engine will not repair this, when it will not. Explain is asked to cover that question,
-  // and without the classification in its evidence it can only guess at the answer — or invent one.
-  // Derived from the same `classifyFinding` the panel shows, so the prose and the UI agree.
-  const classification = classifyFinding(finding);
-  if (classification.category !== 'repairable') {
+  if (attemptingManualRepair) {
+    // The rule-specific/deterministic-fix path doesn't apply here — this finding's own analyzer
+    // marked it manual-only — so the model gets the plainest possible framing instead: the rule and
+    // message, asked to fix directly. Still returns through the identical JSON-schema, parser/
+    // verifier/formatter-gated pipeline as every other repair; only the instruction is generic.
     lines.push(
       '',
-      `Fixora classification: ${classification.title}`,
-      `Fixora will not repair this automatically because: ${classification.reason}`,
-      ...(classification.suggestedFix === undefined
-        ? []
-        : [`Known fix: ${classification.suggestedFix}`]),
+      `Refactor this code to fix: ${finding.ruleId} — ${finding.message}`,
+      'Preserve the existing behaviour. If you cannot determine a safe, correct fix for this specific',
+      'code, return the target unchanged rather than guessing — verification will then correctly mark',
+      'it unresolved instead of applying a wrong change.',
     );
+  } else {
+    // Why the engine will not repair this, when it will not. Explain is asked to cover that
+    // question, and without the classification in its evidence it can only guess at the answer — or
+    // invent one. Derived from the same `classifyFinding` the panel shows, so the prose and UI agree.
+    const classification = classifyFinding(finding);
+    if (classification.category !== 'repairable') {
+      lines.push(
+        '',
+        `Fixora classification: ${classification.title}`,
+        `Fixora will not repair this automatically because: ${classification.reason}`,
+        ...(classification.suggestedFix === undefined
+          ? []
+          : [`Known fix: ${classification.suggestedFix}`]),
+      );
+    }
   }
   // Complexity findings have no deterministic fix, but a model can lower the metric while staying
   // within "replace only the target symbol": nested local helpers and early returns are part of the
@@ -152,7 +178,11 @@ export function buildContext(input: ContextInput): BuiltContext {
     endLine: input.target.endLine,
     text: targetText,
   };
-  const evidenceText = formatEvidence(input.finding, input.relatedFindings ?? []);
+  const evidenceText = formatEvidence(
+    input.finding,
+    input.relatedFindings ?? [],
+    input.attemptingManualRepair ?? false,
+  );
 
   // Target + evidence are never dropped, even if they alone exceed the cap (we never truncate them).
   const parts: GatePart[] = [

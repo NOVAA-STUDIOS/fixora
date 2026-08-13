@@ -17,6 +17,9 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
     // That should be a visible line in a diff, which is what this assertion makes it.
     expect(channels).toEqual([
       'system:getAppInfo',
+      'system:getChangelog',
+      'system:getGpuPreference',
+      'system:setGpuCompositingDisabled',
       'system:revealInFolder',
       'system:copyToClipboard',
       'window:minimize',

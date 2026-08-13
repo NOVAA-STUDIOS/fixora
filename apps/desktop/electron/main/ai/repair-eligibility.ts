@@ -51,6 +51,12 @@ export interface RepairEligibilityInput {
    * unchanged; absent or null behaves exactly as before this gate existed.
    */
   configDiagnosis?: ConfigDiagnosis | null;
+  /**
+   * Explicit caller opt-in (`ai:run`'s `allowManual`) to attempt a `manual`-repairability finding
+   * anyway, through this SAME eligibility → model → verify → gate path — never a shortcut around it.
+   * Absent/false preserves today's refusal exactly; only "Repair All Repairable" sets it.
+   */
+  allowManual?: boolean;
 }
 
 /** The languages the repair pipeline can target. Kept explicit so a gap is a decision, not a silent no. */
@@ -100,7 +106,7 @@ export function evaluateRepairEligibility(input: RepairEligibilityInput): Repair
     };
   }
 
-  if (input.repairability === 'manual') {
+  if (input.repairability === 'manual' && input.allowManual !== true) {
     return {
       ...base,
       repairable: false,
