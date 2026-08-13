@@ -1,6 +1,14 @@
 import '@xterm/xterm/css/xterm.css';
 
-import { ChevronDownIcon, PlusIcon, SearchIcon, TerminalIcon, WinCloseIcon, cn } from '@fixora/ui';
+import {
+  ChevronDownIcon,
+  PlusIcon,
+  SearchIcon,
+  TerminalIcon,
+  TrashIcon,
+  WinCloseIcon,
+  cn,
+} from '@fixora/ui';
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
@@ -68,6 +76,15 @@ const LIGHT_THEME: ITheme = {
   brightWhite: '#1e1e1e',
 };
 
+/**
+ * Live xterm instances by session id, so the tab strip's toolbar can act on the ACTIVE terminal
+ * (Clear) without prop-drilling a ref up through `TerminalInstance`'s memo boundary — passing a
+ * callback down would defeat the `memo` that stops every sibling tab re-rendering when the session
+ * list changes. Registered on mount and deleted on unmount by the same effect that owns the
+ * instance, so an entry can never outlive the terminal it points at.
+ */
+const liveTerminals = new Map<string, XTerm>();
+
 function xtermTheme(appearance: 'dark' | 'light'): ITheme {
   return appearance === 'dark' ? DARK_THEME : LIGHT_THEME;
 }
@@ -130,6 +147,18 @@ export function TerminalPanel(): React.JSX.Element {
           ))}
         </div>
         <div className="relative flex shrink-0 items-stretch border-l border-border-subtle">
+          <button
+            type="button"
+            aria-label="Clear terminal"
+            title="Clear terminal (Ctrl+L)"
+            disabled={activeId === null}
+            onClick={() => {
+              if (activeId !== null) liveTerminals.get(activeId)?.clear();
+            }}
+            className="flex items-center px-2 text-fg-muted hover:bg-hover hover:text-fg disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-fg-muted"
+          >
+            <TrashIcon className="size-3.5" />
+          </button>
           <button
             type="button"
             aria-label="New terminal"
@@ -317,7 +346,7 @@ const TerminalInstance = memo(function TerminalInstance({
       rightClickSelectsWord: false,
       // Bounded so an extremely chatty command (a build's own log spam, `git log` on a huge repo)
       // does not grow the terminal's retained line buffer without limit for the life of the tab.
-      scrollback: 1000,
+      scrollback: 10_000,
       // xterm.js's modern replacement for the old `windowsMode` option (renamed when the package
       // moved to the @xterm scope) — the ConPTY-aware reflow/scrollback heuristics node-pty's own
       // Windows backend needs. node-pty always uses ConPTY on modern Windows, so this is safe
@@ -326,6 +355,7 @@ const TerminalInstance = memo(function TerminalInstance({
       ...(navigator.userAgent.includes('Windows') ? { windowsPty: { backend: 'conpty' } } : {}),
     });
     termRef.current = term;
+    liveTerminals.set(sessionId, term);
     const fit = new FitAddon();
     fitRef.current = fit;
     term.loadAddon(fit);
@@ -393,6 +423,15 @@ const TerminalInstance = memo(function TerminalInstance({
       return true;
     });
 
+    // Copy on select, the way a terminal has behaved since xterm(1): releasing a drag puts the
+    // selection straight on the clipboard, no Ctrl+C needed. Guarded on a non-empty selection so a
+    // plain click — which fires this with `''` as it CLEARS the selection — cannot wipe whatever
+    // the user had copied earlier.
+    const selectionListener = term.onSelectionChange(() => {
+      const selection = term.getSelection();
+      if (selection !== '') void navigator.clipboard.writeText(selection);
+    });
+
     let disposed = false;
     const unsubscribeData = subscribe('terminal:data', (payload) => {
       if (payload.id === sessionId) term.write(payload.data);
@@ -441,8 +480,10 @@ const TerminalInstance = memo(function TerminalInstance({
     return () => {
       disposed = true;
       termRef.current = null;
+      liveTerminals.delete(sessionId);
       resizeObserver.disconnect();
       onData.dispose();
+      selectionListener.dispose();
       unsubscribeData();
       unsubscribeExit();
       unsubscribeTitle();
@@ -560,6 +601,30 @@ const TerminalInstance = memo(function TerminalInstance({
               className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-fg hover:bg-hover"
             >
               Paste
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                termRef.current?.selectAll();
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-fg hover:bg-hover"
+            >
+              Select All
+            </button>
+            <div className="my-1 border-t border-border-subtle" />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                termRef.current?.clear();
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs text-fg hover:bg-hover"
+            >
+              Clear
+              <span className="text-[10px] text-fg-muted">Ctrl+L</span>
             </button>
           </div>
         </>
