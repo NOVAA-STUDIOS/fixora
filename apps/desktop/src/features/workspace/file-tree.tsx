@@ -89,8 +89,10 @@ const MAX_INDENT_DEPTH = 12;
 export function FileTree(): React.JSX.Element {
   const nodes = useWorkspaceStore((s) => s.nodes);
   const selected = useWorkspaceStore((s) => s.selectedFile);
+  const selectedDir = useWorkspaceStore((s) => s.selectedDir);
   const toggleDir = useWorkspaceStore((s) => s.toggleDir);
   const selectFile = useWorkspaceStore((s) => s.selectFile);
+  const selectDir = useWorkspaceStore((s) => s.selectDir);
   const rowHeight = useRowHeight();
   const { openMenu, menu } = useFileActions();
   const fileSeverity = useFileSeverity();
@@ -119,6 +121,10 @@ export function FileTree(): React.JSX.Element {
 
   const activate = (node: TreeNode): void => {
     if (node.kind === 'dir') {
+      // Selected as well as expanded: the selection is what the "+" button creates into, so a
+      // folder the user just clicked has to become the target — that is the whole point of the
+      // smart-target behaviour, and expanding alone would leave the target at the root.
+      selectDir(node.relPath);
       void toggleDir(node.relPath);
     } else {
       selectFile(node.relPath);
@@ -137,7 +143,7 @@ export function FileTree(): React.JSX.Element {
           <TreeRow
             node={node}
             height={rowHeight}
-            selected={node.relPath === selected}
+            selected={node.relPath === (node.kind === 'dir' ? selectedDir : selected)}
             severity={fileSeverity.get(node.relPath)}
             onActivate={() => {
               activate(node);

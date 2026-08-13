@@ -36,15 +36,17 @@ vi.mock('../../lib/bridge.js', () => ({ invoke, subscribe: () => () => undefined
 
 const toggleDir = vi.hoisted(() => vi.fn());
 const selectFile = vi.hoisted(() => vi.fn());
+const selectDir = vi.hoisted(() => vi.fn());
 let nodes: TreeNode[] = [];
 let selectedFile: string | null = null;
+let selectedDir: string | null = null;
 
 vi.mock('./workspace-store.js', async (importOriginal) => {
   const actual = await importOriginal<typeof WorkspaceStoreModule>();
   return {
     ...actual,
     useWorkspaceStore: (selector: (s: Record<string, unknown>) => unknown) =>
-      selector({ nodes, selectedFile, toggleDir, selectFile }),
+      selector({ nodes, selectedFile, selectedDir, toggleDir, selectFile, selectDir }),
   };
 });
 
@@ -61,6 +63,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   nodes = [];
   selectedFile = null;
+  selectedDir = null;
   invoke.mockResolvedValue({ ok: true, value: { findings: [] } });
 });
 

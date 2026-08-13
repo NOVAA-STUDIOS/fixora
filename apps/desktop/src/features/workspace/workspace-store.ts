@@ -64,6 +64,15 @@ type WorkspaceState = {
   nodes: TreeNode[];
   /** relPath of the file the user last activated in the tree (drives the editor). */
   selectedFile: string | null;
+  /**
+   * relPath of the folder the user last activated in the tree, or null.
+   *
+   * Separate from `selectedFile` because that one *opens the file in the editor* (editor-area.tsx
+   * reacts to it), and a directory must never be handed to the editor. The two are mutually
+   * exclusive — activating either clears the other — so `newEntryDir()` below always has one
+   * unambiguous answer for "where does the + button create things".
+   */
+  selectedDir: string | null;
   /** The location the editor should scroll to + highlight, or null (a plain file open). */
   revealTarget: RevealTarget | null;
   opening: boolean;
@@ -80,6 +89,17 @@ type WorkspaceState = {
   openPath: (path: string) => Promise<void>;
   toggleDir: (relPath: string) => Promise<void>;
   selectFile: (relPath: string) => void;
+  /** Mark a folder as the current selection (also the + button's create target). */
+  selectDir: (relPath: string) => void;
+  /**
+   * Where a new file/folder should be created right now, workspace-relative ('' = root).
+   *
+   * A selected folder creates INSIDE it; a selected file creates ALONGSIDE it (in its parent) —
+   * the same rule VS Code's tree follows, and the same one `file-context-menu.tsx` already applies
+   * to a right-clicked row. Nothing selected falls back to the root, which is what the + button
+   * did unconditionally before.
+   */
+  newEntryDir: () => string;
   /** Open a file AND scroll to + highlight a range — what clicking a finding does. */
   revealAt: (location: {
     file: string;
@@ -164,6 +184,7 @@ async function performOpenPath(
     workspace: opened.value.workspace,
     nodes: root.ok ? root.value.entries.map((e) => entryToNode(e, 0)) : [],
     selectedFile: null,
+    selectedDir: null,
     revealTarget: null,
     opening: false,
     error: root.ok ? null : root.error.message,
@@ -173,13 +194,21 @@ async function performOpenPath(
 async function performClose(set: (partial: Partial<WorkspaceState>) => void): Promise<void> {
   await invoke('workspace:close', {});
   resetWorkspaceScopedState();
-  set({ workspace: null, nodes: [], selectedFile: null, revealTarget: null, error: null });
+  set({
+    workspace: null,
+    nodes: [],
+    selectedFile: null,
+    selectedDir: null,
+    revealTarget: null,
+    error: null,
+  });
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspace: null,
   nodes: [],
   selectedFile: null,
+  selectedDir: null,
   revealTarget: null,
   opening: false,
   error: null,
@@ -286,7 +315,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   selectFile: (relPath) => {
-    set({ selectedFile: relPath, revealTarget: null });
+    set({ selectedFile: relPath, selectedDir: null, revealTarget: null });
+  },
+
+  selectDir: (relPath) => {
+    set({ selectedDir: relPath, selectedFile: null, revealTarget: null });
+  },
+
+  newEntryDir: () => {
+    const { selectedDir, selectedFile } = get();
+    if (selectedDir !== null) return selectedDir;
+    if (selectedFile !== null) return dirname(selectedFile);
+    return '';
   },
 
   revealAt: (location) => {

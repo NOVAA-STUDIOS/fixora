@@ -112,6 +112,11 @@ export function useFileActions(): {
       <NamePromptDialog
         open={pending?.type === 'newFile' || pending?.type === 'newFolder'}
         title={pending?.type === 'newFile' ? 'New File' : 'New Folder'}
+        // Where it will actually land. The + button's target follows the tree selection now, so
+        // "New File" alone no longer tells the user which folder they are about to create in.
+        targetDir={
+          pending?.type === 'newFile' || pending?.type === 'newFolder' ? pending.dirRelPath : ''
+        }
         initialValue=""
         onCancel={() => {
           setPending(null);
@@ -212,12 +217,16 @@ function NamePromptDialog({
   open,
   title,
   initialValue,
+  targetDir,
   onConfirm,
   onCancel,
 }: {
   open: boolean;
   title: string;
   initialValue: string;
+  /** Workspace-relative destination ('' = project root). Omitted by the rename prompt, which
+   * renames in place and has no destination to disclose. */
+  targetDir?: string;
   onConfirm: (name: string) => void | Promise<void>;
   onCancel: () => void;
 }): React.JSX.Element {
@@ -249,11 +258,20 @@ function NamePromptDialog({
     >
       <DialogContent className="max-w-sm">
         <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>Enter a name.</DialogDescription>
+        <DialogDescription>
+          {targetDir === undefined
+            ? 'Enter a name.'
+            : targetDir === ''
+              ? 'Creating at the project root.'
+              : `Creating in ${targetDir}/`}
+        </DialogDescription>
         <input
           ref={inputRef}
           type="text"
           value={value}
+          placeholder={
+            targetDir === undefined ? undefined : targetDir === '' ? 'name' : `${targetDir}/name`
+          }
           onChange={(e) => {
             setValue(e.target.value);
           }}

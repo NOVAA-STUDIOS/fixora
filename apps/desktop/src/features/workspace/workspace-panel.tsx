@@ -3,6 +3,7 @@ import { Button, ChevronDownIcon, FolderIcon, PlusIcon, WinCloseIcon, cn } from 
 import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
+import { dirname } from '../../lib/path.js';
 
 import { useFileActions } from './file-context-menu.js';
 import { FileTree } from './file-tree.js';
@@ -124,19 +125,42 @@ export function WorkspacePanel(): React.JSX.Element {
  * shared `WorkspaceSwitchGuard` dialog mounted in `AppShell`), so this menu cannot forget the
  * check the way it once could (beta audit A2).
  */
-/** The "+" button — New File/New Folder at the workspace root. Right-clicking a row in the tree
- * itself opens the same menu scoped to that row instead (`file-context-menu.tsx`). */
+/**
+ * The "+" button — New File/New Folder, targeted at the current tree selection.
+ *
+ * It used to be hardcoded to the workspace root, which meant a user who had just clicked the
+ * folder they were working in still got their new file at the top level and had to move it. The
+ * target now follows the selection (`newEntryDir()`: inside a selected folder, alongside a selected
+ * file, root when nothing is selected) and the button's tooltip names it, so the destination is
+ * visible before the click rather than discovered after it. Right-clicking a row in the tree opens
+ * the same menu scoped to that row instead (`file-context-menu.tsx`).
+ */
 function NewAtRootButton(): React.JSX.Element {
   const { openMenu, menu } = useFileActions();
+  // Derived from the subscribed selection rather than read through `getState()`, so the label
+  // re-renders as the selection moves. Same rule as the store's `newEntryDir()`.
+  const selectedDir = useWorkspaceStore((s) => s.selectedDir);
+  const selectedFile = useWorkspaceStore((s) => s.selectedFile);
+  const targetDir = selectedDir ?? (selectedFile === null ? '' : dirname(selectedFile));
   return (
     <>
       <button
         type="button"
-        aria-label="New file or folder"
-        title="New file or folder"
+        aria-label={
+          targetDir === '' ? 'New file or folder' : `New file or folder in ${targetDir}`
+        }
+        title={
+          targetDir === ''
+            ? 'New file or folder (at project root)'
+            : `New file or folder in ${targetDir}`
+        }
         onClick={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
-          openMenu({ relPath: '', kind: 'root' }, rect.left, rect.bottom + 4);
+          openMenu(
+            targetDir === '' ? { relPath: '', kind: 'root' } : { relPath: targetDir, kind: 'dir' },
+            rect.left,
+            rect.bottom + 4,
+          );
         }}
         className="flex items-center rounded p-1 text-fg-secondary hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
       >
