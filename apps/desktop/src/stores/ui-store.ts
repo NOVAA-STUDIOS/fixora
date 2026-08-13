@@ -26,12 +26,25 @@ export type ActivityView =
   | 'packages'
   | 'sourceControl';
 
+/**
+ * Which job the workbench is laid out for.
+ *
+ * The same panels either way — this changes proportions and which one leads, not what exists, so
+ * nothing is ever hidden from the user and no feature is gated behind a mode.
+ *
+ *  - `fix`  — Problems leads: the repair-focused layout Fixora has always opened in.
+ *  - `code` — the editor leads: a narrow file tree and a minimal assistant pane, for the stretch
+ *             where you are writing code rather than working through findings.
+ */
+export type WorkspaceMode = 'fix' | 'code';
+
 /** One view's pane proportions, keyed by panel id. */
 export type PaneSizes = Record<string, number>;
 /** Pane proportions per activity view — a tree and a problems list want different widths. */
 export type PanelLayout = Record<string, PaneSizes>;
 
 const THEMES: readonly ThemeName[] = ['dark', 'light'];
+const WORKSPACE_MODES: readonly WorkspaceMode[] = ['fix', 'code'];
 const EDITOR_THEMES: readonly UiState['editorTheme'][] = ['fixora', 'monokai', 'solarized-dark'];
 const DENSITIES: readonly DensityName[] = ['comfortable', 'compact'];
 // `diagnostics` is deliberately absent from the activity rail — it is reachable from the
@@ -82,6 +95,8 @@ type UiState = {
   theme: ThemeName;
   density: DensityName;
   activeView: ActivityView;
+  /** Which layout the workbench uses. Persisted — it is a working preference, not session state. */
+  workspaceMode: WorkspaceMode;
   /** Not persisted — a palette open across restarts would be a bug, not a feature. */
   paletteOpen: boolean;
   /** The New Project modal. Not persisted — same reasoning as `paletteOpen`. */
@@ -136,6 +151,7 @@ type UiState = {
   setDensity: (density: DensityName) => void;
   toggleDensity: () => void;
   setActiveView: (view: ActivityView) => void;
+  setWorkspaceMode: (mode: WorkspaceMode) => void;
   setPaletteOpen: (open: boolean) => void;
   togglePalette: () => void;
   setNewProjectOpen: (open: boolean) => void;
@@ -158,6 +174,7 @@ export const useUiStore = create<UiState>()(
       theme: 'dark',
       density: 'comfortable',
       activeView: 'workspace',
+      workspaceMode: 'fix',
       paletteOpen: false,
       newProjectOpen: false,
       panelLayout: {},
@@ -192,6 +209,19 @@ export const useUiStore = create<UiState>()(
       },
       setActiveView: (activeView) => {
         set({ activeView });
+      },
+      setWorkspaceMode: (workspaceMode) => {
+        // Switching mode also moves to that mode's home view — Problems for Fix & Analyze, Files
+        // for Code — because "Problems leads" / "the editor leads" is most of what the mode means,
+        // and changing only the pane widths would leave the user staring at the same panel.
+        //
+        // Guarded so it only ever swaps between those two: someone in Search, Source Control or
+        // Packages who flips the mode keeps the view they deliberately chose. Yanking them to a
+        // different panel would be the switch overreaching.
+        const { activeView } = get();
+        const home: ActivityView = workspaceMode === 'code' ? 'workspace' : 'findings';
+        const isOtherHome = activeView === (workspaceMode === 'code' ? 'findings' : 'workspace');
+        set(isOtherHome ? { workspaceMode, activeView: home } : { workspaceMode });
       },
       setPaletteOpen: (paletteOpen) => {
         set({ paletteOpen });
@@ -244,6 +274,7 @@ export const useUiStore = create<UiState>()(
         theme: s.theme,
         density: s.density,
         activeView: s.activeView,
+        workspaceMode: s.workspaceMode,
         panelLayout: s.panelLayout,
         telemetryEnabled: s.telemetryEnabled,
         autoSave: s.autoSave,
@@ -264,6 +295,7 @@ export const useUiStore = create<UiState>()(
           theme: oneOf(p.theme, THEMES, current.theme),
           density: oneOf(p.density, DENSITIES, current.density),
           activeView: oneOf(p.activeView, VIEWS, current.activeView),
+          workspaceMode: oneOf(p.workspaceMode, WORKSPACE_MODES, current.workspaceMode),
           panelLayout: sanitizeLayout(p.panelLayout),
           // Any non-`true` persisted value falls back to opt-OUT — telemetry is off unless the
           // stored value is explicitly the boolean true (FR-5).

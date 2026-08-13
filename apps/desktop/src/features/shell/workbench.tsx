@@ -2,7 +2,7 @@ import { PanelGroupRoot, ResizablePanel, ResizeHandle } from '@fixora/ui';
 import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 
 import { ErrorBoundary } from '../../app/error-boundary.js';
-import { useUiStore } from '../../stores/ui-store.js';
+import { useUiStore, type PaneSizes } from '../../stores/ui-store.js';
 import { AiPanel } from '../ai/ai-panel.js';
 import { EditModeTabs, ProceedView, type EditMode } from '../ai/proceed-panel.js';
 import { EditorArea } from '../editor/editor-area.js';
@@ -63,6 +63,17 @@ const DEFAULT_LAYOUT: Record<string, Record<string, number>> = {
   packages: { primary: 26, editor: 48, ai: 26 },
   sourceControl: { primary: 28, editor: 46, ai: 26 },
 };
+
+/**
+ * Code mode's proportions: the editor leads everywhere.
+ *
+ * One shape for every view rather than a second per-view table, because that is exactly what the
+ * mode means — "I am writing code right now, give the editor the room" — and a per-view spread
+ * would just re-introduce the tuning the mode exists to override. The side panel keeps a real,
+ * readable width (a file tree is the thing you navigate from) and the assistant keeps enough to
+ * hold a diff, so nothing is hidden or unusable; it is a re-weighting, not a different app.
+ */
+const CODE_MODE_LAYOUT: PaneSizes = { primary: 16, editor: 66, ai: 18 };
 
 function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
   if (view === 'workspace') return <WorkspacePanel />;
@@ -127,13 +138,21 @@ function WorkbenchContent(): React.JSX.Element {
   const savedLayout = useUiStore((s) => s.panelLayout);
   const setPanelLayout = useUiStore((s) => s.setPanelLayout);
   const activeView = useUiStore((s) => s.activeView);
+  const workspaceMode = useUiStore((s) => s.workspaceMode);
   const hasWorkspace = useWorkspaceStore((s) => s.workspace !== null);
+
+  // Saved sizes are keyed by MODE and view together. Keying by view alone would make the two modes
+  // fight over one stored number: drag the editor wide in Code mode and Fix mode would reopen with
+  // the same drag applied, which is precisely the tuning the mode was chosen to get away from.
+  const layoutKey = `${workspaceMode}:${activeView}`;
+  const defaultLayout =
+    workspaceMode === 'code' ? CODE_MODE_LAYOUT : DEFAULT_LAYOUT[activeView];
 
   const onLayoutChanged = useCallback(
     (layout: Record<string, number>) => {
-      setPanelLayout(activeView, layout);
+      setPanelLayout(layoutKey, layout);
     },
-    [setPanelLayout, activeView],
+    [setPanelLayout, layoutKey],
   );
 
   // With no project open there is nothing for three panes to show, and each used to render its own
@@ -185,10 +204,10 @@ function WorkbenchContent(): React.JSX.Element {
 
   return (
     <PanelGroupRoot
-      // Keyed by view so the group remounts and picks up that view's default proportions.
-      key={activeView}
+      // Keyed by mode+view so the group remounts and picks up that combination's proportions.
+      key={layoutKey}
       orientation="horizontal"
-      defaultLayout={savedLayout[activeView] ?? DEFAULT_LAYOUT[activeView]}
+      defaultLayout={savedLayout[layoutKey] ?? defaultLayout}
       onLayoutChanged={onLayoutChanged}
       className="min-h-0 flex-1"
     >

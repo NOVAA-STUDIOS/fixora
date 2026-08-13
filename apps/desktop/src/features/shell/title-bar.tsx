@@ -1,4 +1,15 @@
-import { Button, WinCloseIcon, WinMaximizeIcon, WinMinimizeIcon, WinRestoreIcon } from '@fixora/ui';
+import {
+  Button,
+  FileIcon,
+  SparkleIcon,
+  WinCloseIcon,
+  WinMaximizeIcon,
+  WinMinimizeIcon,
+  WinRestoreIcon,
+  cn,
+} from '@fixora/ui';
+
+import { useUiStore, type WorkspaceMode } from '../../stores/ui-store.js';
 
 import { useWindowControls } from './use-window-controls.js';
 
@@ -19,9 +30,12 @@ export function TitleBar(): React.JSX.Element {
       // The whole bar is draggable; interactive children opt out with `no-drag-region` below.
       className="drag-region flex h-10 shrink-0 items-center justify-between pl-3 select-none"
     >
-      <div className="flex items-center gap-2 text-sm font-semibold tracking-tight text-fg">
-        <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
-        Fixora
+      <div className="flex min-w-0 items-center gap-4">
+        <div className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight text-fg">
+          <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
+          Fixora
+        </div>
+        <ModeSwitcher />
       </div>
 
       <div className="no-drag-region flex items-center">
@@ -40,6 +54,75 @@ export function TitleBar(): React.JSX.Element {
         </TitleBarButton>
       </div>
     </header>
+  );
+}
+
+const MODES: readonly {
+  id: WorkspaceMode;
+  label: string;
+  hint: string;
+  Icon: typeof SparkleIcon;
+}[] = [
+  {
+    id: 'fix',
+    label: 'Fix & Analyze',
+    hint: 'Problems lead — the repair-focused layout',
+    Icon: SparkleIcon,
+  },
+  { id: 'code', label: 'Code', hint: 'The editor leads — files and code up front', Icon: FileIcon },
+];
+
+/**
+ * The workbench-mode switcher: a real radiogroup, not two buttons that happen to look like one.
+ *
+ * `radiogroup`/`radio` with `aria-checked` is the role pair that tells a screen reader "these are
+ * the two states of one setting, and this is the current one" — a pair of plain buttons announces
+ * two unrelated actions and never says which is active. Arrow keys move between them for the same
+ * reason, since that is what a radiogroup binds by convention.
+ */
+function ModeSwitcher(): React.JSX.Element {
+  const mode = useUiStore((s) => s.workspaceMode);
+  const setMode = useUiStore((s) => s.setWorkspaceMode);
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Workbench mode"
+      className="no-drag-region flex shrink-0 items-center gap-0.5 rounded-md bg-inset p-0.5"
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        e.preventDefault();
+        setMode(mode === 'fix' ? 'code' : 'fix');
+      }}
+    >
+      {MODES.map(({ id, label, hint, Icon }) => {
+        const active = mode === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            // Only the active option is in the tab order — a radiogroup is one stop, and the arrow
+            // keys above move within it.
+            tabIndex={active ? 0 : -1}
+            title={hint}
+            onClick={() => {
+              setMode(id);
+            }}
+            className={cn(
+              'flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors duration-(--fx-motion-duration-fast) focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline',
+              active
+                ? 'bg-raised font-medium text-fg shadow-sm'
+                : 'text-fg-muted hover:bg-hover hover:text-fg-secondary',
+            )}
+          >
+            <Icon className="size-3.5 shrink-0" />
+            {label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
