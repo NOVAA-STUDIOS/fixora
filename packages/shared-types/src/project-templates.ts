@@ -24,6 +24,18 @@ export type ProjectTemplate = {
 
 export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
   {
+    // First, and therefore the default selection: starting from nothing is the one option that
+    // needs no toolchain, no network and no waiting, so it is the honest default for someone who
+    // does not yet know which stack they want. `mkdir` rather than a special-cased branch in
+    // `project-service.ts` — it goes through the identical spawn/timeout/exit-code path as every
+    // other template, so "create the folder" cannot fail in a way the other templates handle and
+    // this one does not.
+    id: 'blank',
+    label: 'Blank Workspace',
+    description: 'Empty folder — add your own files and structure',
+    command: (name) => `mkdir ${name}`,
+  },
+  {
     id: 'react',
     label: 'React',
     description: 'Vite + React, TypeScript',
