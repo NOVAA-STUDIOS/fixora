@@ -1,6 +1,6 @@
 import type { AIProvider, ProviderEvent } from '@fixora/core-ai';
 import type { Finding } from '@fixora/shared-types';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { generateRepair, spliceLines } from './generate.js';
 
@@ -110,6 +110,52 @@ describe('generateRepair — real wiring against a fake provider', () => {
     const r = await generateRepair({ ...baseInput, provider });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.subsystem).toBe('response-parser');
+  });
+});
+
+describe('generateRepair — retryable provider failures', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('retries a burst rate limit (retryable: true) and succeeds on the retry', async () => {
+    const provider = fakeProvider([
+      [{ type: 'error', retryable: true, providerCode: 'HTTP_429', message: 'rate limited' }],
+      deltas(repairJson('const x: number = 1;')),
+    ]);
+    const pending = generateRepair({ ...baseInput, provider });
+    await vi.runAllTimersAsync();
+    const r = await pending;
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.repairedCode).toBe('const x: number = 1;');
+  });
+
+  it('does NOT retry an exhausted-quota failure (retryable: false)', async () => {
+    const provider = fakeProvider([
+      [{ type: 'error', retryable: false, providerCode: 'HTTP_429', message: 'quota exhausted' }],
+      deltas(repairJson('const x: number = 1;')), // must never be reached
+    ]);
+    const r = await generateRepair({ ...baseInput, provider });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.subsystem).toBe('ai-provider');
+      expect(r.reason).toContain('quota exhausted');
+    }
+  });
+
+  it('gives up after 2 retries (3 total attempts) and reports the last failure', async () => {
+    const attemptError: ProviderEvent[] = [
+      { type: 'error', retryable: true, providerCode: 'HTTP_503', message: 'still down' },
+    ];
+    const provider = fakeProvider([attemptError, attemptError, attemptError]);
+    const pending = generateRepair({ ...baseInput, provider });
+    await vi.runAllTimersAsync();
+    const r = await pending;
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain('still down');
   });
 });
 

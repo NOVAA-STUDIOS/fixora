@@ -47,6 +47,31 @@ export interface FailoverAttemptRecord<C extends FailoverCandidate = FailoverCan
   readonly failure: ProviderFailure;
 }
 
+/**
+ * One same-candidate retry, before the walk considers moving to a DIFFERENT provider. Distinct from
+ * `FailoverAttemptRecord`: that's "this candidate is done, try the next one"; this is "this exact
+ * candidate, once more, after a pause" — for failures where nothing about the candidate is wrong,
+ * only the timing (`retryable: true` in failure.ts — a burst rate limit, a timeout, a 5xx, a
+ * dropped connection). Retrying the SAME provider is strictly cheaper and faster than failing over
+ * to a different one for something that timing alone would fix, and it's the only recovery a
+ * single-provider setup has at all — today that case just failed outright.
+ */
+export interface RetryAttemptRecord<C extends FailoverCandidate = FailoverCandidate> {
+  readonly candidate: C;
+  readonly attempt: number;
+  readonly failure: ProviderFailure;
+  readonly delayMs: number;
+}
+
+const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
+  new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+
 /** Why the walk ended without a success. */
 export type FailoverStopReason =
   /** Every candidate was tried and every one failed. */
@@ -206,7 +231,21 @@ export function shouldFailover(
 export async function runWithFailover<T, C extends FailoverCandidate = FailoverCandidate>(
   candidates: readonly [C, ...C[]],
   attempt: (candidate: C) => Promise<FailoverAttemptResult<T>>,
-  options: { signal?: AbortSignal; onFailover?: (record: FailoverAttemptRecord<C>) => void } = {},
+  options: {
+    signal?: AbortSignal;
+    onFailover?: (record: FailoverAttemptRecord<C>) => void;
+    /** Fired once per same-candidate retry, before the delay it names. Optional — a caller that
+     * doesn't care how the retry sausage is made just sees a slower, more successful walk. */
+    onRetry?: (record: RetryAttemptRecord<C>) => void;
+    /**
+     * Opt-in: delays (ms) for same-candidate retries on a `retryable: true` failure, tried in
+     * order before the walk considers a different provider. Omitted (the default) preserves the
+     * walk's original behaviour exactly — one attempt per candidate, straight to the failover
+     * decision — so every existing caller and every existing test is unaffected. A caller that
+     * wants the recovery a single-provider chain otherwise doesn't have passes e.g. `[1000, 2000]`.
+     */
+    retryBackoffMs?: readonly number[];
+  } = {},
 ): Promise<FailoverOutcome<T, C>> {
   // Generic over the candidate type so a caller carrying richer candidates — the orchestrator's,
   // which hold a live adapter — gets them back unwidened, with no casts at either end.
@@ -238,7 +277,23 @@ export async function runWithFailover<T, C extends FailoverCandidate = FailoverC
       };
     }
 
-    const result = await attempt(candidate);
+    let result = await attempt(candidate);
+
+    // Same-candidate backoff, BEFORE the failover decision — only when the caller opted in via
+    // `retryBackoffMs`. A failure timing alone would fix (burst rate limit, timeout, 5xx, dropped
+    // connection — failure.ts's `retryable: true`) gets up to that many more tries against this
+    // exact candidate, rather than immediately being treated as a reason to try a different
+    // provider. This is the only recovery a single-provider chain otherwise has at all.
+    const backoff = options.retryBackoffMs ?? [];
+    for (let i = 0; !result.ok && result.failure.retryable && i < backoff.length; i += 1) {
+      if (aborted()) break;
+      const delayMs = backoff[i] as number;
+      options.onRetry?.({ candidate, attempt: i + 1, failure: result.failure, delayMs });
+      await delay(delayMs, options.signal);
+      if (aborted()) break;
+      result = await attempt(candidate);
+    }
+
     if (result.ok) {
       // Stop. Nothing further is contacted — every additional call would cost the user money and
       // latency for an answer already in hand.

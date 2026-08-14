@@ -1162,6 +1162,10 @@ export function createAiService(deps: AiServiceDeps): AiService {
           {
             signal: controller.signal,
             task: routingTask,
+            // Opt-in (see failover.ts): a burst rate limit, timeout, 5xx, or dropped connection gets
+            // retried against the SAME provider before the walk considers a different one — the
+            // recovery a single-provider (BYOK) setup otherwise has none of.
+            retryBackoffMs: [1000, 2000],
             onFailover: (record) => {
               console.error('[ai] failing over', {
                 fromProvider: record.candidate.provider,
@@ -1172,6 +1176,17 @@ export function createAiService(deps: AiServiceDeps): AiService {
               // A silent multi-second walk is indistinguishable from the hang this pipeline already
               // has a timeout for. Says "trying a backup model", so automatic recovery reads as
               // recovery rather than as a stall.
+              stage('failing-over');
+            },
+            onRetry: (record) => {
+              console.error('[ai] retrying same provider after a retryable failure', {
+                provider: record.candidate.provider,
+                model: record.candidate.model,
+                attempt: record.attempt,
+                category: record.failure.category,
+                providerCode: record.failure.providerCode,
+                delayMs: record.delayMs,
+              });
               stage('failing-over');
             },
           },

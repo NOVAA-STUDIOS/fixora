@@ -145,17 +145,34 @@ export interface GenerateInput {
   signal?: AbortSignal;
 }
 
-async function streamText(
+/** Same policy as core-ai's runWithFailover (1s, then 2s) — duplicated for the same reason this
+ * whole file is: a tooling package must not depend on the desktop app, and this harness has no
+ * provider chain to fail over across, only one provider to retry against. */
+const RETRY_BACKOFF_MS: readonly number[] = [1000, 2000];
+
+const delay = (ms: number, signal: AbortSignal): Promise<void> =>
+  new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+
+async function streamOnce(
   provider: AIProvider,
   request: ProviderRequest,
   signal: AbortSignal,
-): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+): Promise<
+  { ok: true; text: string } | { ok: false; reason: string; retryable: boolean }
+> {
   let text = '';
   for await (const event of provider.stream(request, signal)) {
     if (event.type === 'text_delta') text += event.text;
     else if (event.type === 'error') {
       return {
         ok: false,
+        retryable: event.retryable,
         reason:
           event.message.trim() === ''
             ? `provider error (${event.providerCode})`
@@ -164,6 +181,36 @@ async function streamText(
     }
   }
   return { ok: true, text };
+}
+
+/**
+ * `streamOnce`, retried up to twice (1s, then 2s) when the failure is a burst rate limit, a
+ * timeout, a 5xx, or a dropped connection (`retryable: true` — failure.ts) — never for an
+ * exhausted-quota 429 or a bad key, which `retryable: false` marks as pointless to repeat.
+ * Each retry is logged so a validation run shows exactly when and why it paused.
+ */
+async function streamText(
+  provider: AIProvider,
+  request: ProviderRequest,
+  signal: AbortSignal,
+): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  let result = await streamOnce(provider, request, signal);
+  for (
+    let i = 0;
+    !result.ok && result.retryable && i < RETRY_BACKOFF_MS.length && !signal.aborted;
+    i += 1
+  ) {
+    const delayMs = RETRY_BACKOFF_MS[i] as number;
+    console.error('[validation] retrying after a retryable provider failure', {
+      attempt: i + 1,
+      delayMs,
+      reason: result.reason,
+    });
+    await delay(delayMs, signal);
+    if (signal.aborted) break;
+    result = await streamOnce(provider, request, signal);
+  }
+  return result.ok ? result : { ok: false, reason: result.reason };
 }
 
 /** The app's exact schema re-ask — `buildReAskMessage`, reason-aware (empty/truncated/schema-

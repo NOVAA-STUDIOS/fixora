@@ -8,6 +8,7 @@ import {
   type AIProvider,
   type CatalogueModel,
   type FailoverAttemptRecord,
+  type RetryAttemptRecord,
   type FailoverAttemptResult,
   type FailoverCandidate,
   type FailoverOutcome,
@@ -87,6 +88,11 @@ export interface Orchestrator {
     options?: {
       signal?: AbortSignal;
       onFailover?: (record: FailoverAttemptRecord<ResolvedCandidate>) => void;
+      /** Fired once per same-candidate backoff retry — a retryable failure (rate-limited, timeout,
+       * provider-unavailable, network-offline), tried again before the walk considers a different
+       * provider. See failover.ts's `runWithFailover` for the policy (2 tries, 1s then 2s). */
+      onRetry?: (record: RetryAttemptRecord<ResolvedCandidate>) => void;
+      retryBackoffMs?: readonly number[];
       /** Complexity/size hint for smart model routing on "auto" providers. Optional; safe to omit. */
       task?: RoutingTask;
     },
@@ -219,6 +225,8 @@ export function createOrchestrator(deps: OrchestratorDeps): Orchestrator {
       options: {
         signal?: AbortSignal;
         onFailover?: (record: FailoverAttemptRecord<ResolvedCandidate>) => void;
+        onRetry?: (record: RetryAttemptRecord<ResolvedCandidate>) => void;
+        retryBackoffMs?: readonly number[];
         task?: RoutingTask;
       } = {},
     ): Promise<OrchestratorOutcome<T>> {

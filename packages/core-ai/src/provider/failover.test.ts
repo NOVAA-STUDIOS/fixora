@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CatalogueModel } from './catalogue.js';
 import {
@@ -232,6 +232,111 @@ describe('failover — cancellation and reporting', () => {
     if (outcome.ok) return;
     expect(outcome.reason).toBe('exhausted');
     expect(outcome.attempts).toHaveLength(1);
+  });
+});
+
+describe('same-candidate retry (opt-in via retryBackoffMs)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Runs `promise` while draining fake timers, so a real await never blocks on a real delay. */
+  async function settled<T>(promise: Promise<T>): Promise<T> {
+    const result = promise;
+    await vi.runAllTimersAsync();
+    return result;
+  }
+
+  it('without retryBackoffMs, behaviour is byte-for-byte the same as before — one attempt, then failover', async () => {
+    const attempt = vi
+      .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
+      .mockResolvedValueOnce(DOWN())
+      .mockResolvedValueOnce(ok('repaired'));
+
+    const outcome = await settled(runWithFailover(CHAIN, attempt));
+
+    expect(outcome.ok).toBe(true);
+    expect(attempt).toHaveBeenCalledTimes(2);
+    if (!outcome.ok) return;
+    expect(outcome.candidate.model).toBe('model-b');
+  });
+
+  it('retries the SAME candidate on a retryable failure before trying a different one', async () => {
+    const attempt = vi
+      .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
+      .mockResolvedValueOnce(DOWN()) // model-a, attempt 1 — retryable
+      .mockResolvedValueOnce(ok('repaired')); // model-a, retry 1 — succeeds
+
+    const outcome = await settled(
+      runWithFailover(CHAIN, attempt, { retryBackoffMs: [1000, 2000] }),
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    // Never moved on: the SAME candidate answered on retry.
+    expect(outcome.candidate.model).toBe('model-a');
+    expect(outcome.attempts).toHaveLength(0);
+    expect(attempt).toHaveBeenCalledTimes(2);
+    expect(attempt.mock.calls[0]?.[0]).toEqual({ provider: 'openrouter', model: 'model-a' });
+    expect(attempt.mock.calls[1]?.[0]).toEqual({ provider: 'openrouter', model: 'model-a' });
+  });
+
+  it('gives up after exhausting the backoff schedule and THEN fails over', async () => {
+    const attempt = vi
+      .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
+      .mockResolvedValueOnce(DOWN()) // model-a, attempt 1
+      .mockResolvedValueOnce(DOWN()) // model-a, retry 1
+      .mockResolvedValueOnce(DOWN()) // model-a, retry 2 — schedule exhausted
+      .mockResolvedValueOnce(ok('repaired')); // model-b
+
+    const outcome = await settled(
+      runWithFailover(CHAIN, attempt, { retryBackoffMs: [1000, 2000] }),
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.candidate.model).toBe('model-b');
+    expect(attempt).toHaveBeenCalledTimes(4);
+    expect(outcome.attempts).toHaveLength(1);
+    expect(outcome.attempts[0]?.candidate.model).toBe('model-a');
+  });
+
+  it('does NOT retry a non-retryable failure (exhausted quota) — fails over immediately', async () => {
+    const attempt = vi
+      .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
+      .mockResolvedValueOnce(fail('HTTP_429', 'free-models-per-day exhausted'))
+      .mockResolvedValueOnce(ok('repaired'));
+
+    const outcome = await settled(
+      runWithFailover(CHAIN, attempt, { retryBackoffMs: [1000, 2000] }),
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.candidate.model).toBe('model-b');
+    expect(attempt).toHaveBeenCalledTimes(2);
+  });
+
+  it('calls onRetry with the attempt number and delay before each retry', async () => {
+    const onRetry = vi.fn();
+    const attempt = vi
+      .fn<(c: FailoverCandidate) => Promise<FailoverAttemptResult<string>>>()
+      .mockResolvedValueOnce(DOWN())
+      .mockResolvedValueOnce(ok('repaired'));
+
+    await settled(runWithFailover(CHAIN, attempt, { retryBackoffMs: [1000, 2000], onRetry }));
+
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(onRetry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        candidate: { provider: 'openrouter', model: 'model-a' },
+        attempt: 1,
+        delayMs: 1000,
+      }),
+    );
   });
 });
 

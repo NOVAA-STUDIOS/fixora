@@ -1,7 +1,7 @@
 import { PREFERRED_FREE_CODE_MODELS } from '@fixora/core-ai';
 import type { AIProvider, CatalogueModel, ProviderEvent, ProviderRequest } from '@fixora/core-ai';
 import type { Finding } from '@fixora/shared-types';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createAiService, type AiServiceDeps } from '../electron/main/ai/ai-service.js';
 import type { KeyStore } from '../electron/main/ai/key-store.js';
@@ -165,6 +165,29 @@ function deps(provider: AIProvider, catalogue: readonly CatalogueModel[]): AiSer
   };
 }
 
+/**
+ * `ai-service.ts` now opts in to `runWithFailover`'s same-candidate backoff (retryBackoffMs:
+ * [1000, 2000] — see failover.ts) for `retryable: true` failures, which is real `setTimeout`
+ * delay. Fake timers so this file's `down()`/`quota()` scenarios don't cost 1-3s of WALL CLOCK
+ * per retryable failure, times however many models the walk tries — which is exactly what pushed
+ * `service.run()` past this suite's per-test timeout under load.
+ */
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+/** Runs `service.run(...)` while draining fake timers, so its internal retry delays resolve
+ * immediately instead of hanging until real time passes. */
+async function runService(
+  service: ReturnType<typeof createAiService>,
+): ReturnType<typeof service.run> {
+  const pending = service.run({ profile: 'repair', findingId: 'find-1' }, null);
+  await vi.runAllTimersAsync();
+  return pending;
+}
 
 describe('ai service — provider failover is wired, not just implemented', () => {
   it('a failure on the configured model moves to a fallback and still returns a repair', async () => {
@@ -174,7 +197,7 @@ describe('ai service — provider failover is wired, not just implemented', () =
     );
     const service = createAiService(deps(provider, preferredCatalogue()));
 
-    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    const result = await runService(service);
 
     expect(asked[0]).toBe(CONFIGURED);
     expect(asked.length).toBeGreaterThan(1);
@@ -188,7 +211,7 @@ describe('ai service — provider failover is wired, not just implemented', () =
     const { provider, asked } = recordingProvider(() => badKey());
     const service = createAiService(deps(provider, preferredCatalogue()));
 
-    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    const result = await runService(service);
 
     // The whole point of the non-retryable stop: one call, not a walk of the entire chain.
     expect(asked).toEqual([CONFIGURED]);
@@ -203,7 +226,7 @@ describe('ai service — provider failover is wired, not just implemented', () =
     const { provider, asked } = recordingProvider(() => answers());
     const service = createAiService(deps(provider, preferredCatalogue()));
 
-    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    const result = await runService(service);
 
     expect(asked).toEqual([CONFIGURED]);
     expect(result.status).toBe('ok');
@@ -213,7 +236,7 @@ describe('ai service — provider failover is wired, not just implemented', () =
     const { provider, asked } = recordingProvider(() => down());
     const service = createAiService(deps(provider, preferredCatalogue()));
 
-    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    const result = await runService(service);
 
     expect(asked.length).toBeGreaterThan(1);
     expect(result.status).toBe('error');
@@ -224,13 +247,17 @@ describe('ai service — provider failover is wired, not just implemented', () =
     expect(result.failure?.model).toBe(asked.at(-1));
   });
 
-  it('with no catalogue there are no fallbacks — behaviour is exactly as before failover existed', async () => {
+  it('with no catalogue, the retryable backoff is the only recovery — then it stops', async () => {
+    // No fallback candidate exists, so a retryable failure gets the same-candidate backoff
+    // (1000ms, 2000ms — retryBackoffMs) before the walk gives up: this IS the fix, not a
+    // regression from "before failover existed" — a single-provider setup previously had no
+    // recovery at all for a burst 503/timeout/network blip.
     const { provider, asked } = recordingProvider(() => down());
     const service = createAiService(deps(provider, []));
 
-    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    const result = await runService(service);
 
-    expect(asked).toEqual([CONFIGURED]);
+    expect(asked).toEqual([CONFIGURED, CONFIGURED, CONFIGURED]);
     expect(result.status).toBe('error');
   });
 });
@@ -249,7 +276,7 @@ describe('ai service — quota exhaustion recovers automatically', () => {
     );
     const service = createAiService(deps(provider, preferredCatalogue()));
 
-    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    const result = await runService(service);
 
     expect(asked[0]).toBe(CONFIGURED);
     expect(asked.length).toBeGreaterThan(1);
@@ -260,7 +287,7 @@ describe('ai service — quota exhaustion recovers automatically', () => {
     const { provider, asked } = recordingProvider(() => outOfCredits());
     const service = createAiService(deps(provider, preferredCatalogue()));
 
-    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    const result = await runService(service);
 
     expect(asked).toEqual([CONFIGURED]);
     expect(result.status).toBe('error');
@@ -273,7 +300,7 @@ describe('ai service — quota exhaustion recovers automatically', () => {
     const { provider, asked } = recordingProvider(() => quota());
     const service = createAiService(deps(provider, preferredCatalogue()));
 
-    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    const result = await runService(service);
 
     expect(result.status).toBe('error');
     if (result.status !== 'error') return;
@@ -293,9 +320,11 @@ describe('ai service — quota exhaustion recovers automatically', () => {
     const seen: string[] = [];
     const { provider } = recordingProvider((model) => {
       seen.push(model);
-      // quota, then an outage, then a dead model - three different reasons, one walk.
+      // quota (non-retryable once classified as exhausted — one call), then an outage
+      // (retryable — the backoff retries this SAME candidate twice more before the walk moves
+      // on, so calls 2-4 all belong to it), then a dead model - three different reasons, one walk.
       if (seen.length === 1) return quota();
-      if (seen.length === 2) return down();
+      if (seen.length <= 4) return down();
       return [
         {
           type: 'error' as const,
@@ -308,9 +337,9 @@ describe('ai service — quota exhaustion recovers automatically', () => {
     });
     const service = createAiService(deps(provider, preferredCatalogue()));
 
-    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    const result = await runService(service);
 
-    expect(seen.length).toBeGreaterThanOrEqual(3);
+    expect(seen.length).toBeGreaterThanOrEqual(5);
     expect(result.status).toBe('error');
     if (result.status !== 'error') return;
     const categories = result.failure?.attempts.map((a) => a.category) ?? [];
@@ -349,7 +378,7 @@ describe('ai service — a rejected repair is never retried on another model', (
       },
     });
 
-    const result = await service.run({ profile: 'repair', findingId: 'find-1' }, null);
+    const result = await runService(service);
 
     // ONE model contacted, however many times. The verification retry re-asks the same model with
     // the verifier's diagnostic fed back (see VERIFY_RETRY_LIMIT in ai-service.ts), which is a

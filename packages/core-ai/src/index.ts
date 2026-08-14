@@ -152,6 +152,7 @@ export {
   runWithFailover,
   shouldFailover,
   type FailoverAttemptRecord,
+  type RetryAttemptRecord,
   type FailoverAttemptResult,
   type FailoverCandidate,
   type FailoverOutcome,
