@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { readdirSync, statSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
-import type { AnalysisState, Finding, FindingsFilter } from '@fixora/shared-types';
+import { dedupeFindings } from '@fixora/core-analysis';
+import type { AnalysisState, AnalysisWarning, Finding, FindingsFilter } from '@fixora/shared-types';
 import type { BrowserWindow } from 'electron';
+import log from 'electron-log';
 
 import type { FindingsRepository } from '../db/repositories.js';
 import { emitToWindow } from '../ipc/emit.js';
@@ -57,6 +59,9 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
         // Streamed as findings arrive, so a long run on a large project shows proof of life instead
         // of the static "Analyzing…" placeholder sitting unchanged for minutes.
         let findingsSoFar = 0;
+        // Reliability warnings (NOV7-01): tools killed at their timeout. Captured here so the final
+        // `done` state carries them — the panel must not present a partial analysis as complete.
+        let runWarnings: AnalysisWarning[] | undefined;
 
         // Capability detection and all engine work happen in the isolated worker (ADR-017); main
         // only hands over the vetted targets. This keeps the ESM engine (and its WASM) out of main.
@@ -76,8 +81,33 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
               emit(window, { status: 'running', findingsSoFar });
             }
           },
+          onNotice: (warnings) => {
+            // Reliability notices (NOV7-01): an external tool was killed at its timeout. Surfaced on
+            // the final state so the panel can show "analysis is partial" instead of a clean bill.
+            runWarnings = warnings;
+            if (!window.isDestroyed()) emit(window, { status: 'running', warnings });
+          },
           onDone: () => {
-            emit(window, { status: 'done', summary: deps.findings.summary(open.id) });
+            // Cross-analyzer dedup, once the full set exists — not per `onFileFindings` batch: two
+            // tools flagging the same line can arrive in separate flushes (analyzers stream
+            // independently, see engine.ts's merge()), so no single batch is ever "complete" enough
+            // to dedup against. This is the one point a full, final set genuinely exists.
+            const { findings: deduped, duplicatesRemoved } = dedupeFindings(
+              deps.findings.list(open.id, {}),
+            );
+            if (duplicatesRemoved > 0) {
+              log.info('[analysis] removed duplicate findings', {
+                workspaceId: open.id,
+                duplicatesRemoved,
+              });
+              deps.findings.clearWorkspace(open.id);
+              deps.findings.appendFindings(open.id, deduped);
+            }
+            emit(window, {
+              status: 'done',
+              summary: deps.findings.summary(open.id),
+              ...(runWarnings !== undefined ? { warnings: runWarnings } : {}),
+            });
           },
           onError: (message) => {
             emit(window, { status: 'error', message });

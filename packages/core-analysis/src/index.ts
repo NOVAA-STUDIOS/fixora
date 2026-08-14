@@ -1,5 +1,6 @@
 export { findingId, normalizeSnippet, type FindingIdInput } from './finding-id.js';
-export type { Analyzer, AnalysisContext, AnalysisFile, WorkspaceCapabilities } from './analyzer.js';
+export { dedupeFindings, type DedupResult } from './dedup.js';
+export type { Analyzer, AnalysisContext, AnalysisFile, AnalysisNotice, WorkspaceCapabilities } from './analyzer.js';
 export { createAnalysisContext, type CreateContextOptions } from './context.js';
 export { complexityAnalyzer } from './analyzers/complexity.js';
 export { createEslintAnalyzer } from './analyzers/eslint.js';
