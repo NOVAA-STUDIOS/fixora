@@ -36,6 +36,7 @@ function entry(overrides: Partial<RepairHistoryEntry> = {}): RepairHistoryEntry 
     model: 'test-model',
     provider: null,
     attempts: [],
+    verifyAttempts: [],
     confidence: 0.9,
     startLine: 1,
     endLine: 1,

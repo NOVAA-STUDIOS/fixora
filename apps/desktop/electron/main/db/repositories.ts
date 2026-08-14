@@ -6,6 +6,7 @@ import type {
   FindingsFilter,
   FindingsSummary,
   RepairHistoryAttempt,
+  VerifyAttempt,
   RepairHistoryEntry,
   Severity,
   Verdict,
@@ -350,6 +351,8 @@ export interface NewRepair {
   provider?: string | null;
   /** Providers tried and failed before the final one — empty when it succeeded on the first try. */
   attempts?: readonly RepairHistoryAttempt[];
+  /** One entry per pass through ai-service.ts's verify/re-ask loop — empty when it verified first try. */
+  verifyAttempts?: readonly VerifyAttempt[];
   confidence: number;
   startLine: number;
   endLine: number;
@@ -361,6 +364,17 @@ function parseAttempts(value: unknown): RepairHistoryAttempt[] {
   try {
     const parsed: unknown = JSON.parse(value);
     return Array.isArray(parsed) ? (parsed as RepairHistoryAttempt[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Same fallback rule as parseAttempts, for the verify-loop column (migration 8). */
+function parseVerifyAttempts(value: unknown): VerifyAttempt[] {
+  if (typeof value !== 'string' || value === '') return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as VerifyAttempt[]) : [];
   } catch {
     return [];
   }
@@ -382,6 +396,7 @@ function toHistoryEntry(row: Row): RepairHistoryEntry {
     model: (row['model'] as string | null) ?? null,
     provider: (row['provider'] as string | null) ?? null,
     attempts: parseAttempts(row['attempts']),
+    verifyAttempts: parseVerifyAttempts(row['verify_attempts']),
     confidence: row['confidence'] as number,
     startLine: row['start_line'] as number,
     endLine: row['end_line'] as number,
@@ -403,9 +418,9 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
         .prepare(
           `INSERT INTO repairs
              (id, workspace_id, finding_id, rel_path, symbol_name, rule_id, source, verdict, applied,
-              rationale, original_code, repaired_code, model, provider, attempts, confidence,
-              start_line, end_line, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              rationale, original_code, repaired_code, model, provider, attempts, verify_attempts,
+              confidence, start_line, end_line, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -422,6 +437,7 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
           repair.model,
           repair.provider ?? null,
           JSON.stringify(repair.attempts ?? []),
+          JSON.stringify(repair.verifyAttempts ?? []),
           repair.confidence,
           repair.startLine,
           repair.endLine,

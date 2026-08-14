@@ -335,10 +335,18 @@ export function describeTimeoutFailure(): ProviderFailure {
  * regardless of WHY parsing failed). Reason-specific where that actually raises the odds of the
  * retry succeeding: a `truncated` response needs "be shorter", not "remove surrounding text" (which
  * it likely didn't have); a `schema-mismatch` already carries the exact offending field in `detail`
- * — echoing it back is strictly more actionable than a generic reminder. Every other reason (empty,
- * no-json-object, malformed-json) keeps the original, still-correct generic instruction.
+ * — echoing it back is strictly more actionable than a generic reminder. `empty` gets its own
+ * explicit instruction (a model that returned nothing needs telling to return SOMETHING, not just
+ * "correct it"). Every other reason (no-json-object, malformed-json) keeps the original, still-
+ * correct generic instruction.
  */
 export function buildReAskMessage(failure: { reason: string; detail: string }): string {
+  if (failure.reason === 'empty') {
+    return (
+      'Your previous response was empty or malformed. Please respond with valid JSON matching ' +
+      'the repair schema. Do not include any explanation — only the JSON object.'
+    );
+  }
   if (failure.reason === 'truncated') {
     return (
       'Your previous response was cut off before it finished — it looked like valid JSON but was ' +

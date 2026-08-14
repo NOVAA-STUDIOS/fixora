@@ -1,0 +1,7 @@
+rules:
+  - id: no-eval
+    languages: [javascript]
+    severity: ERROR
+    message: "Do not use eval() — arbitrary code execution risk."
+    patterns:
+      - pattern: eval(...)

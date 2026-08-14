@@ -1,6 +1,6 @@
 # Fixora — Analyzer Accuracy Report
 
-Generated 2026-07-28T03:09:03.206Z from a real execution of the analysis engine.
+Generated 2026-08-13T16:09:18.529Z from a real execution of the analysis engine.
 Every number below is measured. Anything not measured is marked `n/a` with a reason.
 
 ## Accuracy Dashboard
@@ -20,7 +20,7 @@ Every number below is measured. Anything not measured is marked `n/a` with a rea
 | Attribute mismatches | 0 |
 | Benchmarks passed | 26 / 26 scored |
 | Benchmarks failing (known defects) | 0 |
-| Benchmarks skipped | 0 |
+| Benchmarks skipped | 3 |
 | Benchmarks unsupported | 2 |
 
 ### Per language
@@ -68,9 +68,9 @@ Every number below is measured. Anything not measured is marked `n/a` with a rea
 
 | Metric | Value |
 | --- | ---: |
-| Average analysis time / case | 4172.8 ms |
-| Average analysis time / file | 3390.4 ms |
-| Total analysis time | 108.49 s |
+| Average analysis time / case | 5726.3 ms |
+| Average analysis time / file | 4652.6 ms |
+| Total analysis time | 148.88 s |
 | Scored cases run | 26 (32 files) |
 
 _Wall-clock on this machine, this run. Small cases, so per-case time is dominated by process_
@@ -86,6 +86,14 @@ _startup (spawning eslint/tsc/ruff), not analysis of the file — read it as an 
 These are **not** scored. They are excluded from every accuracy figure above, because a
 language with no analyzer has no accuracy — reporting 0% would imply a broken analyzer and
 100% would be a vacuous pass. They are counted here so the gap stays visible.
+
+### Skipped (tool unavailable on this machine)
+
+- `go-vet-printf` — Requires go — not available on this machine.
+- `mypy-arg-type` — Requires mypy — not available on this machine.
+- `semgrep-eval` — Requires semgrep — not available on this machine.
+
+A skipped case is a fact about the runner, not about Fixora. Not scored.
 
 ### Known defects
 
@@ -111,10 +119,9 @@ Accuracy is a property of Fixora **and** the tools it drives, so the exact versi
 
 | Tool | Version |
 | --- | --- |
-| eslint | v9.39.5 |
 | ruff | ruff 0.15.22 |
 | tsc | Version 6.0.3 |
 
 ### Confidence
 
-Measured over **20 expected findings** across **26 scored benchmark cases**. This is a **small sample**. With 20 expected findings, a single miss moves recall by roughly 5.0 points, so the headline percentage should be read as an indication rather than a stable rate. Growing the dataset is the highest-value next step. **2 cases are unsupported** and contribute nothing to the figures above. Fixora currently has no analyzer for those languages. **Repair accuracy is unmeasured.** No provider key was available for this run.
+Measured over **20 expected findings** across **26 scored benchmark cases**. This is a **small sample**. With 20 expected findings, a single miss moves recall by roughly 5.0 points, so the headline percentage should be read as an indication rather than a stable rate. Growing the dataset is the highest-value next step. **2 cases are unsupported** and contribute nothing to the figures above. Fixora currently has no analyzer for those languages. **3 cases were skipped** because their tool is not installed here; the same suite on a machine with those tools will measure more. **Repair accuracy is unmeasured.** No provider key was available for this run.

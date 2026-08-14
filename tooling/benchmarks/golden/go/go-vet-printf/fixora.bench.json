@@ -1,0 +1,20 @@
+{
+  "id": "go-vet-printf",
+  "language": "go",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "A Printf format verb that doesn't match its argument type must be reported by go vet.",
+  "requiresTools": ["go"],
+  "ignoreRules": [],
+  "expected": [
+    {
+      "file": "src/main.go",
+      "line": 8,
+      "ruleId": "printf",
+      "severity": "error",
+      "analyzer": "go-vet",
+      "repairAvailable": false,
+      "note": "go vet's printf check reports %d given a string argument. No autofix exists for it."
+    }
+  ]
+}

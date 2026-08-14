@@ -57,6 +57,7 @@ export {
 } from './workspace.js';
 export {
   AnalysisStateSchema,
+  AnalysisWarningSchema,
   AutofixEditSchema,
   AutofixSchema,
   CategorySchema,
@@ -72,6 +73,7 @@ export {
   SymbolKindSchema,
   SymbolRefSchema,
   type AnalysisState,
+  type AnalysisWarning,
   type Autofix,
   type AutofixEdit,
   type Category,
@@ -134,6 +136,7 @@ export {
   ModelCatalogueSourceSchema,
   GateMatchInfoSchema,
   RepairHistoryAttemptSchema,
+  VerifyAttemptSchema,
   RepairHistoryEntrySchema,
   RepairOutputSchema,
   RepairTargetSchema,
@@ -176,6 +179,7 @@ export {
   type ApplyRepairRequest,
   type GateMatchInfo,
   type RepairHistoryAttempt,
+  type VerifyAttempt,
   type RepairHistoryEntry,
   type RepairOutput,
   type TaskProfile,

@@ -165,8 +165,16 @@ describe('buildReAskMessage', () => {
     );
   });
 
-  it('every other reason (empty, no-json-object, malformed-json, unknown) uses the generic instruction', () => {
-    for (const reason of ['empty', 'no-json-object', 'malformed-json', 'unknown']) {
+  it('an empty response gets its own explicit instruction to return something', () => {
+    const message = buildReAskMessage({ reason: 'empty', detail: 'irrelevant' });
+    expect(message).toBe(
+      'Your previous response was empty or malformed. Please respond with valid JSON matching ' +
+        'the repair schema. Do not include any explanation — only the JSON object.',
+    );
+  });
+
+  it('every remaining reason (no-json-object, malformed-json, unknown) uses the generic instruction', () => {
+    for (const reason of ['no-json-object', 'malformed-json', 'unknown']) {
       const message = buildReAskMessage({ reason, detail: 'irrelevant' });
       expect(message).toBe(
         'Your previous response was not valid JSON matching the required schema. ' +

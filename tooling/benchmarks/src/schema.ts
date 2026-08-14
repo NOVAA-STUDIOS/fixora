@@ -54,7 +54,7 @@ export const SupportSchema = z.enum(['supported', 'unsupported']);
 export const BenchmarkCaseSchema = z.object({
   /** Stable identifier. Used in the report and in the CI baseline, so it must not churn. */
   id: z.string().min(1),
-  language: z.enum(['javascript', 'typescript', 'react', 'python', 'html', 'css', 'json']),
+  language: z.enum(['javascript', 'typescript', 'react', 'python', 'go', 'html', 'css', 'json']),
   support: SupportSchema,
   /** One line, human-readable: what this case is testing. */
   description: z.string().min(1),

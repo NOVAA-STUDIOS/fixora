@@ -141,6 +141,50 @@ export function renderReport(run: RunResult): string {
     if (n > 0) lines.push(row([o, String(n)]));
   }
 
+  /**
+   * Retry effectiveness — how many attempts each repair actually needed.
+   *
+   * The headline success rate hides this entirely: a repair that verified first try and one that
+   * needed all three re-asks both land in the same bucket, so "is the retry loop earning its tokens?"
+   * was unanswerable from this report. Counted only from records that carry `verifyAttempts`; every
+   * record without it is reported as not-measured rather than silently counted as one attempt.
+   */
+  const withAttempts = attempts.filter(
+    (r) => r.verifyAttempts !== undefined && r.verifyAttempts.length > 0,
+  );
+  lines.push('', '## Retry effectiveness', '');
+  if (withAttempts.length === 0) {
+    lines.push(
+      `_Not measured by this run: 0 of ${String(attempts.length)} records carry per-attempt data._`,
+      '',
+      'This harness drives `generate.ts` directly rather than `ai-service.ts`, whose verify/re-ask',
+      'loop is what produces `verifyAttempts`. Wire the harness through that loop to populate it.',
+    );
+  } else {
+    const buckets = new Map<number, number>();
+    let resolvedOnRetry = 0;
+    for (const r of withAttempts) {
+      const list = r.verifyAttempts ?? [];
+      const n = list.length;
+      buckets.set(n, (buckets.get(n) ?? 0) + 1);
+      const final = list[list.length - 1];
+      if (n > 1 && final?.verdict === 'verified') resolvedOnRetry += 1;
+    }
+    lines.push(row(['Attempts needed', 'Findings']), row(['---', '---:']));
+    for (const n of [...buckets.keys()].sort((a, b) => a - b)) {
+      lines.push(row([String(n), String(buckets.get(n) ?? 0)]));
+    }
+    lines.push(
+      '',
+      row(['Metric', 'Value']),
+      row(['---', '---:']),
+      row(['Records with per-attempt data', frac(withAttempts.length, attempts.length)]),
+      row(['Verified on attempt 1', frac(buckets.get(1) ?? 0, withAttempts.length)]),
+      // The number the retry loop exists to produce: repairs that FAILED first and passed later.
+      row(['Rescued by a retry (failed first, verified later)', frac(resolvedOnRetry, withAttempts.length)]),
+    );
+  }
+
   // Grouped by each project's declared (target) language, so all seven show — including CSS/HTML/JSON
   // that legitimately produce zero repairable findings. Bucketing by the tree language would instead
   // collapse React (.tsx) into TypeScript, which is not what "validate React" means here.

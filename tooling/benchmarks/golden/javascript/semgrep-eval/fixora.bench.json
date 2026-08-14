@@ -1,0 +1,20 @@
+{
+  "id": "semgrep-eval",
+  "language": "javascript",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "A call to eval() must be reported by the workspace's own Semgrep ruleset (no-eval).",
+  "requiresTools": ["semgrep"],
+  "ignoreRules": [],
+  "expected": [
+    {
+      "file": "src/run.js",
+      "line": 2,
+      "ruleId": "no-eval",
+      "severity": "error",
+      "analyzer": "semgrep",
+      "repairAvailable": false,
+      "note": "Semgrep only runs when the workspace ships its own .semgrep.yml (no network fetch) — this fixture ships one rule, no-eval, matching eval(...)."
+    }
+  ]
+}

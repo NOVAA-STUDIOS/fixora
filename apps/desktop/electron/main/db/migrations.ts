@@ -184,4 +184,16 @@ export const migrations: readonly Migration[] = [
       d.exec(`ALTER TABLE repairs ADD COLUMN attempts TEXT NOT NULL DEFAULT '[]'`);
     },
   },
+  {
+    version: 8,
+    name: 'repairs_verify_attempts',
+    up: (d) => {
+      // Distinct from `attempts` (v7, above): that column is which PROVIDERS were tried before one
+      // answered. This one is what happened on EACH pass through ai-service.ts's own verify/re-ask
+      // loop (VERIFY_RETRY_LIMIT) once a provider HAD answered — same provider and model on every
+      // entry, a different verdict each time. Conflating the two would make "how many providers
+      // failed over" and "how many verify retries fired" the same number, which they are not.
+      d.exec(`ALTER TABLE repairs ADD COLUMN verify_attempts TEXT NOT NULL DEFAULT '[]'`);
+    },
+  },
 ];

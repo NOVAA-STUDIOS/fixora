@@ -84,6 +84,12 @@ export interface AttemptRecord {
   rootCause: string;
   /** Wall-clock time for the whole attempt, ms (analysis is amortised per file, not per finding). */
   runtimeMs: number;
+  /**
+   * One entry per verify/re-ask cycle, when the runner that produced this record tracked them.
+   * Optional because the acceptance harness drives `generate.ts` directly rather than going through
+   * `ai-service.ts`'s retry loop — a record without it means "not measured here", never "one attempt".
+   */
+  verifyAttempts?: { attempt: number; verdict: string; failureReason: string | null; model: string }[];
   repair: StageResult;
   verification: StageResult;
   apply: StageResult;

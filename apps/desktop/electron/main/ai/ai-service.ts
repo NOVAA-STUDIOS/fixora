@@ -36,6 +36,7 @@ import type {
   Finding,
   Language,
   RepairHistoryAttempt,
+  VerifyAttempt,
   RepairMode,
   RepairSummary,
   RepairSummaryEntry,
@@ -759,6 +760,14 @@ export function createAiService(deps: AiServiceDeps): AiService {
         current: { provider: string; model: string; attempts: RepairHistoryAttempt[] } | null;
       } = { current: null };
       /**
+       * One entry per pass through `finalize`'s verification call — the initial attempt AND every
+       * retry the loop below runs. Distinct from `usedCandidate.attempts` (provider failover): every
+       * entry here shares the same provider/model, one per verify/re-ask cycle. Written by
+       * `finalize`, read once at the end to persist alongside the repair (Task 1 — retry-effectiveness
+       * measurement, currently invisible in validation-report.md).
+       */
+      const verifyAttemptLog: VerifyAttempt[] = [];
+      /**
        * The verification report of the most recent repair attempt, when it FAILED its gates. Same ref
        * pattern and same reason as the two above: `finalize` writes it from inside a closure.
        *
@@ -800,13 +809,35 @@ export function createAiService(deps: AiServiceDeps): AiService {
        * strictly larger, contains every prerequisite line, and stays at or below the `function` cap.
        */
       const escalateScope = async (failed: VerificationReport): Promise<ProviderRequest | null> => {
-        if (escalations.count >= SCOPE_ESCALATION_LIMIT) return null;
+        // Task 5: every decline path is logged with its reason. Escalation was already implemented
+        // and correct, but silent when it chose NOT to fire — so "the context was never widened" and
+        // "widening was considered and rejected" were indistinguishable in a failed run's log, which
+        // is exactly the question a 57%-success investigation needs answered.
+        if (escalations.count >= SCOPE_ESCALATION_LIMIT) {
+          console.error('[ai:run] scope escalation declined — limit already spent', {
+            limit: SCOPE_ESCALATION_LIMIT,
+            verdict: failed.verdict,
+          });
+          return null;
+        }
         // `ai-file` and `advanced` already span the file — there is nothing above it but the file
         // itself.
-        if (mode === 'ai-file' || mode === 'advanced') return null;
+        if (mode === 'ai-file' || mode === 'advanced') {
+          console.error('[ai:run] scope escalation declined — mode already spans the file', { mode });
+          return null;
+        }
 
         const dependent = detectDependentFailure(failed, patchTarget);
-        if (dependent === null) return null;
+        if (dependent === null) {
+          // The common decline. The verdict is a genuine miss the model could plausibly fix inside
+          // the range it already has, so widening would only enlarge the blast radius for nothing.
+          console.error('[ai:run] scope escalation declined — failure is not range-dependent', {
+            verdict: failed.verdict,
+            syntaxOk: failed.syntaxOk,
+            newFindingCount: failed.newFindingCount,
+          });
+          return null;
+        }
 
         // Dynamic import for the same reason `groupByRootCause` above uses one: `@fixora/core-analysis`
         // is ESM-only and this is the CJS main process, so a static value-import throws at startup.
@@ -867,6 +898,9 @@ export function createAiService(deps: AiServiceDeps): AiService {
           to: { startLine: patchTarget.startLine, endLine: patchTarget.endLine },
         };
         console.error('[ai:run] widening repair scope — the narrow range cannot compile', {
+          // Task 5: which verify attempt triggered this, so "did escalation actually fire" is
+          // answerable from the log alone rather than inferred from timing.
+          triggeredAfterAttempt: verifyAttemptLog.length,
           from: `${String(previous.startLine)}-${String(previous.endLine)}`,
           to: `${String(patchTarget.startLine)}-${String(patchTarget.endLine)}`,
           level: wider.level,
@@ -989,6 +1023,22 @@ export function createAiService(deps: AiServiceDeps): AiService {
                 ? 'regression-detection (new findings)'
                 : 'verification (passed)';
         emitTrace(trace2, 'verdict');
+        // Task 1: one row per verify attempt, logged the moment the verdict is known — not just at
+        // the end — so a run that crashes or is cancelled mid-retry still leaves a partial record
+        // rather than none.
+        const attemptNumber = verifyAttemptLog.length + 1;
+        const attemptModel = usedCandidate.current?.model ?? trace2.configuredModel ?? 'unknown';
+        verifyAttemptLog.push({
+          attempt: attemptNumber,
+          verdict: report.verdict,
+          failureReason: report.verdict === 'verified' || report.verdict === 'skipped' ? null : (report.note ?? null),
+          model: attemptModel,
+        });
+        console.error('[ai:run] verify attempt recorded', {
+          attempt: attemptNumber,
+          verdict: report.verdict,
+          model: attemptModel,
+        });
         // Publish the verdict for the retry loop in `run()`. `verified` and `skipped` are settled
         // outcomes — the first passed its gates, the second had no analyzer to run them, and asking
         // a model to improve on a check that never happened would be noise, not a correction.
@@ -1019,6 +1069,9 @@ export function createAiService(deps: AiServiceDeps): AiService {
           repairedCode: parsed.value.repairedCode,
           model: usedCandidate.current?.model ?? deps.keyStore.getConfig().model,
           provider: usedCandidate.current?.provider ?? null,
+          // A copy, not the live array: `finalize` runs again on every retry and would otherwise
+          // mutate the list already handed to a previous row.
+          verifyAttempts: [...verifyAttemptLog],
           attempts: usedCandidate.current?.attempts ?? [],
           confidence: parsed.value.confidence,
           startLine: patchTarget.startLine,

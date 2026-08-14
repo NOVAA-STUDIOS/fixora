@@ -1,0 +1,20 @@
+{
+  "id": "mypy-arg-type",
+  "language": "python",
+  "support": "supported",
+  "kind": "invalid",
+  "description": "Calling a str-typed function with an int argument must be reported by mypy as arg-type.",
+  "requiresTools": ["mypy"],
+  "ignoreRules": [],
+  "expected": [
+    {
+      "file": "src/greet.py",
+      "line": 6,
+      "ruleId": "arg-type",
+      "severity": "error",
+      "analyzer": "mypy",
+      "repairAvailable": false,
+      "note": "mypy reports [arg-type] when an int literal is passed where a str parameter is declared. No autofix exists for it."
+    }
+  ]
+}

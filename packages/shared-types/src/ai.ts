@@ -501,6 +501,20 @@ export const RepairHistoryAttemptSchema = z.object({
 });
 export type RepairHistoryAttempt = z.infer<typeof RepairHistoryAttemptSchema>;
 
+/**
+ * One pass through ai-service.ts's verify/re-ask loop (VERIFY_RETRY_LIMIT). Distinct from
+ * RepairHistoryAttempt above: that's which PROVIDER answered; this is what the verifier said about
+ * what it answered, same provider/model on every entry. 1-based `attempt`; the last entry is
+ * whichever verdict the proposal actually carried when the loop ended (success or exhaustion).
+ */
+export const VerifyAttemptSchema = z.object({
+  attempt: z.number().int().positive(),
+  verdict: z.string(),
+  failureReason: z.string().nullable(),
+  model: z.string(),
+});
+export type VerifyAttempt = z.infer<typeof VerifyAttemptSchema>;
+
 export const RepairHistoryEntrySchema = z.object({
   id: z.string(),
   findingId: z.string(),
@@ -518,6 +532,8 @@ export const RepairHistoryEntrySchema = z.object({
   provider: z.string().nullable().default(null),
   /** Providers tried and failed before the final one — empty when it succeeded on the first try. */
   attempts: z.array(RepairHistoryAttemptSchema).default([]),
+  /** One entry per pass through the verify/re-ask loop — see VerifyAttemptSchema. */
+  verifyAttempts: z.array(VerifyAttemptSchema).default([]),
   confidence: z.number().min(0).max(1),
   startLine: z.number().int().positive(),
   endLine: z.number().int().positive(),
