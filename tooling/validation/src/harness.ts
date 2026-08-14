@@ -16,7 +16,7 @@ import {
 import type { Finding, Language } from '@fixora/shared-types';
 
 import { compileProject } from './compile.js';
-import { generateRepair } from './generate.js';
+import { generateRepair, reAskAfterVerification } from './generate.js';
 import { collectFiles, type DiscoveredProject } from './projects.js';
 import type {
   AttemptRecord,
@@ -308,10 +308,17 @@ async function runDeterministic(
   });
 }
 
+/** Same bound as ai-service.ts's VERIFY_RETRY_LIMIT — kept in one place there, duplicated here for
+ * the same reason the rest of this file's context assembly is duplicated (see generate.ts's own
+ * docstring): a tooling package must not depend on the desktop app. */
+const VERIFY_RETRY_LIMIT = 3;
+
 /**
- * Drive one AI (model) repair through Generate → the shared gates. A generation failure is classified
- * by its exact subsystem (context/prompt/provider/parser) and never reaches the gates; a successful
- * generation is held to exactly the same gate bar as a deterministic repair.
+ * Drive one AI (model) repair through Generate → the shared gates → (on failure) re-ask with the
+ * verifier's own diagnostic fed back, up to VERIFY_RETRY_LIMIT times — the same loop shape
+ * ai-service.ts runs in production, so this harness's accuracy number reflects what actually ships.
+ * A generation failure is classified by its exact subsystem and never reaches the gates; a
+ * successful generation is held to exactly the same gate bar as a deterministic repair.
  */
 async function runAi(
   project: DiscoveredProject,
@@ -326,6 +333,7 @@ async function runAi(
   stages: ReturnType<typeof blankStages>;
   terminal: Terminal;
   aiDiagnostic?: AttemptRecord['aiDiagnostic'];
+  verifyAttempts: AttemptRecord['verifyAttempts'];
 }> {
   const language: Language = languageForPath(finding.location.file) ?? 'javascript';
   const fileContent = readFileSync(join(project.dir, finding.location.file), 'utf8');
@@ -335,7 +343,10 @@ async function runAi(
     endLine: finding.evidence.enclosingRange?.endLine ?? finding.location.endLine,
   };
 
-  const gen = await generateRepair({
+  const verifyAttempts: NonNullable<AttemptRecord['verifyAttempts']> = [];
+  const signal = new AbortController().signal;
+
+  let gen = await generateRepair({
     provider,
     model,
     finding,
@@ -355,31 +366,74 @@ async function runAi(
         rootCause: gen.reason,
         finalOutcome: 'AI_GENERATE_FAILED',
       },
+      verifyAttempts,
     };
   }
-  const aiDiagnostic = {
-    targetStartLine: target.startLine,
-    targetEndLine: target.endLine,
-    repairedCode: gen.repairedCode,
-  };
-  const result = await runGates({
-    project,
-    file: finding.location.file,
-    finding,
-    language,
-    patched: gen.patched,
-    repairStage: PASS(
-      `model generated a repair (confidence ${gen.confidence.toFixed(2)}` +
-        (gen.reAsked ? ', after one schema re-ask' : '') +
-        `${gen.recovery.length > 0 && gen.recovery[0] !== 'none' ? `, recovery: ${gen.recovery.join('+')}` : ''})`,
-    ),
-    successOutcome: 'AI_REPAIR_APPLIED',
-    beforeIds,
-    capabilities,
-    baselineCompileOk,
-    toolRoot,
-  });
-  return { ...result, aiDiagnostic };
+
+  for (let attempt = 1; attempt <= VERIFY_RETRY_LIMIT; attempt += 1) {
+    const aiDiagnostic = {
+      targetStartLine: target.startLine,
+      targetEndLine: target.endLine,
+      repairedCode: gen.repairedCode,
+    };
+    const result = await runGates({
+      project,
+      file: finding.location.file,
+      finding,
+      language,
+      patched: gen.patched,
+      repairStage: PASS(
+        `model generated a repair (confidence ${gen.confidence.toFixed(2)}` +
+          (gen.reAsked ? ', after one schema re-ask' : '') +
+          `${gen.recovery.length > 0 && gen.recovery[0] !== 'none' ? `, recovery: ${gen.recovery.join('+')}` : ''})`,
+      ),
+      successOutcome: 'AI_REPAIR_APPLIED',
+      beforeIds,
+      capabilities,
+      baselineCompileOk,
+      toolRoot,
+    });
+    const verified = result.terminal.finalOutcome === 'AI_REPAIR_APPLIED';
+    verifyAttempts.push({
+      attempt,
+      verdict: verified ? 'verified' : 'unresolved',
+      failureReason: verified ? null : result.terminal.rootCause,
+      model,
+    });
+    if (verified || attempt === VERIFY_RETRY_LIMIT) {
+      return { ...result, aiDiagnostic, verifyAttempts };
+    }
+    // Re-ask with the verifier's own rootCause fed back, continuing the SAME conversation — the
+    // point of a retry over a fresh request, same reason ai-service.ts's re-ask does this.
+    const retried = await reAskAfterVerification(
+      provider,
+      gen.request,
+      gen.lastText,
+      `Your previous repair did not pass verification: ${result.terminal.rootCause}. ` +
+        'Return a corrected JSON object fixing that specific problem, with no surrounding text.',
+      target.startLine,
+      target.endLine,
+      fileContent,
+      signal,
+    );
+    if (!retried.ok) {
+      return {
+        stages: result.stages,
+        terminal: {
+          stage: 'repair',
+          subsystem: retried.subsystem,
+          rootCause: `retry ${String(attempt + 1)} failed to generate: ${retried.reason}`,
+          finalOutcome: 'AI_GENERATE_FAILED',
+        },
+        aiDiagnostic,
+        verifyAttempts,
+      };
+    }
+    gen = retried;
+  }
+  // Unreachable — the loop always returns by attempt === VERIFY_RETRY_LIMIT — but TypeScript
+  // cannot see that, so this satisfies the return type without a non-null assertion.
+  throw new Error('unreachable: verify-retry loop exited without returning');
 }
 
 /** Build the record for a finding the engine cannot deterministically repair here. */
@@ -491,7 +545,7 @@ export async function runProject(
       attempts.push({ ...common, ...stages, ...terminal, runtimeMs: Date.now() - start });
     } else if (finding.repair === 'ai-required' && ai !== null) {
       const start = Date.now();
-      const { stages, terminal, aiDiagnostic } = await runAi(
+      const { stages, terminal, aiDiagnostic, verifyAttempts } = await runAi(
         project,
         finding,
         ai.provider,
@@ -507,6 +561,7 @@ export async function runProject(
         ...terminal,
         runtimeMs: Date.now() - start,
         ...(aiDiagnostic !== undefined ? { aiDiagnostic } : {}),
+        ...(verifyAttempts !== undefined ? { verifyAttempts } : {}),
       });
     } else {
       attempts.push(nonDeterministicRecord(common, finding));

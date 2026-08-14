@@ -157,8 +157,10 @@ export function renderReport(run: RunResult): string {
     lines.push(
       `_Not measured by this run: 0 of ${String(attempts.length)} records carry per-attempt data._`,
       '',
-      'This harness drives `generate.ts` directly rather than `ai-service.ts`, whose verify/re-ask',
-      'loop is what produces `verifyAttempts`. Wire the harness through that loop to populate it.',
+      'The harness\'s `runAi` now runs its own verify/re-ask loop (up to 3 attempts, same bound as ' +
+        '`ai-service.ts`\'s VERIFY_RETRY_LIMIT, re-asking with the verifier\'s rootCause fed back) and ' +
+        'records `verifyAttempts` for every AI attempt it actually makes. This run shows 0 because no ' +
+        'AI attempts ran at all — set FIXORA_BENCH_OPENROUTER_KEY to exercise the AI leg.',
     );
   } else {
     const buckets = new Map<number, number>();

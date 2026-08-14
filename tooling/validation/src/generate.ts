@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import {
   buildContext,
+  buildReAskMessage,
   parseRepairOutput,
   prepareRequest,
   type AIProvider,
@@ -122,6 +123,10 @@ export type GenerateResult =
       recovery: readonly string[];
       /** Whether the valid output came only after the schema re-ask. */
       reAsked: boolean;
+      /** The exact request sent — carried so a caller can build a verification-failure follow-up
+       * against the SAME conversation, the way ai-service.ts's retry loop does. */
+      request: ProviderRequest;
+      lastText: string;
     }
   | {
       ok: false;
@@ -161,17 +166,17 @@ async function streamText(
   return { ok: true, text };
 }
 
-/** The app's exact schema re-ask: append the bad answer + a demand for JSON only, then stream again. */
-function reAskRequest(request: ProviderRequest, previous: string): ProviderRequest {
+/** The app's exact schema re-ask — `buildReAskMessage`, reason-aware (empty/truncated/schema-
+ * mismatch each get their own instruction), not a hand-duplicated generic string. */
+function reAskRequest(
+  request: ProviderRequest,
+  previous: string,
+  failure: { reason: string; detail: string } = { reason: 'unknown', detail: '' },
+): ProviderRequest {
   const messages: ProviderMessage[] = [
     ...request.messages,
     { role: 'assistant', content: previous },
-    {
-      role: 'user',
-      content:
-        'Your previous response was not valid JSON matching the required schema. ' +
-        'Return ONLY the JSON object, with no surrounding text.',
-    },
+    { role: 'user', content: buildReAskMessage(failure) },
   ];
   return { ...request, messages };
 }
@@ -217,7 +222,11 @@ export async function generateRepair(input: GenerateInput): Promise<GenerateResu
   let parsed = parseRepairOutput(text);
   if (!parsed.ok) {
     reAsked = true;
-    const retry = await streamText(input.provider, reAskRequest(prepared.request, text), signal);
+    const retry = await streamText(
+      input.provider,
+      reAskRequest(prepared.request, text, { reason: parsed.reason, detail: parsed.detail }),
+      signal,
+    );
     if (!retry.ok) return { ok: false, subsystem: 'ai-provider', reason: retry.reason };
     text = retry.text;
     parsed = parseRepairOutput(text);
@@ -244,5 +253,68 @@ export async function generateRepair(input: GenerateInput): Promise<GenerateResu
     confidence: parsed.value.confidence,
     recovery: parsed.recovery,
     reAsked,
+    request: prepared.request,
+    lastText: text,
+  };
+}
+
+/**
+ * A verification-failure retry: the app's `buildVerificationReAskMessage`, sent as a follow-up to
+ * the SAME conversation an earlier `generateRepair` call started — the request/lastText it returned.
+ * Never a fresh request: continuing the conversation is what lets the model see its own prior,
+ * REJECTED answer alongside the reason it was rejected, exactly as ai-service.ts's retry loop does.
+ */
+export async function reAskAfterVerification(
+  provider: AIProvider,
+  previousRequest: ProviderRequest,
+  previousText: string,
+  verificationMessage: string,
+  targetStartLine: number,
+  targetEndLine: number,
+  fileContent: string,
+  signal: AbortSignal,
+): Promise<GenerateResult> {
+  const messages: ProviderMessage[] = [
+    ...previousRequest.messages,
+    { role: 'assistant', content: previousText },
+    { role: 'user', content: verificationMessage },
+  ];
+  const request: ProviderRequest = { ...previousRequest, messages };
+
+  const stream = await streamText(provider, request, signal);
+  if (!stream.ok) return { ok: false, subsystem: 'ai-provider', reason: stream.reason };
+
+  let text = stream.text;
+  let reAsked = false;
+  let parsed = parseRepairOutput(text);
+  if (!parsed.ok) {
+    reAsked = true;
+    const retry = await streamText(
+      provider,
+      reAskRequest(request, text, { reason: parsed.reason, detail: parsed.detail }),
+      signal,
+    );
+    if (!retry.ok) return { ok: false, subsystem: 'ai-provider', reason: retry.reason };
+    text = retry.text;
+    parsed = parseRepairOutput(text);
+  }
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      subsystem: 'response-parser',
+      reason: `model output did not match the repair schema after a re-ask: ${parsed.reason} — ${parsed.detail}`,
+    };
+  }
+
+  return {
+    ok: true,
+    repairedCode: parsed.value.repairedCode,
+    patched: spliceLines(fileContent, targetStartLine, targetEndLine, parsed.value.repairedCode),
+    rationale: parsed.value.rationale,
+    confidence: parsed.value.confidence,
+    recovery: parsed.recovery,
+    reAsked,
+    request,
+    lastText: text,
   };
 }
