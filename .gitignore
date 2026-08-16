@@ -30,3 +30,9 @@ packages/core-analysis/vendor/
 # Python bytecode from the validation harness compile step (should never be written into the corpus)
 __pycache__/
 *.pyc
+
+# Ad-hoc scratch output from local debugging sessions
+*.dev-out.txt
+.suite-out.txt
+.validate-out.txt
+"FIXORA - Shortcut.lnk"
