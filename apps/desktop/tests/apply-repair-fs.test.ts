@@ -18,7 +18,7 @@ type ApplyReq = {
   expectedOriginal: string;
   historyId?: string;
 };
-type Handler = (req: ApplyReq, ctx: { requestId: string; window: null }) => ApplyOutcome;
+type Handler = (req: ApplyReq, ctx: { requestId: string; window: null }) => Promise<ApplyOutcome>;
 
 /**
  * P0 Priority 1 regression: `ai:applyRepair` reads then writes the real file, and BOTH are guarded.
@@ -54,7 +54,7 @@ describe('ai:applyRepair — filesystem failures travel as contract data', () =>
   it('a repair targeting a file that no longer exists returns read-failed, not a thrown error', async () => {
     const handler = await applyHandler(root);
     // src/gone.ts was never created — the read must fail with the fs layer's precise reason.
-    const outcome = handler(
+    const outcome = await handler(
       { file: 'src/gone.ts', startLine: 1, endLine: 1, code: 'x', expectedOriginal: 'x' },
       { requestId: 'r1', window: null },
     );
@@ -70,7 +70,7 @@ describe('ai:applyRepair — filesystem failures travel as contract data', () =>
   it('applies cleanly when the file is present and the range matches', async () => {
     writeFileSync(join(root, 'src', 'a.ts'), 'const a = 1;\n');
     const handler = await applyHandler(root);
-    const outcome = handler(
+    const outcome = await handler(
       {
         file: 'src/a.ts',
         startLine: 1,
@@ -87,8 +87,8 @@ describe('ai:applyRepair — filesystem failures travel as contract data', () =>
     // Windows file with CRLF endings; the "repair" is LF, as a model reply always is.
     const crlf = 'const a = 1;\r\nconst b = 2;\r\nconst c = 3;\r\n';
     writeFileSync(join(root, 'src', 'w.ts'), crlf);
-    return applyHandler(root).then((handler) => {
-      const outcome = handler(
+    return applyHandler(root).then(async (handler) => {
+      const outcome = await handler(
         {
           file: 'src/w.ts',
           startLine: 2,
@@ -112,7 +112,7 @@ describe('ai:applyRepair — filesystem failures travel as contract data', () =>
     writeFileSync(join(root, 'src', 'm.ts'), 'const a = 1;\nconst b = 2;\nconst c = 3;\n');
     const handler = await applyHandler(root);
 
-    const a = handler(
+    const a = await handler(
       {
         file: 'src/m.ts',
         startLine: 2,
@@ -125,7 +125,7 @@ describe('ai:applyRepair — filesystem failures travel as contract data', () =>
     expect(a.applied).toBe(true);
 
     // Repair B targets the same line but its expectedOriginal is the ORIGINAL (stale) text.
-    const b = handler(
+    const b = await handler(
       {
         file: 'src/m.ts',
         startLine: 2,
@@ -146,7 +146,7 @@ describe('ai:applyRepair — filesystem failures travel as contract data', () =>
   it('P0.3 req #7: a repair whose expected original no longer matches is never applied', async () => {
     writeFileSync(join(root, 'src', 'x.ts'), 'const a = 1;\n');
     const handler = await applyHandler(root);
-    const outcome = handler(
+    const outcome = await handler(
       {
         file: 'src/x.ts',
         startLine: 1,
@@ -171,7 +171,7 @@ describe('ai:applyRepair — filesystem failures travel as contract data', () =>
       const handler = await applyHandler(root);
       let outcome: ApplyOutcome;
       try {
-        outcome = handler(
+        outcome = await handler(
           {
             file: 'src/ro.ts',
             startLine: 1,
@@ -206,7 +206,7 @@ describe('ai:applyRepair — survives a target that moved but did not change', (
       'import { x } from "./x";\nconst a = 1;\nconst b = 2;\nconst c = 3;\n',
     );
     const handler = await applyHandler(root);
-    const outcome = handler(
+    const outcome = await handler(
       {
         file: 'src/m.ts',
         startLine: 2, // stale — recorded before the import was added
@@ -231,7 +231,7 @@ describe('ai:applyRepair — survives a target that moved but did not change', (
       'import { x } from "./x";\nconst a = 1;\nconst b = 999;\nconst c = 3;\n',
     );
     const handler = await applyHandler(root);
-    const outcome = handler(
+    const outcome = await handler(
       {
         file: 'src/m.ts',
         startLine: 2,
@@ -251,7 +251,7 @@ describe('ai:applyRepair — survives a target that moved but did not change', (
   it('an unmoved target applies normally with relocated: false', async () => {
     writeFileSync(join(root, 'src', 'm.ts'), 'const a = 1;\nconst b = 2;\nconst c = 3;\n');
     const handler = await applyHandler(root);
-    const outcome = handler(
+    const outcome = await handler(
       {
         file: 'src/m.ts',
         startLine: 2,

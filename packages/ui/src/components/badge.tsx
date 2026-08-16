@@ -10,7 +10,10 @@ import { cn } from '../lib/cn.js';
  * a finding a user cannot read is a finding we did not report.
  */
 export const badgeVariants = cva(
-  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium leading-none',
+  // Tone can change under a caller's own state (e.g. a verdict badge moving verified → regression);
+  // the token duration collapses to 1ms under `prefers-reduced-motion` the same as every other
+  // primitive (packages/tokens/src/scales.ts), so this needs no reduced-motion handling of its own.
+  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium leading-none transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
   {
     variants: {
       tone: {

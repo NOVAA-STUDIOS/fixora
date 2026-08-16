@@ -63,7 +63,7 @@ export function ActivityRail(): React.JSX.Element {
               // A rounded target inset from the rail edges, rather than a full-bleed strip. The rail
               // sits on the chrome layer now, so an item that lights up edge-to-edge reads as a
               // background change; a pill reads as a thing you pressed.
-              'relative mx-1.5 flex flex-col items-center gap-1.5 rounded-lg px-1 text-[10px] font-medium',
+              'group relative mx-1.5 flex flex-col items-center gap-1.5 rounded-lg px-1 text-[10px] font-medium',
               // Vertical padding from the card token, so a rail item tightens with everything else.
               'py-(--fx-card-padding-y)',
               // Every other interactive surface in the app animates its hover; the rail — the most
@@ -75,7 +75,12 @@ export function ActivityRail(): React.JSX.Element {
                 : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
           >
-            <Icon className="size-5 shrink-0" />
+            <Icon
+              className={cn(
+                'size-5 shrink-0 transition-transform duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+                !active && 'group-hover:scale-110',
+              )}
+            />
             {/*
               leading-none (line-height: 1) left no buffer above a glyph's descender — invisible
               for every label until "Suggest" (F1) added the rail's first descender (the two "g"s),

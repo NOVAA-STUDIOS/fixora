@@ -8,6 +8,9 @@ import {
   AiRunResponseSchema,
   ApplyOutcomeSchema,
   ApplyRepairRequestSchema,
+  BulkRepairStartSchema,
+  BulkRepairFlushSchema,
+  BulkRepairFlushResultSchema,
   ProceedOutcomeSchema,
   ProceedRunRequestSchema,
   RepairHistoryEntrySchema,
@@ -327,6 +330,10 @@ export const contracts = {
   // Returns a structured outcome rather than throwing: a stale range is an expected condition the
   // user can act on, and a thrown error would be redacted to a generic string by the router.
   'ai:applyRepair': { request: ApplyRepairRequestSchema, response: ApplyOutcomeSchema },
+  // Brackets a "Repair All" run: Start arms the buffer so the `ai:applyRepair` calls in between defer
+  // their history write; Flush commits everything buffered in one transaction and reports the count.
+  'ai:bulkRepairStart': { request: BulkRepairStartSchema, response: z.void() },
+  'ai:bulkRepairFlush': { request: BulkRepairFlushSchema, response: BulkRepairFlushResultSchema },
   // The local repair audit trail for the open workspace, newest first.
   'ai:history': {
     request: empty,

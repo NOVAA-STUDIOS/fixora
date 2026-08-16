@@ -75,6 +75,11 @@ export const channels = [
   'ai:run',
   'ai:cancel',
   'ai:applyRepair',
+  // "Repair All": brackets a sequential run of `ai:applyRepair` calls so their history writes are
+  // buffered in main and committed as one `driver.transaction()` at the end, instead of one commit
+  // per repair.
+  'ai:bulkRepairStart',
+  'ai:bulkRepairFlush',
   'ai:history',
   'ai:historyRemove',
   'ai:historyClear',

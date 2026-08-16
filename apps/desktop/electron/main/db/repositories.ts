@@ -411,43 +411,83 @@ function toHistoryEntry(row: Row): RepairHistoryEntry {
  * the AI proposed and what they accepted.
  */
 export function createRepairHistoryRepository(driver: SqliteDriver, now: () => number = Date.now) {
+  // Buffered writes for a "Repair All" run. `null` = write immediately (the default, everyday path);
+  // an array = `record()`/`markApplied()` push a descriptor here instead of touching the DB, and
+  // `flush()` replays every descriptor inside one `driver.transaction()`. One buffer, not one per
+  // workspace, because main only ever has one workspace open at a time (every other repository here
+  // makes the same assumption via `deps.workspace.getCurrent()`).
+  type BufferedOp = { kind: 'insert'; id: string; repair: NewRepair } | { kind: 'markApplied'; id: string };
+  let buffered: BufferedOp[] | null = null;
+
+  const insert = (id: string, repair: NewRepair): void => {
+    driver
+      .prepare(
+        `INSERT INTO repairs
+           (id, workspace_id, finding_id, rel_path, symbol_name, rule_id, source, verdict, applied,
+            rationale, original_code, repaired_code, model, provider, attempts, verify_attempts,
+            confidence, start_line, end_line, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        repair.workspaceId,
+        repair.findingId,
+        repair.relPath,
+        repair.symbolName,
+        repair.ruleId,
+        repair.source,
+        repair.verdict,
+        repair.rationale,
+        repair.originalCode,
+        repair.repairedCode,
+        repair.model,
+        repair.provider ?? null,
+        JSON.stringify(repair.attempts ?? []),
+        JSON.stringify(repair.verifyAttempts ?? []),
+        repair.confidence,
+        repair.startLine,
+        repair.endLine,
+        now(),
+      );
+  };
+
+  const applyMark = (id: string): void => {
+    driver.prepare('UPDATE repairs SET applied = 1, applied_at = ? WHERE id = ?').run(now(), id);
+  };
+
   return {
+    /** Arms the buffer. Idempotent: a second call just resets it, rather than erroring, so a caller
+     * that starts a new bulk run without ever flushing the last one (a crash, a bug) cannot wedge
+     * every future repair into a buffer nothing will ever flush. */
+    beginBulk(): void {
+      buffered = [];
+    },
+
+    /** Replays every buffered write in one transaction and disarms the buffer. Returns the count —
+     * `0` is a legitimate result (every attempted repair failed before reaching a write). */
+    flush(): number {
+      const ops = buffered ?? [];
+      buffered = null;
+      if (ops.length === 0) return 0;
+      driver.transaction(() => {
+        for (const op of ops) {
+          if (op.kind === 'insert') insert(op.id, op.repair);
+          else applyMark(op.id);
+        }
+      });
+      return ops.length;
+    },
+
     record(repair: NewRepair): string {
       const id = randomUUID();
-      driver
-        .prepare(
-          `INSERT INTO repairs
-             (id, workspace_id, finding_id, rel_path, symbol_name, rule_id, source, verdict, applied,
-              rationale, original_code, repaired_code, model, provider, attempts, verify_attempts,
-              confidence, start_line, end_line, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          id,
-          repair.workspaceId,
-          repair.findingId,
-          repair.relPath,
-          repair.symbolName,
-          repair.ruleId,
-          repair.source,
-          repair.verdict,
-          repair.rationale,
-          repair.originalCode,
-          repair.repairedCode,
-          repair.model,
-          repair.provider ?? null,
-          JSON.stringify(repair.attempts ?? []),
-          JSON.stringify(repair.verifyAttempts ?? []),
-          repair.confidence,
-          repair.startLine,
-          repair.endLine,
-          now(),
-        );
+      if (buffered !== null) buffered.push({ kind: 'insert', id, repair });
+      else insert(id, repair);
       return id;
     },
 
     markApplied(id: string): void {
-      driver.prepare('UPDATE repairs SET applied = 1, applied_at = ? WHERE id = ?').run(now(), id);
+      if (buffered !== null) buffered.push({ kind: 'markApplied', id });
+      else applyMark(id);
     },
 
     list(workspaceId: string, limit = 200): RepairHistoryEntry[] {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 // TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause).
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { capabilitiesFor, suggestCapableModel } from '@fixora/core-ai';
@@ -355,7 +355,7 @@ export function registerAiHandlers(deps: {
 
   registerHandler(
     'ai:applyRepair',
-    ({ file, startLine, endLine, code, expectedOriginal, historyId, forced }): ApplyOutcome => {
+    async ({ file, startLine, endLine, code, expectedOriginal, historyId, forced }): Promise<ApplyOutcome> => {
       /**
        * Audit: an UNVERIFIED patch is entering the user's source tree at their explicit request.
        *
@@ -550,7 +550,7 @@ export function registerAiHandlers(deps: {
       // that only appears after the write can be told apart from one already present beforehand.
       if (file.includes('proceed-diag')) {
         try {
-          const onDisk = readFileSync(join(workspace.rootPath, file));
+          const onDisk = await readFile(join(workspace.rootPath, file));
           const expectedBuf = Buffer.from(patched, 'utf8');
           let diskNulCount = 0;
           for (const byte of onDisk) if (byte === 0) diskNulCount++;
@@ -573,6 +573,20 @@ export function registerAiHandlers(deps: {
       return { applied: true, staleRangeCheck: finalRangeCheck, bytesWritten: patched.length, relocated };
     },
   );
+
+  // "Repair All": brackets a sequential run of `ai:applyRepair` calls. Workspace-scoped by the
+  // request only for symmetry with every other bulk-relevant channel — the buffer itself is
+  // process-wide, matching `deps.history`'s own single-active-workspace assumption.
+  registerHandler('ai:bulkRepairStart', ({ workspaceId }) => {
+    console.error('[bulk-repair] buffer armed', { workspaceId });
+    deps.history.beginBulk();
+  });
+
+  registerHandler('ai:bulkRepairFlush', ({ workspaceId }) => {
+    const flushed = deps.history.flush();
+    console.error('[bulk-repair] buffer flushed', { workspaceId, flushed });
+    return { flushed };
+  });
 
   registerHandler('ai:history', () => {
     const workspace = deps.workspace.getCurrent();

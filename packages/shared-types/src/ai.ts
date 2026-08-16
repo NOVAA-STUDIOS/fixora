@@ -477,6 +477,29 @@ export const ApplyOutcomeSchema = z.discriminatedUnion('applied', [
 ]);
 export type ApplyOutcome = z.infer<typeof ApplyOutcomeSchema>;
 
+/**
+ * Brackets a "Repair All" run so the repair-history writes `ai:applyRepair` would otherwise make one
+ * at a time are buffered in main instead, and committed as a single `driver.transaction()` by
+ * `ai:bulkRepairFlush`. The individual `ai:applyRepair` calls in between are unchanged — this only
+ * changes when their DB write actually lands, not what they do.
+ */
+export const BulkRepairStartSchema = z.object({
+  workspaceId: z.string().min(1),
+});
+export type BulkRepairStart = z.infer<typeof BulkRepairStartSchema>;
+
+export const BulkRepairFlushSchema = z.object({
+  workspaceId: z.string().min(1),
+});
+export type BulkRepairFlush = z.infer<typeof BulkRepairFlushSchema>;
+
+/** How many buffered history writes were actually committed — `0` is a legitimate, common answer
+ * (every attempted repair failed before reaching a write), not an error. */
+export const BulkRepairFlushResultSchema = z.object({
+  flushed: z.number().int().nonnegative(),
+});
+export type BulkRepairFlushResult = z.infer<typeof BulkRepairFlushResultSchema>;
+
 /** One recorded repair in the local, private audit trail (Beta Phase E). */
 /** The classification vocabulary, extracted so an attempt entry can reuse it. */
 export const FailureCategorySchema = z.enum([

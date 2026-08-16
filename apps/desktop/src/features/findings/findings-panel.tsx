@@ -25,7 +25,7 @@ import {
   VirtualList,
   cn,
 } from '@fixora/ui';
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useFindingRowEstimate } from '../../hooks/use-density-metrics.js';
 import { basename } from '../../lib/path.js';
@@ -58,6 +58,13 @@ const GROUP_MODES: { mode: GroupMode; label: string; icon: string }[] = [
   { mode: 'file', label: 'File', icon: '📄' },
   { mode: 'severity', label: 'Severity', icon: '⚠' },
 ];
+
+/** Coarse enough to be honest about an estimate, not a countdown: "~1m" not "58s". */
+function formatEta(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `~${String(totalSeconds)}s`;
+  return `~${String(Math.round(totalSeconds / 60))}m`;
+}
 
 const SEVERITY_ORDER: Severity[] = ['error', 'warning', 'info'];
 const SEVERITY_STYLE: Record<Severity, string> = {
@@ -117,6 +124,8 @@ export function FindingsPanel(): React.JSX.Element {
   const bulkStatus = useBulkRepairStore((s) => s.status);
   const bulkTotal = useBulkRepairStore((s) => s.total);
   const bulkIndex = useBulkRepairStore((s) => s.index);
+  const bulkCurrentLabel = useBulkRepairStore((s) => s.currentFindingLabel);
+  const bulkEtaMs = useBulkRepairStore((s) => s.etaMs);
   const bulkProgress = useBulkRepairStore((s) => s.progress);
   const bulkSummary = useBulkRepairStore((s) => s.summary);
   const bulkStart = useBulkRepairStore((s) => s.start);
@@ -132,10 +141,17 @@ export function FindingsPanel(): React.JSX.Element {
   // findings are shown, and without interleaving header rows into `VirtualList`, whose roving-focus
   // and selection contract assumes every row is a selectable finding. A stable sort keeps the
   // analyzer's own ordering inside each group.
-  const visible = findings
-    .filter((f) => !ignoredIds.includes(f.id))
-    .slice()
-    .sort((a, b) => categoryRank(a) - categoryRank(b));
+  // Memoized: with 1000+ findings, `.filter().slice().sort()` is real work, and without this it ran
+  // on EVERY render — including a keystroke in the search box, which touches unrelated local state
+  // and previously re-derived this whole chain (and every downstream `VirtualList` row) for nothing.
+  const visible = useMemo(
+    () =>
+      findings
+        .filter((f) => !ignoredIds.includes(f.id))
+        .slice()
+        .sort((a, b) => categoryRank(a) - categoryRank(b)),
+    [findings, ignoredIds],
+  );
   const categoryCounts = countByCategory(visible);
   // Same list the panel shows: ignored findings are excluded, so the breakdown always agrees with
   // the rows below it and re-derives on every run, ignore and applied fix.
@@ -146,48 +162,81 @@ export function FindingsPanel(): React.JSX.Element {
   // the server-side filter via `setFilter`) rather than round-tripping to the backend, so typing
   // feels instant and no store/IPC contract changes for a feature this size.
   const trimmedQuery = searchQuery.trim().toLowerCase();
-  const searched =
-    trimmedQuery === ''
-      ? visible
-      : visible.filter(
-          (f) =>
-            f.message.toLowerCase().includes(trimmedQuery) ||
-            f.ruleId.toLowerCase().includes(trimmedQuery) ||
-            f.location.file.toLowerCase().includes(trimmedQuery),
-        );
+  const searched = useMemo(
+    () =>
+      trimmedQuery === ''
+        ? visible
+        : visible.filter(
+            (f) =>
+              f.message.toLowerCase().includes(trimmedQuery) ||
+              f.ruleId.toLowerCase().includes(trimmedQuery) ||
+              f.location.file.toLowerCase().includes(trimmedQuery),
+          ),
+    [visible, trimmedQuery],
+  );
 
   // Grouping is local display state, applied last — on top of severity (server) and search
   // (above), so all three compose. Flat keeps the existing `VirtualList` path untouched below;
   // File/Severity render as plain collapsible sections instead, because `VirtualList`'s roving-
   // focus/selection contract assumes every row is a selectable finding (see the categoryRank sort
   // comment above) — interleaving header rows into it was already ruled out for that reason.
-  const groups: { key: string; label: string; findings: Finding[] }[] =
-    groupMode === 'flat'
-      ? []
-      : groupMode === 'severity'
-        ? SEVERITY_ORDER.map((sev) => ({
-            key: sev,
-            label: sev,
-            findings: searched.filter((f) => f.severity === sev),
-          })).filter((g) => g.findings.length > 0)
-        : Object.entries(
-            searched.reduce<Record<string, Finding[]>>((acc, f) => {
-              const key = basename(f.location.file);
-              (acc[key] ??= []).push(f);
-              return acc;
-            }, {}),
-          )
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, groupFindings]) => ({ key, label: key, findings: groupFindings }));
+  const groups: { key: string; label: string; findings: Finding[] }[] = useMemo(
+    () =>
+      groupMode === 'flat'
+        ? []
+        : groupMode === 'severity'
+          ? SEVERITY_ORDER.map((sev) => ({
+              key: sev,
+              label: sev,
+              findings: searched.filter((f) => f.severity === sev),
+            })).filter((g) => g.findings.length > 0)
+          : Object.entries(
+              searched.reduce<Record<string, Finding[]>>((acc, f) => {
+                const key = basename(f.location.file);
+                (acc[key] ??= []).push(f);
+                return acc;
+              }, {}),
+            )
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([key, groupFindings]) => ({ key, label: key, findings: groupFindings })),
+    [groupMode, searched],
+  );
+
+  // Grouped mode has no `VirtualList` container to own a roving `aria-activedescendant`, so it
+  // rolls its own roving-tabIndex: exactly one row's button is a real tab stop (findingLine below),
+  // Arrow Up/Down move it programmatically, and group headers are excluded from both — collapsed or
+  // not, a header never receives keyboard focus in this list.
+  const groupedRowIds = groups.flatMap((g) =>
+    collapsedGroups.has(g.key) ? [] : g.findings.map((f) => f.id),
+  );
+  const rowRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const effectiveFocusedId =
+    focusedId !== null && groupedRowIds.includes(focusedId) ? focusedId : (groupedRowIds[0] ?? null);
+  const moveFocus = (fromId: string, delta: 1 | -1): void => {
+    const index = groupedRowIds.indexOf(fromId);
+    if (index === -1) return;
+    const nextId = groupedRowIds[Math.min(Math.max(index + delta, 0), groupedRowIds.length - 1)];
+    if (nextId === undefined) return;
+    setFocusedId(nextId);
+    rowRefs.current.get(nextId)?.focus();
+  };
 
   // One click, or Enter/Space on the keyboard-active row, does the whole job: describe it, open
   // it, jump to it, highlight it. Defined once and handed to both `VirtualList` (keyboard) and
   // `FindingRow` (mouse), so there is exactly one place "activating a finding" is defined (beta
   // audit A4 remediation).
-  const activate = (finding: Finding): void => {
-    select(finding.id);
-    revealAt(finding.location);
-  };
+  // `useCallback`, not a plain closure: this is passed to every visible `FindingRow` as `onActivate`.
+  // A fresh function identity every render would defeat `React.memo` on `FindingRow` below — the row
+  // props would never be referentially equal, so every row would re-render on any parent state
+  // change (a search keystroke, a store update) regardless of whether that row's own data changed.
+  const activate = useCallback(
+    (finding: Finding): void => {
+      select(finding.id);
+      revealAt(finding.location);
+    },
+    [select, revealAt],
+  );
 
   // Server-side truncation (`repositories.ts`'s `list()` defaults to `limit = 500`) must never
   // silently disagree with the counts the panel itself displays (beta audit A4, Trustworthiness
@@ -275,10 +324,11 @@ export function FindingsPanel(): React.JSX.Element {
           role="status"
           className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-inset px-3 py-2"
         >
-          <p className="text-xs text-fg-secondary">
-            Repairing {bulkIndex}/{bulkTotal}
-            {bulkIndex > 0 && bulkTotal > 0 ? '…' : ''} ({bulkProgress.repaired} repaired,{' '}
-            {bulkProgress.failed} failed so far)
+          <p className="min-w-0 truncate text-xs text-fg-secondary">
+            Repairing {bulkIndex} of {bulkTotal}
+            {bulkCurrentLabel !== null ? ` — ${bulkCurrentLabel}` : ''}
+            {bulkEtaMs !== null && bulkEtaMs > 0 ? ` (${formatEta(bulkEtaMs)} left)` : ''} (
+            {bulkProgress.repaired} repaired, {bulkProgress.failed} failed so far)
           </p>
           <Button variant="ghost" size="sm" onClick={bulkCancel}>
             Cancel
@@ -391,7 +441,14 @@ export function FindingsPanel(): React.JSX.Element {
         )}
       </div>
 
-      <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border-subtle px-3">
+      {/*
+        Search and Group-by used to share one `h-8` row; a full-width group-toggle (3 buttons, each
+        icon+label) squeezed the search input's real width down far enough that its own placeholder
+        went invisible before the row ever got close to visually "full" — the reported cut-off text.
+        Two rows fixes both: the search bar gets its full width to breathe, and the toggle gets room
+        to read as three distinct buttons instead of three cramped abbreviations.
+      */}
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle px-3">
         <SearchIcon className="size-3.5 shrink-0 text-fg-muted" />
         <input
           type="text"
@@ -416,10 +473,15 @@ export function FindingsPanel(): React.JSX.Element {
             <CloseIcon className="size-3.5" />
           </button>
         )}
+      </div>
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle px-3">
+        <span className="shrink-0 text-[10px] font-medium tracking-wide text-fg-muted uppercase">
+          Group by
+        </span>
         <div
           role="group"
           aria-label="Group by"
-          className="ml-1 flex shrink-0 items-center gap-0.5 rounded-md border border-border-subtle p-0.5"
+          className="flex shrink-0 items-center gap-1 rounded-md border border-border-subtle p-1"
         >
           {GROUP_MODES.map(({ mode, label, icon }) => (
             <button
@@ -431,8 +493,10 @@ export function FindingsPanel(): React.JSX.Element {
               aria-pressed={groupMode === mode}
               title={`Group by ${label.toLowerCase()}`}
               className={cn(
-                'rounded px-1.5 py-0.5 text-[11px]',
-                groupMode === mode ? 'bg-hover text-fg' : 'text-fg-muted hover:text-fg',
+                'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                groupMode === mode
+                  ? 'bg-accent-subtle text-accent-text'
+                  : 'text-fg-muted hover:bg-hover hover:text-fg',
               )}
             >
               <span aria-hidden="true">{icon}</span> {label}
@@ -512,6 +576,9 @@ export function FindingsPanel(): React.JSX.Element {
                     toggleGroup(group.key);
                   }}
                   aria-expanded={!collapsed}
+                  // Not a tab stop: a group header is a mouse-only collapse control here, so the
+                  // roving tab stop below always lands on a finding, never a header.
+                  tabIndex={-1}
                   className="sticky top-0 z-10 flex w-full items-center gap-1.5 border-b border-border-subtle bg-raised px-3 py-1.5 text-left hover:bg-hover"
                 >
                   {collapsed ? (
@@ -538,8 +605,26 @@ export function FindingsPanel(): React.JSX.Element {
                     <FindingRow
                       key={finding.id}
                       finding={finding}
-                      onActivate={() => {
-                        activate(finding);
+                      onActivate={activate}
+                      tabIndex={finding.id === effectiveFocusedId ? 0 : -1}
+                      rowRef={(el) => {
+                        if (el) rowRefs.current.set(finding.id, el);
+                        else rowRefs.current.delete(finding.id);
+                      }}
+                      onFocus={() => {
+                        setFocusedId(finding.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          moveFocus(finding.id, 1);
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          moveFocus(finding.id, -1);
+                        }
+                        // Enter/Space need no handling here: a native `<button>` fires `onClick`
+                        // for both once it holds focus, which this row does whenever it is the
+                        // roving tab stop.
                       }}
                     />
                   ))}
@@ -565,14 +650,7 @@ export function FindingsPanel(): React.JSX.Element {
           // consumer that never wired the keyboard half of it (beta audit A4, Keyboard navigation
           // finding; the fix mirrors file-tree.tsx's `onActivate` wiring exactly).
           onActivate={activate}
-          renderItem={(finding) => (
-            <FindingRow
-              finding={finding}
-              onActivate={() => {
-                activate(finding);
-              }}
-            />
-          )}
+          renderItem={(finding) => <FindingRow finding={finding} onActivate={activate} />}
         />
       )}
     </section>
@@ -615,12 +693,29 @@ function SeverityFilter({
   );
 }
 
-function FindingRow({
+const FindingRow = memo(function FindingRow({
   finding,
   onActivate,
+  tabIndex = -1,
+  rowRef,
+  onKeyDown,
+  onFocus,
 }: {
   finding: Finding;
-  onActivate: () => void;
+  // Takes the finding, not a pre-bound `() => void`: both call sites pass the panel's single
+  // `useCallback`-stabilized `activate` directly, so the reference stays identical across renders —
+  // required for this `memo()` wrapper to actually skip re-rendering rows whose own data hasn't
+  // changed (a bound-per-row arrow function would be a new reference every render regardless).
+  onActivate: (finding: Finding) => void;
+  /**
+   * Left at the default (-1) for `VirtualList`'s flat mode, whose own container is the single tab
+   * stop (see the button's comment below). Grouped mode overrides it per-row for its own roving-
+   * tabIndex pattern, since it has no such container.
+   */
+  tabIndex?: number;
+  rowRef?: (el: HTMLButtonElement | null) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLButtonElement>) => void;
+  onFocus?: () => void;
 }): React.JSX.Element {
   const ignore = useFindingsStore((s) => s.ignore);
   const isSelected = useFindingsStore((s) => s.selectedId === finding.id);
@@ -662,11 +757,18 @@ function FindingRow({
     >
       <button
         type="button"
-        // Not a tab stop of its own — `VirtualList`'s container is the single stop, and arrow keys
-        // move a roving `aria-activedescendant` instead (beta audit A4, mirroring the file tree's
-        // fixed pattern exactly). A click still activates the row directly.
-        tabIndex={-1}
-        onClick={onActivate}
+        ref={rowRef}
+        // In flat mode (the default, `tabIndex={-1}`): not a tab stop of its own — `VirtualList`'s
+        // container is the single stop, and arrow keys move a roving `aria-activedescendant`
+        // instead (beta audit A4, mirroring the file tree's fixed pattern exactly). Grouped mode has
+        // no such container, so it passes its own per-row roving value and key handler instead. A
+        // click still activates the row directly either way.
+        tabIndex={tabIndex}
+        onClick={() => {
+          onActivate(finding);
+        }}
+        onKeyDown={onKeyDown}
+        onFocus={onFocus}
         aria-current={isSelected}
         // The clamped message is still readable in full on hover, without opening the details pane.
         title={`${finding.message}\n${finding.location.file}:${String(finding.location.startLine)} — click for details`}
@@ -800,7 +902,7 @@ function FindingRow({
       </div>
     </div>
   );
-}
+});
 
 function EmptyState({
   status,

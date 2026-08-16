@@ -1,8 +1,11 @@
 import { isRepairAttemptable, repairStateFor, type Finding } from '@fixora/shared-types';
 import { create } from 'zustand';
 
+import { invoke } from '../../lib/bridge.js';
+import { basename } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { evaluateApplyGate } from '../ai/apply-diagnostics.js';
+import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { useFindingsStore } from './findings-store.js';
 
@@ -44,6 +47,12 @@ interface BulkRepairState {
   /** 1-based position of the item currently in flight, for "Repairing N/Total". */
   index: number;
   currentFindingId: string | null;
+  /** "filename.ts — rule-id", for "Repairing X of Y — filename.ts" — the ID alone told the user
+   * a number, not what was actually happening. */
+  currentFindingLabel: string | null;
+  /** Remaining queue length × the average time each completed item has taken so far. `null` until
+   * the first item finishes — a single sample makes a weak estimate, but no sample makes none. */
+  etaMs: number | null;
   /** Running tally, updated after every item — not just the final one — so the header can show
    * live counts while the queue is still going, not only once it finishes. */
   progress: BulkRepairSummary;
@@ -70,6 +79,8 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
   total: 0,
   index: 0,
   currentFindingId: null,
+  currentFindingLabel: null,
+  etaMs: null,
   progress: { repaired: 0, skipped: 0, failed: 0, needsManualFix: [] },
   summary: null,
   cancelRequested: false,
@@ -89,6 +100,8 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
       total: queue.length,
       index: 0,
       currentFindingId: null,
+      currentFindingLabel: null,
+      etaMs: null,
       progress: { repaired: 0, skipped: 0, failed: 0, needsManualFix: [] },
       summary: null,
       cancelRequested: false,
@@ -97,7 +110,16 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
     let repaired = 0;
     let failed = 0;
     let processed = 0;
+    let totalElapsedMs = 0;
     const needsManualFix: BulkRepairSummary['needsManualFix'] = [];
+
+    // Buffers the history writes every `applyRepair()` below would otherwise commit one at a time —
+    // `ai:bulkRepairFlush` (after the loop) replays them all in a single `driver.transaction()`.
+    // `workspaceId` is null only if the workspace closed between the button click and here, in which
+    // case there is nothing to buffer or flush and the loop below still runs unbuffered (main's
+    // default, everyday path) — never silently skipped.
+    const workspaceId = useWorkspaceStore.getState().workspace?.id ?? null;
+    if (workspaceId !== null) await invoke('ai:bulkRepairStart', { workspaceId });
 
     // One repair in flight at a time, by construction — each iteration awaits the previous one's
     // `run`/`applyRepair` to fully settle before the next starts. Raising this to run several
@@ -105,7 +127,12 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
     // (`activeFindingId`/`proposal`), which is a correctness hazard, not just a pacing one.
     for (const finding of queue) {
       if (get().cancelRequested) break;
-      set({ index: processed + 1, currentFindingId: finding.id });
+      set({
+        index: processed + 1,
+        currentFindingId: finding.id,
+        currentFindingLabel: `${basename(finding.location.file)} — ${finding.ruleId}`,
+      });
+      const itemStartedAt = Date.now();
 
       const allowManual = repairStateFor(finding) === 'manual-only';
       await useAiStore.getState().run('repair', finding.id, undefined, { allowManual });
@@ -136,11 +163,26 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
         }
       }
 
+      // A simple running average, not a per-item sample list: repairs vary too much (an instant
+      // 'blocked' vs. a multi-attempt model round trip) for a fancier estimate to earn its keep,
+      // and the average already improves every item without needing history kept around for it.
+      totalElapsedMs += Date.now() - itemStartedAt;
+      const remaining = queue.length - processed;
+      const etaMs = remaining > 0 ? (totalElapsedMs / processed) * remaining : 0;
+
       // Progress after THIS item, not just at the end — and the macrotask yield that keeps the
       // window painting and the Cancel button clickable between items (see yieldToEventLoop above).
-      set({ progress: { repaired, skipped: notRepairable, failed, needsManualFix: [...needsManualFix] } });
+      set({
+        progress: { repaired, skipped: notRepairable, failed, needsManualFix: [...needsManualFix] },
+        etaMs,
+      });
       await yieldToEventLoop();
     }
+
+    // Unconditional, even on cancel: whatever DID get buffered before the user cancelled is a real,
+    // already-completed repair and must still land — cancelling the queue must not also discard the
+    // history of what already happened.
+    if (workspaceId !== null) await invoke('ai:bulkRepairFlush', { workspaceId });
 
     // Cancelled before the queue finished: whatever was never reached is a skip, not a failure —
     // the user stopped the run, Fixora didn't give up on those findings.
@@ -148,6 +190,8 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
     set({
       status: 'done',
       currentFindingId: null,
+      currentFindingLabel: null,
+      etaMs: null,
       progress: { repaired, skipped, failed, needsManualFix },
       summary: { repaired, skipped, failed, needsManualFix },
     });

@@ -56,23 +56,23 @@ const ctx = { requestId: 'r1', window: null };
 describe('ai:applyRepair red-team (the renderer is hostile)', () => {
   it('refuses a path-traversal target — cannot write outside the workspace', async () => {
     const { handler } = await applyHandler();
-    expect(() =>
+    await expect(
       handler(
         { file: '../../evil.txt', startLine: 1, endLine: 1, code: 'x', expectedOriginal: '' },
         ctx,
       ),
-    ).toThrow();
+    ).rejects.toThrow();
   });
 
   it('refuses to write over a secrets-denylisted path (.env)', async () => {
     writeFileSync(join(dir, '.env'), 'SECRET=1\n');
     const { handler } = await applyHandler();
-    expect(() =>
+    await expect(
       handler(
         { file: '.env', startLine: 1, endLine: 1, code: 'HACKED=1', expectedOriginal: 'SECRET=1' },
         ctx,
       ),
-    ).toThrow();
+    ).rejects.toThrow();
     // The secret file is untouched.
     expect(readFileSync(join(dir, '.env'), 'utf8')).toBe('SECRET=1\n');
   });
