@@ -11,46 +11,27 @@ beforeEach(() => {
   __resetChangelogCacheForTests();
 });
 
-/** `system:getAppInfo` and `system:getChangelog` both fire on open — stub both by channel name
- * so call order doesn't matter and each test isn't tied to exactly two `invoke` calls. */
+/** `system:getChangelog` fires on open — stub by channel name so a stray call to anything else
+ * doesn't crash the test. */
 function mockInvoke(changelog: unknown = { ok: true, value: { releases: [] } }): void {
   invoke.mockImplementation((channel: string) => {
-    if (channel === 'system:getAppInfo') {
-      return Promise.resolve({ ok: true, value: { version: '0.9.0-beta.1' } });
-    }
     if (channel === 'system:getChangelog') return Promise.resolve(changelog);
     return Promise.resolve({ ok: true, value: {} });
   });
 }
 
 describe('WhatsNewDialog', () => {
-  it('does not fetch the app version while closed', () => {
+  it('does not fetch release notes while closed', () => {
     render(<WhatsNewDialog open={false} onOpenChange={vi.fn()} />);
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('fetches and displays the running build version, separate from the highlights list', async () => {
-    mockInvoke();
-    render(<WhatsNewDialog open onOpenChange={vi.fn()} />);
-    expect(await screen.findByText('Running v0.9.0-beta.1')).toBeTruthy();
-    expect(invoke).toHaveBeenCalledWith('system:getAppInfo', {});
-  });
-
-  it('renders the highlight list', () => {
+  it('shows the heading and only the release notes section — no highlights list', () => {
     mockInvoke();
     render(<WhatsNewDialog open onOpenChange={vi.fn()} />);
     expect(screen.getByRole('heading', { name: "What's new" })).toBeTruthy();
-    expect(screen.getByText('Welcome Experience')).toBeTruthy();
-    expect(screen.getByText('Suggestion System')).toBeTruthy();
-  });
-
-  it('does not claim the running version contains the highlights below it (beta audit A1, finding 1)', () => {
-    mockInvoke();
-    render(<WhatsNewDialog open onOpenChange={vi.fn()} />);
-    // The description must never read like "Current build: vX" directly above the list — several
-    // highlights are unreleased, post-tag work, not part of any tagged version yet.
-    expect(screen.queryByText(/current build/i)).toBeNull();
-    expect(screen.getByText('Recent highlights from across Fixora.')).toBeTruthy();
+    expect(screen.queryByText('Welcome Experience')).toBeNull();
+    expect(screen.getByText('Release notes')).toBeTruthy();
   });
 
   it('fetches and renders GitHub release notes', async () => {

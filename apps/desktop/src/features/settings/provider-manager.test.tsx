@@ -58,10 +58,23 @@ function listOk(providers: ProviderInfo[]) {
   return { ok: true as const, value: { providers } };
 }
 
-/** The row now fetches a model list per provider, so the default mock has to answer that too. */
+/** One batched `providers:listAllModels` call answers every row's model list, not one call per
+ * provider — mirroring `ProviderManager`'s own single request for however many ids it asks for. */
+function allModelsResult(
+  providers: readonly ProviderInfo[],
+  entry: { models: string[]; source: string; notice: string | null },
+) {
+  return {
+    ok: true as const,
+    value: Object.fromEntries(providers.map((p) => [p.id, entry])),
+  };
+}
+
+/** The panel now fetches every row's model list in one batched call, so the default mock has to
+ * answer that too. */
 function defaultInvoke(channel: string) {
-  if (channel === 'providers:listModels') {
-    return Promise.resolve({ ok: true, value: { models: [], source: 'none', notice: null } });
+  if (channel === 'providers:listAllModels') {
+    return Promise.resolve(allModelsResult(THREE, { models: [], source: 'none', notice: null }));
   }
   return Promise.resolve(listOk(THREE));
 }
@@ -69,8 +82,8 @@ function defaultInvoke(channel: string) {
 /** Override the provider list while keeping the model fetch answered. */
 function mockList(providers: ProviderInfo[]) {
   invoke.mockImplementation((channel: string) =>
-    channel === 'providers:listModels'
-      ? Promise.resolve({ ok: true, value: { models: [], source: 'none', notice: null } })
+    channel === 'providers:listAllModels'
+      ? Promise.resolve(allModelsResult(providers, { models: [], source: 'none', notice: null }))
       : Promise.resolve(listOk(providers)),
   );
 }
@@ -347,8 +360,8 @@ describe('ProviderManager — model field', () => {
 describe('ProviderManager — model list', () => {
   function withModels(models: string[], notice: string | null = null) {
     invoke.mockImplementation((channel: string) => {
-      if (channel === 'providers:listModels') {
-        return Promise.resolve({ ok: true, value: { models, source: 'live', notice } });
+      if (channel === 'providers:listAllModels') {
+        return Promise.resolve(allModelsResult(THREE, { models, source: 'live', notice }));
       }
       return Promise.resolve(listOk(THREE));
     });

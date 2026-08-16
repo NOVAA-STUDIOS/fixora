@@ -224,7 +224,8 @@ function AiSettings(): React.JSX.Element {
   const modelId = useId();
 
   useEffect(() => {
-    void loadConfig();
+    // Same reasoning as `ai-panel.tsx`: `App.tsx` already fetches this once at mount.
+    if (useAiStore.getState().config === null) void loadConfig();
     void loadModels();
   }, [loadConfig, loadModels]);
 

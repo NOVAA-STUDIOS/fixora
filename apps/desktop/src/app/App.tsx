@@ -7,6 +7,7 @@ import { useFileWatch } from '../features/workspace/use-file-watch.js';
 import { useWorkspaceStore } from '../features/workspace/workspace-store.js';
 import { useAppearance } from '../hooks/use-appearance.js';
 import { invoke } from '../lib/bridge.js';
+import { useAiStore } from '../stores/ai-store.js';
 
 /**
  * The root. It applies the persisted appearance (theme + density), adopts any workspace the main
@@ -32,6 +33,15 @@ export function App(): React.JSX.Element {
     [hydrateCurrent],
   );
   const { state, retry, dismiss } = useSplash(initialize);
+
+  // The findings panel reads `config?.configured` to choose Repair vs. "Set up AI to repair", but
+  // nothing fetched it until the user separately opened the AI panel or Settings — so it showed
+  // "Set up AI" indefinitely on the screen the user actually lands on first. Fetched here once, at
+  // real app mount, independent of the splash for the same reason `version` above is.
+  const loadConfig = useAiStore((s) => s.loadConfig);
+  useEffect(() => {
+    void loadConfig();
+  }, [loadConfig]);
 
   // Fetched independently of `initialize` — the splash's closing timing must never wait on this,
   // it only fills in a line of the screen if it arrives while the splash is still up.

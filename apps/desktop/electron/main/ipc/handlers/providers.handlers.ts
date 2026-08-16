@@ -124,7 +124,7 @@ export function registerProviderHandlers(deps: {
    * Never throws and never blocks: a provider that cannot be listed returns an empty list plus a
    * notice, and the field stays free text so the user can type an id we have never heard of.
    */
-  registerHandler('providers:listModels', async ({ id, refresh }) => {
+  const listOneProvider = async (id: string, refresh?: boolean): Promise<ModelList> => {
     const cached = modelCache.get(id);
     if (cached !== undefined && refresh !== true) return cached;
 
@@ -173,6 +173,18 @@ export function registerProviderHandlers(deps: {
     }
     modelCache.set(id, result);
     return result;
+  };
+
+  registerHandler('providers:listModels', ({ id, refresh }) => listOneProvider(id, refresh));
+
+  // Batched: one round trip for every id a caller names, instead of one `providers:listModels`
+  // call per provider row fired simultaneously on mount — each provider's own probe still runs
+  // independently (and still costs what it cost before), but main answers ONE request, not N.
+  registerHandler('providers:listAllModels', async ({ ids }) => {
+    const entries = await Promise.all(
+      ids.map(async (id) => [id, await listOneProvider(id)] as const),
+    );
+    return Object.fromEntries(entries);
   });
 
   registerHandler('providers:setModel', ({ id, model }) => {

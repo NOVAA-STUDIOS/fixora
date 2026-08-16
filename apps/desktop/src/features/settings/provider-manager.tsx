@@ -28,9 +28,12 @@ const DOT: Record<'green' | 'yellow' | 'red', string> = {
   red: 'bg-danger-solid',
 };
 
+type KnownModels = { models: string[]; notice: string | null };
+
 export function ProviderManager(): React.JSX.Element {
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [knownModels, setKnownModels] = useState<Record<string, KnownModels>>({});
 
   /** Every mutation returns the refreshed list, so this is the only place state is set. */
   async function apply(
@@ -63,6 +66,23 @@ export function ProviderManager(): React.JSX.Element {
   useEffect(() => {
     void apply(invoke('providers:list', {}));
   }, []);
+
+  // Batched, once the provider list is known: one `providers:listAllModels` round trip for every
+  // row, instead of each `ProviderModelField` firing its own `providers:listModels` on mount — that
+  // was N simultaneous IPC calls (one per provider) the instant this panel opened.
+  // `providerIds` is a string, compared by value — so a mutation that replaces `providers` with a
+  // new array of the SAME ids (saving a key, changing a model) does not re-trigger this fetch.
+  const providerIds = providers?.map((p) => p.id).join(',') ?? '';
+  useEffect(() => {
+    if (providerIds === '') return;
+    let live = true;
+    void invoke('providers:listAllModels', { ids: providerIds.split(',') }).then((result) => {
+      if (live && result.ok) setKnownModels(result.value);
+    });
+    return () => {
+      live = false;
+    };
+  }, [providerIds]);
 
   if (providers === null) {
     return <p className="text-xs text-fg-muted">Loading providers…</p>;
@@ -164,6 +184,7 @@ export function ProviderManager(): React.JSX.Element {
             */}
             <ProviderModelField
               provider={provider}
+              known={knownModels[provider.id] ?? null}
               onSave={(model) => apply(invoke('providers:setModel', { id: provider.id, model }))}
             />
 
@@ -328,28 +349,20 @@ function ProviderKeyField({
  */
 function ProviderModelField({
   provider,
+  known,
   onSave,
 }: {
   provider: ProviderInfo;
+  // Fetched once, batched, by the parent (`providers:listAllModels`) — not by this component. N
+  // provider rows each firing their own `providers:listModels` on mount was N simultaneous IPC
+  // calls the instant this panel opened; the parent now makes one request for all of them.
+  known: { models: string[]; notice: string | null } | null;
   onSave: (model: string) => Promise<boolean>;
 }): React.JSX.Element {
   const inputId = useId();
   const listId = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [known, setKnown] = useState<{ models: string[]; notice: string | null } | null>(null);
-
-  // Fetched per provider when the panel mounts. Main caches for the session, so revisiting Settings
-  // costs nothing; a failure is a notice, never an error state — the field works without a list.
-  useEffect(() => {
-    let live = true;
-    void invoke('providers:listModels', { id: provider.id }).then((result) => {
-      if (live && result.ok) setKnown({ models: result.value.models, notice: result.value.notice });
-    });
-    return () => {
-      live = false;
-    };
-  }, [provider.id]);
 
   // Null means "not being edited": the field shows what main last returned, so an edit elsewhere is
   // reflected rather than shadowed by stale local state.

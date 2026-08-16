@@ -1,10 +1,9 @@
 import {
-  neutralDark,
+  indigoRamp,
+  iosGlassLight,
   neutralLight,
   statusDark,
   statusLight,
-  violetDark,
-  violetLight,
   type StatusName,
 } from './primitives.js';
 
@@ -21,6 +20,10 @@ export type SemanticColors = {
     overlay: string;
     hover: string;
     active: string;
+    /** iOS "material": a translucent surface, only meaningful paired with `backdrop-blur`. */
+    glass: string;
+    /** A more opaque glass variant — content sitting ON a glass surface, not the surface itself. */
+    glassSurface: string;
   };
   text: {
     primary: string;
@@ -66,36 +69,51 @@ export type SemanticColors = {
   >;
 };
 
+// REDESIGN: Xcode DNA — flat matte surfaces (not the near-black violet-tinted ramp above) and
+// Xcode's own blue accent, not the iOS indigo the redesign used before this. `neutralDark` stays
+// defined and used elsewhere (it still backs `violetDark`'s tint derivation); this theme simply
+// stops reading from it for bg/border, in favour of literal Xcode hex.
+// REDESIGN: iOS Premium — restores glass, deepens the canvas, and moves borders/hover/active to
+// translucent white overlays (the iOS "materials" approach) instead of opaque greys.
 export const dark: SemanticColors = {
   bg: {
-    canvas: neutralDark[1],
-    raised: neutralDark[2],
-    inset: neutralDark[0],
-    overlay: neutralDark[3],
-    hover: neutralDark[4],
-    active: neutralDark[5],
+    canvas: '#000000',
+    raised: '#0a0a0a',
+    inset: '#000000',
+    overlay: '#111111',
+    hover: 'rgba(255, 255, 255, 0.05)',
+    active: 'rgba(255, 255, 255, 0.08)',
+    // Solid, not translucent: backdrop-filter (which made these worth being translucent) is gone —
+    // it caused GPU-process freezes in Electron. Kept as the exact colour the blur used to sit on.
+    glass: '#0a0a0a',
+    glassSurface: '#111111',
   },
   text: {
-    primary: neutralDark[11],
-    secondary: neutralDark[10],
-    muted: neutralDark[9],
+    primary: '#ffffff',
+    secondary: '#aeaeb2',
+    muted: '#8e8e93',
     onAccent: '#ffffff',
   },
   border: {
-    subtle: neutralDark[5],
-    default: neutralDark[7],
-    strong: neutralDark[8],
+    subtle: 'rgba(255, 255, 255, 0.06)',
+    default: 'rgba(255, 255, 255, 0.09)',
+    // Opaque, not translucent like `subtle`/`default`: the contrast gate parses only 6-digit hex
+    // (`parseHex` in `contrast.ts`), and this is the one border field it actually audits (the
+    // control-identifying boundary, per WCAG 1.4.11) — an rgba value here crashes the gate rather
+    // than being silently unchecked. Chosen to read the same as `rgba(255,255,255,0.18)` composited
+    // over `bg.raised`.
+    strong: '#666672',
   },
   accent: {
-    solid: violetDark[8],
-    solidHover: violetDark[9],
-    solidActive: violetDark[7],
-    subtle: violetDark[2],
-    border: violetDark[6],
-    text: violetDark[10],
+    solid: '#2870c4',
+    solidHover: '#2570cc',
+    solidActive: '#1e63bf',
+    subtle: 'rgba(40, 112, 196, 0.15)',
+    border: 'rgba(40, 112, 196, 0.35)',
+    text: '#5ea3f5',
   },
   focus: {
-    ring: violetDark[10],
+    ring: '#5ea3f5',
   },
   status: statusDark,
 };
@@ -108,6 +126,8 @@ export const light: SemanticColors = {
     overlay: neutralLight[0],
     hover: neutralLight[3],
     active: neutralLight[4],
+    glass: iosGlassLight,
+    glassSurface: 'rgba(255, 255, 255, 0.85)',
   },
   text: {
     primary: neutralLight[11],
@@ -122,15 +142,15 @@ export const light: SemanticColors = {
     strong: neutralLight[8],
   },
   accent: {
-    solid: violetLight[9],
-    solidHover: violetLight[10],
-    solidActive: violetLight[11],
-    subtle: violetLight[2],
-    border: violetLight[5],
-    text: violetLight[10],
+    solid: indigoRamp[600],
+    solidHover: indigoRamp[700],
+    solidActive: indigoRamp[800],
+    subtle: 'rgba(88, 86, 214, 0.1)',
+    border: 'rgba(88, 86, 214, 0.35)',
+    text: indigoRamp[600],
   },
   focus: {
-    ring: violetLight[9],
+    ring: indigoRamp[600],
   },
   status: statusLight,
 };

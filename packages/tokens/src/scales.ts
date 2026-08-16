@@ -8,7 +8,10 @@
  * code blocks use, so the brand is consistent down to the glyph (Design Review §6.5).
  */
 export const fontFamily = {
-  sans: "Inter, 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+  // Xcode redesign: the system font, not a bundled webfont — `-apple-system`/`SF Pro Text` on
+  // macOS, falling through to each OS's own native UI font elsewhere (this app also ships on
+  // Windows/Linux, where SF Pro doesn't exist).
+  sans: "-apple-system, 'SF Pro Text', system-ui, 'Segoe UI', sans-serif",
   mono: "'JetBrains Mono', 'Cascadia Code', 'Consolas', ui-monospace, monospace",
 } as const;
 
@@ -56,6 +59,10 @@ export const radius = {
   md: '0.375rem',
   lg: '0.5rem',
   xl: '0.75rem',
+  // iOS redesign: cards (2xl) and sheets (3xl) use a noticeably rounder radius than anything
+  // existing today — the largest prior step (xl) was 0.75rem.
+  '2xl': '1rem',
+  '3xl': '1.5rem',
   full: '9999px',
 } as const;
 
@@ -71,6 +78,11 @@ export const motion = {
   durationSlow: '200ms',
   easeEntrance: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
   easeExit: 'cubic-bezier(0.4, 0, 1, 1)',
+  /** iOS spring feel: overshoots slightly past its resting scale/position before settling. Not for
+   * an exit — an overshoot on the way OUT reads as a bounce-back, not a departure. */
+  easeSpring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+  /** A tighter overshoot for small elements (menu items, tooltips) — the same spring, less travel. */
+  easeSpringSnappy: 'cubic-bezier(0.37, 1.3, 0.5, 1)',
 } as const;
 
 export const elevation = {

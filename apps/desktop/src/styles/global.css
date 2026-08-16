@@ -29,6 +29,96 @@
     -webkit-app-region: no-drag;
     app-region: no-drag;
   }
+
+  /* iOS-style frosted glass. A named utility (not a bare Tailwind stack) because the blur must
+   * drop out under prefers-reduced-motion while the surface itself stays — motion is blur, not
+   * translucency, so only the filter goes, never the rest of the panel's appearance. */
+  /* No backdrop-filter: it froze the GPU process in Electron. `bg.glass`/`bg.glassSurface` are
+   * solid colours now, not translucent — this keeps the surface, not the blur. */
+  .glass-panel {
+    background: var(--fx-color-bg-glass);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* iOS spring entrances/exits. Not linear — a real spring overshoots before it settles, which is
+   * exactly what makes it read as "iOS" rather than as any other ease curve at the same duration. */
+  @keyframes ios-enter {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  @keyframes ios-exit {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+  @keyframes ios-slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-ios-enter {
+    animation: ios-enter 0.35s var(--ease-spring) forwards;
+  }
+  /* Dialog-only variants: `DialogContent` centers itself with a static `-translate-x-1/2
+   * -translate-y-1/2`, which a generic `.animate-ios-enter` would clobber for the animation's
+   * duration (only one `transform` wins) — these compose the centering offset with the spring. */
+  @keyframes ios-dialog-enter {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.95) translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1) translateY(0);
+    }
+  }
+  @keyframes ios-dialog-exit {
+    from {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.97);
+    }
+  }
+  .animate-ios-dialog-enter {
+    animation: ios-dialog-enter 0.3s var(--ease-spring) forwards;
+  }
+  .animate-ios-dialog-exit {
+    animation: ios-dialog-exit 0.15s var(--ease-exit) forwards;
+  }
+  .animate-ios-exit {
+    animation: ios-exit 0.15s var(--ease-exit) forwards;
+  }
+  .animate-ios-slide-up {
+    animation: ios-slide-up 0.28s var(--ease-spring) forwards;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-ios-enter,
+    .animate-ios-exit,
+    .animate-ios-slide-up,
+    .animate-ios-dialog-enter,
+    .animate-ios-dialog-exit {
+      animation-duration: 0.01ms;
+    }
+  }
 }
 
 @layer base {

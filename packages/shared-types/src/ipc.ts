@@ -268,6 +268,19 @@ export const contracts = {
       notice: z.string().nullable(),
     }),
   },
+  'providers:listAllModels': {
+    request: z.object({ ids: z.array(z.string().min(1)) }),
+    // Keyed by provider id, same per-provider shape `providers:listModels` returns — a batch of
+    // that response, not a new one, so main answers both from the same underlying lookup.
+    response: z.record(
+      z.string(),
+      z.object({
+        models: z.array(z.string()),
+        source: z.enum(['live', 'curated', 'none']),
+        notice: z.string().nullable(),
+      }),
+    ),
+  },
   'providers:setModel': {
     request: z.object({ id: z.string().min(1), model: z.string() }),
     response: ProviderListSchema,

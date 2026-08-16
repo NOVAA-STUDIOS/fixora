@@ -46,7 +46,7 @@ export function ActivityRail(): React.JSX.Element {
       aria-label="Primary"
       // Sidebar spacing follows density too: compact tightens the gap between rail items so the
       // toggle affects the navigation as well as the content beside it.
-      className="flex w-16 shrink-0 flex-col items-stretch gap-(--fx-sidebar-gap) py-1"
+      className="flex w-16 shrink-0 flex-col items-stretch gap-(--fx-sidebar-gap) border-r border-border-subtle bg-raised py-1"
     >
       {items.map(({ view, label, Icon }) => {
         const active = view === activeView;
@@ -60,24 +60,18 @@ export function ActivityRail(): React.JSX.Element {
               setActiveView(view);
             }}
             className={cn(
-              // A rounded target inset from the rail edges, rather than a full-bleed strip. The rail
-              // sits on the chrome layer now, so an item that lights up edge-to-edge reads as a
-              // background change; a pill reads as a thing you pressed.
-              'group relative mx-1.5 flex flex-col items-center gap-1.5 rounded-lg px-1 text-[10px] font-medium',
-              // Vertical padding from the card token, so a rail item tightens with everything else.
+              // iOS Premium: a rounded, inset pill — not Xcode's square full-bleed item — with a
+              // filled background for the active state rather than a thin indicator bar.
+              'group relative mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 text-[10px] font-medium',
               'py-(--fx-card-padding-y)',
-              // Every other interactive surface in the app animates its hover; the rail — the most
-              // frequently clicked thing in the window — snapped between states instantly.
               'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
-              active
-                ? 'bg-accent-subtle text-accent-text'
-                : 'text-fg-muted hover:bg-hover hover:text-fg',
+              active ? 'bg-white/10 text-accent-text' : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
           >
             <Icon
               className={cn(
-                'size-5 shrink-0 transition-transform duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+                'size-[18px] shrink-0 transition-transform duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
                 !active && 'group-hover:scale-110',
               )}
             />

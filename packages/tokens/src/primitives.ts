@@ -110,26 +110,29 @@ export const violetLight: Scale = [
  * Forcing white onto it would mean either a brown "amber" or an unreadable badge.
  */
 export const statusDark = {
+  // Xcode redesign: the macOS system colours (red/yellow/green), not the previous WCAG-tuned pair.
+  // All three are bright enough that a WHITE label fails AA — `onSolid` goes dark instead, same
+  // trade the existing accent/violet comments document ("tuned, not picked" — priced by the gate).
   danger: {
-    solid: '#d92d3a',
-    onSolid: '#ffffff',
-    text: '#ff9592',
-    subtle: '#2a1315',
-    border: '#7a2226',
+    solid: '#ff5f57',
+    onSolid: '#3d0705',
+    text: '#ff8580',
+    subtle: '#2a1110',
+    border: '#7a2b28',
   },
   warn: {
-    solid: '#f5a524',
-    onSolid: '#1a1206',
-    text: '#ffcb62',
-    subtle: '#2a1e0c',
-    border: '#7d5312',
+    solid: '#ffbd2e',
+    onSolid: '#3d2900',
+    text: '#ffcf66',
+    subtle: '#2a1f0a',
+    border: '#7d5c17',
   },
   success: {
-    solid: '#1a7f4f',
-    onSolid: '#ffffff',
-    text: '#4cc38a',
-    subtle: '#0e2119',
-    border: '#1c5138',
+    solid: '#28c941',
+    onSolid: '#062e0c',
+    text: '#5fdb76',
+    subtle: '#0e2412',
+    border: '#1f6b2c',
   },
   info: {
     solid: '#2f6fe0',
@@ -173,3 +176,28 @@ export const statusLight = {
 
 export type StatusName = keyof typeof statusDark;
 export const statusNames = ['danger', 'warn', 'success', 'info'] as const;
+
+/**
+ * The iOS-style indigo accent (pending redesign). Tailwind's own step naming (50–900), NOT the
+ * 12-index positional `Scale` every other ramp here uses — the redesign spec names exact steps
+ * (500/600/700/800) rather than positions, and forcing those hexes into `Scale`'s indexing would
+ * silently misalign them. Kept as its own shape rather than distorted to match.
+ */
+export const indigoRamp = {
+  50: '#EEF2FF',
+  100: '#E0E7FF',
+  200: '#C7D2FE',
+  300: '#A5B4FC',
+  400: '#818CF8',
+  500: '#6366F1',
+  600: '#5856D6',
+  700: '#4338CA',
+  800: '#3730A3',
+  900: '#312E81',
+} as const;
+
+/** iOS "materials" — a translucent surface over whatever sits behind it, not an opaque colour.
+ * Only meaningful paired with `backdrop-blur` (already in use: `full-diff-overlay.tsx`,
+ * `inline-repair-bar.tsx`), which is what makes the alpha read as glass instead of a dim tint. */
+export const iosGlassDark = 'rgba(28, 28, 30, 0.72)';
+export const iosGlassLight = 'rgba(242, 242, 247, 0.72)';

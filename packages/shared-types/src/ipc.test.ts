@@ -54,6 +54,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'providers:moveDown',
       'providers:setModel',
       'providers:listModels',
+      'providers:listAllModels',
       'providers:setBaseUrl',
       'providers:setKey',
       'providers:clearKey',

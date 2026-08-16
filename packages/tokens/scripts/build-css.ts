@@ -25,7 +25,7 @@ function colorVars(c: SemanticColors): string[] {
   const lines: string[] = [];
   const push = (name: string, value: string) => lines.push(`  ${PREFIX}-color-${name}: ${value};`);
 
-  for (const [key, value] of Object.entries(c.bg)) push(`bg-${key}`, value);
+  for (const [key, value] of Object.entries(c.bg)) push(`bg-${kebab(key)}`, value);
   for (const [key, value] of Object.entries(c.text)) push(`text-${kebab(key)}`, value);
   for (const [key, value] of Object.entries(c.border)) push(`border-${key}`, value);
   for (const [key, value] of Object.entries(c.accent)) push(`accent-${kebab(key)}`, value);
@@ -131,6 +131,8 @@ const themeCss = `${header}
   --color-overlay: var(${PREFIX}-color-bg-overlay);
   --color-hover: var(${PREFIX}-color-bg-hover);
   --color-active: var(${PREFIX}-color-bg-active);
+  --color-glass: var(${PREFIX}-color-bg-glass);
+  --color-glass-surface: var(${PREFIX}-color-bg-glass-surface);
 
   --color-fg: var(${PREFIX}-color-text-primary);
   --color-fg-secondary: var(${PREFIX}-color-text-secondary);
@@ -173,6 +175,8 @@ ${Object.keys(radius)
 
   --ease-entrance: var(${PREFIX}-motion-ease-entrance);
   --ease-exit: var(${PREFIX}-motion-ease-exit);
+  --ease-spring: var(${PREFIX}-motion-ease-spring);
+  --ease-spring-snappy: var(${PREFIX}-motion-ease-spring-snappy);
 }
 `;
 

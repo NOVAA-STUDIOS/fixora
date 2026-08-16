@@ -41,9 +41,12 @@ export const DialogContent = forwardRef<
           // expressed in the same group, silently taking the guard with it.
           'fixed left-1/2 top-1/2 z-(--fx-z-dialog) w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2',
           'max-h-[calc(100dvh-4rem)] overflow-y-auto',
-          'rounded-lg bg-raised text-fg border border-border-subtle p-6 shadow-lg',
+          'rounded-3xl bg-[#111111] text-fg border border-white/[0.08] p-6 shadow-2xl',
           'focus:outline-none',
-          'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
+          // Dialog-specific keyframes, not the generic `.animate-ios-enter` — this element also
+          // centers itself with a static `translate(-50%,-50%)`, which the generic version would
+          // clobber for the animation's duration.
+          'data-[state=open]:animate-ios-dialog-enter data-[state=closed]:animate-ios-dialog-exit motion-reduce:animate-none',
           className,
         )}
         {...props}

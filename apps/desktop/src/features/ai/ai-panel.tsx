@@ -58,7 +58,9 @@ export function AiPanel(): React.JSX.Element {
   const selected = useFindingsStore((s) => s.findings.find((f) => f.id === s.selectedId) ?? null);
 
   useEffect(() => {
-    void loadConfig();
+    // `App.tsx` already fetches this once at mount; only fetch here if that hasn't landed yet
+    // (or this panel somehow mounted first), so navigating here doesn't always re-fetch.
+    if (useAiStore.getState().config === null) void loadConfig();
   }, [loadConfig]);
   useEffect(() => listen(), [listen]);
 

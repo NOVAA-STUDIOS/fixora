@@ -16,7 +16,7 @@ const focusRing =
 
 export const buttonVariants = cva(
   cn(
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium',
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-medium',
     'select-none transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
     'disabled:pointer-events-none disabled:opacity-50',
     focusRing,

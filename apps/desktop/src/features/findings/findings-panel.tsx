@@ -250,21 +250,24 @@ export function FindingsPanel(): React.JSX.Element {
   return (
     <section
       aria-label="Problems"
-      className="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
+      className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border-subtle bg-canvas"
     >
-      <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
+      <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-raised px-3">
         <h2 className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
           Problems
         </h2>
         {/*
-          File-type breakdown, on the heading's own line. `min-w-0` + `overflow-hidden` so a project
-          spanning many languages shortens this list rather than pushing Re-run off the header —
-          the button is the control, and it stays reachable at any width.
+          File-type breakdown, on the heading's own line. `min-w-0` so a project spanning many
+          languages shrinks this list rather than pushing Re-run off the header — the button is the
+          control, and it stays reachable at any width. Scrollable, not clipped: each chip is
+          `shrink-0` already, so `overflow-hidden` here did not hide whole chips at the boundary —
+          it clipped mid-text whichever chip happened to straddle it. `overflow-x-auto` keeps every
+          chip intact; a narrow panel scrolls the row instead of truncating one.
         */}
         {extensionCounts.length > 0 && (
           <ul
             aria-label="Problems by file type"
-            className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+            className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
           >
             {extensionCounts.map(({ extension, count }) => (
               <li
@@ -413,7 +416,7 @@ export function FindingsPanel(): React.JSX.Element {
         </div>
       )}
 
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border-subtle px-2 py-1.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border-subtle bg-raised px-2 py-1.5">
         <SeverityFilter
           label="All"
           active={filter.severity === undefined}
@@ -448,7 +451,7 @@ export function FindingsPanel(): React.JSX.Element {
         Two rows fixes both: the search bar gets its full width to breathe, and the toggle gets room
         to read as three distinct buttons instead of three cramped abbreviations.
       */}
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle px-3">
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle bg-raised px-3">
         <SearchIcon className="size-3.5 shrink-0 text-fg-muted" />
         <input
           type="text"
@@ -474,7 +477,7 @@ export function FindingsPanel(): React.JSX.Element {
           </button>
         )}
       </div>
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle px-3">
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle bg-raised px-3">
         <span className="shrink-0 text-[10px] font-medium tracking-wide text-fg-muted uppercase">
           Group by
         </span>
@@ -742,14 +745,16 @@ const FindingRow = memo(function FindingRow({
         // density lives in its own padding and gap — `--fx-row-height` sizes single-line rows and
         // says nothing about a card that holds three lines. Hardcoding `px-3 py-2` here is why the
         // toggle changed the chrome around the list and left the list itself untouched.
-        'group/row flex min-w-0 flex-col border-b border-border-subtle',
-        // VS Code Problems-panel accent: severity on the row's left edge, not a dot inside it — one
-        // signal instead of two competing for the same first glance.
+        // iOS Premium: a rounded card with its own subtle border, not a full-bleed row — mx-1.5
+        // insets it from the panel edges the same way the sidebar's active pill does, so the two
+        // read as the same design language.
+        'group/row mx-1.5 my-0.5 flex min-w-0 flex-col rounded-xl border border-white/[0.06] animate-ios-slide-up',
+        // Severity accent on the left edge, not a dot inside it — one signal instead of two.
         'border-l-[3px]',
         SEVERITY_BORDER[finding.severity],
         'gap-(--fx-card-gap) px-(--fx-card-padding-x) py-(--fx-card-padding-y)',
-        'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
-        !isSelected && 'hover:bg-hover',
+        'transition-all duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+        !isSelected && 'hover:bg-white/[0.04]',
         // The selected row is what the details pane is describing — say so, with a bar rather than a
         // fill, so the severity colours stay the loudest thing in the list.
         isSelected && 'bg-hover shadow-[inset_2px_0_0_0_var(--fx-color-accent)]',

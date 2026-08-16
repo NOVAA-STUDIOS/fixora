@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@fixora/ui';
+import { Dialog, DialogContent, DialogTitle } from '@fixora/ui';
 import { useEffect, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
@@ -6,43 +6,9 @@ import { invoke } from '../../lib/bridge.js';
 /**
  * The What's New quick action (Sprint F2: Welcome Experience).
  *
- * A short, hand-maintained list of recent highlights — not a live fetch of `CHANGELOG.md` (no
- * Markdown-rendering dependency in this app, and the changelog's full history is more detail than a
- * "here's what's new" glance needs) and not an external link (works with no network connection).
- * Update `HIGHLIGHTS` by hand alongside `CHANGELOG.md`'s `[Unreleased]` section each release.
- *
- * The build version is shown as its own line, separate from the highlights list, rather than as the
- * dialog's description directly above it ("Current build: vX" immediately over a list of items).
- * Several of these highlights (Proceed Mode, the Suggestion System) are unreleased/post-tag work per
- * `PROJECT_STATUS.md`, not part of any tagged version yet — juxtaposing a specific version number
- * with a list implying "this is what that version contains" overclaimed what the running build
- * actually ships (beta audit A1, What's New finding 1).
+ * Release notes only — not a live fetch of `CHANGELOG.md` (no Markdown-rendering dependency in this
+ * app), a GitHub Releases fetch instead, parsed and categorized by `ChangelogBody` below.
  */
-
-type Highlight = { title: string; detail: string };
-
-const HIGHLIGHTS: Highlight[] = [
-  {
-    title: 'Welcome Experience',
-    detail:
-      'A premium first-run screen: pinnable recent projects, quick actions, and a splash that closes the instant startup finishes — never a manufactured wait.',
-  },
-  {
-    title: 'Suggestion System',
-    detail:
-      'Send feedback straight from the app — category, message, local history, JSON export, and Email to Fixora with a Gmail fallback when no mail client is configured.',
-  },
-  {
-    title: 'Proceed Mode',
-    detail:
-      'A second editing pipeline: describe a change in plain language and get a VERIFIED edit proposal, reviewed with the same trust surface as a repair.',
-  },
-  {
-    title: 'Reliability hardening',
-    detail:
-      'A full audit pass across Repair and Proceed fixed retry/cancel edge cases and added a write-verification safety net that catches a bad write before it is ever reported as success.',
-  },
-];
 
 type ChangelogEntry = { version: string; date: string; body: string };
 type ChangelogState =
@@ -67,7 +33,6 @@ export function WhatsNewDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
-  const [version, setVersion] = useState<string | null>(null);
   const [changelog, setChangelog] = useState<ChangelogState>(
     changelogCache !== null ? { status: 'ready', releases: changelogCache } : { status: 'loading' },
   );
@@ -75,9 +40,6 @@ export function WhatsNewDialog({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    void invoke('system:getAppInfo', {}).then((r) => {
-      if (!cancelled && r.ok) setVersion(r.value.version);
-    });
     if (changelogCache === null) {
       setChangelog({ status: 'loading' });
       void invoke('system:getChangelog', {}).then((r) => {
@@ -100,25 +62,8 @@ export function WhatsNewDialog({
       <DialogContent className="max-w-lg">
         <div className="flex flex-col gap-1 pb-4">
           <DialogTitle className="text-base font-semibold text-fg">What&apos;s new</DialogTitle>
-          <DialogDescription className="text-sm text-fg-secondary">
-            Recent highlights from across Fixora.
-          </DialogDescription>
         </div>
-        <ul className="flex flex-col gap-3">
-          {HIGHLIGHTS.map((item) => (
-            <li key={item.title} className="flex flex-col gap-0.5 rounded-lg bg-inset px-3 py-2.5">
-              <span className="text-sm font-medium text-fg">{item.title}</span>
-              <span className="text-xs leading-relaxed text-fg-muted">{item.detail}</span>
-            </li>
-          ))}
-        </ul>
-        {/* A separate, secondary line — not positioned as "this version contains the list above" —
-            since several highlights are unreleased/post-tag work, not part of any tagged version. */}
-        {version !== null && (
-          <p className="pt-3 text-[11px] tabular-nums text-fg-muted">Running v{version}</p>
-        )}
-
-        <div className="mt-4 flex flex-col gap-1 border-t border-border-subtle pt-4">
+        <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
             Release notes
           </span>
@@ -126,6 +71,92 @@ export function WhatsNewDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+type NoteCategory = 'ui' | 'new' | 'perf' | 'fixed' | 'other';
+const CATEGORY_META: Record<NoteCategory, { icon: string; label: string }> = {
+  ui: { icon: '🎨', label: 'UI' },
+  new: { icon: '✨', label: 'New' },
+  perf: { icon: '⚡', label: 'Performance' },
+  fixed: { icon: '🔧', label: 'Fixed' },
+  other: { icon: '📦', label: 'Other' },
+};
+const CATEGORY_ORDER: NoteCategory[] = ['new', 'ui', 'perf', 'fixed', 'other'];
+
+/**
+ * A GitHub release body is a Markdown bullet list of raw conventional-commit subjects — this app
+ * has no Markdown renderer (see the module doc) and a user should never see `feat(repair):` or a
+ * trailing ` by @user in #123`. Parsed, not rendered: bucket by prefix, strip everything that isn't
+ * the human sentence.
+ */
+function parseNotes(body: string): Map<NoteCategory, string[]> {
+  const buckets = new Map<NoteCategory, string[]>();
+  for (const raw of body.split('\n')) {
+    const line = raw.replace(/^[-*]\s*/, '').trim();
+    if (line === '') continue;
+    const match = /^(feat|perf|fix)(\(([^)]*)\))?:\s*(.+)$/i.exec(line);
+    const text = (match?.[4] ?? line)
+      .replace(/\s*\(#\d+\)\s*$/, '')
+      .replace(/\s+by\s+@[\w-]+(\s+in\s+#\d+)?\s*$/i, '')
+      .trim();
+    if (text === '') continue;
+    const scope = match?.[3]?.toLowerCase() ?? '';
+    const kind = match?.[1]?.toLowerCase();
+    const category: NoteCategory =
+      kind === 'feat' && scope.includes('ui')
+        ? 'ui'
+        : kind === 'feat'
+          ? 'new'
+          : kind === 'perf'
+            ? 'perf'
+            : kind === 'fix'
+              ? 'fixed'
+              : 'other';
+    const bucket = buckets.get(category) ?? [];
+    bucket.push(text);
+    buckets.set(category, bucket);
+  }
+  return buckets;
+}
+
+const VISIBLE_PER_CATEGORY = 4;
+
+function NoteCategorySection({
+  category,
+  items,
+}: {
+  category: NoteCategory;
+  items: string[];
+}): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const meta = CATEGORY_META[category];
+  const visible = expanded ? items : items.slice(0, VISIBLE_PER_CATEGORY);
+  const hidden = items.length - visible.length;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <h4 className="text-[11px] font-semibold tracking-wide text-fg-muted uppercase">
+        {meta.icon} {meta.label}
+      </h4>
+      <ul className="flex flex-col gap-1">
+        {visible.map((text) => (
+          <li key={text} className="text-[13px] leading-relaxed text-fg-secondary">
+            {text}
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            setExpanded(true);
+          }}
+          className="self-start text-[11px] text-accent-text hover:underline"
+        >
+          Show {hidden} more
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -149,23 +180,36 @@ function ChangelogBody({ state }: { state: ChangelogState }): React.JSX.Element 
   }
   return (
     <ul className="flex max-h-64 flex-col gap-3 overflow-y-auto">
-      {state.releases.map((r) => (
-        <li key={r.version} className="flex flex-col gap-1 rounded-lg bg-inset px-3 py-2.5">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-xs font-medium text-fg">{r.version}</span>
-            {r.date !== '' && (
-              <span className="shrink-0 text-[10px] tabular-nums text-fg-muted">
-                {new Date(r.date).toLocaleDateString()}
+      {state.releases.map((r) => {
+        const buckets = parseNotes(r.body);
+        return (
+          <li key={r.version} className="flex flex-col gap-3 rounded-lg bg-inset px-3 py-2.5">
+            <div className="flex items-baseline justify-between gap-2">
+              {/* Version badge — the prominent, top-of-card element the plain text used to bury. */}
+              <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-xs font-semibold text-accent-text">
+                {r.version}
               </span>
+              {r.date !== '' && (
+                <span className="shrink-0 text-[10px] tabular-nums text-fg-muted">
+                  {new Date(r.date).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            {buckets.size === 0 ? (
+              <p className="text-[13px] text-fg-muted">No description provided.</p>
+            ) : (
+              CATEGORY_ORDER.filter((c) => (buckets.get(c)?.length ?? 0) > 0).map((c, i) => {
+                const items = buckets.get(c) ?? [];
+                return (
+                  <div key={c} className={i > 0 ? 'border-t border-border-subtle pt-3' : undefined}>
+                    <NoteCategorySection category={c} items={items} />
+                  </div>
+                );
+              })
             )}
-          </div>
-          {/* No Markdown-rendering dependency in this app (see HIGHLIGHTS' own note above) — a
-              GitHub release body is rendered line-by-line rather than pulling one in for this. */}
-          <div className="whitespace-pre-line text-xs leading-relaxed text-fg-muted">
-            {r.body.trim() === '' ? 'No description provided.' : r.body}
-          </div>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { basename, join, posix } from 'node:path';
 
 import { UserFacingError } from '@fixora/shared-types';
@@ -181,11 +180,17 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
     // walk itself yields (see YIELD_EVERY below), so the ceiling is no longer what protects main's
     // responsiveness — this is now purely a sanity bound against pathological input.
     async indexFiles(workspace: OpenWorkspace, maxFiles = 200_000): Promise<number> {
-      const YIELD_EVERY = 200;
+      // Shorter, more frequent yields: a burst of 200 files (each with a full-content SHA256 read)
+      // saturated main's event loop for long enough to make every other IPC call sluggish for the
+      // burst's duration. 50 is a quarter the work per burst, four times as many breathing points.
+      const YIELD_EVERY = 50;
       const records: Parameters<FileIndexRepository['replaceAll']>[1] = [];
+      // A `setImmediate` alone only guarantees a queue turn, not that other pending work (an IPC
+      // reply, a paint) actually gets serviced before the next burst starts — this small delay gives
+      // it room to.
       const yieldToEventLoop = (): Promise<void> =>
         new Promise((resolve) => {
-          setImmediate(resolve);
+          setTimeout(resolve, 4);
         });
 
       const walk = async (relDir: string): Promise<void> => {
@@ -218,7 +223,7 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
                 language: detectLanguage(entry.name),
                 sizeBytes: stat.size,
                 mtime: Math.floor(stat.mtimeMs),
-                contentHash: hashFile(abs, stat.size),
+                contentHash: fileChangeKey(stat.mtimeMs, stat.size),
               });
             } catch {
               // vanished between readdir and stat — skip
@@ -237,12 +242,14 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
 
 export type WorkspaceService = ReturnType<typeof createWorkspaceService>;
 
-/** Content hash — the analysis cache key and patch conflict key (DB §1). Skipped for huge files. */
-function hashFile(absolute: string, size: number): string | null {
-  if (size > 4 * 1024 * 1024) return null; // do not read multi-MB files just to hash them at index time
-  try {
-    return createHash('sha256').update(readFileSync(absolute)).digest('hex');
-  } catch {
-    return null;
-  }
+/**
+ * A cheap change-detection key for `files_index.content_hash`. Was a SHA256 of the full file
+ * content — the single most expensive step of indexing (a synchronous read of every file), for a
+ * column verified unread by any current caller (no query or comparison against it exists anywhere
+ * in the codebase; `core-analysis`'s own `hashSource` cache reads content independently during
+ * analysis, not from this table). `mtime` + `size` is the same trade `git status` and most file
+ * watchers make: nearly always sufficient, and immeasurably cheaper than reading every byte.
+ */
+function fileChangeKey(mtimeMs: number, size: number): string {
+  return `${String(mtimeMs)}-${String(size)}`;
 }

@@ -163,14 +163,32 @@ export function registerAiHandlers(deps: {
       );
     }
     try {
-      const { model, migratedFrom } = await deps.catalogue.resolve(config.model);
+      // Bounded: `resolve`/`list` are network calls to the model catalogue, and an unbounded await
+      // here turned "OpenRouter is slow to respond" into the whole panel hanging on mount — the one
+      // channel every panel reads first. Same fallback as a network ERROR below; a timeout is just
+      // another way this convenience lookup can fail to deliver in time.
+      const GET_CONFIG_CATALOGUE_TIMEOUT_MS = 5000;
+      const withTimeout = async <T>(promise: Promise<T>): Promise<T> => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            reject(new Error('catalogue lookup timed out'));
+          }, GET_CONFIG_CATALOGUE_TIMEOUT_MS);
+        });
+        try {
+          return await Promise.race([promise, timeout]);
+        } finally {
+          if (timer !== undefined) clearTimeout(timer);
+        }
+      };
+      const { model, migratedFrom } = await withTimeout(deps.catalogue.resolve(config.model));
       if (model !== config.model) {
         // Persist it, so the migration happens once rather than on every read.
         deps.keyStore.setModel(model);
       }
       // Capabilities travel WITH the config, so the UI can disable an impossible action before the
       // user takes it rather than after. Read from the catalogue, never inferred from the model id.
-      const catalogue = await deps.catalogue.list(false);
+      const catalogue = await withTimeout(deps.catalogue.list(false));
       const resolved = catalogue.models.find((m) => m.id === model) ?? null;
       const capabilities = capabilitiesFor(resolved);
       const suggestion =

@@ -73,6 +73,12 @@ import { createMainWindow } from './windows/main-window.js';
 // the NEXT launch and flips the flag from then on. A user who still sees a black screen despite
 // that can flip it manually in Settings. Scoped to Windows, where this class of bug lives; the
 // switch must be set before the GPU process starts, hence at module load, before anything else.
+// GPU rasterisation, unconditionally — separate from the compositing workaround above (which the
+// broken-driver path sidesteps by moving to the CPU) and unaffected by it either way, so this is
+// not gated on `gpuPreference`. Must also be set before the GPU process starts, same as the switch
+// below.
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+
 export const gpuPreference =
   process.platform === 'win32' ? createGpuPreferenceStore(app.getPath('userData')) : null;
 if (gpuPreference !== null) {
