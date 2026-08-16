@@ -7,7 +7,7 @@ import { runTool } from '../process/run-tool.js';
 import { resolveBundledNodeTool, resolveNodeTool } from '../tools/resolve.js';
 
 import { writeFallbackEslintConfig } from './fallback-eslint-config.js';
-import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
+import { groundByFile, reportToolTimeout, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
  * The ESLint adapter — the flagship for the TS/JS market (ADR-025). It runs the **workspace's own**
@@ -89,6 +89,7 @@ export function createEslintAnalyzer(deps: AdapterDeps = {}): Analyzer {
       } catch {
         return; // aborted or failed to spawn — no findings, never throw
       }
+      if (reportToolTimeout(context, 'eslint', tool.command, run)) return;
       if (signal.aborted || run.stdout.trim() === '') return;
 
       let results: EslintFileResult[];

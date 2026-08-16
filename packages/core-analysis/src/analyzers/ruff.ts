@@ -6,7 +6,7 @@ import type { Analyzer } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
 import { resolveBundledBinary, resolvePathTool } from '../tools/resolve.js';
 
-import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
+import { groundByFile, reportToolTimeout, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
  * The ruff adapter (Python, ADR-025). Runs the workspace's ruff **once** over the directory and
@@ -162,6 +162,7 @@ export function createRuffAnalyzer(deps: AdapterDeps = {}): Analyzer {
       } catch {
         return;
       }
+      if (reportToolTimeout(context, 'ruff', tool.command, run)) return;
       if (signal.aborted || run.stdout.trim() === '') return;
 
       let messages: RuffMessage[];

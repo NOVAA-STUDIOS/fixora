@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 const versionRunner = (out: string) => (): Promise<ToolRun> =>
-  Promise.resolve({ stdout: out, stderr: '', code: 0, killed: false });
+  Promise.resolve({ stdout: out, stderr: '', code: 0, killed: false, timedOut: false, timeoutMs: 30_000 });
 
 describe('detectCapabilities', () => {
   it('detects a workspace node tool and records its version', async () => {

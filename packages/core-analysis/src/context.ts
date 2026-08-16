@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import type {
   AnalysisContext,
   AnalysisFile,
+  AnalysisNotice,
   ImportRef,
   RepairScope,
   WorkspaceCapabilities,
@@ -19,6 +20,11 @@ export interface CreateContextOptions {
   capabilities: WorkspaceCapabilities;
   files: readonly AnalysisFile[];
   readSource?: (absPath: string) => string | null;
+  /**
+   * Optional sink for run-level reliability notices (tool timeouts). The analysis worker supplies it
+   * and forwards each notice to the renderer; hand-built test contexts omit it.
+   */
+  reportNotice?: (notice: AnalysisNotice) => void;
 }
 
 function readFromDisk(absPath: string): string | null {
@@ -64,5 +70,7 @@ export function createAnalysisContext(options: CreateContextOptions): AnalysisCo
           location: { startLine: i.location.startLine, endLine: i.location.endLine },
         })),
       ),
+    // exactOptionalPropertyTypes: omit the key entirely when no sink was supplied.
+    ...(options.reportNotice !== undefined ? { reportNotice: options.reportNotice } : {}),
   };
 }

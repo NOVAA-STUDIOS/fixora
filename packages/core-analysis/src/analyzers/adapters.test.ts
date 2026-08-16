@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Finding, Language } from '@fixora/shared-types';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { Analyzer } from '../analyzer.js';
+import type { Analyzer, AnalysisNotice } from '../analyzer.js';
 import { createAnalysisContext } from '../context.js';
 import type { ToolRun } from '../process/run-tool.js';
 
@@ -39,20 +39,36 @@ interface FileSpec {
   source?: string;
 }
 
-function context(files: FileSpec[], tools: string[], root: string = ROOT) {
+function context(
+  files: FileSpec[],
+  tools: string[],
+  root: string = ROOT,
+  reportNotice?: (notice: AnalysisNotice) => void,
+) {
   const sources = new Map(files.map((f) => [join(root, f.file), f.source ?? '']));
   return createAnalysisContext({
     root,
     capabilities: { root, tools: new Set(tools), versions: new Map<string, string>() },
     files: files.map((f) => ({ file: f.file, absPath: join(root, f.file), language: f.language })),
     readSource: (p) => sources.get(p) ?? '',
+    ...(reportNotice !== undefined ? { reportNotice } : {}),
   });
 }
 
 function outRunner(stdout: string, stderr = ''): AdapterDeps {
   return {
     resolveTool: () => ({ command: 'fake', args: [] }),
-    runner: (): Promise<ToolRun> => Promise.resolve({ stdout, stderr, code: 1, killed: false }),
+    runner: (): Promise<ToolRun> =>
+      Promise.resolve({ stdout, stderr, code: 1, killed: false, timedOut: false, timeoutMs: 30_000 }),
+  };
+}
+
+/** A tool killed at its 30s timeout — the NOV7-01 regression case. */
+function timedOutRunner(timeoutMs = 30_000): AdapterDeps {
+  return {
+    resolveTool: () => ({ command: 'fake', args: [] }),
+    runner: (): Promise<ToolRun> =>
+      Promise.resolve({ stdout: '', stderr: '', code: null, killed: true, timedOut: true, timeoutMs }),
   };
 }
 
@@ -331,5 +347,86 @@ describe('semgrep adapter', () => {
       severity: 'error',
       category: 'security',
     });
+  });
+});
+
+describe('NOV7-01: a tool killed at its timeout is reported, not silently "zero findings"', () => {
+  const analyzerFor = (tool: string): Analyzer => {
+    switch (tool) {
+      case 'eslint':
+        return createEslintAnalyzer(timedOutRunner());
+      case 'tsc':
+        return createTscAnalyzer(timedOutRunner(180_000));
+      case 'ruff':
+        return createRuffAnalyzer(timedOutRunner());
+      case 'mypy':
+        return createMypyAnalyzer(timedOutRunner(180_000));
+      case 'go':
+        return createGoVetAnalyzer(timedOutRunner(180_000));
+      case 'semgrep':
+        return createSemgrepAnalyzer(timedOutRunner(180_000));
+      default:
+        throw new Error(`unexpected tool ${tool}`);
+    }
+  };
+
+  const fileFor = (tool: string): { file: string; language: Language } => {
+    switch (tool) {
+      case 'eslint':
+        return { file: 'src/a.ts', language: 'typescript' };
+      case 'tsc':
+        return { file: 'src/a.ts', language: 'typescript' };
+      case 'ruff':
+      case 'mypy':
+      case 'semgrep':
+        return { file: 'a.py', language: 'python' };
+      case 'go':
+        return { file: 'main.go', language: 'go' };
+      default:
+        throw new Error(`unexpected tool ${tool}`);
+    }
+  };
+
+  it.each([
+    ['eslint', 'eslint'],
+    ['tsc', 'tsc'],
+    ['ruff', 'ruff'],
+    ['mypy', 'mypy'],
+    ['go', 'go-vet'],
+    ['semgrep', 'semgrep'],
+  ])('%s: a timeout raises a structured notice and yields no findings', async (tool, analyzerId) => {
+    const root = mkdtempSync(join(tmpdir(), 'fx-timeout-'));
+    cleanup.push(root);
+    if (tool === 'semgrep') writeFileSync(join(root, '.semgrep.yml'), 'rules: []');
+
+    const notices: AnalysisNotice[] = [];
+    const ctx = context([fileFor(tool)], [tool], root, (n) => notices.push(n));
+
+    const findings = await collect(analyzerFor(tool), ctx);
+    // The tool never finished, so there are genuinely no findings — but that must not be SILENT.
+    expect(findings).toEqual([]);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toMatchObject({
+      analyzerId,
+      tool: 'fake',
+    });
+    expect(typeof notices[0]?.timeoutMs).toBe('number');
+    expect(notices[0]?.message).toMatch(/stopped at its/);
+  });
+
+  it('a user abort stays silent: no notice, no findings', async () => {
+    // Cancellation is `killed: true, timedOut: false` — it must never raise the timeout warning.
+    const aborted: AdapterDeps = {
+      resolveTool: () => ({ command: 'fake', args: [] }),
+      runner: (): Promise<ToolRun> =>
+        Promise.resolve({ stdout: '', stderr: '', code: null, killed: true, timedOut: false, timeoutMs: 30_000 }),
+    };
+    const notices: AnalysisNotice[] = [];
+    const ctx = context([{ file: 'src/a.ts', language: 'typescript' }], ['eslint'], ROOT, (n) =>
+      notices.push(n),
+    );
+    const findings = await collect(createEslintAnalyzer(aborted), ctx);
+    expect(findings).toEqual([]);
+    expect(notices).toEqual([]);
   });
 });

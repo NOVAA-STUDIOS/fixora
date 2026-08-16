@@ -16,8 +16,17 @@ export interface ToolRun {
   stderr: string;
   /** Exit code, or null if the process was killed (timeout/abort). */
   code: number | null;
-  /** True if we killed it for exceeding the timeout or on abort. */
+  /** True if we killed it (for exceeding the timeout or on abort). */
   killed: boolean;
+  /**
+   * True when the kill was the timeout ceiling, not a user abort. Distinguishing the two is what
+   * turns a silently-killed tool into a *reported* one: an abort is a normal cancellation and must
+   * stay quiet, while a timeout is a reliability event that the adapters surface instead of
+   * returning a misleading "zero findings".
+   */
+  timedOut: boolean;
+  /** The effective ceiling this run used (echoed so the notice can name the real timeout). */
+  timeoutMs: number;
 }
 
 export interface RunToolOptions {
@@ -59,14 +68,18 @@ export const runTool: ToolRunner = (options) => {
     let stdout = '';
     let stderr = '';
     let killed = false;
+    let timedOut = false;
     let settled = false;
 
     const timer = setTimeout(() => {
       killed = true;
+      timedOut = true;
       child.kill('SIGKILL');
     }, timeoutMs);
 
     const onAbort = (): void => {
+      // A user abort stays `timedOut: false`: cancellation is not a reliability failure, and the
+      // adapters must not surface a "tool timed out" warning for a run the user cancelled.
       killed = true;
       child.kill('SIGKILL');
     };
@@ -95,7 +108,7 @@ export const runTool: ToolRunner = (options) => {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve({ stdout, stderr, code, killed });
+      resolve({ stdout, stderr, code, killed, timedOut, timeoutMs });
     });
 
     if (input !== undefined) {

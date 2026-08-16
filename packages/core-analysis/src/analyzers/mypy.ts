@@ -4,7 +4,7 @@ import type { Analyzer } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
 import { resolvePathTool } from '../tools/resolve.js';
 
-import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
+import { groundByFile, reportToolTimeout, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
  * The mypy adapter (Python type errors, ADR-025). Runs the workspace's mypy **once** over the
@@ -56,6 +56,7 @@ export function createMypyAnalyzer(deps: AdapterDeps = {}): Analyzer {
       } catch {
         return;
       }
+      if (reportToolTimeout(context, 'mypy', tool.command, run)) return;
       if (signal.aborted) return;
 
       const byFile = new Map<string, RawFinding[]>();

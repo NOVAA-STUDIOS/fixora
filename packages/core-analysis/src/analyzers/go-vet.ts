@@ -4,7 +4,7 @@ import type { Analyzer } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
 import { resolvePathTool } from '../tools/resolve.js';
 
-import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
+import { groundByFile, reportToolTimeout, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
  * The go vet adapter (Go, ADR-025). Go's tooling works on packages, and `go vet ./...` vets every
@@ -57,6 +57,7 @@ export function createGoVetAnalyzer(deps: AdapterDeps = {}): Analyzer {
       } catch {
         return;
       }
+      if (reportToolTimeout(context, 'go-vet', tool.command, run)) return;
       if (signal.aborted) return;
 
       // go vet prints the JSON report to stderr; a build failure produces non-JSON there instead.

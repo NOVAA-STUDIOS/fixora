@@ -6,7 +6,7 @@ import { runTool } from '../process/run-tool.js';
 import { resolveBundledNodeTool, resolveNodeTool } from '../tools/resolve.js';
 
 import { FALLBACK_TSC_FLAGS } from './fallback-tsc-flags.js';
-import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
+import { groundByFile, reportToolTimeout, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
  * The tsc adapter (TypeScript type errors, ADR-025). The type-checker is inherently project-wide, so
@@ -100,6 +100,7 @@ export function createTscAnalyzer(deps: AdapterDeps = {}): Analyzer {
       } catch {
         return;
       }
+      if (reportToolTimeout(context, 'tsc', tool.command, run)) return;
       if (signal.aborted) return;
 
       const byFile = new Map<string, RawFinding[]>();

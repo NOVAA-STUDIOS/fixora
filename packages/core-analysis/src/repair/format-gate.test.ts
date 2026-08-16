@@ -10,8 +10,16 @@ import { formatGate, resolveFormatter } from './format-gate.js';
  * own diagnostic. The runner is injected so we assert behaviour without spawning a real formatter.
  */
 
-const ok: ToolRun = { stdout: '', stderr: '', code: 0, killed: false };
-const fail = (stderr: string): ToolRun => ({ stdout: '', stderr, code: 2, killed: false });
+const ok: ToolRun = { stdout: '', stderr: '', code: 0, killed: false, timedOut: false, timeoutMs: 30_000 };
+
+const fail = (stderr: string): ToolRun => ({
+  stdout: '',
+  stderr,
+  code: 2,
+  killed: false,
+  timedOut: false,
+  timeoutMs: 30_000,
+});
 
 describe('resolveFormatter', () => {
   it('always resolves a formatter for Python (Ruff is vendored)', () => {

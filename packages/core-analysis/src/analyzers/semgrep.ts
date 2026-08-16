@@ -7,7 +7,7 @@ import type { Analyzer, WorkspaceCapabilities } from '../analyzer.js';
 import { runTool } from '../process/run-tool.js';
 import { resolvePathTool } from '../tools/resolve.js';
 
-import { groundByFile, type AdapterDeps, type RawFinding } from './support.js';
+import { groundByFile, reportToolTimeout, type AdapterDeps, type RawFinding } from './support.js';
 
 /**
  * The Semgrep adapter — cross-language security (ADR-025). Semgrep needs a ruleset; `--config auto`
@@ -98,6 +98,7 @@ export function createSemgrepAnalyzer(deps: AdapterDeps = {}): Analyzer {
       } catch {
         return;
       }
+      if (reportToolTimeout(context, 'semgrep', tool.command, run)) return;
       if (signal.aborted || run.stdout.trim() === '') return;
 
       let report: { results?: SemgrepResult[] };

@@ -10,7 +10,7 @@ import type {
 
 import type { AnalysisContext, ImportRef, RepairScope } from '../analyzer.js';
 import { findingId } from '../finding-id.js';
-import type { ToolRunner } from '../process/run-tool.js';
+import type { ToolRun, ToolRunner } from '../process/run-tool.js';
 import { isDelimiterRule, outermostScopeContaining } from '../repair/balanced-scope.js';
 import { selectRepairContext } from '../repair/context-selector.js';
 import { classifyRepair } from '../repair/micro-repair.js';
@@ -39,6 +39,29 @@ import type { ResolvedTool } from '../tools/resolve.js';
 export interface AdapterDeps {
   runner?: ToolRunner;
   resolveTool?: (root: string) => ResolvedTool | null;
+}
+
+/**
+ * Surface a tool that was killed at its timeout (NOV7-01). Returns `true` when the run was timed out
+ * and a structured notice was raised — the adapter must then return without findings, because the tool
+ * never finished and "zero findings" would be a silent lie. Returns `false` for a normal run and for
+ * a user abort (which is `killed` but NOT `timedOut` — cancellation must stay quiet).
+ */
+export function reportToolTimeout(
+  context: AnalysisContext,
+  analyzerId: string,
+  tool: string,
+  run: ToolRun,
+): boolean {
+  if (!run.timedOut) return false;
+  const timeoutLabel = String(run.timeoutMs);
+  context.reportNotice?.({
+    analyzerId,
+    tool,
+    timeoutMs: run.timeoutMs,
+    message: `${analyzerId} was stopped at its ${timeoutLabel}ms time limit; its findings are missing from this analysis.`,
+  });
+  return true;
 }
 
 /** A finding reduced to what an adapter parses from tool output, before grounding. */

@@ -66,6 +66,29 @@ export interface AnalysisContext {
    * the same reason as `scopesFor`.
    */
   importsFor?(file: AnalysisFile): Promise<readonly ImportRef[]>;
+  /**
+   * Optional sink for run-level reliability notices (e.g. "ESLint was killed at its 30s timeout;
+   * its findings are missing"). The run owner (the analysis worker) supplies it; an external-tool
+   * adapter calls it instead of silently returning a misleading "zero findings" for a tool that
+   * never finished. Absent in tests/hand-built contexts, so the call site must be optional-call-safe.
+   */
+  reportNotice?(notice: AnalysisNotice): void;
+}
+
+/**
+ * A structured, run-level notice an analyzer raises when its external tool did not finish normally —
+ * the timeout case (NOV7-01). Deliberately NOT a `Finding`: it has no file/location and no repair,
+ * and it must reach the panel as a warning, not as a defect in the user's code.
+ */
+export interface AnalysisNotice {
+  /** The analyzer id that raised it, e.g. `eslint`. */
+  readonly analyzerId: string;
+  /** The external tool that was killed, e.g. `eslint`. */
+  readonly tool: string;
+  /** The hard ceiling the tool was killed past, in milliseconds. */
+  readonly timeoutMs: number;
+  /** A user-facing message explaining that this part of the analysis is missing. */
+  readonly message: string;
 }
 
 /** An import as the Dependency-scope selector needs it: the module and where its statement sits. */
