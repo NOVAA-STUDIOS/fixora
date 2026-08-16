@@ -1,5 +1,11 @@
 export { findingId, normalizeSnippet, type FindingIdInput } from './finding-id.js';
 export { dedupeFindings, type DedupResult } from './dedup.js';
+export {
+  isRelativeSpecifier,
+  resolveRelativeImport,
+  selectCrossFileContext,
+  type CrossFileContext,
+} from './repair/cross-file-context.js';
 export type { Analyzer, AnalysisContext, AnalysisFile, AnalysisNotice, WorkspaceCapabilities } from './analyzer.js';
 export { createAnalysisContext, type CreateContextOptions } from './context.js';
 export { complexityAnalyzer } from './analyzers/complexity.js';
@@ -9,7 +15,7 @@ export { createSyntaxAnalyzer, isTailwindDirectiveLine } from './analyzers/synta
 export { createRuffAnalyzer } from './analyzers/ruff.js';
 export { createGoVetAnalyzer } from './analyzers/go-vet.js';
 export { createTscAnalyzer } from './analyzers/tsc.js';
-export { createSemgrepAnalyzer } from './analyzers/semgrep.js';
+export { createSemgrepAnalyzer, hasSemgrepConfig } from './analyzers/semgrep.js';
 export { createMypyAnalyzer } from './analyzers/mypy.js';
 export {
   createFileGrounder,

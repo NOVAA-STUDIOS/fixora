@@ -145,6 +145,21 @@ export const EvidenceSchema = z.object({
       }),
     )
     .optional(),
+  /**
+   * Context from OTHER files — the definition of an imported symbol the target references.
+   *
+   * Carries `text`, not a line range, and that is the whole point: `contextRanges` above are line
+   * ranges into THIS file, and `repairNeighbours` slices them out of this file's own content. A
+   * cross-file range run through that path would slice the wrong file's lines and silently ship
+   * unrelated code to the model, so foreign context has to arrive as text it already resolved.
+   *
+   * Populated by a later change (relative-import resolution); nothing writes it yet. Optional, so a
+   * finding without it — every finding today, and every one already persisted in `data_json` —
+   * reads back exactly as before.
+   */
+  crossFileContext: z
+    .array(z.object({ label: z.string(), text: z.string() }))
+    .optional(),
   snippet: z.string(),
   relatedLocations: z.array(LocationSchema),
   toolOutput: z.unknown(),
@@ -226,6 +241,23 @@ export const FindingsSummarySchema = z.object({
 });
 export type FindingsSummary = z.infer<typeof FindingsSummarySchema>;
 
+/**
+ * A reliability warning raised during an analysis run (NOV7-01): an external tool was killed at its
+ * timeout, so part of the analysis is missing. This is NOT a `Finding` — it has no file/location and
+ * no repair; it is a structured explanation of why the findings may be incomplete.
+ */
+export const AnalysisWarningSchema = z.object({
+  /** The analyzer that raised it, e.g. `eslint`. */
+  analyzerId: z.string(),
+  /** The external tool that was killed, e.g. `eslint`. */
+  tool: z.string(),
+  /** The hard ceiling the tool was killed past, in milliseconds. */
+  timeoutMs: z.number().int().positive(),
+  /** A user-facing message explaining that this part of the analysis is missing. */
+  message: z.string(),
+});
+export type AnalysisWarning = z.infer<typeof AnalysisWarningSchema>;
+
 /** The analysis run lifecycle the engine reports to the panel (main → renderer event). */
 export const AnalysisStateSchema = z.object({
   status: z.enum(['idle', 'running', 'done', 'error']),
@@ -237,5 +269,11 @@ export const AnalysisStateSchema = z.object({
    * the panel can tell "just started" from "ran and found nothing yet".
    */
   findingsSoFar: z.number().int().nonnegative().optional(),
+  /**
+   * Reliability warnings raised during the run (NOV7-01): an external tool was killed at its
+   * timeout, so part of the analysis is missing. Present when the run was partial — the panel must
+   * not present "no findings" as a clean bill of health.
+   */
+  warnings: AnalysisWarningSchema.array().optional(),
 });
 export type AnalysisState = z.infer<typeof AnalysisStateSchema>;

@@ -201,6 +201,7 @@ export {
   REPAIR_STATE_REASON,
   type RepairState,
 } from './repair-support.js';
+export { neighbourRelevanceScore } from './neighbour-relevance.js';
 
 export { classifyDiagnostic, type ConfigDiagnosis } from './diagnostic-classifier.js';
 

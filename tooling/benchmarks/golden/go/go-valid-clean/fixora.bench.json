@@ -1,0 +1,10 @@
+{
+  "id": "go-valid-clean",
+  "language": "go",
+  "support": "supported",
+  "kind": "valid",
+  "description": "Correct Go — structs, an interface, a goroutine, a correct Printf — must produce no findings.",
+  "requiresTools": ["go"],
+  "ignoreRules": [],
+  "expected": []
+}

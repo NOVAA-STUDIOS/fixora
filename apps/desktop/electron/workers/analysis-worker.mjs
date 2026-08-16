@@ -16,6 +16,7 @@ import {
   deterministicRepair,
   detectCapabilities,
   formatGate,
+  hasSemgrepConfig,
   isTailwindDirectiveLine,
   languageForPath,
   parse,
@@ -381,7 +382,32 @@ async function runJob(message) {
       const language = languageForPath(t.file);
       if (language !== null) files.push({ file: t.file, absPath: t.absPath, language });
     }
-    const context = createAnalysisContext({ root: workspaceRoot, capabilities, files });
+    // The run's reliability notices (NOV7-01): a tool killed at its timeout must be reported, not
+    // silently become "zero findings". `reportNotice` is the context's sink; main forwards the
+    // collected notices to the renderer, which shows them as warnings on the analysis state.
+    const notices = [];
+    // Semgrep runs only when the workspace ships its own config (no network fetch — ADR-007), so
+    // a project with no .semgrep.yml gets zero Semgrep findings with nothing distinguishing that
+    // from "Semgrep found nothing". Told apart from "no semgrep binary at all", which needs no
+    // action from the user and would be a useless notice.
+    if (capabilities.tools.has('semgrep') && !hasSemgrepConfig(workspaceRoot)) {
+      notices.push({
+        analyzerId: 'semgrep',
+        tool: 'semgrep',
+        timeoutMs: 0,
+        message:
+          'Semgrep inactive — no .semgrep.yml found in project root. Add one to enable ' +
+          'cross-language security scanning.',
+      });
+    }
+    const context = createAnalysisContext({
+      root: workspaceRoot,
+      capabilities,
+      files,
+      reportNotice: (notice) => {
+        notices.push(notice);
+      },
+    });
     const cache = cacheFor(workspaceRoot);
 
     // Grouped by file per message (one `fileFindings` per file, not per finding — that would be
@@ -410,7 +436,7 @@ async function runJob(message) {
       if (sinceFlush >= FLUSH_EVERY) flush();
     }
     if (!controller.signal.aborted) flush();
-    port.postMessage({ type: 'done', jobId, aborted: controller.signal.aborted });
+    port.postMessage({ type: 'done', jobId, aborted: controller.signal.aborted, notices });
   } catch (error) {
     port.postMessage({ type: 'error', jobId, message: String(error) });
   } finally {

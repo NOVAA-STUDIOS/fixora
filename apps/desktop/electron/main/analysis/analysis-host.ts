@@ -1,4 +1,4 @@
-import type { EditScope, MicroRepairResult } from '@fixora/core-analysis';
+import type { AnalysisNotice, EditScope, MicroRepairResult } from '@fixora/core-analysis';
 import type { Finding, Language } from '@fixora/shared-types';
 import { utilityProcess, type UtilityProcess } from 'electron';
 
@@ -23,6 +23,11 @@ export interface AnalysisJob {
   onFileFindings: (file: string, findings: Finding[]) => void;
   onDone: (aborted: boolean) => void;
   onError: (message: string) => void;
+  /**
+   * Reliability notices raised during the run (NOV7-01): an external tool killed at its timeout.
+   * Optional so existing callers that only care about findings stay unchanged.
+   */
+  onNotice?: (notices: AnalysisNotice[]) => void;
 }
 
 export interface SyntaxError {
@@ -147,6 +152,7 @@ type ActiveJob =
       onFileFindings: AnalysisJob['onFileFindings'];
       onDone: AnalysisJob['onDone'];
       onError: AnalysisJob['onError'];
+      onNotice: AnalysisJob['onNotice'];
     }
   | {
       kind: 'verify';
@@ -198,7 +204,7 @@ const FORMAT_TIMEOUT_MS = 30_000;
 /** A message from the worker — validated structurally before use (it crosses a process boundary). */
 type WorkerMessage =
   | { type: 'fileFindings'; jobId: string; file: string; findings: Finding[] }
-  | { type: 'done'; jobId: string; aborted: boolean }
+  | { type: 'done'; jobId: string; aborted: boolean; notices?: AnalysisNotice[] }
   | {
       type: 'verifyResult';
       jobId: string;
@@ -241,6 +247,34 @@ function asMicroRepairResult(value: unknown): MicroRepairResult | null {
     source: r['source'] as MicroRepairResult['source'],
     edits,
   };
+}
+
+/** Structurally validate the worker's reliability notices (they cross a process boundary). */
+function asAnalysisNotices(value: unknown): AnalysisNotice[] {
+  if (!Array.isArray(value)) return [];
+  const out: AnalysisNotice[] = [];
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null) continue;
+    const rec = item as Record<string, unknown>;
+    const analyzerId = rec['analyzerId'];
+    const tool = rec['tool'];
+    const message = rec['message'];
+    if (
+      typeof analyzerId !== 'string' ||
+      typeof tool !== 'string' ||
+      typeof message !== 'string' ||
+      typeof rec['timeoutMs'] !== 'number'
+    ) {
+      continue;
+    }
+    out.push({
+      analyzerId,
+      tool,
+      timeoutMs: rec['timeoutMs'],
+      message,
+    });
+  }
+  return out;
 }
 
 function asWorkerMessage(value: unknown): WorkerMessage | null {
@@ -337,7 +371,14 @@ function asWorkerMessage(value: unknown): WorkerMessage | null {
     };
   }
   if (m['type'] === 'done')
-    return { type: 'done', jobId: String(m['jobId']), aborted: m['aborted'] === true };
+    return {
+      type: 'done',
+      jobId: String(m['jobId']),
+      aborted: m['aborted'] === true,
+      // Reliability notices (NOV7-01): tools killed at their timeout, forwarded so the renderer can
+      // show a visible warning instead of silently presenting a partial analysis as complete.
+      ...(Array.isArray(m['notices']) ? { notices: asAnalysisNotices(m['notices']) } : {}),
+    };
   if (m['type'] === 'error')
     return { type: 'error', jobId: String(m['jobId']), message: String(m['message']) };
   return null;
@@ -379,6 +420,11 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
       if (message.type === 'fileFindings') {
         job.onFileFindings(message.file, message.findings);
       } else if (message.type === 'done') {
+        // Reliability notices ride on the done message (NOV7-01). Delivered before `onDone` so the
+        // caller can fold them into the final state rather than emit a second event after "done".
+        if (message.notices !== undefined && job.onNotice !== undefined) {
+          job.onNotice(message.notices);
+        }
         finish(job);
         job.onDone(message.aborted);
       }
@@ -490,6 +536,7 @@ export function createAnalysisHost(workerPath: string): AnalysisHost {
         onFileFindings: job.onFileFindings,
         onDone: job.onDone,
         onError: job.onError,
+        onNotice: job.onNotice,
       };
       child.postMessage({
         type: 'analyze',

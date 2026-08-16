@@ -116,3 +116,78 @@ describe('selectRepairContext (Semantic + Dependency scope)', () => {
     expect(ranges).toEqual([]);
   });
 });
+
+/**
+ * Relevance ranking, before the cap.
+ *
+ * Ordering only — the same candidates stay eligible and MAX_NEIGHBOURS still bounds the total.
+ * Built on the real `parseStructure` (like every test above), not hand-made symbol objects, so
+ * what is asserted is what the live pipeline produces.
+ *
+ * The fixture is deliberately unconfounded: `Omega` is BOTH farther from the finding (50 lines vs
+ * 9) AND declared later, so it loses on proximity and on array order. If naming it in the
+ * diagnostic still puts it first, the reference signal is doing the work — nothing else could.
+ */
+const RANK_SOURCE = "interface Alpha { a: number; }\n// filler 0\n// filler 1\n// filler 2\n// filler 3\n// filler 4\n// filler 5\n// filler 6\n// filler 7\nexport const thing: Alpha = { a: (null as unknown as Omega).z };\n// pad 0\n// pad 1\n// pad 2\n// pad 3\n// pad 4\n// pad 5\n// pad 6\n// pad 7\n// pad 8\n// pad 9\n// pad 10\n// pad 11\n// pad 12\n// pad 13\n// pad 14\n// pad 15\n// pad 16\n// pad 17\n// pad 18\n// pad 19\n// pad 20\n// pad 21\n// pad 22\n// pad 23\n// pad 24\n// pad 25\n// pad 26\n// pad 27\n// pad 28\n// pad 29\n// pad 30\n// pad 31\n// pad 32\n// pad 33\n// pad 34\n// pad 35\n// pad 36\n// pad 37\n// pad 38\n// pad 39\n// pad 40\n// pad 41\n// pad 42\n// pad 43\n// pad 44\n// pad 45\n// pad 46\n// pad 47\n// pad 48\ninterface Omega { z: number; }";
+
+async function rankStructure() {
+  const s = await parseStructure('typescript', RANK_SOURCE, 'r.ts');
+  return {
+    symbols: s.symbols,
+    imports: s.imports.map((i) => ({
+      module: i.module,
+      location: { startLine: i.location.startLine, endLine: i.location.endLine },
+    })),
+  };
+}
+
+describe('selectRepairContext — relevance ranking', () => {
+  it('a declaration named in the diagnostic outranks a nearer, earlier-declared one', async () => {
+    const { symbols, imports } = await rankStructure();
+    const ranked = selectRepairContext({
+      source: RANK_SOURCE,
+      scopeStartLine: 10,
+      scopeEndLine: 10,
+      symbols,
+      imports,
+      targetSymbolName: 'thing',
+      findingLine: 10,
+      diagnosticText: "Property 'z' does not exist on type 'Omega'.",
+    });
+    expect(ranked.map((r) => r.label)).toEqual(['interface Omega', 'interface Alpha']);
+  });
+
+  it('without the diagnostic, the nearer/earlier one leads — proving the signal changed it', async () => {
+    const { symbols, imports } = await rankStructure();
+    const unranked = selectRepairContext({
+      source: RANK_SOURCE,
+      scopeStartLine: 10,
+      scopeEndLine: 10,
+      symbols,
+      imports,
+      targetSymbolName: 'thing',
+    });
+    expect(unranked.map((r) => r.label)).toEqual(['interface Alpha', 'interface Omega']);
+  });
+
+  it('ranking reorders but never adds or drops a candidate', async () => {
+    const { symbols, imports } = await rankStructure();
+    const base = {
+      source: RANK_SOURCE,
+      scopeStartLine: 10,
+      scopeEndLine: 10,
+      symbols,
+      imports,
+      targetSymbolName: 'thing',
+    };
+    const a = selectRepairContext(base).map((r) => r.label).sort();
+    const b = selectRepairContext({
+      ...base,
+      findingLine: 10,
+      diagnosticText: "Property 'z' does not exist on type 'Omega'.",
+    })
+      .map((r) => r.label)
+      .sort();
+    expect(b).toEqual(a);
+  });
+});

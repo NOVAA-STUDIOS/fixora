@@ -1,0 +1,10 @@
+{
+  "id": "py-valid-clean-2",
+  "language": "python",
+  "support": "supported",
+  "kind": "valid",
+  "description": "A denser valid Python module — a dataclass, a generator, type hints, a context manager — must produce no findings.",
+  "requiresTools": ["ruff"],
+  "ignoreRules": [],
+  "expected": []
+}

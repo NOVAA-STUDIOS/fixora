@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-08-13T16:09:18.529Z",
+  "ranAt": "2026-08-14T10:08:26.747Z",
   "capabilities": {
     "tools": [
       "eslint",
@@ -7,6 +7,7 @@
       "tsc"
     ],
     "versions": {
+      "eslint": "v9.39.5",
       "ruff": "ruff 0.15.22",
       "tsc": "Version 6.0.3"
     }
@@ -48,7 +49,7 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 6
+      "cases": 7
     },
     {
       "name": "json",
@@ -68,7 +69,7 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 4
+      "cases": 5
     },
     {
       "name": "python",
@@ -88,7 +89,7 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 7
+      "cases": 8
     },
     {
       "name": "react",
@@ -108,7 +109,7 @@
         "falseNegativeRate": 0,
         "attributeErrorRate": 0
       },
-      "cases": 3
+      "cases": 4
     },
     {
       "name": "typescript",
@@ -570,6 +571,10 @@
   "knownDefects": [],
   "skipped": [
     {
+      "id": "go-valid-clean",
+      "reason": "Requires go — not available on this machine."
+    },
+    {
       "id": "go-vet-printf",
       "reason": "Requires go — not available on this machine."
     },
@@ -583,12 +588,12 @@
     }
   ],
   "benchmarks": {
-    "passed": 26,
+    "passed": 30,
     "failed": 0,
     "knownDefects": 0,
-    "skipped": 3,
+    "skipped": 4,
     "unsupported": 2,
-    "total": 31
+    "total": 36
   },
   "repair": {
     "measured": false,

@@ -1,0 +1,10 @@
+{
+  "id": "js-valid-clean-2",
+  "language": "javascript",
+  "support": "supported",
+  "kind": "valid",
+  "description": "A denser valid JS module — classes, async/await, destructuring, template literals — precision guard.",
+  "requiresTools": [],
+  "expected": [],
+  "ignoreRules": []
+}

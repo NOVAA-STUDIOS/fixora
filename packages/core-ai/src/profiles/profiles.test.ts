@@ -154,3 +154,93 @@ describe('language rules — JavaScript', () => {
     expect(msg).not.toContain('Do not emit:');
   });
 });
+
+/**
+ * Category guidance.
+ *
+ * The last audit found a "gap" that turned out to be unreachable in the real pipeline, so these
+ * assert reachability as well as content: `category` is a required field on every `Finding`
+ * (`CategorySchema`, non-optional), set by every analyzer adapter, and read here straight off
+ * `context.finding` — there is no branch that can skip it and no default to fall back to.
+ */
+describe('category-specific repair guidance', () => {
+  const withCategory = (category: Finding['category']): string => {
+    const ctx = buildContext({
+      filePath: 'src/greet.ts',
+      language: 'typescript',
+      fileContent: FILE,
+      finding: { ...FINDING, category },
+      target: { symbolName: 'greet', startLine: 1, endLine: 4 },
+    });
+    return (
+      buildProviderRequest('repair', ctx, { model: 'x' }).messages.find((m) => m.role === 'system')
+        ?.content ?? ''
+    );
+  };
+
+  it('security prioritises safety and forbids weakening checks', () => {
+    const sys = withCategory('security');
+    expect(sys).toContain('SECURITY finding');
+    expect(sys).toContain('never weaken or remove an existing check');
+  });
+
+  it('correctness demands the root cause, not the symptom', () => {
+    expect(withCategory('correctness')).toContain('Fix the root cause');
+  });
+
+  it('performance forbids new allocations, copies or loops', () => {
+    expect(withCategory('performance')).toContain(
+      'Do not introduce new allocations, copies, or loops',
+    );
+  });
+
+  it('maintainability asks for the smallest readable change', () => {
+    expect(withCategory('maintainability')).toContain('smallest, most readable change');
+  });
+
+  it('style asks to match the file’s existing conventions', () => {
+    expect(withCategory('style')).toContain("Match the surrounding file's existing conventions");
+  });
+
+  it('each category produces a DIFFERENT system prompt — the branch is real, not decorative', () => {
+    const all = (['security', 'correctness', 'performance', 'maintainability', 'style'] as const).map(
+      withCategory,
+    );
+    expect(new Set(all).size).toBe(5);
+  });
+
+  it('the base repair prompt survives — guidance is appended, never a replacement', () => {
+    expect(withCategory('security')).toContain('You are Fixora, a verified code-repair engine');
+  });
+
+  it('explain and test get NO category guidance — they are not making a fix', () => {
+    const explain = buildProviderRequest('explain', context, { model: 'x' }).messages.find(
+      (m) => m.role === 'system',
+    )?.content;
+    const test = buildProviderRequest('test', context, { model: 'x' }).messages.find(
+      (m) => m.role === 'system',
+    )?.content;
+    expect(explain).not.toContain('MAINTAINABILITY finding');
+    expect(test).not.toContain('MAINTAINABILITY finding');
+  });
+
+  it('composes with the rule-specific complexity block rather than replacing it', () => {
+    // A complexity finding is `maintainability`, so it must get BOTH: the category guidance in the
+    // system prompt AND the metric-specific technique list in the user message. Folding them would
+    // have told every non-metric maintainability rule to "reduce the metric below its threshold".
+    const ctx = buildContext({
+      filePath: 'src/greet.ts',
+      language: 'typescript',
+      fileContent: FILE,
+      finding: { ...FINDING, ruleId: 'cyclomatic-complexity', category: 'maintainability' },
+      target: { symbolName: 'greet', startLine: 1, endLine: 4 },
+    });
+    const request = buildProviderRequest('repair', ctx, { model: 'x' });
+    expect(request.messages.find((m) => m.role === 'system')?.content).toContain(
+      'MAINTAINABILITY finding',
+    );
+    expect(request.messages.find((m) => m.role === 'user')?.content).toContain(
+      'This is a complexity finding',
+    );
+  });
+});

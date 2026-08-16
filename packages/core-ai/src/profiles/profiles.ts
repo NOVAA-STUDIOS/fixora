@@ -1,4 +1,4 @@
-import type { TaskProfile } from '@fixora/shared-types';
+import type { Category, TaskProfile } from '@fixora/shared-types';
 
 import type { BuiltContext } from '../context/context-builder.js';
 import type { ProviderMessage, ProviderRequest, ResponseSchema } from '../provider/types.js';
@@ -34,6 +34,37 @@ const REPAIR_SYSTEM = [
   'target symbol (not a diff, not the whole file); `rationale` explains why the original was wrong and',
   'how the fix resolves the finding; `confidence` is your honest 0–1 estimate. No prose outside the JSON.',
 ].join(' ');
+
+/**
+ * Category-specific guidance, appended to REPAIR_SYSTEM.
+ *
+ * `Finding.category` is set by every analyzer adapter and already drives dedup and panel grouping,
+ * but the repair prompt ignored it entirely — a security fix and a style nit got byte-identical
+ * instructions. These say what "a good fix" means for each kind, and nothing else: they never
+ * relax the schema, the scope rule, or any gate.
+ *
+ * Deliberately NOT merged with the rule-specific complexity block in `context-builder.ts`.
+ * `maintainability` is also produced by ruff (PLR and C prefixes) and semgrep, so folding complexity
+ * text in here would tell a rule with no metric to "reduce the metric below its threshold". The
+ * two compose instead: a complexity finding gets this block AND that one.
+ */
+const CATEGORY_GUIDANCE: Record<Category, string> = {
+  security:
+    'This is a SECURITY finding. Prioritise safety over brevity: never weaken or remove an existing ' +
+    'check, and prefer the change that closes the hole outright over one that narrows it.',
+  correctness:
+    'This is a CORRECTNESS finding. Fix the root cause the diagnostic points at, not the symptom — ' +
+    'a change that only silences the tool while leaving the underlying defect is wrong.',
+  performance:
+    'This is a PERFORMANCE finding. Do not introduce new allocations, copies, or loops to fix it, ' +
+    'and keep the asymptotic behaviour no worse than it already is.',
+  maintainability:
+    'This is a MAINTAINABILITY finding. Prefer the smallest, most readable change that resolves it; ' +
+    'do not restructure code the finding does not name.',
+  style:
+    "This is a STYLE finding. Match the surrounding file's existing conventions exactly — its " +
+    'quoting, spacing, naming and formatting — rather than applying a different house style.',
+};
 
 const EXPLAIN_SYSTEM = [
   'You are Fixora. Explain the given finding to a working developer. Answer three questions, in this',
@@ -142,8 +173,15 @@ export function buildProviderRequest(
   options: BuildRequestOptions,
 ): ProviderRequest {
   const def = PROFILES[profile];
+  // Category guidance applies to REPAIR only. Explain is prose about a finding (it describes the
+  // problem rather than changing code) and Test writes a test — neither is "make a good fix of
+  // this kind", so appending repair guidance there would be instructions for a job not being done.
+  const system =
+    profile === 'repair'
+      ? `${def.system} ${CATEGORY_GUIDANCE[context.finding.category]}`
+      : def.system;
   const messages: ProviderMessage[] = [
-    { role: 'system', content: def.system },
+    { role: 'system', content: system },
     {
       role: 'user',
       content:

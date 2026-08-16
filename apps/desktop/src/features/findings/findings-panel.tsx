@@ -13,8 +13,19 @@ import {
   type Severity,
   type TaskProfile,
 } from '@fixora/shared-types';
-import { AlertIcon, Button, CheckIcon, FolderIcon, VirtualList, cn } from '@fixora/ui';
-import { useEffect } from 'react';
+import {
+  AlertIcon,
+  Button,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  FolderIcon,
+  SearchIcon,
+  VirtualList,
+  cn,
+} from '@fixora/ui';
+import { useEffect, useState } from 'react';
 
 import { useFindingRowEstimate } from '../../hooks/use-density-metrics.js';
 import { basename } from '../../lib/path.js';
@@ -41,18 +52,33 @@ const CATEGORY_DOT: Record<FindingCategory, string> = {
   information: 'bg-border-strong',
 };
 
+type GroupMode = 'flat' | 'file' | 'severity';
+const GROUP_MODES: { mode: GroupMode; label: string; icon: string }[] = [
+  { mode: 'flat', label: 'Flat', icon: '≡' },
+  { mode: 'file', label: 'File', icon: '📄' },
+  { mode: 'severity', label: 'Severity', icon: '⚠' },
+];
+
 const SEVERITY_ORDER: Severity[] = ['error', 'warning', 'info'];
 const SEVERITY_STYLE: Record<Severity, string> = {
   error: 'text-danger-text',
   warning: 'text-warn-text',
   info: 'text-fg-muted',
 };
-/** The severity dot. Colour is the only thing carrying severity in a row now, so it is a fill,
- *  not a tint — a 8px dot in a background-tint colour is invisible against the row. */
-const SEVERITY_DOT: Record<Severity, string> = {
-  error: 'bg-danger',
-  warning: 'bg-warn',
-  info: 'bg-border-strong',
+/** The left border accent — VS Code's Problems panel pattern. Carries severity on the row's edge
+ *  instead of a dot competing with the text for the reader's first glance. */
+const SEVERITY_BORDER: Record<Severity, string> = {
+  error: 'border-l-danger',
+  warning: 'border-l-warn',
+  info: 'border-l-border-strong',
+};
+/** Repair-state icon, paired with the existing badge colour — not a new colour, a label for it. */
+const REPAIR_STATE_ICON: Record<ReturnType<typeof repairStateFor>, string> = {
+  repairable: '⚡',
+  'ai-repairable': '🤖',
+  'manual-only': '👁',
+  unsupported: '✗',
+  'config-issue': '✗',
 };
 
 export function FindingsPanel(): React.JSX.Element {
@@ -72,6 +98,17 @@ export function FindingsPanel(): React.JSX.Element {
   const listen = useFindingsStore((s) => s.listen);
   const selectedId = useFindingsStore((s) => s.selectedId);
   const select = useFindingsStore((s) => s.select);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [groupMode, setGroupMode] = useState<GroupMode>('flat');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (key: string): void => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const workspace = useWorkspaceStore((s) => s.workspace);
   const revealAt = useWorkspaceStore((s) => s.revealAt);
@@ -104,6 +141,44 @@ export function FindingsPanel(): React.JSX.Element {
   // the rows below it and re-derives on every run, ignore and applied fix.
   const extensionCounts = countByExtension(visible);
   const hiddenHere = findings.length - visible.length;
+
+  // Text search is local, client-side state — it narrows the already-fetched page (severity stays
+  // the server-side filter via `setFilter`) rather than round-tripping to the backend, so typing
+  // feels instant and no store/IPC contract changes for a feature this size.
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const searched =
+    trimmedQuery === ''
+      ? visible
+      : visible.filter(
+          (f) =>
+            f.message.toLowerCase().includes(trimmedQuery) ||
+            f.ruleId.toLowerCase().includes(trimmedQuery) ||
+            f.location.file.toLowerCase().includes(trimmedQuery),
+        );
+
+  // Grouping is local display state, applied last — on top of severity (server) and search
+  // (above), so all three compose. Flat keeps the existing `VirtualList` path untouched below;
+  // File/Severity render as plain collapsible sections instead, because `VirtualList`'s roving-
+  // focus/selection contract assumes every row is a selectable finding (see the categoryRank sort
+  // comment above) — interleaving header rows into it was already ruled out for that reason.
+  const groups: { key: string; label: string; findings: Finding[] }[] =
+    groupMode === 'flat'
+      ? []
+      : groupMode === 'severity'
+        ? SEVERITY_ORDER.map((sev) => ({
+            key: sev,
+            label: sev,
+            findings: searched.filter((f) => f.severity === sev),
+          })).filter((g) => g.findings.length > 0)
+        : Object.entries(
+            searched.reduce<Record<string, Finding[]>>((acc, f) => {
+              const key = basename(f.location.file);
+              (acc[key] ??= []).push(f);
+              return acc;
+            }, {}),
+          )
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([key, groupFindings]) => ({ key, label: key, findings: groupFindings }));
 
   // One click, or Enter/Space on the keyboard-active row, does the whole job: describe it, open
   // it, jump to it, highlight it. Defined once and handed to both `VirtualList` (keyboard) and
@@ -316,6 +391,61 @@ export function FindingsPanel(): React.JSX.Element {
         )}
       </div>
 
+      <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border-subtle px-3">
+        <SearchIcon className="size-3.5 shrink-0 text-fg-muted" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+          }}
+          placeholder="Filter by message, rule, or file…"
+          aria-label="Filter problems"
+          className="min-w-0 flex-1 bg-transparent text-xs text-fg outline-none placeholder:text-fg-muted"
+        />
+        {searchQuery !== '' && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery('');
+            }}
+            title="Clear filter"
+            aria-label="Clear filter"
+            className="shrink-0 rounded p-0.5 text-fg-muted hover:bg-hover hover:text-fg"
+          >
+            <CloseIcon className="size-3.5" />
+          </button>
+        )}
+        <div
+          role="group"
+          aria-label="Group by"
+          className="ml-1 flex shrink-0 items-center gap-0.5 rounded-md border border-border-subtle p-0.5"
+        >
+          {GROUP_MODES.map(({ mode, label, icon }) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => {
+                setGroupMode(mode);
+              }}
+              aria-pressed={groupMode === mode}
+              title={`Group by ${label.toLowerCase()}`}
+              className={cn(
+                'rounded px-1.5 py-0.5 text-[11px]',
+                groupMode === mode ? 'bg-hover text-fg' : 'text-fg-muted hover:text-fg',
+              )}
+            >
+              <span aria-hidden="true">{icon}</span> {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {trimmedQuery !== '' && (
+        <p className="shrink-0 border-b border-border-subtle bg-inset px-3 py-1.5 text-[11px] text-fg-muted">
+          {searched.length} result{searched.length === 1 ? '' : 's'} for &lsquo;{searchQuery}&rsquo;
+        </p>
+      )}
+
       {/*
         The backend caps a single page at 10,000 rows (`repositories.ts`'s `list()` — raised from
         500, which a real project's finding count could actually reach); `summary` is the true,
@@ -355,21 +485,71 @@ export function FindingsPanel(): React.JSX.Element {
         </div>
       )}
 
-      {visible.length === 0 ? (
+      {searched.length === 0 ? (
         <EmptyState
           status={status}
           findingsSoFar={findingsSoFar}
           hasWorkspace={workspace !== null}
           summary={summary}
-          filterActive={filter.severity !== undefined}
-          allHidden={findings.length > 0}
+          filterActive={filter.severity !== undefined || trimmedQuery !== ''}
+          allHidden={findings.length > 0 && visible.length === 0}
           onRun={() => void run()}
-          onShowAll={() => void setFilter({})}
+          onShowAll={() => {
+            void setFilter({});
+            setSearchQuery('');
+          }}
           onShowHidden={showIgnored}
         />
+      ) : groupMode !== 'flat' ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {groups.map((group) => {
+            const collapsed = collapsedGroups.has(group.key);
+            return (
+              <div key={group.key}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleGroup(group.key);
+                  }}
+                  aria-expanded={!collapsed}
+                  className="sticky top-0 z-10 flex w-full items-center gap-1.5 border-b border-border-subtle bg-raised px-3 py-1.5 text-left hover:bg-hover"
+                >
+                  {collapsed ? (
+                    <ChevronRightIcon className="size-3.5 shrink-0 text-fg-muted" />
+                  ) : (
+                    <ChevronDownIcon className="size-3.5 shrink-0 text-fg-muted" />
+                  )}
+                  <span
+                    className={cn(
+                      'min-w-0 truncate text-xs font-medium capitalize',
+                      groupMode === 'severity'
+                        ? SEVERITY_STYLE[group.key as Severity]
+                        : 'text-fg-secondary',
+                    )}
+                  >
+                    {group.label}
+                  </span>
+                  <span className="tabular-nums text-[11px] text-fg-muted">
+                    ({group.findings.length})
+                  </span>
+                </button>
+                {!collapsed &&
+                  group.findings.map((finding) => (
+                    <FindingRow
+                      key={finding.id}
+                      finding={finding}
+                      onActivate={() => {
+                        activate(finding);
+                      }}
+                    />
+                  ))}
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <VirtualList
-          items={visible}
+          items={searched}
           label="Problems"
           // Measured, not assumed. A finding row wraps text and carries a row of action buttons, so
           // its real height moves with density and with OS text scaling — a fixed 96px stride was a
@@ -468,6 +648,10 @@ function FindingRow({
         // says nothing about a card that holds three lines. Hardcoding `px-3 py-2` here is why the
         // toggle changed the chrome around the list and left the list itself untouched.
         'group/row flex min-w-0 flex-col border-b border-border-subtle',
+        // VS Code Problems-panel accent: severity on the row's left edge, not a dot inside it — one
+        // signal instead of two competing for the same first glance.
+        'border-l-[3px]',
+        SEVERITY_BORDER[finding.severity],
         'gap-(--fx-card-gap) px-(--fx-card-padding-x) py-(--fx-card-padding-y)',
         'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
         !isSelected && 'hover:bg-hover',
@@ -488,49 +672,51 @@ function FindingRow({
         title={`${finding.message}\n${finding.location.file}:${String(finding.location.startLine)} — click for details`}
         className="flex w-full min-w-0 flex-col items-start gap-1 text-left"
       >
-        <span className="flex w-full min-w-0 items-start gap-2">
-          {/*
-            A severity dot, not a repeated alert glyph plus a repeated word. The old row spent an
-            icon AND a text badge saying the same thing ("⚠ … Warning"), which is two pieces of
-            furniture for one bit of information — in a 220px column that is most of the first line.
-            Colour carries it, and the badge's job moves to the label a screen reader reads.
-          */}
+        {/*
+          TOP ROW: severity + rule, both small and muted — context, not the headline. The repair
+          state moves up here too (right-aligned) so it reads with the row's other metadata instead
+          of competing with the action buttons on the bottom row.
+        */}
+        <span className="flex w-full min-w-0 items-center gap-1.5">
+          <span className={cn('shrink-0 text-[10px] font-semibold tracking-wide uppercase', SEVERITY_STYLE[finding.severity])}>
+            {finding.severity}
+          </span>
+          <span className="shrink-0 text-[10px] text-fg-muted" aria-hidden="true">
+            ·
+          </span>
+          <span className="min-w-0 truncate font-mono text-[10px] text-fg-muted">
+            {finding.ruleId}
+          </span>
           <span
-            aria-hidden="true"
-            className={cn('mt-[5px] size-2 shrink-0 rounded-full', SEVERITY_DOT[finding.severity])}
-          />
-          <span className="sr-only">{finding.severity}: </span>
-          {/*
-            The title is the loudest thing in the row. It was `text-xs` — the same size as the
-            location beneath it — so the row read as two equal lines and the eye had nothing to land
-            on when scanning. It is the sentence that says what is wrong, so it leads.
-          */}
-          <span className="line-clamp-2 min-w-0 text-[13px] leading-snug font-semibold text-fg">
-            {finding.message}
+            title={REPAIR_STATE_REASON[repairState]}
+            className={cn(
+              'ml-auto flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+              repairState === 'repairable' && 'bg-success-subtle text-success-text',
+              repairState === 'ai-repairable' && 'bg-accent-subtle text-accent-text',
+              repairState === 'manual-only' && 'bg-warn-subtle text-warn-text',
+              repairState === 'unsupported' && 'bg-inset text-fg-muted',
+            )}
+          >
+            <span aria-hidden="true">{REPAIR_STATE_ICON[repairState]}</span>
+            {REPAIR_STATE_LABEL[repairState]}
           </span>
         </span>
         {/*
-          Secondary line: where it is, and which rule fired. Deliberately quieter than the title.
-          `file:line` stays monospace because it is code and proportional digits are noise in a
-          scanning column; the rule id becomes a BADGE so it reads as a label rather than as more
-          prose competing with the location.
+          MIDDLE ROW: the message — the loudest thing in the row, and the only thing at this size.
         */}
-        <span className="flex w-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-4">
-          <span className="min-w-0 truncate font-mono text-[11px] text-fg-secondary">
-            {basename(finding.location.file)}:{finding.location.startLine}
-          </span>
-          <span className="shrink-0 rounded bg-inset px-1 py-px font-mono text-[10px] leading-none text-fg-muted ring-1 ring-border-subtle ring-inset">
-            {finding.ruleId}
-          </span>
+        <span className="line-clamp-2 min-w-0 text-[13px] leading-snug font-semibold text-fg">
+          {finding.message}
         </span>
       </button>
 
       {/*
-        Actions appear on hover, on keyboard focus, and on the selected row — never on all of them
-        at once. Three buttons in every row of a long list is three buttons' worth of visual weight
-        competing with the finding text itself, and rendering them permanently in a muted colour so
-        they stop shouting just makes them look disabled instead (which is exactly how they read).
-        Revealing them is the pattern Linear uses for row actions and VS Code for tree actions.
+        BOTTOM ROW: location (muted, monospace) leads; actions follow, right-aligned by `ml-auto`
+        on the first action element. Actions appear on hover, on keyboard focus, and on the selected
+        row — never on all of them at once. Three buttons in every row of a long list is three
+        buttons' worth of visual weight competing with the finding text itself, and rendering them
+        permanently in a muted colour so they stop shouting just makes them look disabled instead
+        (which is exactly how they read). Revealing them is the pattern Linear uses for row actions
+        and VS Code for tree actions.
       */}
       {/*
         ISSUE 2/6: this row used to be `opacity-0` until hover, focus, or selection. A mouse user who
@@ -544,25 +730,15 @@ function FindingRow({
           // `min-w-0` so the row may shrink below its content's natural width instead of forcing the
           // card wider than the pane — the clipping this sprint is about. `gap-y` is explicit so a
           // wrapped second line has breathing room rather than colliding with the line above it.
-          'flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 pl-4',
+          'flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1',
           'transition-opacity duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
           isSelected
             ? 'opacity-100'
             : 'opacity-70 group-hover/row:opacity-100 group-focus-within/row:opacity-100',
         )}
       >
-        {/* The repair state, always readable without hovering anything. */}
-        <span
-          title={REPAIR_STATE_REASON[repairState]}
-          className={cn(
-            'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
-            repairState === 'repairable' && 'bg-success-subtle text-success-text',
-            repairState === 'ai-repairable' && 'bg-accent-subtle text-accent-text',
-            repairState === 'manual-only' && 'bg-inset text-fg-muted',
-            repairState === 'unsupported' && 'bg-inset text-fg-muted',
-          )}
-        >
-          {REPAIR_STATE_LABEL[repairState]}
+        <span className="mr-auto min-w-0 shrink-0 truncate font-mono text-[11px] text-fg-secondary">
+          {basename(finding.location.file)}:{finding.location.startLine}
         </span>
         {aiConfigured ? (
           AI_ACTIONS.map((action) => {

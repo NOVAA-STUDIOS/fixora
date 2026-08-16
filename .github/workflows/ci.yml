@@ -31,6 +31,17 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      # Golden fixtures for go-vet/mypy/semgrep otherwise SKIP (not fail) on a runner that
+      # doesn't have the tool — which is silent, not green. Installed before `pnpm install` so
+      # the accuracy gate below sees all three as present, the same as a dev machine that has
+      # them, and a go-vet/mypy/semgrep regression actually fails CI instead of skipping past it.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Install mypy and semgrep
+        run: pip install mypy semgrep
+
       # Supply chain: the lockfile is the contract. An install that is allowed to *resolve*
       # something new is an install that can pull in something nobody reviewed (Security §7).
       - run: pnpm install --frozen-lockfile
@@ -52,6 +63,11 @@ jobs:
       # docs/adr/ must match docs/03-DECISION-REGISTER.md — one source of truth for decisions.
       - name: ADR drift
         run: pnpm gate:adr
+
+      # Runs AFTER the Go/mypy/semgrep installs above, so every golden case — including the
+      # go-vet/mypy/semgrep ones that only ran locally before — is actually scored here.
+      - name: Analyzer accuracy
+        run: pnpm gate:accuracy
 
   security:
     name: Electron config · Secrets · Dependencies

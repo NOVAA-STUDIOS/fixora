@@ -74,11 +74,15 @@ function finding(): Finding {
 }
 
 describe('RepairResult — first screen', () => {
-  it('shows rule id, severity, confidence and all four validation badges without scrolling', () => {
+  it('shows rule id, severity, the verdict and all four validation badges without scrolling', () => {
     render(<RepairResult proposal={proposal()} finding={finding()} />);
     expect(screen.getByText('prefer-const')).toBeInTheDocument();
     expect(screen.getByText('warning')).toBeInTheDocument();
-    expect(screen.getByText('92%')).toBeInTheDocument();
+    // The verifier's verdict, not the model's self-reported confidence. A model asked for a
+    // confidence score just invents one; showing it beside evidence-derived validation badges
+    // implied it carried the same weight. The verdict IS evidence — it is what the gate concluded.
+    expect(screen.getByText('Verified')).toBeInTheDocument();
+    expect(screen.queryByText('92%')).not.toBeInTheDocument();
     const validation = screen.getByRole('list', { name: 'Validation' });
     for (const name of ['Syntax', 'Lint', 'Type', 'Regression']) {
       expect(validation).toHaveTextContent(name);
@@ -87,7 +91,7 @@ describe('RepairResult — first screen', () => {
 
   it('renders without a finding (it may no longer be loaded) rather than crashing', () => {
     render(<RepairResult proposal={proposal()} finding={null} />);
-    expect(screen.getByText('92%')).toBeInTheDocument();
+    expect(screen.getByText('Verified')).toBeInTheDocument();
   });
 });
 

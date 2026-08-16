@@ -18,6 +18,12 @@ import { groundByFile, reportToolTimeout, type AdapterDeps, type RawFinding } fr
 
 const CONFIG_FILES = ['.semgrep.yml', '.semgrep.yaml', 'semgrep.yml', 'semgrep.yaml'];
 
+/** Exported so a caller can tell "no semgrep binary" apart from "binary present, but this
+ * workspace ships no config" — the latter is the one case worth telling the user about. */
+export function hasSemgrepConfig(root: string): boolean {
+  return semgrepConfig(root) !== null;
+}
+
 function semgrepConfig(root: string): string | null {
   for (const name of CONFIG_FILES) {
     const path = join(root, name);

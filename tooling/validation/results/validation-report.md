@@ -1,7 +1,7 @@
 # Fixora — Real Repository Repair Acceptance Report (P1.2)
 
-Generated 2026-08-14T08:50:27.243Z from a REAL execution of the engine over the acceptance corpus.
-Provider key present: **no** — AI-required repairs are DEFERRED (not measurable without a key) and never counted as success.
+Generated 2026-08-14T16:18:14.700Z from a REAL execution of the engine over the acceptance corpus.
+Provider key present: **yes** — AI-required repairs were GENERATED and run through the same gates as deterministic ones.
 
 ## Summary (measured)
 
@@ -9,33 +9,41 @@ Provider key present: **no** — AI-required repairs are DEFERRED (not measurabl
 | --- | ---: |
 | Projects validated | 8 |
 | Projects skipped/errored | 0 |
-| Total findings | 7 |
-| Total repair ATTEMPTS (deterministic + AI executed) | 2 |
+| Total findings | 6 |
+| Total repair ATTEMPTS (deterministic + AI executed) | 6 |
 | — of which deterministic | 2 |
-| — of which AI (executed, needs key) | 0 |
-| **Repair success rate** (applied, survived full loop) | 2 / 2 (100.0%) |
-| **Repair failure rate** | 0 / 2 (0.0%) |
-| **Regression rate** | 0 / 2 (0.0%) |
-| Verification pass rate (of those that ran) | 2 / 2 (100.0%) |
-| Apply success rate (of those that ran) | 2 / 2 (100.0%) |
-| Compile pass rate (of those that ran) | n/a |
-| AI-deferred (need a key) | 5 |
+| — of which AI (executed, needs key) | 4 |
+| **Repair success rate** (applied, survived full loop) | 4 / 6 (66.7%) |
+| **Repair failure rate** | 2 / 6 (33.3%) |
+| **Regression rate** | 0 / 6 (0.0%) |
+| Verification pass rate (of those that ran) | 5 / 5 (100.0%) |
+| Apply success rate (of those that ran) | 4 / 4 (100.0%) |
+| Compile pass rate (of those that ran) | 1 / 1 (100.0%) |
+| AI-deferred (need a key) | 0 |
 | Manual-only findings | 0 |
-| Avg repair→compile time (attempted) | 322 ms |
-| Avg project analyze time | 2610 ms |
+| Avg repair→compile time (attempted) | 90080 ms |
+| Avg project analyze time | 8474 ms |
 
 ## Final outcomes (every finding lands in exactly one)
 
 | Outcome | Count |
 | --- | ---: |
 | SAFE_AUTO_REPAIR_APPLIED | 2 |
-| AI_DEFERRED | 5 |
+| AI_REPAIR_APPLIED | 2 |
+| AI_GENERATE_FAILED | 2 |
 
 ## Retry effectiveness
 
-_Not measured by this run: 0 of 7 records carry per-attempt data._
+| Attempts needed | Findings |
+| --- | ---: |
+| 1 | 2 |
+| 2 | 1 |
 
-The harness's `runAi` now runs its own verify/re-ask loop (up to 3 attempts, same bound as `ai-service.ts`'s VERIFY_RETRY_LIMIT, re-asking with the verifier's rootCause fed back) and records `verifyAttempts` for every AI attempt it actually makes. This run shows 0 because no AI attempts ran at all — set FIXORA_BENCH_OPENROUTER_KEY to exercise the AI leg.
+| Metric | Value |
+| --- | ---: |
+| Records with per-attempt data | 3 / 6 (50.0%) |
+| Verified on attempt 1 | 2 / 3 (66.7%) |
+| Rescued by a retry (failed first, verified later) | 0 / 3 (0.0%) |
 
 ## Per language
 
@@ -43,15 +51,23 @@ The harness's `runAi` now runs its own verify/re-ask loop (up to 3 attempts, sam
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | css | 1 | 0 | n/a | 0 | 0 | 0 |
 | html | 1 | 0 | n/a | 0 | 0 | 0 |
-| javascript | 1 | 1 | n/a | 0 | 1 | 0 |
-| json | 1 | 1 | n/a | 0 | 1 | 0 |
-| python | 2 | 3 | 2 / 2 (100.0%) | 0 | 1 | 0 |
-| react | 1 | 1 | n/a | 0 | 1 | 0 |
-| typescript | 1 | 1 | n/a | 0 | 1 | 0 |
+| javascript | 1 | 0 | n/a | 0 | 0 | 0 |
+| json | 1 | 1 | 1 / 1 (100.0%) | 0 | 0 | 0 |
+| python | 2 | 3 | 3 / 3 (100.0%) | 0 | 0 | 0 |
+| react | 1 | 1 | 0 / 1 (0.0%) | 0 | 0 | 0 |
+| typescript | 1 | 1 | 0 / 1 (0.0%) | 0 | 0 | 0 |
 
 ## Failure taxonomy (exact subsystem responsible)
 
-_None — every executed repair (deterministic + AI) survived the full loop._
+| Subsystem | Classification | Count |
+| --- | --- | ---: |
+| `response-parser` | Model output issue | 1 |
+| `ai-provider` | Provider limitation | 1 |
+
+### Every failure (reproducible: file + rule + stage + root cause)
+
+- **react-counter/src/Counter.tsx** eslint:react-hooks/rules-of-hooks → `AI_GENERATE_FAILED` at stage `repair` (subsystem: `response-parser`) — model output did not match the repair schema after a re-ask: empty — The model returned no content at all.
+- **typescript-pricing/src/pricing.ts** tsc:TS2322 → `AI_GENERATE_FAILED` at stage `repair` (subsystem: `ai-provider`) — retry 3 failed to generate: 429 Too Many Requests — Provider returned error (HTTP_429)
 
 ## Project errors / skips (honest)
 

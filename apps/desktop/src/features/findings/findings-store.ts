@@ -1,4 +1,4 @@
-import type { Finding, FindingsFilter, FindingsSummary } from '@fixora/shared-types';
+import type { AnalysisWarning, Finding, FindingsFilter, FindingsSummary } from '@fixora/shared-types';
 import { create } from 'zustand';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
@@ -19,6 +19,8 @@ type FindingsState = {
   status: AnalysisStatus;
   /** Findings streamed in so far during a running analysis — proof of life on a long run. */
   findingsSoFar: number | null;
+  /** Reliability warnings (NOV7-01): tools killed at their timeout, so the run was partial. */
+  warnings: AnalysisWarning[] | null;
   filter: FindingsFilter;
   error: string | null;
 
@@ -50,6 +52,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   summary: null,
   status: 'idle',
   findingsSoFar: null,
+  warnings: null,
   filter: {},
   error: null,
   ignoredIds: [],
@@ -67,7 +70,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   },
 
   run: async () => {
-    set({ status: 'running', error: null, findingsSoFar: null });
+    set({ status: 'running', error: null, findingsSoFar: null, warnings: null });
     const result = await invoke('analysis:run', {});
     if (!result.ok) set({ status: 'error', error: result.error.message });
   },
@@ -108,6 +111,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
         status: state.status,
         ...(state.summary !== undefined ? { summary: state.summary } : {}),
         ...(state.findingsSoFar !== undefined ? { findingsSoFar: state.findingsSoFar } : {}),
+        ...(state.warnings !== undefined ? { warnings: state.warnings } : {}),
       });
       if (state.status === 'error') set({ error: state.message ?? 'Analysis failed.' });
       if (state.status === 'done') void get().refresh();

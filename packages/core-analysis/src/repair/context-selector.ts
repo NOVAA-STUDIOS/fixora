@@ -1,4 +1,4 @@
-import type { SymbolRef } from '@fixora/shared-types';
+import { neighbourRelevanceScore, type SymbolRef } from '@fixora/shared-types';
 
 /** The minimal import shape the Dependency selector needs (satisfied by `ExtractedImport`). */
 export interface ImportLike {
@@ -45,6 +45,16 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): b
   return aStart <= bEnd && bStart <= aEnd;
 }
 
+/** Same-file candidates always have a line, so they always get the proximity term. The rule itself
+ * lives in `shared-types` — see `neighbourRelevanceScore` for why it is shared, not duplicated. */
+function relevanceScore(
+  range: ContextRange,
+  findingLine: number,
+  diagnosticText: string,
+): number {
+  return neighbourRelevanceScore(range.label, range.startLine, findingLine, diagnosticText);
+}
+
 /**
  * Select the imports and same-file declarations the target scope references. `targetSymbolName` (the
  * enclosing symbol, if any) is excluded so a recursive function does not include itself.
@@ -56,6 +66,13 @@ export function selectRepairContext(input: {
   symbols: readonly SymbolRef[];
   imports: readonly ImportLike[];
   targetSymbolName: string | null;
+  /**
+   * The finding's own line and diagnostic text (message + snippet), used only to ORDER candidates
+   * before the cap — never to select or reject one. Optional so existing callers and tests keep
+   * working unchanged; omitted, ordering falls back to the previous imports-then-symbols order.
+   */
+  findingLine?: number;
+  diagnosticText?: string;
 }): ContextRange[] {
   const lines = input.source.split('\n');
   const scopeText = lines.slice(input.scopeStartLine - 1, input.scopeEndLine).join('\n');
@@ -101,8 +118,7 @@ export function selectRepairContext(input: {
     out.push({ label: `${sym.kind} ${sym.name}`, startLine: start, endLine: end });
   }
 
-  // Dedupe by range (an import and a symbol can never share one, but two references can), dependency
-  // first — imports are the cheapest, highest-signal context — and cap the total.
+  // Dedupe by range (an import and a symbol can never share one, but two references can).
   const seen = new Set<string>();
   const deduped = out.filter((r) => {
     const key = `${String(r.startLine)}:${String(r.endLine)}`;
@@ -110,5 +126,26 @@ export function selectRepairContext(input: {
     seen.add(key);
     return true;
   });
-  return deduped.slice(0, MAX_NEIGHBOURS);
+
+  /**
+   * Rank before capping. Previously this was `deduped.slice(0, MAX_NEIGHBOURS)` on raw
+   * imports-then-symbols order, so which context survived the cap was decided by declaration order
+   * in the file — the type the diagnostic actually names could be dropped in favour of an unrelated
+   * import that merely appeared earlier. Ordering is the ONLY thing this changes: the same
+   * candidates are eligible, and `MAX_NEIGHBOURS` still bounds the total.
+   *
+   * A stable sort (`Array.prototype.sort` is stable) means equal scores keep the old
+   * imports-then-symbols order, so this degrades exactly to the previous behaviour when the
+   * finding context is absent or nothing scores differently.
+   */
+  if (input.findingLine === undefined || input.diagnosticText === undefined) {
+    return deduped.slice(0, MAX_NEIGHBOURS);
+  }
+  const line = input.findingLine;
+  const text = input.diagnosticText;
+  return deduped
+    .map((range) => ({ range, score: relevanceScore(range, line, text) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_NEIGHBOURS)
+    .map((scored) => scored.range);
 }

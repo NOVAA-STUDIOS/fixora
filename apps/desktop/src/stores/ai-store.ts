@@ -333,6 +333,24 @@ export const useAiStore = create<AiState>((set, get) => ({
       historyId: proposal.historyId,
       ...(forced ? { forced: true } : {}),
     };
+    // TEMP-DIAGNOSTIC BUG-002 renderer-pre-ipc (Q3 file-corruption incident — remove after root
+    // cause). The earliest point `code`/`expectedOriginal` exist as the request that will cross
+    // to main — before `invoke()`, before Electron's own IPC serialization. Closes the last
+    // uninstrumented gap: every other Q3 marker is main-side, so none could tell a renderer-side
+    // corruption apart from one introduced by IPC transport or by main itself.
+    if (request.file.includes('proceed-diag')) {
+      const codeNul = request.code.split(String.fromCharCode(0)).length - 1;
+      const origNul = request.expectedOriginal.split(String.fromCharCode(0)).length - 1;
+      console.error('[Q3-DIAG] ai-store: applyRepair request before invoke', {
+        file: request.file,
+        codeByteLength: new TextEncoder().encode(request.code).length,
+        codeNulCount: codeNul,
+        codePreview: request.code.slice(0, 100),
+        expectedOriginalByteLength: new TextEncoder().encode(request.expectedOriginal).length,
+        expectedOriginalNulCount: origNul,
+        expectedOriginalPreview: request.expectedOriginal.slice(0, 100),
+      });
+    }
     const startedAt = Date.now();
     const attempt: ApplyAttempt = {
       at: startedAt,

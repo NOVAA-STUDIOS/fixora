@@ -1,0 +1,15 @@
+{
+  "name": "demo-service",
+  "version": "2.1.0",
+  "enabled": true,
+  "retries": 3,
+  "endpoints": [
+    { "id": "primary", "url": "https://api.example.com", "timeoutMs": 5000 },
+    { "id": "fallback", "url": "https://backup.example.com", "timeoutMs": 8000 }
+  ],
+  "limits": {
+    "maxConnections": 100,
+    "windowSeconds": 60
+  },
+  "tags": ["prod", "east"]
+}

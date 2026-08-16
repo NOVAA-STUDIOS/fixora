@@ -1,0 +1,10 @@
+{
+  "id": "json-valid-clean-2",
+  "language": "json",
+  "support": "supported",
+  "kind": "valid",
+  "description": "A denser well-formed JSON file — nested objects, arrays of objects, mixed types — must produce no findings.",
+  "requiresTools": [],
+  "ignoreRules": [],
+  "expected": []
+}

@@ -1,0 +1,10 @@
+{
+  "id": "react-valid-clean-2",
+  "language": "react",
+  "support": "supported",
+  "kind": "valid",
+  "description": "A denser valid React component — useEffect, props, conditional rendering, a custom hook — precision guard.",
+  "requiresTools": [],
+  "expected": [],
+  "ignoreRules": []
+}

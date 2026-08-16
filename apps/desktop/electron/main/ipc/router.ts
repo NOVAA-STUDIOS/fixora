@@ -111,6 +111,31 @@ export function mountRouter(): void {
         return err(contractViolation(requestId));
       }
 
+      // TEMP-DIAGNOSTIC BUG-002 pre-zod (Q3 file-corruption incident — remove after root cause).
+      // The one point in the whole app where `raw.payload` is truly as it arrived off the IPC
+      // wire — every handler-side marker (fs-service.ts, ai.handlers.ts, proceed-service.ts) only
+      // ever sees it AFTER `safeParse` below, so none of them could tell a transport-level
+      // corruption apart from one already present in the renderer's own string. Gated the same way
+      // as every other Q3 marker: only for the disposable repro filename, probed defensively since
+      // `raw.payload` is `unknown` here — the shape it should have is exactly what's in question.
+      if (
+        (channel === 'ai:applyRepair' || channel === 'proceed:run') &&
+        typeof raw.payload === 'object' &&
+        raw.payload !== null &&
+        'file' in raw.payload &&
+        typeof (raw.payload as { file: unknown }).file === 'string' &&
+        (raw.payload as { file: string }).file.includes('proceed-diag')
+      ) {
+        const rawJson = JSON.stringify(raw.payload);
+        const nulCount = rawJson.split(String.fromCharCode(0)).length - 1;
+        console.error('[Q3-DIAG] router: raw payload before safeParse', {
+          channel,
+          byteLength: Buffer.byteLength(rawJson, 'utf8'),
+          nulCount,
+          preview: rawJson.slice(0, 100),
+        });
+      }
+
       const contract = contracts[channel];
       const parsedRequest = contract.request.safeParse(raw.payload);
       if (!parsedRequest.success) {

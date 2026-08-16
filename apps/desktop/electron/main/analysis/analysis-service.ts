@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { readdirSync, statSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
-import { dedupeFindings } from '@fixora/core-analysis';
 import type { AnalysisState, AnalysisWarning, Finding, FindingsFilter } from '@fixora/shared-types';
 import type { BrowserWindow } from 'electron';
 import log from 'electron-log';
@@ -87,11 +86,18 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
             runWarnings = warnings;
             if (!window.isDestroyed()) emit(window, { status: 'running', warnings });
           },
-          onDone: () => {
+          onDone: async () => {
             // Cross-analyzer dedup, once the full set exists — not per `onFileFindings` batch: two
             // tools flagging the same line can arrive in separate flushes (analyzers stream
             // independently, see engine.ts's merge()), so no single batch is ever "complete" enough
             // to dedup against. This is the one point a full, final set genuinely exists.
+            //
+            // Dynamic import, not a static one: `@fixora/core-analysis` publishes ESM only (no
+            // `require` entry), and this file is loaded by the CJS Electron main process — a static
+            // `import { dedupeFindings } from '@fixora/core-analysis'` throws
+            // ERR_PACKAGE_PATH_NOT_EXPORTED at startup, before the window ever opens. Same pattern as
+            // `ai-service.ts`'s `groupByRootCause`/`widenRepairScope` and `analysis-host.ts`.
+            const { dedupeFindings } = await import('@fixora/core-analysis');
             const { findings: deduped, duplicatesRemoved } = dedupeFindings(
               deps.findings.list(open.id, {}),
             );

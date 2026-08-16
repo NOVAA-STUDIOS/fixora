@@ -1,6 +1,6 @@
 # Fixora — Analyzer Accuracy Report
 
-Generated 2026-08-13T16:09:18.529Z from a real execution of the analysis engine.
+Generated 2026-08-14T10:08:26.747Z from a real execution of the analysis engine.
 Every number below is measured. Anything not measured is marked `n/a` with a reason.
 
 ## Accuracy Dashboard
@@ -18,19 +18,19 @@ Every number below is measured. Anything not measured is marked `n/a` with a rea
 | False positives | 0 |
 | False negatives | 0 |
 | Attribute mismatches | 0 |
-| Benchmarks passed | 26 / 26 scored |
+| Benchmarks passed | 30 / 30 scored |
 | Benchmarks failing (known defects) | 0 |
-| Benchmarks skipped | 3 |
+| Benchmarks skipped | 4 |
 | Benchmarks unsupported | 2 |
 
 ### Per language
 
 | Name | Accuracy | Precision | Recall | F1 | TP | FP | FN | Cases |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| javascript | 100.0% | 100.0% | 100.0% | 100.0% | 5 | 0 | 0 | 6 |
-| json | 100.0% | 100.0% | 100.0% | 100.0% | 3 | 0 | 0 | 4 |
-| python | 100.0% | 100.0% | 100.0% | 100.0% | 6 | 0 | 0 | 7 |
-| react | 100.0% | 100.0% | 100.0% | 100.0% | 2 | 0 | 0 | 3 |
+| javascript | 100.0% | 100.0% | 100.0% | 100.0% | 5 | 0 | 0 | 7 |
+| json | 100.0% | 100.0% | 100.0% | 100.0% | 3 | 0 | 0 | 5 |
+| python | 100.0% | 100.0% | 100.0% | 100.0% | 6 | 0 | 0 | 8 |
+| react | 100.0% | 100.0% | 100.0% | 100.0% | 2 | 0 | 0 | 4 |
 | typescript | 100.0% | 100.0% | 100.0% | 100.0% | 4 | 0 | 0 | 6 |
 
 ### Per analyzer
@@ -68,10 +68,10 @@ Every number below is measured. Anything not measured is marked `n/a` with a rea
 
 | Metric | Value |
 | --- | ---: |
-| Average analysis time / case | 5726.3 ms |
-| Average analysis time / file | 4652.6 ms |
-| Total analysis time | 148.88 s |
-| Scored cases run | 26 (32 files) |
+| Average analysis time / case | 3624.0 ms |
+| Average analysis time / file | 3020.0 ms |
+| Total analysis time | 108.72 s |
+| Scored cases run | 30 (36 files) |
 
 _Wall-clock on this machine, this run. Small cases, so per-case time is dominated by process_
 _startup (spawning eslint/tsc/ruff), not analysis of the file — read it as an order of magnitude._
@@ -89,6 +89,7 @@ language with no analyzer has no accuracy — reporting 0% would imply a broken 
 
 ### Skipped (tool unavailable on this machine)
 
+- `go-valid-clean` — Requires go — not available on this machine.
 - `go-vet-printf` — Requires go — not available on this machine.
 - `mypy-arg-type` — Requires mypy — not available on this machine.
 - `semgrep-eval` — Requires semgrep — not available on this machine.
@@ -119,9 +120,10 @@ Accuracy is a property of Fixora **and** the tools it drives, so the exact versi
 
 | Tool | Version |
 | --- | --- |
+| eslint | v9.39.5 |
 | ruff | ruff 0.15.22 |
 | tsc | Version 6.0.3 |
 
 ### Confidence
 
-Measured over **20 expected findings** across **26 scored benchmark cases**. This is a **small sample**. With 20 expected findings, a single miss moves recall by roughly 5.0 points, so the headline percentage should be read as an indication rather than a stable rate. Growing the dataset is the highest-value next step. **2 cases are unsupported** and contribute nothing to the figures above. Fixora currently has no analyzer for those languages. **3 cases were skipped** because their tool is not installed here; the same suite on a machine with those tools will measure more. **Repair accuracy is unmeasured.** No provider key was available for this run.
+Measured over **20 expected findings** across **30 scored benchmark cases**. This is a **small sample**. With 20 expected findings, a single miss moves recall by roughly 5.0 points, so the headline percentage should be read as an indication rather than a stable rate. Growing the dataset is the highest-value next step. **2 cases are unsupported** and contribute nothing to the figures above. Fixora currently has no analyzer for those languages. **4 cases were skipped** because their tool is not installed here; the same suite on a machine with those tools will measure more. **Repair accuracy is unmeasured.** No provider key was available for this run.

@@ -13,6 +13,12 @@ import { findingId } from '../finding-id.js';
 import type { ToolRun, ToolRunner } from '../process/run-tool.js';
 import { isDelimiterRule, outermostScopeContaining } from '../repair/balanced-scope.js';
 import { selectRepairContext } from '../repair/context-selector.js';
+import {
+  isRelativeSpecifier,
+  resolveRelativeImport,
+  selectCrossFileContext,
+  type CrossFileContext,
+} from '../repair/cross-file-context.js';
 import { classifyRepair } from '../repair/micro-repair.js';
 import { smallestScopeContaining } from '../repair/scope-selector.js';
 import {
@@ -102,6 +108,13 @@ export function createFileGrounder(
   scopes: readonly RepairScope[] = [],
   imports: readonly ImportRef[] = [],
   projectSymbols: ProjectSymbols = () => [],
+  /**
+   * Foreign context for a target scope, given the identifiers it references. Injected as a function
+   * for the same reason `projectSymbols` above is: resolving it needs the run's cached parses and
+   * its vetted file set, which live in `groundByFile`, not here. Defaulted to none, so every
+   * existing caller (and every test) keeps today's behaviour with no change.
+   */
+  crossFileFor: (referenced: ReadonlySet<string>) => CrossFileContext[] = () => [],
 ): FileGrounder {
   const lines = text.split(/\r?\n/);
 
@@ -153,7 +166,24 @@ export function createFileGrounder(
               symbols,
               imports,
               targetSymbolName: symbol?.name ?? null,
+              // Ordering signal only (see `relevanceScore`): the tool's own message usually NAMES
+              // the type or import the fix needs, and that beats mere proximity.
+              findingLine: raw.startLine,
+              diagnosticText: `${raw.message}\n${lines[raw.startLine - 1] ?? ''}`,
             })
+          : [];
+      // Foreign context for the same scope: the definitions of imported symbols it references.
+      // Keyed off the scope's own identifiers, so an import the target never uses costs nothing.
+      const crossFileContext =
+        scope !== null
+          ? crossFileFor(
+              new Set(
+                lines
+                  .slice(scope.startLine - 1, scope.endLine)
+                  .join('\n')
+                  .match(/[A-Za-z_$][A-Za-z0-9_$]*/g) ?? [],
+              ),
+            )
           : [];
       const snippet = lines[raw.startLine - 1] ?? '';
 
@@ -209,6 +239,7 @@ export function createFileGrounder(
             ? { enclosingRange: { startLine: scope.startLine, endLine: scope.endLine } }
             : {}),
           ...(contextRanges.length > 0 ? { contextRanges } : {}),
+          ...(crossFileContext.length > 0 ? { crossFileContext } : {}),
           snippet,
           relatedLocations,
           toolOutput: raw.toolOutput,
@@ -289,14 +320,45 @@ export async function* groundByFile(
     // in which case findings simply carry no enclosingRange/contextRanges (the old behaviour).
     const scopes = context.scopesFor ? await context.scopesFor(analysisFile) : [];
     const imports = context.importsFor ? await context.importsFor(analysisFile) : [];
+    const fileText = context.readSource(analysisFile.absPath) ?? '';
+    const fileLines = fileText.split(/\r?\n/);
+    // Cross-file resolution needs the OTHER file's symbols, which are async. Resolved once per
+    // file, ahead of grounding, so `ground()` stays synchronous — the alternative was making it
+    // async and rippling that through all nine adapters.
+    const crossFileSymbols = new Map<string, readonly SymbolRef[]>();
+    const importSpecs: { module: string; statementText: string }[] = [];
+    for (const imp of imports) {
+      // `imp.module` is the specifier the parser already extracted — re-deriving it from the
+      // statement text would be a second, worse parser for something already known exactly.
+      if (!isRelativeSpecifier(imp.module)) continue;
+      const statementText = fileLines
+        .slice(imp.location.startLine - 1, imp.location.endLine)
+        .join('\n');
+      importSpecs.push({ module: imp.module, statementText });
+      const target = resolveRelativeImport(file, imp.module, analysisFile.language, context.files);
+      if (target !== null && !crossFileSymbols.has(target.file)) {
+        crossFileSymbols.set(target.file, await context.symbolsFor(target));
+      }
+    }
+
     const grounder = createFileGrounder(
       source,
       file,
-      context.readSource(analysisFile.absPath) ?? '',
+      fileText,
       symbols,
       scopes,
       imports,
       await projectSymbolsFor(file),
+      (referenced) =>
+        selectCrossFileContext({
+          fromFile: file,
+          language: analysisFile.language,
+          files: context.files,
+          imports: importSpecs,
+          referenced,
+          symbolsOf: (f) => crossFileSymbols.get(f.file) ?? [],
+          sourceOf: (f) => context.readSource(f.absPath),
+        }),
     );
     for (const raw of raws) yield grounder.ground(raw);
   }

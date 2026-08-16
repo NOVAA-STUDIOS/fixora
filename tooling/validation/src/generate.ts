@@ -13,7 +13,7 @@ import {
   type TargetRange,
   DEFAULT_BUDGETS,
 } from '@fixora/core-ai';
-import type { Finding, Language } from '@fixora/shared-types';
+import { neighbourRelevanceScore, type Finding, type Language } from '@fixora/shared-types';
 
 /**
  * The real AI "Generate Repair" leg, wired to the exact core-ai path the app runs:
@@ -33,17 +33,37 @@ import type { Finding, Language } from '@fixora/shared-types';
 
 // --- faithful copies of the app's pure context assembly (repair-context.ts) ---
 
-/** Slice the finding's analyzer-selected context ranges out of the file, as ranked neighbour parts. */
+/** The finding's context as one ranked list of prompt neighbours — see repair-context.ts for why
+ * same-file and cross-file candidates are scored together rather than same-file-then-appended. */
 export function repairNeighbours(content: string, finding: Finding): GatePart[] {
   const ranges = finding.evidence.contextRanges ?? [];
-  if (ranges.length === 0) return [];
+  const crossFile = finding.evidence.crossFileContext ?? [];
+  if (ranges.length === 0 && crossFile.length === 0) return [];
   const lines = content.split('\n');
-  const parts: GatePart[] = [];
+  const diagnosticText = `${finding.message}\n${finding.evidence.snippet}`;
+  const findingLine = finding.location.startLine;
+
+  const scored: { part: GatePart; score: number }[] = [];
   for (const r of ranges) {
     const text = lines.slice(r.startLine - 1, r.endLine).join('\n');
-    if (text.trim() !== '') parts.push({ label: r.label, text });
+    if (text.trim() === '') continue;
+    scored.push({
+      part: { label: r.label, text },
+      score: neighbourRelevanceScore(r.label, r.startLine, findingLine, diagnosticText),
+    });
   }
-  return parts;
+  // Cross-file context is already-resolved text, never sliced from `content` — see the app-side
+  // copy in repair-context.ts for why a line range would slice the wrong file. `null` line: it has
+  // no position in THIS file, so it is scored on the reference signal alone.
+  for (const entry of crossFile) {
+    if (entry.text.trim() === '') continue;
+    scored.push({
+      part: { label: entry.label, text: entry.text },
+      score: neighbourRelevanceScore(entry.label, null, findingLine, diagnosticText),
+    });
+  }
+
+  return scored.sort((a, b) => b.score - a.score).map((s) => s.part);
 }
 
 function tsconfigStrict(workspaceRoot: string): boolean | null {

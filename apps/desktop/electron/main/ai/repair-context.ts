@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { GatePart } from '@fixora/core-ai';
-import type { Finding, Language } from '@fixora/shared-types';
+import { neighbourRelevanceScore, type Finding, type Language } from '@fixora/shared-types';
 
 /**
  * The main-side half of Repair Context Engine v3: turn the analyzer-selected context ranges into the
@@ -13,17 +13,46 @@ import type { Finding, Language } from '@fixora/shared-types';
  * scans every byte) and read the project's own settings. Nothing is invented.
  */
 
-/** Slice the finding's selected context ranges out of the current file content, as ranked neighbours. */
+/**
+ * The finding's context as one ranked list of prompt neighbours.
+ *
+ * Same-file entries are sliced from `content`; cross-file entries arrive as already-resolved text
+ * (never sliced — a foreign line range would cut the wrong file). Both are then scored by the SAME
+ * `neighbourRelevanceScore` and sorted together, because this is the only place both kinds exist as
+ * one list. Appending cross-file after same-file, as this did before, meant a foreign definition the
+ * diagnostic explicitly names could still be dropped by the token budget in favour of a local
+ * neighbour that merely happened to be nearby.
+ */
 export function repairNeighbours(content: string, finding: Finding): GatePart[] {
   const ranges = finding.evidence.contextRanges ?? [];
-  if (ranges.length === 0) return [];
+  const crossFile = finding.evidence.crossFileContext ?? [];
+  if (ranges.length === 0 && crossFile.length === 0) return [];
   const lines = content.split('\n');
-  const parts: GatePart[] = [];
+  const diagnosticText = `${finding.message}\n${finding.evidence.snippet}`;
+  const findingLine = finding.location.startLine;
+
+  const scored: { part: GatePart; score: number }[] = [];
   for (const r of ranges) {
     const text = lines.slice(r.startLine - 1, r.endLine).join('\n');
-    if (text.trim() !== '') parts.push({ label: r.label, text });
+    if (text.trim() === '') continue;
+    scored.push({
+      part: { label: r.label, text },
+      score: neighbourRelevanceScore(r.label, r.startLine, findingLine, diagnosticText),
+    });
   }
-  return parts;
+  // `null` line: cross-file context has no position in THIS file, so it is scored on the reference
+  // signal alone rather than on a line number it does not have.
+  for (const entry of crossFile) {
+    if (entry.text.trim() === '') continue;
+    scored.push({
+      part: { label: entry.label, text: entry.text },
+      score: neighbourRelevanceScore(entry.label, null, findingLine, diagnosticText),
+    });
+  }
+
+  // Stable sort: equal scores keep same-file-then-cross-file order, so this degrades exactly to the
+  // previous behaviour when nothing scores differently.
+  return scored.sort((a, b) => b.score - a.score).map((s) => s.part);
 }
 
 /** Read `compilerOptions.strict` from the workspace tsconfig, or null when there is none / unreadable. */

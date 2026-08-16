@@ -12,6 +12,7 @@ import { RepairDiagnosticsPanel } from './repair-diagnostics-panel.js';
 import { IMPACT_DOT, IMPACT_LABEL, IMPACT_TEXT, repairImpact } from './repair-impact.js';
 import { repairModeInfo } from './repair-mode.js';
 import { validationBadges, type ValidationBadge } from './validation-badges.js';
+import { VerdictBadge } from './verdict-badge.js';
 
 /**
  * The repair result surface.
@@ -372,7 +373,11 @@ export function RepairResult({
             </span>
           )}
           {finding !== null && <Chip label="Rule" value={finding.ruleId} />}
-          <Chip label="Confidence" value={`${String(Math.round(proposal.confidence * 100))}%`} />
+          {/* Gate-derived, not the model's own self-reported number — a model asked for a
+              confidence score just makes one up, and showing it alongside real evidence-based
+              badges implied it carried the same weight. The verdict IS the evidence: it's the
+              verifier's own conclusion, not a claim the model made about itself. */}
+          <VerdictBadge verdict={proposal.verification.verdict} />
           <Chip
             label="File"
             value={`${basename(proposal.target.file)}:${String(proposal.target.startLine)}`}
