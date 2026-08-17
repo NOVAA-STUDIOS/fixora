@@ -36,7 +36,7 @@ describe('UpdateBanner', () => {
     useUpdateStore.setState({ update: { status: 'downloaded', version: '1.2.0' } });
     render(<UpdateBanner />);
     expect(screen.getByRole('status').textContent).toMatch(/1\.2\.0/);
-    fireEvent.click(screen.getByRole('button', { name: 'Restart to apply' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }));
     expect(invoke).toHaveBeenCalledWith('update:install', {});
   });
 });

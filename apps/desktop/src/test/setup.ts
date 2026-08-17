@@ -3,6 +3,8 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 
+import { useLicenseStore } from '../stores/license-store.js';
+
 /**
  * jsdom omits a handful of browser APIs that Radix and cmdk use for layout and pointer handling.
  * These are the standard stubs that let those components mount in tests; they do not simulate real
@@ -46,4 +48,9 @@ afterEach(() => {
   // The UI store persists to localStorage; clear it so one test's state does not leak into the
   // next (a stored activeView would silently change what the next test renders).
   localStorage.clear();
+  // The license store's `repairsToday` counter lives in the Zustand module singleton, not just
+  // localStorage — clearing storage alone leaves it non-zero, so a later test's `run('repair', …)`
+  // would silently no-op once enough earlier tests in the same file had already "used up" the
+  // free-tier daily limit.
+  useLicenseStore.setState({ plan: 'free', licenseKey: null, repairsToday: 0, showUpgradeDialog: false });
 });

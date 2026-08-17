@@ -1,5 +1,5 @@
 import { Button } from '@fixora/ui';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { useUpdateStore } from '../../stores/update-store.js';
@@ -17,6 +17,7 @@ import { useUpdateStore } from '../../stores/update-store.js';
 export function UpdateBanner(): React.JSX.Element | null {
   const update = useUpdateStore((s) => s.update);
   const listen = useUpdateStore((s) => s.listen);
+  const [restarting, setRestarting] = useState(false);
 
   useEffect(() => listen(), [listen]);
 
@@ -35,16 +36,25 @@ export function UpdateBanner(): React.JSX.Element | null {
         </p>
       ) : (
         <>
-          <p className="text-xs text-fg-secondary">
-            Update <span className="font-mono text-fg">v{update.version}</span> ready.
-          </p>
+          <div className="min-w-0">
+            <p className="text-xs text-fg-secondary">
+              Update <span className="font-mono text-fg">v{update.version}</span> ready.
+            </p>
+            {restarting && (
+              <p className="text-xs text-fg-muted">App will restart in a moment</p>
+            )}
+          </div>
           <Button
             variant="primary"
             size="sm"
             className="shrink-0"
-            onClick={() => void invoke('update:install', {})}
+            disabled={restarting}
+            onClick={() => {
+              setRestarting(true);
+              void invoke('update:install', {});
+            }}
           >
-            Restart to apply
+            {restarting ? 'Restarting…' : 'Update'}
           </Button>
         </>
       )}

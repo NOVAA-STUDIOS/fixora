@@ -17,7 +17,6 @@ import {
 } from './ai.js';
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
-import { LicenseStatusSchema } from './license.js';
 import { PackageListSchema, PackageSearchResponseSchema } from './packages-manager.js';
 import { ProviderListSchema } from './providers.js';
 import { SearchResponseSchema } from './search.js';
@@ -156,6 +155,22 @@ export const contracts = {
   'system:openExternal': {
     request: z.object({ url: z.string() }),
     response: z.object({ opened: z.boolean() }),
+  },
+
+  /**
+   * Both go through main, not a renderer `fetch`: the CSP's `connect-src` is `'self'` only
+   * (Security §2 — the renderer that renders untrusted repo content has no business reaching the
+   * network directly), and the LemonSqueezy API key this validates against must never live in the
+   * renderer bundle regardless. `license:getRepairCount` reads the same day-scoped counter main
+   * persists, so a restart can't reset the free-tier limit.
+   */
+  'license:validate': {
+    request: z.object({ licenseKey: z.string().min(1), productId: z.string() }),
+    response: z.object({ valid: z.boolean(), plan: z.enum(['go', 'pro']).nullable() }),
+  },
+  'license:getRepairCount': {
+    request: empty,
+    response: z.object({ repairsToday: z.number().int().nonnegative() }),
   },
 
   'workspace:pickFolder': {
@@ -375,15 +390,6 @@ export const contracts = {
     request: empty,
     response: z.object({ entries: z.array(RepairHistoryEntrySchema) }),
   },
-
-  // Licensing (Beta). Offline Ed25519-verified. `activate` takes a signed key and returns the resulting
-  // entitlement; nothing here is a secret, but the key never round-trips back out either.
-  'license:get': { request: empty, response: LicenseStatusSchema },
-  'license:activate': {
-    request: z.object({ key: z.string().min(1) }),
-    response: LicenseStatusSchema,
-  },
-  'license:deactivate': { request: empty, response: LicenseStatusSchema },
 
   // Sprint F1 (Suggestion System). Local-only: a suggestion never leaves the machine except through
   // the explicit, user-initiated 'suggestions:export', which writes a file the user picks via a

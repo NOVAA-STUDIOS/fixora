@@ -91,11 +91,10 @@ export {
 } from './analysis.js';
 export { FindingsAddedSchema, type FindingsAdded } from './events.js';
 export {
-  FREE_LICENSE,
-  LicensePayloadSchema,
-  LicenseStatusSchema,
-  type LicensePayload,
-  type LicenseStatus,
+  PlanSchema,
+  LicenseValidateResultSchema,
+  type Plan,
+  type LicenseValidateResult,
 } from './license.js';
 export {
   SUGGESTION_CATEGORY_LABELS,

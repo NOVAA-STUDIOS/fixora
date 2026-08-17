@@ -13,7 +13,7 @@ import { useEffect, useId, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { useAiStore } from '../../stores/ai-store.js';
-import { isPro, useLicenseStore } from '../../stores/license-store.js';
+import { useLicenseStore } from '../../stores/license-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
@@ -22,14 +22,8 @@ import { detectProvider, normaliseKey } from './detect-provider.js';
 import { ModelPicker } from './model-picker.js';
 import { ProviderManager } from './provider-manager.js';
 
-const PURCHASE_URL = 'https://fixora.dev/pro';
+const PURCHASE_URL = 'https://fixora.lemonsqueezy.com/buy/pro';
 
-const LICENSE_REASON_MESSAGE: Record<string, string> = {
-  'licensing-not-configured': "Licensing isn't enabled in this build yet.",
-  malformed: "That doesn't look like a valid license key.",
-  'bad-signature': 'This license key is invalid.',
-  expired: 'This license has expired.',
-};
 
 /**
  * The settings surface (roadmap M2): theme, density, telemetry opt-in, and the keybinding list.
@@ -444,54 +438,36 @@ export function PrimaryKeyField(): React.JSX.Element {
 }
 
 function LicenseSettings(): React.JSX.Element {
-  const status = useLicenseStore((s) => s.status);
-  const load = useLicenseStore((s) => s.load);
+  const plan = useLicenseStore((s) => s.plan);
   const activate = useLicenseStore((s) => s.activate);
-  const deactivate = useLicenseStore((s) => s.deactivate);
 
   const keyId = useId();
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const pro = isPro(status);
+  const paid = plan !== 'free';
 
   const activateNow = async (): Promise<void> => {
     if (draft.trim().length === 0) return;
     setBusy(true);
     setError(null);
-    const result = await activate(draft.trim());
+    const plan = await activate(draft.trim());
     setBusy(false);
-    if (result === null) {
-      // The IPC call itself failed, so we genuinely do not know why — say that plainly and name the
-      // one thing worth checking, rather than a generic sentence that leaves the user with no move.
-      setError(
-        'Fixora could not complete the activation. Check that the key was pasted in full, then try again — nothing was changed.',
-      );
-      return;
-    }
-    if (result.valid) {
+    if (plan !== null) {
       setDraft('');
       return;
     }
-    setError(LICENSE_REASON_MESSAGE[result.reason ?? ''] ?? 'This license key was not accepted.');
+    setError('Invalid license key. Purchase at fixora.lemonsqueezy.com');
   };
 
   return (
     <Group title="License">
-      {pro ? (
+      {paid ? (
         <div className="flex items-center justify-between gap-4">
           <span className="min-w-0 text-sm text-fg [overflow-wrap:anywhere]">
-            Fixora Pro — thank you for supporting Fixora
-            {status?.licensedTo !== null && status !== null ? ` (${status.licensedTo})` : ''}.
+            Fixora {plan === 'pro' ? 'Pro' : 'Go'} — thank you for supporting Fixora.
           </span>
-          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void deactivate()}>
-            Remove
-          </Button>
         </div>
       ) : (
         <div className="flex flex-col gap-2">

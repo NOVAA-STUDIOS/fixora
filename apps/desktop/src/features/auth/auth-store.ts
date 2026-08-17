@@ -9,6 +9,10 @@ type AuthState = {
   session: Session | null;
   loading: boolean;
   error: string | null;
+  /** Sign-in is optional (only repair and purchase need it) — this toggles the overlay, it never
+   * gates the app itself. */
+  showSignIn: boolean;
+  setShowSignIn: (open: boolean) => void;
   signInWithGoogle: () => Promise<void>;
   signInWithGitHub: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -41,6 +45,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   session: null,
   loading: true,
   error: null,
+  showSignIn: false,
+
+  setShowSignIn: (open) => {
+    set({ showSignIn: open });
+  },
 
   getSession: async () => {
     const { data } = await supabase.auth.getSession();
@@ -62,19 +71,31 @@ export const useAuthStore = create<AuthState>((set) => ({
 }));
 
 supabase.auth.onAuthStateChange((_event, session) => {
-  useAuthStore.setState({ session, user: session?.user ?? null, loading: false });
+  useAuthStore.setState({
+    session,
+    user: session?.user ?? null,
+    loading: false,
+    // A completed sign-in closes the overlay itself — nothing else drives it shut.
+    ...(session !== null ? { showSignIn: false } : null),
+  });
 });
 
 // The OAuth round trip finishes in the system browser, not this window, so Supabase's own
 // `detectSessionInUrl` (which watches `window.location`) never sees the tokens — main forwards
 // the `fixora://auth/callback#access_token=...` URL here instead, and the tokens are applied by
 // hand. `onAuthStateChange` above then picks up the resulting session.
-subscribe('auth:callback', ({ url }) => {
-  const hash = new URL(url.replace('fixora://auth/callback', 'http://fixora.local')).hash;
-  const params = new URLSearchParams(hash.slice(1));
-  const accessToken = params.get('access_token');
-  const refreshToken = params.get('refresh_token');
-  if (accessToken !== null && refreshToken !== null) {
-    void supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-  }
-});
+//
+// Guarded on the preload bridge existing: this runs as a MODULE-LOAD side effect, so any test that
+// imports this store (or anything that imports it, like `activity-rail.tsx`) without stubbing
+// `window.fixora` would otherwise crash on import alone, before the test body even runs.
+if (typeof window !== 'undefined' && window.fixora !== undefined) {
+  subscribe('auth:callback', ({ url }) => {
+    const hash = new URL(url.replace('fixora://auth/callback', 'http://fixora.local')).hash;
+    const params = new URLSearchParams(hash.slice(1));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    if (accessToken !== null && refreshToken !== null) {
+      void supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+    }
+  });
+}

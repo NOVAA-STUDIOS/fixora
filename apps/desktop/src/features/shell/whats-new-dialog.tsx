@@ -45,6 +45,7 @@ export function WhatsNewDialog({
       void invoke('system:getChangelog', {}).then((r) => {
         if (cancelled) return;
         if (!r.ok) {
+          console.error('[whats-new] system:getChangelog failed', r.error);
           setChangelog({ status: 'error' });
           return;
         }

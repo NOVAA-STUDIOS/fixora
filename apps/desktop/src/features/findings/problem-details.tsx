@@ -94,7 +94,7 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
         <button
           type="button"
           onClick={() => {
-            revealAt(finding.location);
+            revealAt({ ...finding.location, severity: finding.severity });
           }}
           className="rounded border border-border-subtle px-2.5 py-1.5 text-left text-xs hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
         >
@@ -242,7 +242,7 @@ export function ProblemDetails({ finding }: { finding: Finding }): React.JSX.Ele
             size="sm"
             className="self-start"
             onClick={() => {
-              revealAt(finding.location);
+              revealAt({ ...finding.location, severity: finding.severity });
             }}
           >
             Open in Editor

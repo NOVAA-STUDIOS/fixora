@@ -1,38 +1,88 @@
-import type { LicenseStatus } from '@fixora/shared-types';
+import type { Plan } from '@fixora/shared-types';
 import { create } from 'zustand';
 
-import { invoke } from '../lib/bridge.js';
+import { PRODUCT_IDS, validateLicense } from '../lib/lemonsqueezy.js';
 
-/**
- * The license entitlement the renderer reads (Beta). It mirrors the offline-verified status main owns;
- * the renderer never sees or stores the key. `isPro` is derived — the one flag the rest of the app can
- * read to gate a Pro affordance (none is gated in the beta; this is the plumbing v1.1 builds on).
- */
+const STORAGE_KEY = 'fixora.license.v1';
+const DAILY_LIMIT: Record<Plan, number> = { free: 10, go: 50, pro: Infinity };
+
+type Stored = { plan: Plan; licenseKey: string | null; repairsToday: number; day: string };
+
+function todayKey(): string {
+  return new Date().toLocaleDateString('en-CA');
+}
+
+function loadStored(): Stored {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === null) throw new Error('none');
+    const parsed = JSON.parse(raw) as Stored;
+    // A new calendar day since the last write resets the counter — the whole point of "per day".
+    if (parsed.day !== todayKey()) return { ...parsed, repairsToday: 0, day: todayKey() };
+    return parsed;
+  } catch {
+    return { plan: 'free', licenseKey: null, repairsToday: 0, day: todayKey() };
+  }
+}
+
+function persist(state: Stored): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
 type LicenseState = {
-  status: LicenseStatus | null;
-  load: () => Promise<void>;
-  activate: (key: string) => Promise<LicenseStatus | null>;
-  deactivate: () => Promise<void>;
+  plan: Plan;
+  licenseKey: string | null;
+  repairsToday: number;
+  showUpgradeDialog: boolean;
+  canRepair: () => boolean;
+  incrementRepair: () => void;
+  /** Tries the key against GO, then PRO — the caller (Settings, the upgrade dialog) supplies one
+   * key with no tier picker; whichever LemonSqueezy product it validates against wins. Resolves
+   * the activated plan on success, so callers can show a tier-specific confirmation. */
+  activate: (licenseKey: string) => Promise<'go' | 'pro' | null>;
+  setUpgradeDialogOpen: (open: boolean) => void;
 };
 
-export const useLicenseStore = create<LicenseState>((set) => ({
-  status: null,
-  load: async () => {
-    const result = await invoke('license:get', {});
-    if (result.ok) set({ status: result.value });
+const initial = loadStored();
+let initialDay = initial.day;
+
+export const useLicenseStore = create<LicenseState>((set, get) => ({
+  plan: initial.plan,
+  licenseKey: initial.licenseKey,
+  repairsToday: initial.repairsToday,
+  showUpgradeDialog: false,
+
+  canRepair: () => {
+    // A new day since the store was hydrated (app left open overnight) — check live, not just at load.
+    if (todayKey() !== initialDay) {
+      initialDay = todayKey();
+      set({ repairsToday: 0 });
+    }
+    const { plan, repairsToday } = get();
+    return repairsToday < DAILY_LIMIT[plan];
   },
-  activate: async (key) => {
-    const result = await invoke('license:activate', { key });
-    if (!result.ok) return null;
-    set({ status: result.value });
-    return result.value;
+
+  incrementRepair: () => {
+    const repairsToday = get().repairsToday + 1;
+    set({ repairsToday });
+    persist({ plan: get().plan, licenseKey: get().licenseKey, repairsToday, day: todayKey() });
   },
-  deactivate: async () => {
-    const result = await invoke('license:deactivate', {});
-    if (result.ok) set({ status: result.value });
+
+  activate: async (licenseKey) => {
+    for (const [, productId] of Object.entries(PRODUCT_IDS)) {
+      const { valid, plan } = await validateLicense(licenseKey, productId);
+      if (valid && (plan === 'go' || plan === 'pro')) {
+        // Left open (not auto-closed) so the caller can show a confirmation before the user
+        // dismisses it themselves.
+        set({ plan, licenseKey });
+        persist({ plan, licenseKey, repairsToday: get().repairsToday, day: todayKey() });
+        return plan;
+      }
+    }
+    return null;
+  },
+
+  setUpgradeDialogOpen: (open) => {
+    set({ showUpgradeDialog: open });
   },
 }));
-
-export function isPro(status: LicenseStatus | null): boolean {
-  return status?.plan === 'pro' && status.valid;
-}

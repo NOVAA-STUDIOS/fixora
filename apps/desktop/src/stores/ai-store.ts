@@ -17,6 +17,7 @@ import {
 } from '../features/ai/apply-diagnostics.js';
 import { refreshModelText } from '../features/editor/models.js';
 import { useHistoryStore } from '../features/history/history-store.js';
+import { useLicenseStore } from './license-store.js';
 import { invoke, subscribe } from '../lib/bridge.js';
 
 /**
@@ -211,6 +212,17 @@ export const useAiStore = create<AiState>((set, get) => ({
   failure: null,
 
   run: async (profile, findingId, mode, options) => {
+    // The free-tier gate only applies to repairs, never to plain analysis review — and it must run
+    // before anything else claims the token below, or a blocked attempt still marks itself active.
+    if (profile === 'repair') {
+      const license = useLicenseStore.getState();
+      if (!license.canRepair()) {
+        license.setUpgradeDialogOpen(true);
+        return;
+      }
+      license.incrementRepair();
+    }
+
     // Claim this run. Any earlier one still awaiting its round-trip is now stale and will discard
     // its result rather than overwrite ours.
     const myToken = (runToken += 1);

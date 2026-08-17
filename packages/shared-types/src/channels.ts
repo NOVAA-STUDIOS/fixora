@@ -27,6 +27,8 @@ export const channels = [
   'system:revealInFolder',
   'system:copyToClipboard',
   'system:openExternal',
+  'license:validate',
+  'license:getRepairCount',
   'window:minimize',
   'window:toggleMaximize',
   'window:close',
@@ -91,9 +93,6 @@ export const channels = [
   // there is exactly one verified write path in the app and Proceed does not get a second one.
   'proceed:run',
   'proceed:cancel',
-  'license:get',
-  'license:activate',
-  'license:deactivate',
   // Sprint F1: the Suggestion System. Local-only — no channel here ever leaves the machine except
   // through the explicit, user-initiated 'suggestions:export'.
   'suggestions:submit',

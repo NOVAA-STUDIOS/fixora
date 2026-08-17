@@ -29,7 +29,9 @@ describe('ActivityRail', () => {
       'Packages',
       'Terminal',
       'Suggest',
+      'Fixora Upgrade',
       'Settings',
+      'Sign in',
     ]);
   });
 

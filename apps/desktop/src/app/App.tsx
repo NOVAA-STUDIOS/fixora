@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useAuthStore } from '../features/auth/auth-store.js';
 import { LoginScreen } from '../features/auth/login-screen.js';
+import { UpgradeDialog } from '../features/license/upgrade-dialog.js';
 import { AppShell } from '../features/shell/app-shell.js';
 import { SplashScreen } from '../features/shell/splash-screen.js';
 import { useSplash } from '../features/shell/use-splash.js';
@@ -25,8 +26,9 @@ export function App(): React.JSX.Element {
   useFileWatch();
   const hydrateCurrent = useWorkspaceStore((s) => s.hydrateCurrent);
 
-  const authLoading = useAuthStore((s) => s.loading);
-  const authUser = useAuthStore((s) => s.user);
+  // Sign-in is optional (only repair and purchase need it — the license gate checks it
+  // separately) — the app is never blocked waiting for this to resolve.
+  const showSignIn = useAuthStore((s) => s.showSignIn);
   const getSession = useAuthStore((s) => s.getSession);
   useEffect(() => {
     void getSession();
@@ -65,9 +67,6 @@ export function App(): React.JSX.Element {
     };
   }, []);
 
-  if (authLoading) return <div className="h-full w-full bg-[#000000]" />;
-  if (authUser === null) return <LoginScreen />;
-
   return (
     <div aria-busy={state.visible} className="contents">
       {/* `inert` while the splash is up: the splash is a plain overlay div, not a Radix dialog, so
@@ -78,6 +77,8 @@ export function App(): React.JSX.Element {
           Splash Screen finding 1 / Keyboard Navigation finding 1.) */}
       <div className="contents" inert={state.visible}>
         <AppShell />
+        <UpgradeDialog />
+        {showSignIn && <LoginScreen />}
       </div>
       {state.visible && (
         <SplashScreen

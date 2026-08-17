@@ -194,7 +194,7 @@ describe('FindingsPanel — keyboard operability (beta audit A4)', () => {
     await userEvent.keyboard('{ArrowDown}'); // move from f1 to f2
     await userEvent.keyboard('{Enter}');
 
-    expect(revealAt).toHaveBeenCalledWith(two[1]?.location);
+    expect(revealAt).toHaveBeenCalledWith({ ...two[1]?.location, severity: two[1]?.severity });
     expect(useFindingsStore.getState().selectedId).toBe('f2');
   });
 
@@ -205,7 +205,7 @@ describe('FindingsPanel — keyboard operability (beta audit A4)', () => {
     });
     render(<FindingsPanel />);
     await userEvent.click(screen.getByText('First problem'));
-    expect(revealAt).toHaveBeenCalledWith(two[0]?.location);
+    expect(revealAt).toHaveBeenCalledWith({ ...two[0]?.location, severity: two[0]?.severity });
     expect(useFindingsStore.getState().selectedId).toBe('f1');
   });
 });

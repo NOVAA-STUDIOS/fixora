@@ -28,9 +28,18 @@ async function fetchChangelog(): Promise<ChangelogEntry[]> {
       signal: controller.signal,
       headers: { Accept: 'application/vnd.github+json' },
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.error('[changelog] GitHub API returned an error status', {
+        status: res.status,
+        statusText: res.statusText,
+      });
+      return [];
+    }
     const releases = (await res.json()) as GithubRelease[];
-    if (!Array.isArray(releases)) return [];
+    if (!Array.isArray(releases)) {
+      console.error('[changelog] GitHub API returned an unexpected shape (not an array)');
+      return [];
+    }
     const entries = releases
       .filter((r): r is GithubRelease & { tag_name: string } => typeof r.tag_name === 'string')
       .map((r) => ({
@@ -40,8 +49,11 @@ async function fetchChangelog(): Promise<ChangelogEntry[]> {
       }));
     cached = entries;
     return entries;
-  } catch {
-    return []; // offline, timed out, or a malformed response — degrades to "no releases", not an error
+  } catch (error) {
+    // offline, timed out, or a malformed response — degrades to "no releases", not a thrown error,
+    // but the reason is worth knowing rather than silently disappearing.
+    console.error('[changelog] fetch failed', { message: (error as Error).message });
+    return [];
   } finally {
     clearTimeout(timer);
   }

@@ -1,13 +1,18 @@
+import { MinimalTitleBar } from '../shell/minimal-title-bar.js';
+
 import { useAuthStore } from './auth-store.js';
 
-/** Full-screen gate shown before the workbench mounts, when there is no Supabase session. */
+/** An optional overlay over the already-running app — sign-in is only needed for repair and
+ * purchase, never a hard gate in front of the whole workbench. Dismissible with "Not now". */
 export function LoginScreen(): React.JSX.Element {
   const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
   const signInWithGitHub = useAuthStore((s) => s.signInWithGitHub);
   const error = useAuthStore((s) => s.error);
+  const setShowSignIn = useAuthStore((s) => s.setShowSignIn);
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-10 bg-[#000000] px-6 text-center">
+    <div className="fixed inset-0 z-50 flex h-full w-full flex-col items-center justify-center gap-10 bg-[#000000] px-6 text-center">
+      <MinimalTitleBar />
       <div className="flex flex-col items-center gap-3">
         <span className="text-2xl font-semibold tracking-tight text-white">Fixora</span>
         <p className="max-w-xs text-sm text-white/50">
@@ -54,6 +59,14 @@ export function LoginScreen(): React.JSX.Element {
         </button>
 
         {error !== null && <p className="text-sm text-[#ef4444]">{error}</p>}
+
+        <button
+          type="button"
+          onClick={() => setShowSignIn(false)}
+          className="text-sm text-white/40 hover:text-white/70"
+        >
+          Not now
+        </button>
       </div>
     </div>
   );

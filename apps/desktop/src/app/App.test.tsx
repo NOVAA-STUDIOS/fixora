@@ -16,6 +16,13 @@ vi.mock('../features/shell/app-shell.js', () => ({
   AppShell: () => <button type="button">Real app button</button>,
 }));
 
+// Auth gate: this suite is about splash/inert behaviour, not sign-in, so a signed-in user is
+// stubbed in — otherwise `App` would render `LoginScreen` instead of the shell under test.
+vi.mock('../features/auth/auth-store.js', () => ({
+  useAuthStore: (selector: (s: { loading: boolean; user: object; getSession: () => Promise<void> }) => unknown) =>
+    selector({ loading: false, user: {}, getSession: () => Promise.resolve() }),
+}));
+
 vi.mock('../hooks/use-appearance.js', () => ({ useAppearance: () => undefined }));
 vi.mock('../features/workspace/use-file-watch.js', () => ({ useFileWatch: () => undefined }));
 

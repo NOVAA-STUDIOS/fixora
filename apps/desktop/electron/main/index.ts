@@ -41,8 +41,6 @@ import { registerTerminalHandlers } from './ipc/handlers/terminal.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
 import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
-import { createLicenseService } from './license/license-service.js';
-import { licensePublicKey } from './license/public-key.js';
 import { createMailService } from './services/mail/mail-service.js';
 import { migrateLegacyUserData } from './services/migrate-user-data.js';
 import { createWorkspaceService } from './services/workspace-service.js';
@@ -265,13 +263,8 @@ if (!gotTheLock) {
         orchestrator,
       });
 
-      // Licensing (Beta): offline Ed25519-verified entitlement. BYOK is free; a valid key is Pro.
-      const license = createLicenseService({
-        dir: app.getPath('userData'),
-        publicKey: licensePublicKey(),
-      });
-
       registerSystemHandlers({ workspace: workspaceService, gpuPreference });
+      registerLicenseHandlers({ dir: app.getPath('userData') });
       registerWindowHandlers();
       registerWorkspaceHandlers(workspaceService);
       registerEditorHandlers(workspaceService, analysisHost);
@@ -314,7 +307,6 @@ if (!gotTheLock) {
         history: repairHistory,
         appMeta: { name: 'Fixora', url: 'https://fixora.dev' },
       });
-      registerLicenseHandlers({ license });
       registerUpdateHandlers();
       registerTerminalHandlers(workspaceService);
       registerSearchHandlers(workspaceService);

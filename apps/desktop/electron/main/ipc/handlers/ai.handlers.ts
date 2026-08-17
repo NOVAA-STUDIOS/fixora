@@ -39,6 +39,7 @@ import { readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { locateRange, sliceLines, spliceLines } from '../../verification/patch.js';
 import { emitToWindow } from '../emit.js';
+import { incrementRepairCount } from './license.handlers.js';
 import { registerHandler } from '../router.js';
 
 /**
@@ -530,6 +531,7 @@ export function registerAiHandlers(deps: {
       }
       if (historyId !== undefined) deps.history.markApplied(historyId);
       console.error('[apply] applied', { file, bytesWritten: patched.length, relocated });
+      incrementRepairCount();
       return { applied: true, staleRangeCheck: finalRangeCheck, bytesWritten: patched.length, relocated };
     },
   );

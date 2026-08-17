@@ -7,11 +7,14 @@ import {
   PackageIcon,
   SearchIcon,
   SettingsIcon,
+  SparkleIcon,
   TerminalIcon,
   cn,
 } from '@fixora/ui';
 
+import { useAuthStore } from '../auth/auth-store.js';
 import { useUiStore, type ActivityView } from '../../stores/ui-store.js';
+import { useLicenseStore } from '../../stores/license-store.js';
 
 type RailItem = {
   view: ActivityView;
@@ -28,8 +31,8 @@ const items: RailItem[] = [
   { view: 'packages', label: 'Packages', Icon: PackageIcon },
   { view: 'terminal', label: 'Terminal', Icon: TerminalIcon },
   { view: 'suggestions', label: 'Suggest', Icon: LightbulbIcon },
-  { view: 'settings', label: 'Settings', Icon: SettingsIcon },
 ];
+const SETTINGS_ITEM: RailItem = { view: 'settings', label: 'Settings', Icon: SettingsIcon };
 
 /**
  * The activity rail (Design Review §5): the vertical strip that switches the primary view. Each item
@@ -40,6 +43,17 @@ const items: RailItem[] = [
 export function ActivityRail(): React.JSX.Element {
   const activeView = useUiStore((s) => s.activeView);
   const setActiveView = useUiStore((s) => s.setActiveView);
+  const user = useAuthStore((s) => s.user);
+  const setShowSignIn = useAuthStore((s) => s.setShowSignIn);
+  const plan = useLicenseStore((s) => s.plan);
+  const setUpgradeDialogOpen = useLicenseStore((s) => s.setUpgradeDialogOpen);
+
+  const PLAN_META = {
+    free: { label: 'Upgrade', color: 'text-amber-400' },
+    go: { label: 'GO', color: 'text-blue-400' },
+    pro: { label: 'Pro ✓', color: 'text-emerald-400' },
+  } as const;
+  const planMeta = PLAN_META[plan];
 
   return (
     <nav
@@ -88,6 +102,73 @@ export function ActivityRail(): React.JSX.Element {
           </button>
         );
       })}
+      <button
+        type="button"
+        aria-label={`Fixora ${planMeta.label}`}
+        onClick={() => {
+          setUpgradeDialogOpen(true);
+        }}
+        className={cn(
+          'group mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 py-(--fx-card-padding-y) text-[10px] font-medium transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover',
+          planMeta.color,
+        )}
+      >
+        <SparkleIcon className="size-[18px] shrink-0 transition-transform duration-(--fx-motion-duration-fast) group-hover:scale-110" />
+        <span className="w-full truncate text-center leading-tight">{planMeta.label}</span>
+      </button>
+      {(() => {
+        const { view, label, Icon } = SETTINGS_ITEM;
+        const active = view === activeView;
+        return (
+          <button
+            type="button"
+            aria-label={label}
+            aria-current={active ? 'page' : undefined}
+            onClick={() => {
+              setActiveView(view);
+            }}
+            className={cn(
+              'group relative mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 text-[10px] font-medium',
+              'py-(--fx-card-padding-y)',
+              'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+              'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
+              active ? 'bg-white/10 text-accent-text' : 'text-fg-muted hover:bg-hover hover:text-fg',
+            )}
+          >
+            <Icon
+              className={cn(
+                'size-[18px] shrink-0 transition-transform duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+                !active && 'group-hover:scale-110',
+              )}
+            />
+            <span className="w-full truncate text-center leading-tight">{label}</span>
+          </button>
+        );
+      })()}
+      <div className="mt-auto">
+        <button
+          type="button"
+          title={user === null ? 'Sign in' : (user.email ?? 'Signed in')}
+          aria-label={user === null ? 'Sign in' : 'Account'}
+          onClick={() => {
+            setShowSignIn(true);
+          }}
+          className="group mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 py-(--fx-card-padding-y) text-[10px] font-medium text-fg-muted transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
+        >
+          <span
+            aria-hidden="true"
+            className={cn(
+              'flex size-[18px] shrink-0 items-center justify-center rounded-full text-[9px] font-semibold',
+              user === null ? 'border border-current' : 'bg-accent text-on-accent',
+            )}
+          >
+            {user === null ? '?' : (user.email?.[0]?.toUpperCase() ?? '•')}
+          </span>
+          <span className="w-full truncate text-center leading-tight">
+            {user === null ? 'Sign in' : 'Account'}
+          </span>
+        </button>
+      </div>
     </nav>
   );
 }

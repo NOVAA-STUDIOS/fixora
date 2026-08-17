@@ -125,6 +125,7 @@ function openMatch(
     startCol: number;
     endLine: number;
     endCol: number;
+    severity: 'error' | 'warning' | 'info';
   }) => void,
 ): void {
   revealAt({
@@ -133,6 +134,8 @@ function openMatch(
     startCol: match.column,
     endLine: match.line,
     endCol: match.column + match.matchLength,
+    // A text-search hit isn't a finding — 'info' just picks the least alarming highlight colour.
+    severity: 'info',
   });
 }
 
