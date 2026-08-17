@@ -25,7 +25,14 @@ export const DEV_CSP_NONCE = 'fixora-dev-nonce';
  * and nothing else — no `'unsafe-inline'`, no `'unsafe-eval'`, in any environment (ADR-006).
  */
 export function buildCsp(environment: CspEnvironment, devServerOrigin?: string): string {
-  const connect = ["'self'"];
+  // The Supabase client (supabase.ts) runs in the renderer and calls the Auth/REST API and its
+  // realtime websocket directly — not through main/IPC, unlike every other external call this
+  // app makes — so those two hosts are the one allowlisted exception to `connect-src 'self'`.
+  const connect = [
+    "'self'",
+    'https://avnvwgymlmzrbppmvvgl.supabase.co',
+    'wss://avnvwgymlmzrbppmvvgl.supabase.co',
+  ];
   const script = ["'self'"];
   if (environment === 'development') {
     script.push(`'nonce-${DEV_CSP_NONCE}'`);
@@ -38,7 +45,9 @@ export function buildCsp(environment: CspEnvironment, devServerOrigin?: string):
     "default-src 'none'",
     `script-src ${script.join(' ')}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    // OAuth profile photos (activity-rail.tsx's account avatar): GitHub's and Google's own
+    // avatar CDN hosts, nothing broader.
+    "img-src 'self' data: https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
     "font-src 'self' data:",
     `connect-src ${connect.join(' ')}`,
     "worker-src 'self' blob:",

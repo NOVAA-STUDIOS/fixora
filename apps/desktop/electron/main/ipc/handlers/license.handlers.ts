@@ -72,7 +72,6 @@ export function createRepairCounter(dir: string): {
 }
 
 let counter: ReturnType<typeof createRepairCounter> | null = null;
-let midnightTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Called from `ai.handlers.ts` on a successful `ai:applyRepair` — the one place a repair is
  * actually committed, so this is the one place the count is actually trustworthy to bump. */
@@ -83,7 +82,7 @@ export function incrementRepairCount(): number {
 function scheduleMidnightReset(): void {
   const now = new Date();
   const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
-  midnightTimer = setTimeout(() => {
+  setTimeout(() => {
     counter?.resetIfNewDay();
     scheduleMidnightReset();
   }, next.getTime() - now.getTime());

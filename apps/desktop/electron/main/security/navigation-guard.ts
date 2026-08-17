@@ -28,6 +28,10 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
   // Supabase OAuth (auth-store.ts): the provider's consent screen and our project's own auth host.
   'accounts.google.com',
   'avnvwgymlmzrbppmvvgl.supabase.co',
+  // LemonSqueezy checkout (upgrade-dialog.tsx, settings-panel.tsx).
+  'fixoraa.lemonsqueezy.com',
+  // Fixora's own docs site, linked from the account menu (activity-rail.tsx).
+  'fixora-opal.vercel.app',
   // Documentation hosts for the analyzers we run. The problem details panel links a finding to the
   // rule's own docs, which is the honest answer to "what does this rule actually mean" — we do not
   // ship a per-rule knowledge base and will not invent one. These are added one host at a time,
@@ -44,7 +48,7 @@ function isAllowedExternalHost(host: string): boolean {
   return ALLOWED_EXTERNAL_HOSTS.has(host) || host.endsWith('.fixora.dev');
 }
 
-export function openExternal(rawUrl: string): void {
+export async function openExternal(rawUrl: string): Promise<void> {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -66,7 +70,10 @@ export function openExternal(rawUrl: string): void {
     );
   }
 
-  void shell.openExternal(url.toString());
+  // Awaited, not fire-and-forget: the caller (`system:openExternal`) needs to know whether the OS
+  // actually launched something before it tells the renderer `{ opened: true }` — a fire-and-forget
+  // call reported success the instant this function returned, regardless of what happened after.
+  await shell.openExternal(url.toString());
 }
 
 export type GuardOptions =
@@ -93,11 +100,11 @@ export function applyNavigationGuards(window: BrowserWindow, options: GuardOptio
   webContents.setWindowOpenHandler(({ url }) => {
     // A link to our own docs is a legitimate thing for a user to click. It opens in their
     // real browser, through the allowlist — never in an Electron window we control.
-    try {
-      openExternal(url);
-    } catch (error) {
+    // `openExternal` is async now (Security §2's awaited-launch fix), so a rejection here is a
+    // promise rejection, not a thrown error — caught with `.catch`, not `try/catch`.
+    openExternal(url).catch((error: unknown) => {
       console.error('[security] blocked window.open', { reason: (error as Error).message });
-    }
+    });
     return { action: 'deny' };
   });
 

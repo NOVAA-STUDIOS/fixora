@@ -1,6 +1,14 @@
 import {
   AlertIcon,
   ClockIcon,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   FolderIcon,
   GitBranchIcon,
   LightbulbIcon,
@@ -11,10 +19,22 @@ import {
   TerminalIcon,
   cn,
 } from '@fixora/ui';
+import { useState } from 'react';
 
-import { useAuthStore } from '../auth/auth-store.js';
+import { invoke } from '../../lib/bridge.js';
+import { DAILY_LIMIT, useLicenseStore } from '../../stores/license-store.js';
+import { toast } from '../../stores/toast-store.js';
 import { useUiStore, type ActivityView } from '../../stores/ui-store.js';
-import { useLicenseStore } from '../../stores/license-store.js';
+import { useAuthStore } from '../auth/auth-store.js';
+
+const DOCS_URL = 'https://fixora-opal.vercel.app/docs';
+const ISSUES_URL = 'https://github.com/NOVAA-STUDIOS/fixora/issues';
+
+const PLAN_BADGE: Record<'free' | 'go' | 'pro', { label: string; color: string }> = {
+  free: { label: 'FREE', color: 'bg-white/10 text-fg-muted' },
+  go: { label: 'GO', color: 'bg-blue-400/15 text-blue-400' },
+  pro: { label: 'PRO', color: 'bg-emerald-400/15 text-emerald-400' },
+};
 
 type RailItem = {
   view: ActivityView;
@@ -45,8 +65,23 @@ export function ActivityRail(): React.JSX.Element {
   const setActiveView = useUiStore((s) => s.setActiveView);
   const user = useAuthStore((s) => s.user);
   const setShowSignIn = useAuthStore((s) => s.setShowSignIn);
+  const signOut = useAuthStore((s) => s.signOut);
   const plan = useLicenseStore((s) => s.plan);
   const setUpgradeDialogOpen = useLicenseStore((s) => s.setUpgradeDialogOpen);
+  const repairsToday = useLicenseStore((s) => s.repairsToday);
+  const [profileOpen, setProfileOpen] = useState(false);
+  // A dead/unreachable avatar URL (network hiccup, revoked token) must fall back to the initials
+  // circle, not a broken-image icon — `<img onError>` is the only way to know it failed to load.
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
+  const displayName = (user?.user_metadata['full_name'] as string | undefined) ?? user?.email ?? '';
+  const avatarUrl = user?.user_metadata['avatar_url'] as string | undefined;
+  const showAvatar = avatarUrl !== undefined && !avatarFailed;
+  const initial = displayName.charAt(0).toUpperCase() || '•';
+  const dailyLimit = DAILY_LIMIT[plan];
+  const usageLabel =
+    dailyLimit === Infinity ? 'Unlimited' : `${String(repairsToday)} / ${String(dailyLimit)} repairs used today`;
+  const usagePct = dailyLimit === Infinity ? 0 : Math.min(100, (repairsToday / dailyLimit) * 100);
 
   const PLAN_META = {
     free: { label: 'Upgrade', color: 'text-amber-400' },
@@ -146,29 +181,206 @@ export function ActivityRail(): React.JSX.Element {
         );
       })()}
       <div className="mt-auto">
-        <button
-          type="button"
-          title={user === null ? 'Sign in' : (user.email ?? 'Signed in')}
-          aria-label={user === null ? 'Sign in' : 'Account'}
-          onClick={() => {
-            setShowSignIn(true);
-          }}
-          className="group mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 py-(--fx-card-padding-y) text-[10px] font-medium text-fg-muted transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
-        >
-          <span
-            aria-hidden="true"
-            className={cn(
-              'flex size-[18px] shrink-0 items-center justify-center rounded-full text-[9px] font-semibold',
-              user === null ? 'border border-current' : 'bg-accent text-on-accent',
-            )}
+        {user === null ? (
+          <button
+            type="button"
+            title="Sign in"
+            aria-label="Sign in"
+            onClick={() => {
+              setShowSignIn(true);
+            }}
+            className="group mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 py-(--fx-card-padding-y) text-[10px] font-medium text-fg-muted transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
           >
-            {user === null ? '?' : (user.email?.[0]?.toUpperCase() ?? '•')}
-          </span>
-          <span className="w-full truncate text-center leading-tight">
-            {user === null ? 'Sign in' : 'Account'}
-          </span>
-        </button>
+            <span
+              aria-hidden="true"
+              className="flex size-[18px] shrink-0 items-center justify-center rounded-full border border-current text-[9px] font-semibold"
+            >
+              ?
+            </span>
+            <span className="w-full truncate text-center leading-tight">Sign in</span>
+          </button>
+        ) : (
+          // Radix's DropdownMenu already owns outside-click, Escape-to-close, and focus return
+          // (WAI-ARIA menu pattern) — a hand-rolled mousedown listener would just re-implement
+          // what this already does correctly, and every other menu in the app already uses it.
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                title={displayName}
+                aria-label="Account"
+                className="group mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 py-(--fx-card-padding-y) text-[10px] font-medium text-fg-muted transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
+              >
+                {showAvatar ? (
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    className="size-[18px] shrink-0 rounded-full object-cover"
+                    onError={() => {
+                      setAvatarFailed(true);
+                    }}
+                  />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-accent text-[9px] font-semibold text-on-accent"
+                  >
+                    {initial}
+                  </span>
+                )}
+                <span className="w-full truncate text-center leading-tight">Account</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-[260px] p-2">
+              <div className="flex items-center gap-3 px-1 py-2">
+                {showAvatar ? (
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    className="size-10 shrink-0 rounded-full object-cover"
+                    onError={() => {
+                      setAvatarFailed(true);
+                    }}
+                  />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-on-accent"
+                  >
+                    {initial}
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-fg">{displayName}</p>
+                  <div className="flex items-center gap-1.5">
+                    {user.email !== undefined && (
+                      <p className="truncate text-xs text-fg-muted">{user.email}</p>
+                    )}
+                    <span
+                      className={cn(
+                        'shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold',
+                        PLAN_BADGE[plan].color,
+                      )}
+                    >
+                      {PLAN_BADGE[plan].label}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => {
+                  setProfileOpen(true);
+                }}
+              >
+                👤 Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  toast.success('Avatar synced from Google/GitHub account');
+                }}
+              >
+                🖼️ Change avatar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5">
+                <p className="text-xs text-fg-muted">📊 {usageLabel}</p>
+                {dailyLimit !== Infinity && (
+                  <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-accent"
+                      style={{ width: `${String(usagePct)}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => {
+                  setActiveView('settings');
+                }}
+              >
+                ⚙️ Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  void invoke('system:openExternal', { url: DOCS_URL });
+                }}
+              >
+                📖 Documentation
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  void invoke('system:openExternal', { url: ISSUES_URL });
+                }}
+              >
+                🐛 Report a bug
+              </DropdownMenuItem>
+              {plan !== 'pro' && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setUpgradeDialogOpen(true);
+                    }}
+                  >
+                    ⚡ Upgrade
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                danger
+                onSelect={() => {
+                  void signOut();
+                }}
+              >
+                🚪 Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
+      {user !== null && (
+        <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogTitle className="sr-only">Profile</DialogTitle>
+            <div className="flex flex-col items-center gap-3 py-2 text-center">
+              {showAvatar ? (
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="size-16 shrink-0 rounded-full object-cover"
+                  onError={() => {
+                    setAvatarFailed(true);
+                  }}
+                />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-lg font-semibold text-on-accent"
+                >
+                  {initial}
+                </span>
+              )}
+              <div>
+                <p className="text-base font-semibold text-fg">{displayName}</p>
+                {user.email !== undefined && (
+                  <p className="text-sm text-fg-muted">{user.email}</p>
+                )}
+              </div>
+              <span
+                className={cn(
+                  'rounded-full px-2.5 py-1 text-xs font-semibold',
+                  PLAN_BADGE[plan].color,
+                )}
+              >
+                {PLAN_BADGE[plan].label}
+              </span>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </nav>
   );
 }

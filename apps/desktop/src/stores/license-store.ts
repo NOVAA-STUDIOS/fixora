@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { PRODUCT_IDS, validateLicense } from '../lib/lemonsqueezy.js';
 
 const STORAGE_KEY = 'fixora.license.v1';
-const DAILY_LIMIT: Record<Plan, number> = { free: 10, go: 50, pro: Infinity };
+export const DAILY_LIMIT: Record<Plan, number> = { free: 10, go: 50, pro: Infinity };
 
 type Stored = { plan: Plan; licenseKey: string | null; repairsToday: number; day: string };
 

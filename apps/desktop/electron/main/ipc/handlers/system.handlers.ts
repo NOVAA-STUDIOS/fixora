@@ -103,12 +103,15 @@ export function registerSystemHandlers(deps: {
     return { copied: true };
   });
 
-  registerHandler('system:openExternal', ({ url }) => {
+  registerHandler('system:openExternal', async ({ url }) => {
+    console.error('[system] openExternal called:', url);
     try {
-      openExternal(url);
+      await openExternal(url);
+      console.error('[system] shell.openExternal succeeded:', url);
       return { opened: true };
     } catch (error) {
-      console.error('[system] refused to open external URL', {
+      console.error('[system] shell.openExternal failed', {
+        url,
         message: (error as Error).message,
       });
       return { opened: false };

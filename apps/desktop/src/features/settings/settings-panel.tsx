@@ -22,7 +22,7 @@ import { detectProvider, normaliseKey } from './detect-provider.js';
 import { ModelPicker } from './model-picker.js';
 import { ProviderManager } from './provider-manager.js';
 
-const PURCHASE_URL = 'https://fixora.lemonsqueezy.com/buy/pro';
+const PURCHASE_URL = 'https://fixoraa.lemonsqueezy.com/checkout/buy/70b9fae4-82e0-465d-bd3a-c8b595048ae6';
 
 
 /**
@@ -458,7 +458,7 @@ function LicenseSettings(): React.JSX.Element {
       setDraft('');
       return;
     }
-    setError('Invalid license key. Purchase at fixora.lemonsqueezy.com');
+    setError('Invalid license key. Purchase at fixoraa.lemonsqueezy.com');
   };
 
   return (

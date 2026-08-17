@@ -5,8 +5,8 @@ import { invoke } from '../../lib/bridge.js';
 import { useLicenseStore } from '../../stores/license-store.js';
 
 const CHECKOUT_URLS = {
-  go: 'https://fixora.lemonsqueezy.com/buy/go',
-  pro: 'https://fixora.lemonsqueezy.com/buy/pro',
+  go: 'https://fixoraa.lemonsqueezy.com/checkout/buy/3479d1c3-7b5c-4c2c-b201-a1ac27e18406',
+  pro: 'https://fixoraa.lemonsqueezy.com/checkout/buy/70b9fae4-82e0-465d-bd3a-c8b595048ae6',
 } as const;
 
 const ACTIVATION_MESSAGE: Record<'go' | 'pro', string> = {
@@ -31,10 +31,14 @@ export function UpgradeDialog(): React.JSX.Element | null {
   // anonymous checkout no one can recover if the key is lost.
   const startCheckout = (url: string): void => {
     if (authUser === null) {
+      console.log('[checkout] not signed in — showing sign-in overlay instead');
       setShowSignIn(true);
       return;
     }
-    void invoke('system:openExternal', { url });
+    console.log('[checkout] invoking system:openExternal', url);
+    void invoke('system:openExternal', { url }).then((result) => {
+      console.log('[checkout] system:openExternal result', result);
+    });
   };
 
   return (
@@ -46,7 +50,10 @@ export function UpgradeDialog(): React.JSX.Element | null {
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button
             type="button"
-            onClick={() => startCheckout(CHECKOUT_URLS.go)}
+            onClick={() => {
+              console.log('[checkout] GO clicked');
+              startCheckout(CHECKOUT_URLS.go);
+            }}
             className="rounded-xl border border-white/10 p-4 text-left hover:bg-white/[0.04]"
           >
             <div className="text-sm font-medium text-white">GO</div>
@@ -55,7 +62,10 @@ export function UpgradeDialog(): React.JSX.Element | null {
           </button>
           <button
             type="button"
-            onClick={() => startCheckout(CHECKOUT_URLS.pro)}
+            onClick={() => {
+              console.log('[checkout] PRO clicked');
+              startCheckout(CHECKOUT_URLS.pro);
+            }}
             className="rounded-xl border border-white/10 p-4 text-left hover:bg-white/[0.04]"
           >
             <div className="text-sm font-medium text-white">PRO</div>
@@ -67,7 +77,9 @@ export function UpgradeDialog(): React.JSX.Element | null {
         <div className="mt-5 flex gap-2">
           <input
             value={key}
-            onChange={(e) => setKey(e.target.value)}
+            onChange={(e) => {
+              setKey(e.target.value);
+            }}
             placeholder="License key"
             className="flex-1 rounded-xl border border-white/10 bg-transparent px-3 py-2 text-sm text-white placeholder:text-white/30"
           />
@@ -76,7 +88,7 @@ export function UpgradeDialog(): React.JSX.Element | null {
             onClick={() => {
               void activate(key).then((plan) => {
                 if (plan === null) {
-                  setError('Invalid license key. Purchase at fixora.lemonsqueezy.com');
+                  setError('Invalid license key. Purchase at fixoraa.lemonsqueezy.com');
                   setSuccess(null);
                   return;
                 }
@@ -94,7 +106,9 @@ export function UpgradeDialog(): React.JSX.Element | null {
 
         <button
           type="button"
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            setOpen(false);
+          }}
           className="mt-4 text-sm text-white/40 hover:text-white/70"
         >
           Not now

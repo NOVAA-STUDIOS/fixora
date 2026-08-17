@@ -81,21 +81,36 @@ supabase.auth.onAuthStateChange((_event, session) => {
 });
 
 // The OAuth round trip finishes in the system browser, not this window, so Supabase's own
-// `detectSessionInUrl` (which watches `window.location`) never sees the tokens — main forwards
-// the `fixora://auth/callback#access_token=...` URL here instead, and the tokens are applied by
-// hand. `onAuthStateChange` above then picks up the resulting session.
+// `detectSessionInUrl` (which watches `window.location`) never sees the callback — main forwards
+// the `fixora://auth/callback` URL here instead, and the session is completed by hand.
+// `onAuthStateChange` above then picks up the result.
+//
+// `flowType: 'implicit'` (supabase.ts): the callback carries `#access_token=...&refresh_token=...`
+// directly in the URL's hash fragment — nothing has to persist between `signInWithOAuth` starting
+// the flow and this handler completing it, unlike PKCE's code verifier, which has to survive a
+// round trip through the system browser and a separate protocol-handler dispatch to get back here.
 //
 // Guarded on the preload bridge existing: this runs as a MODULE-LOAD side effect, so any test that
 // imports this store (or anything that imports it, like `activity-rail.tsx`) without stubbing
 // `window.fixora` would otherwise crash on import alone, before the test body even runs.
 if (typeof window !== 'undefined' && window.fixora !== undefined) {
   subscribe('auth:callback', ({ url }) => {
-    const hash = new URL(url.replace('fixora://auth/callback', 'http://fixora.local')).hash;
-    const params = new URLSearchParams(hash.slice(1));
+    console.log('[auth] callback received:', url);
+    const parsed = new URL(url);
+    const params = new URLSearchParams(parsed.hash.slice(1));
     const accessToken = params.get('access_token');
     const refreshToken = params.get('refresh_token');
+    console.log('[auth] access_token present:', accessToken !== null);
+
     if (accessToken !== null && refreshToken !== null) {
-      void supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(
+        ({ error }) => {
+          if (error) console.error('[auth] setSession failed', error.message);
+        },
+        (error: unknown) => {
+          console.error('[auth] setSession threw', error);
+        },
+      );
     }
   });
 }

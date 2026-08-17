@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { providerDescriptor } from '@fixora/core-ai';
 import { app, BrowserWindow } from 'electron';
@@ -111,7 +111,18 @@ app.setName('Fixora');
 // Supabase OAuth completes in the system browser, which redirects back here via a custom
 // protocol (`fixora://auth/callback#access_token=...`) rather than a normal window navigation.
 // Must be registered before `whenReady`, same as the GPU switches above.
-if (!app.isDefaultProtocolClient('fixora')) app.setAsDefaultProtocolClient('fixora');
+//
+// Packaged builds are one exe — no args needed. An unpackaged dev run is `electron.exe` plus
+// this project's entry script as an argument; without passing both explicitly, Windows registers
+// the protocol against bare `electron.exe` with no idea which app to launch, so the OAuth
+// redirect opens an unrelated Electron process instead of this one. Always re-registered (not
+// guarded on `isDefaultProtocolClient`) so a stale registry entry from an earlier dev session —
+// pointing at a since-moved `electron.exe` — can never linger.
+if (app.isPackaged) {
+  app.setAsDefaultProtocolClient('fixora');
+} else {
+  app.setAsDefaultProtocolClient('fixora', process.execPath, [resolve(process.argv[1] ?? '')]);
+}
 
 /** Forwards an `fixora://auth/callback` URL to the renderer, which hands it to Supabase's
  * `getSessionFromUrl` equivalent (`auth-store.ts`'s `onAuthStateChange` picks up the resulting
@@ -119,7 +130,13 @@ if (!app.isDefaultProtocolClient('fixora')) app.setAsDefaultProtocolClient('fixo
 function forwardAuthCallback(url: string): void {
   if (!url.startsWith('fixora://auth/callback')) return;
   const [existing] = BrowserWindow.getAllWindows();
-  if (existing !== undefined) emitToWindow(existing, 'auth:callback', { url });
+  if (existing === undefined) return;
+  emitToWindow(existing, 'auth:callback', { url });
+  // The user just came back from the system browser — bring the window forward so the completed
+  // sign-in is the first thing they see, not something they discover after switching back by hand.
+  if (existing.isMinimized()) existing.restore();
+  existing.focus();
+  existing.show();
 }
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -131,6 +148,7 @@ if (!gotTheLock) {
   // Windows/Linux: a protocol launch while the app is already running arrives as a second
   // instance, the URL as a command-line argument — not as `open-url` (macOS-only).
   app.on('second-instance', (_event, argv) => {
+    console.error('[auth] second-instance argv:', argv);
     const [existing] = BrowserWindow.getAllWindows();
     if (existing !== undefined) {
       if (existing.isMinimized()) existing.restore();
@@ -141,6 +159,7 @@ if (!gotTheLock) {
   });
 
   app.on('open-url', (event, url) => {
+    console.error('[auth] open-url received:', url);
     event.preventDefault();
     forwardAuthCallback(url);
   });
