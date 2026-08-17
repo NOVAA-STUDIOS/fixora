@@ -47,7 +47,7 @@ jobs:
       - name: Generate release notes from git log
         shell: bash
         run: |
-          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${{ github.ref_name }}$" | head -n1)
+          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${{ github.ref_name }}$" | head -n1 || echo "")
           if [ -z "$PREV_TAG" ]; then
             RANGE="${{ github.ref_name }}"
           else
