@@ -23,6 +23,7 @@ import {
   createWorkspaceRepository,
 } from './db/repositories.js';
 import { createGpuPreferenceStore } from './gpu-preference-store.js';
+import { emitToWindow } from './ipc/emit.js';
 import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
 import { registerConsentHandlers } from './ipc/handlers/consent.handlers.js';
@@ -109,18 +110,41 @@ if (process.platform === 'win32') app.setAppUserModelId('dev.fixora.app');
 // the app name (window title fallback, `userData` path, crash reports).
 app.setName('Fixora');
 
+// Supabase OAuth completes in the system browser, which redirects back here via a custom
+// protocol (`fixora://auth/callback#access_token=...`) rather than a normal window navigation.
+// Must be registered before `whenReady`, same as the GPU switches above.
+if (!app.isDefaultProtocolClient('fixora')) app.setAsDefaultProtocolClient('fixora');
+
+/** Forwards an `fixora://auth/callback` URL to the renderer, which hands it to Supabase's
+ * `getSessionFromUrl` equivalent (`auth-store.ts`'s `onAuthStateChange` picks up the resulting
+ * session). No-ops for any other URL — this protocol has exactly one use today. */
+function forwardAuthCallback(url: string): void {
+  if (!url.startsWith('fixora://auth/callback')) return;
+  const [existing] = BrowserWindow.getAllWindows();
+  if (existing !== undefined) emitToWindow(existing, 'auth:callback', { url });
+}
+
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
   const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
 
-  app.on('second-instance', () => {
+  // Windows/Linux: a protocol launch while the app is already running arrives as a second
+  // instance, the URL as a command-line argument — not as `open-url` (macOS-only).
+  app.on('second-instance', (_event, argv) => {
     const [existing] = BrowserWindow.getAllWindows();
     if (existing !== undefined) {
       if (existing.isMinimized()) existing.restore();
       existing.focus();
     }
+    const url = argv.find((arg) => arg.startsWith('fixora://'));
+    if (url !== undefined) forwardAuthCallback(url);
+  });
+
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    forwardAuthCallback(url);
   });
 
   app.whenReady().then(

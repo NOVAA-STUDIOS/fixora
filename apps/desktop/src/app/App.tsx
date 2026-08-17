@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { useAuthStore } from '../features/auth/auth-store.js';
+import { LoginScreen } from '../features/auth/login-screen.js';
 import { AppShell } from '../features/shell/app-shell.js';
 import { SplashScreen } from '../features/shell/splash-screen.js';
 import { useSplash } from '../features/shell/use-splash.js';
@@ -22,6 +24,13 @@ export function App(): React.JSX.Element {
   useAppearance();
   useFileWatch();
   const hydrateCurrent = useWorkspaceStore((s) => s.hydrateCurrent);
+
+  const authLoading = useAuthStore((s) => s.loading);
+  const authUser = useAuthStore((s) => s.user);
+  const getSession = useAuthStore((s) => s.getSession);
+  useEffect(() => {
+    void getSession();
+  }, [getSession]);
 
   // Stable across renders so the splash hook does not re-run initialization on every store update.
   // The stage callback lets the launch screen report work that actually happened.
@@ -55,6 +64,9 @@ export function App(): React.JSX.Element {
       cancelled = true;
     };
   }, []);
+
+  if (authLoading) return <div className="h-full w-full bg-[#000000]" />;
+  if (authUser === null) return <LoginScreen />;
 
   return (
     <div aria-busy={state.visible} className="contents">

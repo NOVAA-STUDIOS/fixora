@@ -2,6 +2,7 @@ import { type AppInfo } from '@fixora/shared-types';
 import { app, clipboard, shell } from 'electron';
 
 import type { GpuPreferenceStore } from '../../gpu-preference-store.js';
+import { openExternal } from '../../security/navigation-guard.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { registerHandler } from '../router.js';
 
@@ -88,6 +89,18 @@ export function registerSystemHandlers(deps: {
     if (text.length === 0) return { copied: false };
     clipboard.writeText(text);
     return { copied: true };
+  });
+
+  registerHandler('system:openExternal', ({ url }) => {
+    try {
+      openExternal(url);
+      return { opened: true };
+    } catch (error) {
+      console.error('[system] refused to open external URL', {
+        message: (error as Error).message,
+      });
+      return { opened: false };
+    }
   });
 
   registerHandler('system:revealInFolder', ({ path }) => {

@@ -25,6 +25,9 @@ import { assertCspIsSafe, buildCsp } from './csp.js';
 const ALLOWED_EXTERNAL_HOSTS = new Set([
   'fixora.dev',
   'github.com',
+  // Supabase OAuth (auth-store.ts): the provider's consent screen and our project's own auth host.
+  'accounts.google.com',
+  'avnvwgymlmzrbppmvvgl.supabase.co',
   // Documentation hosts for the analyzers we run. The problem details panel links a finding to the
   // rule's own docs, which is the honest answer to "what does this rule actually mean" — we do not
   // ship a per-rule knowledge base and will not invent one. These are added one host at a time,

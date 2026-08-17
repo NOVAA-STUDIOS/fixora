@@ -146,6 +146,18 @@ export const contracts = {
     response: z.object({ copied: z.boolean() }),
   },
 
+  /**
+   * Open a URL in the user's real browser, from MAIN. Renderer navigation is fully locked down
+   * (navigation-guard.ts), so this is the one door out — gated on an https + host allowlist there,
+   * the same discipline as `openExternal` in the window-open handler. Exists for OAuth: Supabase's
+   * `signInWithOAuth({ skipBrowserRedirect: true })` returns a provider URL that must open outside
+   * the app window, never inside it.
+   */
+  'system:openExternal': {
+    request: z.object({ url: z.string() }),
+    response: z.object({ opened: z.boolean() }),
+  },
+
   'workspace:pickFolder': {
     request: empty,
     // null when the user cancels the native dialog.

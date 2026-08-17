@@ -26,6 +26,7 @@ export const channels = [
   'system:setGpuCompositingDisabled',
   'system:revealInFolder',
   'system:copyToClipboard',
+  'system:openExternal',
   'window:minimize',
   'window:toggleMaximize',
   'window:close',
@@ -173,6 +174,8 @@ export const eventChannels = [
   // exclude node_modules/dist/build/etc — see ignore-rules.ts — this is informational, not a
   // request for a decision).
   'workspace:largeProject',
+  // The `fixora://auth/callback` URL the OS hands back after the system-browser OAuth round trip.
+  'auth:callback',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

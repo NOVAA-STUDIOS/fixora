@@ -22,6 +22,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'system:setGpuCompositingDisabled',
       'system:revealInFolder',
       'system:copyToClipboard',
+      'system:openExternal',
       'window:minimize',
       'window:toggleMaximize',
       'window:close',

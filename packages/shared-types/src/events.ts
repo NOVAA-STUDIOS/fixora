@@ -55,6 +55,10 @@ export type TerminalTitle = z.infer<typeof TerminalTitleSchema>;
 export const WorkspaceLargeProjectSchema = z.object({ fileCount: z.number().int().nonnegative() });
 export type WorkspaceLargeProject = z.infer<typeof WorkspaceLargeProjectSchema>;
 
+/** The raw `fixora://auth/callback#...` URL the OS handed back after system-browser OAuth. */
+export const AuthCallbackSchema = z.object({ url: z.string() });
+export type AuthCallback = z.infer<typeof AuthCallbackSchema>;
+
 export const eventContracts = {
   'window:maximizedChanged': WindowMaximizedChangedSchema,
   'workspace:filesChanged': FilesChangedSchema,
@@ -69,6 +73,7 @@ export const eventContracts = {
   'terminal:exit': TerminalExitSchema,
   'terminal:title': TerminalTitleSchema,
   'workspace:largeProject': WorkspaceLargeProjectSchema,
+  'auth:callback': AuthCallbackSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;
