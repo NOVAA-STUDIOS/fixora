@@ -1,3 +1,4 @@
+import type { Severity } from '@fixora/shared-types';
 import type * as monaco from 'monaco-editor';
 import { useEffect, useRef, useState } from 'react';
 
@@ -38,6 +39,14 @@ const AUTO_SAVE_DEBOUNCE_MS = 1200;
  * what VS Code itself does.
  */
 const MINIMAP_MIN_WIDTH = 700;
+
+/** Matches the `.fx-finding-line-*` colours in global.css, so the scrollbar marker and the line
+ * wash agree on what severity looks like. */
+const SEVERITY_OVERVIEW_COLOR: Record<Severity, string> = {
+  error: '#ef4444',
+  warning: '#eab308',
+  info: '#3b82f6',
+};
 
 export function CodeEditor({
   relPath,
@@ -95,10 +104,10 @@ export function CodeEditor({
       // butting them against the pane edge.
       padding: { top: 8, bottom: 8 },
       renderWhitespace: 'selection',
-      // The line the caret is on, highlighted in both the text and the gutter — Monaco's own
-      // default ('line') only does the text; 'all' is what makes the current line findable at a
-      // glance in a long file, which is the point of asking for it explicitly.
-      renderLineHighlight: 'all',
+      // 'none': the current-line background/border was visually reading as an error indicator.
+      // Error lines stay marked via `setModelMarkers` (gutter dot + squiggle) below, a separate
+      // mechanism unaffected by this.
+      renderLineHighlight: 'none',
       lineNumbers: 'on',
       // All of these are Monaco's own defaults already (the full `monaco-editor` bundle — see
       // monaco-setup.ts — registers bracket matching, auto-closing, auto-indent, multi-cursor and
@@ -247,10 +256,10 @@ export function CodeEditor({
         range: new monaco.Range(revealTarget.startLine, 1, revealTarget.endLine, 1),
         options: {
           isWholeLine: true,
-          className: 'fx-finding-line',
+          className: `fx-finding-line-${revealTarget.severity}`,
           // A marker in the scrollbar too, so the line stays findable in a long file.
           overviewRuler: {
-            color: '#8b5cf6',
+            color: SEVERITY_OVERVIEW_COLOR[revealTarget.severity],
             position: monaco.editor.OverviewRulerLane.Right,
           },
         },

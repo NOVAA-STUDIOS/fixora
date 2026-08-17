@@ -1,4 +1,4 @@
-import type { DirEntryInfo, WorkspaceInfo } from '@fixora/shared-types';
+import type { DirEntryInfo, Severity, WorkspaceInfo } from '@fixora/shared-types';
 import { create } from 'zustand';
 
 import { invoke } from '../../lib/bridge.js';
@@ -41,6 +41,7 @@ export type RevealTarget = {
   startCol: number;
   endLine: number;
   endCol: number;
+  severity: Severity;
   token: number;
 };
 
@@ -107,6 +108,7 @@ type WorkspaceState = {
     startCol: number;
     endLine: number;
     endCol: number;
+    severity: Severity;
   }) => void;
   /** Close the workspace: main forgets the root, the tree/editor empty out. Same guard as `openPath`. */
   close: () => Promise<void>;
@@ -339,6 +341,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         startCol: location.startCol,
         endLine: location.endLine,
         endCol: location.endCol,
+        severity: location.severity,
         token: revealToken,
       },
     });

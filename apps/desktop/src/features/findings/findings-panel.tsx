@@ -233,7 +233,7 @@ export function FindingsPanel(): React.JSX.Element {
   const activate = useCallback(
     (finding: Finding): void => {
       select(finding.id);
-      revealAt(finding.location);
+      revealAt({ ...finding.location, severity: finding.severity });
     },
     [select, revealAt],
   );

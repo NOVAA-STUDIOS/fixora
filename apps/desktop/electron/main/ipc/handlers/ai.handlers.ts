@@ -1,7 +1,4 @@
 import { createHash } from 'node:crypto';
-// TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause).
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import { capabilitiesFor, suggestCapableModel } from '@fixora/core-ai';
 import {
@@ -390,24 +387,6 @@ export function registerAiHandlers(deps: {
           historyId: historyId ?? null,
         });
       }
-      // TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause). Gated on the
-      // disposable repro filename so no other file's content is ever logged. Captures `code` and
-      // `expectedOriginal` exactly as they arrived over the `ai:applyRepair` IPC boundary.
-      if (file.includes('proceed-diag')) {
-        const codeNul = code.split(String.fromCharCode(0)).length - 1;
-        const origNul = expectedOriginal.split(String.fromCharCode(0)).length - 1;
-        console.error('[Q3-DIAG] ai.handlers: ai:applyRepair received', {
-          file,
-          typeofCode: typeof code,
-          codeLength: code.length,
-          codeByteLength: Buffer.byteLength(code, 'utf8'),
-          codeNulCount: codeNul,
-          codePreview: JSON.stringify(code.slice(0, 60)),
-          typeofExpectedOriginal: typeof expectedOriginal,
-          expectedOriginalLength: expectedOriginal.length,
-          expectedOriginalNulCount: origNul,
-        });
-      }
       const workspace = deps.workspace.getCurrent();
       if (workspace === null) {
         // Returned, not thrown. The router redacts thrown errors by design, so an expected and
@@ -531,20 +510,6 @@ export function registerAiHandlers(deps: {
       }
 
       const patched = spliceLines(current, applyStartLine, applyEndLine, code);
-      // TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause). Captures spliceLines'
-      // own output — this is the exact string `writeTextFile` is about to receive.
-      if (file.includes('proceed-diag')) {
-        const patchedNul = patched.split(String.fromCharCode(0)).length - 1;
-        console.error('[Q3-DIAG] ai.handlers: spliceLines output (writeTextFile input)', {
-          file,
-          typeofPatched: typeof patched,
-          patchedLength: patched.length,
-          patchedByteLength: Buffer.byteLength(patched, 'utf8'),
-          patchedNulCount: patchedNul,
-          preview:
-            JSON.stringify(patched.slice(0, 60)) + ' ... ' + JSON.stringify(patched.slice(-60)),
-        });
-      }
       // The write is guarded for the same reason as the read: EPERM/EBUSY/symlink-refusal/read-only
       // are actionable, so they return as an ApplyOutcome carrying the fs layer's precise reason,
       // never a thrown error the router would flatten to "Something went wrong" (P0 Priority 1).
@@ -562,29 +527,6 @@ export function registerAiHandlers(deps: {
         };
         console.error('[apply] refused', { reason: outcome.reason, message: outcome.message });
         return outcome;
-      }
-      // TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause). Reads the file back
-      // as RAW BYTES (not decoded text) immediately after the atomic rename completes, so a corruption
-      // that only appears after the write can be told apart from one already present beforehand.
-      if (file.includes('proceed-diag')) {
-        try {
-          const onDisk = await readFile(join(workspace.rootPath, file));
-          const expectedBuf = Buffer.from(patched, 'utf8');
-          let diskNulCount = 0;
-          for (const byte of onDisk) if (byte === 0) diskNulCount++;
-          console.error('[Q3-DIAG] ai.handlers: post-rename on-disk bytes', {
-            file,
-            onDiskByteLength: onDisk.length,
-            expectedByteLength: expectedBuf.length,
-            diskNulCount,
-            matchesExpected: onDisk.equals(expectedBuf),
-          });
-        } catch (diagError) {
-          console.error('[Q3-DIAG] ai.handlers: post-rename read-back FAILED', {
-            file,
-            message: diagError instanceof Error ? diagError.message : String(diagError),
-          });
-        }
       }
       if (historyId !== undefined) deps.history.markApplied(historyId);
       console.error('[apply] applied', { file, bytesWritten: patched.length, relocated });

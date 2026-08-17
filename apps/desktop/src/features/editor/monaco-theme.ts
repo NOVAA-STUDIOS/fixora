@@ -25,7 +25,11 @@ function themeFrom(base: 'vs' | 'vs-dark', c: SemanticColors): monaco.editor.ISt
       'editorLineNumber.activeForeground': c.text.secondary,
       'editorCursor.foreground': c.accent.solid,
       'editor.selectionBackground': c.accent.subtle,
-      'editor.lineHighlightBackground': c.bg.hover,
+      // `renderLineHighlight: 'none'` (code-editor.tsx) means Monaco no longer paints this at
+      // all — transparent regardless, kept explicit so a future flip back to 'all'/'line' doesn't
+      // silently resurrect the red-looking highlight this pair was set to fix.
+      'editor.lineHighlightBackground': 'transparent',
+      'editor.lineHighlightBorder': 'transparent',
       'editorIndentGuide.background1': c.border.subtle,
       'editorGutter.background': c.bg.canvas,
       'editorWidget.background': c.bg.overlay,
