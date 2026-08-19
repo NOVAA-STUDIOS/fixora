@@ -31,6 +31,7 @@ export function App(): React.JSX.Element {
   const showSignIn = useAuthStore((s) => s.showSignIn);
   const getSession = useAuthStore((s) => s.getSession);
   useEffect(() => {
+    console.error('[app] effect running:', 'getSession');
     void getSession();
   }, [getSession]);
 
@@ -51,6 +52,7 @@ export function App(): React.JSX.Element {
   // real app mount, independent of the splash for the same reason `version` above is.
   const loadConfig = useAiStore((s) => s.loadConfig);
   useEffect(() => {
+    console.error('[app] effect running:', 'loadConfig');
     void loadConfig();
   }, [loadConfig]);
 
@@ -58,6 +60,7 @@ export function App(): React.JSX.Element {
   // it only fills in a line of the screen if it arrives while the splash is still up.
   const [version, setVersion] = useState<string | null>(null);
   useEffect(() => {
+    console.error('[app] effect running:', 'getAppInfo');
     let cancelled = false;
     void invoke('system:getAppInfo', {}).then((r) => {
       if (!cancelled && r.ok) setVersion(r.value.version);

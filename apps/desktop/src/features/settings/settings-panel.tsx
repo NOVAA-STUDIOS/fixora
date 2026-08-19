@@ -55,6 +55,7 @@ export function SettingsPanel(): React.JSX.Element {
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-8">
           <AppearanceSettings />
           <EditorSettings />
+          <AnalysisSettings />
           <StartupSettings />
           <PerformanceSettings />
           <AiSettings />
@@ -529,6 +530,24 @@ function EditorSettings(): React.JSX.Element {
         description="On by default. Runs the project's own formatter (Prettier for JS/TS/CSS/etc., Ruff for Python) on a file after you save it — only when one is available; a project with no formatter configured is left exactly as you wrote it."
         checked={formatOnSave}
         onCheckedChange={setFormatOnSave}
+      />
+    </Group>
+  );
+}
+
+function AnalysisSettings(): React.JSX.Element {
+  const watchModeEnabled = useUiStore((s) => s.watchModeEnabled);
+  const setWatchModeEnabled = useUiStore((s) => s.setWatchModeEnabled);
+  const watchModeId = useId();
+
+  return (
+    <Group title="Analysis">
+      <ToggleField
+        label="Watch Mode"
+        htmlFor={watchModeId}
+        description="Off by default. Automatically re-analyze files when they are saved, instead of waiting for you to run Analyze again."
+        checked={watchModeEnabled}
+        onCheckedChange={setWatchModeEnabled}
       />
     </Group>
   );

@@ -59,6 +59,13 @@ export type WorkspaceLargeProject = z.infer<typeof WorkspaceLargeProjectSchema>;
 export const AuthCallbackSchema = z.object({ url: z.string() });
 export type AuthCallback = z.infer<typeof AuthCallbackSchema>;
 
+/** Watch Mode's status pushes — a file changed on disk, its re-analysis started, or it finished. */
+export const AnalysisWatchEventSchema = z.object({
+  file: z.string(),
+  status: z.enum(['changed', 'reanalyzing', 'done']),
+});
+export type AnalysisWatchEvent = z.infer<typeof AnalysisWatchEventSchema>;
+
 export const eventContracts = {
   'window:maximizedChanged': WindowMaximizedChangedSchema,
   'workspace:filesChanged': FilesChangedSchema,
@@ -72,6 +79,7 @@ export const eventContracts = {
   'terminal:data': TerminalDataSchema,
   'terminal:exit': TerminalExitSchema,
   'terminal:title': TerminalTitleSchema,
+  'analysis:watchEvent': AnalysisWatchEventSchema,
   'workspace:largeProject': WorkspaceLargeProjectSchema,
   'auth:callback': AuthCallbackSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;

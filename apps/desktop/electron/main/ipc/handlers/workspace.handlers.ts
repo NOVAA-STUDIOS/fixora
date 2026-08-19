@@ -20,6 +20,8 @@ import type { WorkspaceService } from '../../services/workspace-service.js';
 import { emitToWindow } from '../emit.js';
 import { registerHandler } from '../router.js';
 
+import { stopAnalysisWatch } from './analysis.handlers.js';
+
 /**
  * One watcher at a time, restarted when the open workspace changes. The renderer re-lists only the
  * directories the batch names, so a burst of saves does not re-read the whole tree.
@@ -144,6 +146,9 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     void watcher?.close();
     watcher = null;
     watchedRoot = null;
+    // Watch Mode (analysis.handlers.ts) is a separate watcher, scoped to the same workspace — must
+    // stop for the same reason: re-analyzing files in a folder that is no longer open.
+    stopAnalysisWatch();
     service.close();
   });
 

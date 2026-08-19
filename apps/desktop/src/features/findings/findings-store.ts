@@ -45,7 +45,13 @@ type FindingsState = {
   listen: () => () => void;
 };
 
-let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+/** Buffered `analysis:findingsAdded` payloads, flushed into the store at most every `FLUSH_MS` —
+ * not re-queried from the DB (`analysis:list`) on each one, because main no longer writes findings
+ * per batch (analysis-service.ts): the DB has nothing until the run's single write in `onDone`, so
+ * re-reading it mid-run would show nothing at all until the end regardless of the interval. */
+let pendingFindings: Finding[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+const FLUSH_MS = 500;
 
 export const useFindingsStore = create<FindingsState>((set, get) => ({
   findings: [],
@@ -70,7 +76,10 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   },
 
   run: async () => {
-    set({ status: 'running', error: null, findingsSoFar: null, warnings: null });
+    // A fresh run's findings replace the previous run's — otherwise the first buffered batch would
+    // land on top of stale rows still shown from before this run started.
+    pendingFindings = [];
+    set({ status: 'running', error: null, findingsSoFar: null, warnings: null, findings: [] });
     const result = await invoke('analysis:run', {});
     if (!result.ok) set({ status: 'error', error: result.error.message });
   },
@@ -98,13 +107,19 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   },
 
   listen: () => {
-    // A batch of findings arrived — coalesce refreshes so a burst of file results is one reload.
-    const offFindings = subscribe('analysis:findingsAdded', () => {
-      if (refreshTimer !== null) return;
-      refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        void get().refresh();
-      }, 200);
+    const flush = (): void => {
+      flushTimer = null;
+      if (pendingFindings.length === 0) return;
+      const toAdd = pendingFindings;
+      pendingFindings = [];
+      set((s) => ({ findings: [...s.findings, ...toAdd] }));
+    };
+
+    // Buffered, not applied one push at a time: a burst of file results becomes at most one
+    // store update (and one downstream re-render/re-sort) every FLUSH_MS, not one per batch.
+    const offFindings = subscribe('analysis:findingsAdded', ({ findings }) => {
+      pendingFindings.push(...findings);
+      flushTimer ??= setTimeout(flush, FLUSH_MS);
     });
     const offState = subscribe('analysis:state', (state) => {
       set({
@@ -114,11 +129,24 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
         ...(state.warnings !== undefined ? { warnings: state.warnings } : {}),
       });
       if (state.status === 'error') set({ error: state.message ?? 'Analysis failed.' });
-      if (state.status === 'done') void get().refresh();
+      if (state.status === 'done') {
+        // Any buffered-but-not-yet-flushed findings must land before the authoritative reload
+        // below, or `refresh()`'s DB read (now populated by the run's single write) would appear
+        // to arrive before them — same data, wrong order.
+        if (flushTimer !== null) {
+          clearTimeout(flushTimer);
+          flush();
+        }
+        void get().refresh();
+      }
     });
     return () => {
       offFindings();
       offState();
+      if (flushTimer !== null) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
     };
   },
 }));

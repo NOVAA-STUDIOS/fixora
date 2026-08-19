@@ -1,8 +1,10 @@
 import { join, resolve } from 'node:path';
 
 import { providerDescriptor } from '@fixora/core-ai';
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Menu } from 'electron';
 import log from 'electron-log';
+
+console.error('[main] process started, pid:', process.pid);
 
 import { createAiService } from './ai/ai-service.js';
 import { safeStorageCipher } from './ai/cipher.js';
@@ -107,6 +109,13 @@ if (process.platform === 'win32') app.setAppUserModelId('dev.fixora.app');
 // run. Setting it explicitly keeps dev and packaged runs consistent everywhere Electron surfaces
 // the app name (window title fallback, `userData` path, crash reports).
 app.setName('Fixora');
+
+// No menu bar exists in this app by design (frame: false, a custom title bar owns every control) —
+// but Electron still creates its own default application menu unless told not to, with role items
+// (Copy/Paste/Reload/Toggle DevTools) whose accelerators stay live even with the bar auto-hidden.
+// One of those built-in role handlers is the actual source of "getAllWebContents is not a
+// function" — nothing in this codebase calls that API. Clearing the menu removes the trigger.
+Menu.setApplicationMenu(null);
 
 // Supabase OAuth completes in the system browser, which redirects back here via a custom
 // protocol (`fixora://auth/callback#access_token=...`) rather than a normal window navigation.
@@ -288,7 +297,7 @@ if (!gotTheLock) {
       registerWorkspaceHandlers(workspaceService);
       registerEditorHandlers(workspaceService, analysisHost);
       registerGitHandlers(workspaceService);
-      registerAnalysisHandlers(analysisService);
+      registerAnalysisHandlers(analysisService, workspaceService);
       registerProviderHandlers({
         registry: providerRegistry,
         credentials,
@@ -346,6 +355,7 @@ if (!gotTheLock) {
       // this same dependency rather than growing a second implementation.
       const mailService = createMailService();
       registerSuggestionHandlers(suggestionService, mailService, workspaceService);
+      console.error('[startup] handlers registered');
 
       // NOT restored here.
       //

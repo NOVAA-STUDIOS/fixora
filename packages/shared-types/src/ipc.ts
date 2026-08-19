@@ -257,6 +257,12 @@ export const contracts = {
   },
   'analysis:summary': { request: empty, response: FindingsSummarySchema },
 
+  // Watch Mode (off by default, Settings): re-analyzes ONE file on save instead of asking for a
+  // full-project `analysis:run`. Scoped to the current workspace root, same as every other
+  // analysis channel — the renderer never names a path outside it.
+  'analysis:watchStart': { request: empty, response: z.object({ watching: z.boolean() }) },
+  'analysis:watchStop': { request: empty, response: z.void() },
+
   // AI (M5, BYOK). Config is readable/settable by the renderer, but the key is write-only from its
   // point of view: `providers:setKey` takes one and it goes to the OS keychain; nothing returns it.
   // `ai:run` executes a grounded task against a finding — the secret gate runs inside, before any

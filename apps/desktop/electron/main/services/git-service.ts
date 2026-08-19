@@ -12,6 +12,18 @@ export type GitStatus = {
 };
 
 const GIT_TIMEOUT_MS = 15_000;
+/** How long a cached status is served without re-asking git — the status bar polls this on every
+ * workspace change, and a repo with a slow git (huge working tree, cold FS cache, network drive)
+ * must never make that feel like the UI itself hung. */
+const CACHE_TTL_MS = 5_000;
+/** The absolute ceiling on how long a caller waits for a FIRST-EVER status in this root: past
+ * this, an empty result is returned rather than leaving the caller hanging — the real result
+ * still lands in the cache for the next call once git actually finishes. */
+const FIRST_CALL_TIMEOUT_MS = 3_000;
+
+type CacheEntry = { status: GitStatus; fetchedAt: number };
+const cache = new Map<string, CacheEntry>();
+const inFlight = new Map<string, Promise<GitStatus>>();
 
 /**
  * Never rejects: a nonzero exit is git's own ordinary way of reporting "not a repository", "no
@@ -38,9 +50,16 @@ function runGit(root: string, args: string[]): Promise<{ code: number; stdout: s
 }
 
 /** `git status --porcelain=v1 -b`, parsed. Two-letter status codes: index (staged) column first,
- * working-tree (unstaged) column second — `??` (untracked) has no staged half. */
-export async function gitStatus(root: string): Promise<GitStatus> {
-  const result = await runGit(root, ['status', '--porcelain=v1', '-b']);
+ * working-tree (unstaged) column second — `??` (untracked) has no staged half.
+ *
+ * `--untracked-files=no` is the single biggest cost cut on a large tree: without it, git walks
+ * every untracked directory looking for files to report, which is the part that scales with
+ * project size rather than with how much actually changed. Trade-off, stated plainly: untracked
+ * files no longer appear in `unstaged` here — this reads status for the branch/staged/modified
+ * picture, not as a substitute for the file tree's own view of what's new on disk.
+ */
+async function fetchGitStatus(root: string): Promise<GitStatus> {
+  const result = await runGit(root, ['status', '--porcelain=v1', '-b', '--untracked-files=no']);
   if (result.code !== 0) return { branch: null, staged: [], unstaged: [] };
 
   const lines = result.stdout.split('\n').filter((l) => l !== '');
@@ -69,6 +88,50 @@ export async function gitStatus(root: string): Promise<GitStatus> {
   }
 
   return { branch, staged, unstaged };
+}
+
+/**
+ * Cached, stale-while-revalidate. A fresh cache entry (< 5s old) is returned with no git call at
+ * all. A stale-but-present entry is returned IMMEDIATELY — the actual UI-facing fix here, since
+ * that is the case a slow git previously blocked on — while a background fetch refreshes the
+ * cache for the next call. Only a root with no cached value yet ever waits on git directly, and
+ * even then only up to `FIRST_CALL_TIMEOUT_MS` before falling back to an empty result; the real
+ * one still lands in the cache once git finishes, for whichever call comes after.
+ */
+export async function gitStatus(root: string): Promise<GitStatus> {
+  const cached = cache.get(root);
+  const now = Date.now();
+
+  const refresh = (): Promise<GitStatus> => {
+    let pending = inFlight.get(root);
+    if (pending === undefined) {
+      pending = fetchGitStatus(root)
+        .then((status) => {
+          cache.set(root, { status, fetchedAt: Date.now() });
+          return status;
+        })
+        .finally(() => {
+          inFlight.delete(root);
+        });
+      inFlight.set(root, pending);
+    }
+    return pending;
+  };
+
+  if (cached !== undefined && now - cached.fetchedAt < CACHE_TTL_MS) return cached.status;
+  if (cached !== undefined) {
+    void refresh(); // stale-while-revalidate: today's answer now, tomorrow's answer in the background
+    return cached.status;
+  }
+
+  // No cached value for this root at all — this is the one path that genuinely has to wait, and
+  // it is capped rather than open-ended.
+  const timeout = new Promise<GitStatus>((resolve) => {
+    setTimeout(() => {
+      resolve({ branch: null, staged: [], unstaged: [] });
+    }, FIRST_CALL_TIMEOUT_MS);
+  });
+  return Promise.race([refresh(), timeout]);
 }
 
 function statusName(code: string): string {

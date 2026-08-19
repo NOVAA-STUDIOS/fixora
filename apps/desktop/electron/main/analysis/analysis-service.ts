@@ -50,10 +50,11 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
         // workspace's findings.
         if (deps.workspaces.getCurrent()?.id !== open.id) return;
 
-        // A fresh run supersedes the previous one. Clear first, then persist per file as results
-        // arrive — so a file that no longer has findings correctly ends up empty (the worker sends
-        // no message for a clean file).
-        deps.findings.clearWorkspace(open.id);
+        // Collected in memory, not written per batch: `appendFindings` is one real SQLite
+        // transaction (commit + fsync) per call, and the worker can flush hundreds of times on a
+        // large project — hundreds of synchronous main-thread transactions was the actual freeze,
+        // not any one of them being slow. One write in `onDone` below replaces all of them.
+        const allFindings: Finding[] = [];
 
         // Streamed as findings arrive, so a long run on a large project shows proof of life instead
         // of the static "Analyzing…" placeholder sitting unchanged for minutes.
@@ -69,11 +70,7 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
           workspaceRoot: open.rootPath,
           targets,
           onFileFindings: (_file, findings) => {
-            // Insert-only (not replaceForFile): the worker now streams a file's findings across
-            // possibly several flushes rather than one message per file, and a delete-then-insert
-            // per flush would let a later batch erase an earlier one's rows for the same file. Safe
-            // here because clearWorkspace() above already emptied the workspace once for this run.
-            deps.findings.appendFindings(open.id, findings);
+            allFindings.push(...findings);
             if (!window.isDestroyed() && findings.length > 0) {
               emitToWindow(window, 'analysis:findingsAdded', { findings });
               findingsSoFar += findings.length;
@@ -86,34 +83,41 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
             runWarnings = warnings;
             if (!window.isDestroyed()) emit(window, { status: 'running', warnings });
           },
-          onDone: async () => {
+          onDone: () => {
             // Cross-analyzer dedup, once the full set exists — not per `onFileFindings` batch: two
             // tools flagging the same line can arrive in separate flushes (analyzers stream
             // independently, see engine.ts's merge()), so no single batch is ever "complete" enough
-            // to dedup against. This is the one point a full, final set genuinely exists.
+            // to dedup against. Runs on `allFindings` (in memory) now, BEFORE the one and only DB
+            // write — the previous version wrote every batch, then read the whole workspace back
+            // from the DB, deduped, and wrote it AGAIN; that second read-clear-rewrite is gone, the
+            // in-memory set was always right there.
             //
             // Dynamic import, not a static one: `@fixora/core-analysis` publishes ESM only (no
             // `require` entry), and this file is loaded by the CJS Electron main process — a static
             // `import { dedupeFindings } from '@fixora/core-analysis'` throws
             // ERR_PACKAGE_PATH_NOT_EXPORTED at startup, before the window ever opens. Same pattern as
             // `ai-service.ts`'s `groupByRootCause`/`widenRepairScope` and `analysis-host.ts`.
-            const { dedupeFindings } = await import('@fixora/core-analysis');
-            const { findings: deduped, duplicatesRemoved } = dedupeFindings(
-              deps.findings.list(open.id, {}),
-            );
-            if (duplicatesRemoved > 0) {
-              log.info('[analysis] removed duplicate findings', {
-                workspaceId: open.id,
-                duplicatesRemoved,
-              });
+            // `onDone` itself must stay void-returning (the host's callback contract), so the async
+            // work runs in a fire-and-forget IIFE rather than making this callback a Promise.
+            void (async () => {
+              const { dedupeFindings } = await import('@fixora/core-analysis');
+              const { findings: deduped, duplicatesRemoved } = dedupeFindings(allFindings);
+              if (duplicatesRemoved > 0) {
+                log.info('[analysis] removed duplicate findings', {
+                  workspaceId: open.id,
+                  duplicatesRemoved,
+                });
+              }
+              // The ONE write for this run — clear-then-insert, same as before, just once instead
+              // of once per batch plus once more for dedup.
               deps.findings.clearWorkspace(open.id);
               deps.findings.appendFindings(open.id, deduped);
-            }
-            emit(window, {
-              status: 'done',
-              summary: deps.findings.summary(open.id),
-              ...(runWarnings !== undefined ? { warnings: runWarnings } : {}),
-            });
+              emit(window, {
+                status: 'done',
+                summary: deps.findings.summary(open.id),
+                ...(runWarnings !== undefined ? { warnings: runWarnings } : {}),
+              });
+            })();
           },
           onError: (message) => {
             emit(window, { status: 'error', message });
@@ -136,6 +140,52 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
       const open = deps.workspaces.requireRoot();
       return deps.findings.summary(open.id);
     },
+
+    /**
+     * Watch Mode's entry point (watch-service.ts): re-analyze ONE file, not the whole project —
+     * `run()` above always walks and re-vets every file, which is real work worth avoiding on
+     * every keystroke-adjacent save. `replaceForFile`, not `appendFindings`: unlike a fresh full
+     * run (which clears the whole workspace once, up front), this must replace only what this one
+     * file owned, leaving every other file's findings untouched.
+     */
+    async analyzeFile(window: BrowserWindow, relPath: string): Promise<void> {
+      const open = deps.workspaces.requireRoot();
+      const target = targetFor(open, relPath);
+      // Not analyzable (wrong language, ignored, secret-denied, or vanished) — nothing to do, and
+      // nothing to clear either: a file that was never indexed never had findings to remove.
+      if (target === null) return;
+
+      let receivedFindings = false;
+      await new Promise<void>((resolve) => {
+        deps.host.run({
+          id: randomUUID(),
+          workspaceRoot: open.rootPath,
+          targets: [target],
+          onFileFindings: (_file, findings) => {
+            receivedFindings = true;
+            deps.findings.replaceForFile(open.id, relPath, findings);
+            if (!window.isDestroyed()) emitToWindow(window, 'analysis:findingsAdded', { findings });
+          },
+          onNotice: () => {
+            // A single-file re-analysis is too small a unit for the "analysis was partial"
+            // banner `run()`'s warnings drive — a timed-out tool on one file is noise here.
+          },
+          onDone: () => {
+            // No findings message arrived at all: the file is clean now (the worker only sends one
+            // for a file that HAS findings), and that clean result must still land — otherwise a
+            // fixed file keeps showing its stale, now-wrong findings forever.
+            if (!receivedFindings) deps.findings.replaceForFile(open.id, relPath, []);
+            if (!window.isDestroyed()) {
+              emit(window, { status: 'done', summary: deps.findings.summary(open.id) });
+            }
+            resolve();
+          },
+          onError: () => {
+            resolve();
+          },
+        });
+      });
+    },
   };
 }
 
@@ -146,6 +196,22 @@ const yieldToEventLoop = (): Promise<void> =>
   new Promise((resolve) => {
     setImmediate(resolve);
   });
+
+/** Is this path analyzable, and if so, its worker target? The same vetting `collectTargets`'s walk
+ * applies inline, factored out so `analyzeFile` (Watch Mode) can ask it about one path without
+ * walking the tree at all. */
+function targetFor(open: OpenWorkspace, relPath: string): AnalysisTargetRef | null {
+  const language = detectLanguage(relPath);
+  if (language === null || !isDeepLanguage(language)) return null;
+  if (open.ignore.ignores(relPath) || isSecretPath(relPath)) return null;
+  const absPath = join(open.rootPath, relPath);
+  try {
+    if (statSync(absPath).size > MAX_FILE_BYTES) return null;
+  } catch {
+    return null;
+  }
+  return { file: relPath, absPath, language };
+}
 
 /**
  * Every analyzable file in the workspace: a language we support, not ignored, not secret, not
@@ -175,16 +241,8 @@ async function collectTargets(open: OpenWorkspace): Promise<AnalysisTargetRef[]>
         continue;
       }
       if (!entry.isFile()) continue;
-      const language = detectLanguage(relPath);
-      if (language === null || !isDeepLanguage(language)) continue;
-      if (open.ignore.ignores(relPath) || isSecretPath(relPath)) continue;
-      const absPath = join(open.rootPath, relPath);
-      try {
-        if (statSync(absPath).size > MAX_FILE_BYTES) continue;
-      } catch {
-        continue;
-      }
-      targets.push({ file: relPath, absPath, language });
+      const target = targetFor(open, relPath);
+      if (target !== null) targets.push(target);
       if (targets.length % YIELD_EVERY === 0) await yieldToEventLoop();
     }
   };

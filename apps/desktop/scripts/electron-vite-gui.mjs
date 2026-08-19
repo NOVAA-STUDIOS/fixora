@@ -11,7 +11,11 @@ import { spawn } from 'node:child_process';
 delete process.env.ELECTRON_RUN_AS_NODE;
 
 const mode = process.argv[2] ?? 'dev';
-const child = spawn('electron-vite', [mode], {
+// `--` forwards everything after it to the Electron process electron-vite spawns (its own
+// documented passthrough) — `--inspect=9229` opens the main process's V8 inspector so it can be
+// attached to (chrome://inspect, or `node --inspect`-compatible tooling) independently of the
+// renderer's own DevTools, which is what's needed when the renderer itself is the thing hung.
+const child = spawn('electron-vite', [mode, '--', '--inspect=9229'], {
   stdio: 'inherit',
   // `shell: true` so the local `node_modules/.bin/electron-vite` shim resolves on every OS; pnpm puts
   // that directory on PATH while a script runs. The child inherits our now-cleaned env, and so does

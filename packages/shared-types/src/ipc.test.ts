@@ -48,6 +48,8 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'analysis:cancel',
       'analysis:list',
       'analysis:summary',
+      'analysis:watchStart',
+      'analysis:watchStop',
       // Provider management. Read, the registry mutations, and the per-provider credential writes —
       // which are now the ONLY way key material moves: the single-slot 'ai:setKey'/'ai:clearKey'
       // pair is gone, along with the v1 store it wrote.

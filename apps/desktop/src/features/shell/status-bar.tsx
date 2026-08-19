@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { invoke } from '../../lib/bridge.js';
+import { invoke, subscribe } from '../../lib/bridge.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useEditorStatusStore } from '../editor/editor-status-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
@@ -30,6 +30,43 @@ export function StatusBar(): React.JSX.Element {
   }, [workspace]);
   const summary = useFindingsStore((s) => s.summary);
   const status = useFindingsStore((s) => s.status);
+
+  const watchModeEnabled = useUiStore((s) => s.watchModeEnabled);
+  // 'idle': watching, nothing happening right now. 'pulsing': a change was just detected (a brief
+  // flash, cleared on a timer — chokidar's `change` event carries no "I'm done reacting" signal of
+  // its own). 'reanalyzing': the single-file re-analysis this change triggered is in flight.
+  const [watchActivity, setWatchActivity] = useState<'idle' | 'pulsing' | 'reanalyzing'>('idle');
+
+  useEffect(() => {
+    if (!watchModeEnabled || workspace === null) {
+      void invoke('analysis:watchStop', {});
+      return;
+    }
+    void invoke('analysis:watchStart', {});
+    return () => {
+      void invoke('analysis:watchStop', {});
+    };
+    // Re-runs on a workspace switch too — the watcher is scoped to whichever root was current when
+    // `watchStart` was called, so a new workspace needs its own call, not a reuse of the old one.
+  }, [watchModeEnabled, workspace]);
+
+  useEffect(() => {
+    return subscribe('analysis:watchEvent', ({ status: eventStatus }) => {
+      if (eventStatus === 'reanalyzing') {
+        setWatchActivity('reanalyzing');
+      } else if (eventStatus === 'done') {
+        setWatchActivity('idle');
+      } else {
+        // 'changed': flash briefly, then settle back — 'reanalyzing' (sent right after, in
+        // analysis.handlers.ts) will normally supersede this before the timer even fires.
+        setWatchActivity('pulsing');
+        setTimeout(() => {
+          setWatchActivity((current) => (current === 'pulsing' ? 'idle' : current));
+        }, 600);
+      }
+    });
+  }, []);
+
   const line = useEditorStatusStore((s) => s.line);
   const column = useEditorStatusStore((s) => s.column);
   const language = useEditorStatusStore((s) => s.language);
@@ -60,6 +97,29 @@ export function StatusBar(): React.JSX.Element {
               ·
             </span>
             <span className="shrink-0">{analysis}</span>
+            {watchModeEnabled && (
+              <>
+                <span aria-hidden="true" className="text-border-strong">
+                  ·
+                </span>
+                <span
+                  className="flex shrink-0 items-center gap-1"
+                  title={
+                    watchActivity === 'reanalyzing'
+                      ? 'Watch Mode: re-analyzing the file you just saved.'
+                      : 'Watch Mode: on. Files are re-analyzed automatically when saved.'
+                  }
+                >
+                  <span
+                    aria-hidden="true"
+                    className={watchActivity !== 'idle' ? 'animate-pulse' : undefined}
+                  >
+                    👁
+                  </span>
+                  {watchActivity === 'reanalyzing' ? 'Re-analyzing…' : 'Watching'}
+                </span>
+              </>
+            )}
             {branch !== null && (
               <>
                 <span aria-hidden="true" className="text-border-strong">

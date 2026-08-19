@@ -54,6 +54,9 @@ export const channels = [
   'analysis:cancel',
   'analysis:list',
   'analysis:summary',
+  // Watch Mode: re-analyze a file on save, without a full-project run.
+  'analysis:watchStart',
+  'analysis:watchStop',
   // Provider management. The registry, the failover chain and the health store all existed and were
   // unreachable — no channel named them, so priority and enable/disable were headless.
   'providers:list',
@@ -175,6 +178,9 @@ export const eventChannels = [
   'workspace:largeProject',
   // The `fixora://auth/callback` URL the OS hands back after the system-browser OAuth round trip.
   'auth:callback',
+  // Watch Mode status pushes (analysis.handlers.ts) — a change was detected, a re-analysis started
+  // for it, or that re-analysis finished.
+  'analysis:watchEvent',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

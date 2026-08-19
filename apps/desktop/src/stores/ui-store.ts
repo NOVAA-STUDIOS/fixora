@@ -145,6 +145,11 @@ type UiState = {
    * folder; it never restores analysis or repair state, which are always recomputed.
    */
   reopenLastProject: boolean;
+  /** Watch Mode (off by default): re-analyze a file automatically when it's saved, instead of
+   * waiting for an explicit Analyze click. Same "never act without being asked" default as
+   * autoSave — this one runs analysis, not a write, but it's still unsolicited work on every
+   * save until the user opts in. */
+  watchModeEnabled: boolean;
 
   setTheme: (theme: ThemeName) => void;
   toggleTheme: () => void;
@@ -166,6 +171,7 @@ type UiState = {
    * whatever was active before if it already was. */
   toggleTerminal: () => void;
   setReopenLastProject: (enabled: boolean) => void;
+  setWatchModeEnabled: (enabled: boolean) => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -186,6 +192,7 @@ export const useUiStore = create<UiState>()(
       terminalFontSize: 13,
       lastNonTerminalView: 'workspace',
       reopenLastProject: false,
+      watchModeEnabled: false,
       fullDiffOpen: false,
 
       openFullDiff: () => {
@@ -266,6 +273,9 @@ export const useUiStore = create<UiState>()(
       setReopenLastProject: (reopenLastProject) => {
         set({ reopenLastProject });
       },
+      setWatchModeEnabled: (watchModeEnabled) => {
+        set({ watchModeEnabled });
+      },
     }),
     {
       name: 'fixora.ui',
@@ -283,6 +293,7 @@ export const useUiStore = create<UiState>()(
         minimapEnabled: s.minimapEnabled,
         terminalFontSize: s.terminalFontSize,
         reopenLastProject: s.reopenLastProject,
+        watchModeEnabled: s.watchModeEnabled,
       }),
       // Rehydration is the trust boundary for persisted state (see `oneOf` above). Every value
       // read back from localStorage is validated against the current known-good set before it
@@ -307,6 +318,9 @@ export const useUiStore = create<UiState>()(
           // toggle silently reset to off each launch. Same fail-closed rule: only an explicit true
           // opts in to reopening a project.
           reopenLastProject: p.reopenLastProject === true,
+          // Same fail-closed rule as autoSave/reopenLastProject: unsolicited analysis on every save
+          // only happens if the persisted value is explicitly `true`.
+          watchModeEnabled: p.watchModeEnabled === true,
           // Defaults to true (unlike the two above): only an explicit persisted `false` opts out,
           // so a missing/corrupt value falls back to the feature's own default rather than off.
           formatOnSave: p.formatOnSave !== false,

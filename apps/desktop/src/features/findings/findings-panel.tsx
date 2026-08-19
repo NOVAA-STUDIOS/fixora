@@ -279,6 +279,8 @@ export function FindingsPanel(): React.JSX.Element {
     filter.severity !== undefined ? summary?.bySeverity[filter.severity] : summary?.total;
   const isTruncated = totalForFilter !== undefined && findings.length < totalForFilter;
 
+  console.error('[panel] rendering, count:', findings.length);
+
   return (
     <section
       aria-label="Problems"
@@ -322,7 +324,10 @@ export function FindingsPanel(): React.JSX.Element {
             variant="ghost"
             size="sm"
             className="shrink-0"
-            onClick={() => void bulkStart(visible)}
+            onClick={() => {
+              console.error('[panel] onClick: Repair All Repairable');
+              void bulkStart(visible);
+            }}
             disabled={
               workspace === null ||
               status === 'running' ||
@@ -343,13 +348,22 @@ export function FindingsPanel(): React.JSX.Element {
           className="shrink-0"
           disabled={workspace === null || visible.length === 0}
           onClick={() => {
+            console.error('[panel] onClick: Group Repair');
             setGroupRepairOpen(true);
           }}
         >
           Group Repair
         </Button>
         {status === 'running' ? (
-          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void cancel()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0"
+            onClick={() => {
+              console.error('[panel] onClick: Cancel analysis');
+              void cancel();
+            }}
+          >
             Cancel
           </Button>
         ) : (
@@ -357,7 +371,10 @@ export function FindingsPanel(): React.JSX.Element {
             variant="ghost"
             size="sm"
             className="shrink-0"
-            onClick={() => void run()}
+            onClick={() => {
+              console.error('[panel] onClick: Analyze');
+              void run();
+            }}
             disabled={workspace === null || bulkStatus === 'running'}
           >
             {summary === null ? 'Run analysis' : 'Re-run'}
@@ -608,7 +625,10 @@ export function FindingsPanel(): React.JSX.Element {
             size="sm"
             className="shrink-0"
             disabled={bulkStatus === 'running' || workspace === null}
-            onClick={() => void groupedRepair('security', securityFindings)}
+            onClick={() => {
+              console.error('[panel] onClick: Fix All Security');
+              void groupedRepair('security', securityFindings);
+            }}
           >
             Fix All Security
           </Button>
