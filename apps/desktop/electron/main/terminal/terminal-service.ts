@@ -32,6 +32,12 @@ const TITLE_POLL_MS = 1000;
  * making output feel delayed — 16ms is imperceptible, the same budget a 60fps frame gets.
  */
 const OUTPUT_BATCH_MS = 16;
+/** A runaway producer (`cat` on a huge file, unthrottled build spam) can append faster than one
+ * 16ms tick flushes — without a ceiling, `outputBuffers` grows unbounded between flushes on a slow
+ * machine where the flush itself (IPC + renderer write) also takes longer. Capped, not dropped: the
+ * oldest content is what scrolled past already, so keeping only the tail is the same trade xterm's
+ * own scrollback makes. */
+const MAX_OUTPUT_BUFFER = 100 * 1024;
 
 export function createTerminalService(deps: {
   onData: (id: string, data: string) => void;
@@ -54,7 +60,11 @@ export function createTerminalService(deps: {
 
   function queueOutput(id: string, data: string): void {
     const existing = outputBuffers.get(id);
-    outputBuffers.set(id, existing === undefined ? data : existing + data);
+    let buffer = existing === undefined ? data : existing + data;
+    if (buffer.length > MAX_OUTPUT_BUFFER) {
+      buffer = '...[output truncated]...\n' + buffer.slice(-MAX_OUTPUT_BUFFER / 2);
+    }
+    outputBuffers.set(id, buffer);
     if (outputTimers.has(id)) return;
     outputTimers.set(
       id,

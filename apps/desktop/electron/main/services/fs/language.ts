@@ -35,6 +35,18 @@ const BY_EXTENSION: Record<string, string> = {
   '.rb': 'ruby',
 };
 
+/** The extensions `indexFiles` keeps once a project is large enough to hit its cap (workspace-service.ts)
+ * — the languages Fixora actually analyzes, not every text file the tree can display. */
+export const SOURCE_EXTENSIONS = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.py',
+  '.go',
+  '.json',
+]);
+
 const BY_FILENAME: Record<string, string> = {
   dockerfile: 'dockerfile',
   makefile: 'makefile',

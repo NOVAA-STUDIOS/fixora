@@ -38,10 +38,19 @@ export interface AnalyzeWorkspaceOptions {
  * Written by hand rather than pulled from a library because the failure semantics are the point: a
  * source that throws is dropped and the merge continues, so one broken analyzer cannot end the run.
  */
+/** Each analyzer typically spawns its own child process (ESLint, mypy, go vet, …) — starting every
+ * applicable one at once is fine on a fast machine, but on a low-end CPU (the target hardware this
+ * cap exists for) that many concurrent child processes thrash rather than finish sooner. Capped at
+ * 2: enough to overlap I/O-bound waits between analyzers without saturating a 2-4 logical core
+ * machine. */
+const MAX_CONCURRENT_ANALYZERS = 2;
+
 async function* merge<T>(sources: readonly AsyncIterable<T>[]): AsyncIterable<T> {
   const iterators = sources.map((source) => source[Symbol.asyncIterator]());
   // Keyed by iterator index, so a settled promise can be replaced with that iterator's next pull.
   const pending = new Map<number, Promise<{ index: number; result: IteratorResult<T> }>>();
+  // Analyzers not yet started — pulled from as running ones finish, never all at once.
+  const queued = iterators.map((_, index) => index).slice(MAX_CONCURRENT_ANALYZERS);
 
   const pull = (index: number): void => {
     const iterator = iterators[index];
@@ -57,14 +66,17 @@ async function* merge<T>(sources: readonly AsyncIterable<T>[]): AsyncIterable<T>
     );
   };
 
-  iterators.forEach((_, index) => {
+  iterators.slice(0, MAX_CONCURRENT_ANALYZERS).forEach((_, index) => {
     pull(index);
   });
 
   while (pending.size > 0) {
     const { index, result } = await Promise.race(pending.values());
-    if (result.done === true) pending.delete(index);
-    else {
+    if (result.done === true) {
+      pending.delete(index);
+      const next = queued.shift();
+      if (next !== undefined) pull(next);
+    } else {
       pull(index);
       yield result.value;
     }

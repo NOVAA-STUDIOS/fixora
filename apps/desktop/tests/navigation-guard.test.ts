@@ -27,13 +27,13 @@ describe('openExternal', () => {
   });
 
   it('opens https to a host we own', () => {
-    openExternal('https://fixora.dev/docs');
+    void openExternal('https://fixora.dev/docs');
     expect(openExternalSpy).toHaveBeenCalledWith('https://fixora.dev/docs');
   });
 
   it('opens https to an allowed subdomain and to github', () => {
-    openExternal('https://docs.fixora.dev/');
-    openExternal('https://github.com/fixora/fixora-desktop/issues/new');
+    void openExternal('https://docs.fixora.dev/');
+    void openExternal('https://github.com/fixora/fixora-desktop/issues/new');
     expect(openExternalSpy).toHaveBeenCalledTimes(2);
   });
 
@@ -47,7 +47,7 @@ describe('openExternal', () => {
     'https://pkg.go.dev/cmd/vet',
     'https://semgrep.dev/r/python.lang.security.audit',
   ])('opens the analyzer docs URL %s', (docs) => {
-    openExternal(docs);
+    void openExternal(docs);
     expect(openExternalSpy).toHaveBeenCalledWith(docs);
   });
 
@@ -58,10 +58,11 @@ describe('openExternal', () => {
     'javascript:fetch("https://attacker.example")',
     'vbscript:msgbox',
     'http://plaintext.example',
-  ])('refuses the non-https / RCE scheme %s', (hostile) => {
-    expect(() => {
-      openExternal(hostile);
-    }).toThrow();
+  ])('refuses the non-https / RCE scheme %s', async (hostile) => {
+    // `openExternal` is async (it awaits `shell.openExternal` rather than firing it and
+    // forgetting) — every guard throw inside it is therefore a rejected promise, not a
+    // synchronous throw.
+    await expect(openExternal(hostile)).rejects.toThrow();
   });
 
   it.each([
@@ -71,16 +72,12 @@ describe('openExternal', () => {
     'https://github.com.attacker.com/',
     'https://eslint.org.attacker.com/', // a docs host lookalike is still hostile
     'https://noteslint.org/',
-  ])('refuses https to a host not on the allowlist: %s', (hostile) => {
-    expect(() => {
-      openExternal(hostile);
-    }).toThrow(/host allowlist|only our own hosts/i);
+  ])('refuses https to a host not on the allowlist: %s', async (hostile) => {
+    await expect(openExternal(hostile)).rejects.toThrow(/host allowlist|only our own hosts/i);
   });
 
-  it('refuses a URL that does not parse rather than guessing at it', () => {
-    expect(() => {
-      openExternal('not a url');
-    }).toThrow(/does not parse/);
+  it('refuses a URL that does not parse rather than guessing at it', async () => {
+    await expect(openExternal('not a url')).rejects.toThrow(/does not parse/);
   });
 });
 

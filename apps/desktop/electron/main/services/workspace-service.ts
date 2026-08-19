@@ -1,5 +1,5 @@
 import { readdirSync, statSync } from 'node:fs';
-import { basename, join, posix } from 'node:path';
+import { basename, extname, join, posix } from 'node:path';
 
 import { UserFacingError } from '@fixora/shared-types';
 
@@ -7,7 +7,7 @@ import type { FileIndexRepository, Workspace, WorkspaceRepository } from '../db/
 
 import { fsTry } from './fs/fs-errors.js';
 import { loadIgnoreRules, type IgnoreMatcher } from './fs/ignore-rules.js';
-import { detectLanguage } from './fs/language.js';
+import { detectLanguage, SOURCE_EXTENSIONS } from './fs/language.js';
 import { assertInsideWorkspace } from './fs/path-guard.js';
 
 /**
@@ -16,6 +16,10 @@ import { assertInsideWorkspace } from './fs/path-guard.js';
  * this service pairs them with the root it owns. Opening a workspace is the only way the root is
  * set, and it comes from a native folder dialog or a stored recent, never from a renderer string.
  */
+
+/** Past this many indexed files, `indexFiles` keeps only source files (SOURCE_EXTENSIONS) — see
+ * its own doc comment for why. */
+const MAX_INDEX_FILES = 50_000;
 
 export type OpenWorkspace = {
   id: string;
@@ -184,7 +188,13 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
       // saturated main's event loop for long enough to make every other IPC call sluggish for the
       // burst's duration. 50 is a quarter the work per burst, four times as many breathing points.
       const YIELD_EVERY = 50;
+      // Past this many files, memory (not event-loop responsiveness — YIELD_EVERY already handles
+      // that) becomes the concern: one index record per file, held for the workspace's lifetime.
+      // A 100k+-file project pushes that into hundreds of MB. Past the threshold, only files worth
+      // analyzing are kept — a `node_modules`-sized pile of assets was never useful in this index
+      // anyway, since analysis only ever runs on Fixora's supported languages.
       const records: Parameters<FileIndexRepository['replaceAll']>[1] = [];
+      let cappedWarned = false;
       // A `setImmediate` alone only guarantees a queue turn, not that other pending work (an IPC
       // reply, a paint) actually gets serviced before the next burst starts — this small delay gives
       // it room to.
@@ -215,6 +225,16 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
             await walk(childRel);
           } else if (entry.isFile()) {
             if (workspace.ignore.ignores(childRel)) continue;
+            if (childRel.endsWith('.min.js') || childRel.endsWith('.map')) continue;
+            if (records.length >= MAX_INDEX_FILES && !SOURCE_EXTENSIONS.has(extname(childRel))) {
+              if (!cappedWarned) {
+                cappedWarned = true;
+                console.warn('[workspace] large project — indexing capped at 50k files', {
+                  workspaceId: workspace.id,
+                });
+              }
+              continue;
+            }
             const abs = join(workspace.rootPath, childRel);
             try {
               const stat = statSync(abs);

@@ -193,6 +193,22 @@ export function CodeEditor({
     const monaco = setupMonaco();
     const model = modelFor(monaco, relPath, content, language);
     editor.setModel(model);
+    // Past this size, Monaco's usual per-line contributions (minimap thumbnails, folding-range
+    // computation, whitespace glyphs, occurrence highlighting on every cursor move) cost more than
+    // they're worth — each one is a full-document pass, and a slow CPU pays for it on every
+    // keystroke, not just once. `largeFileOptimizations` is Monaco's own default already; the rest
+    // aren't, so they're set explicitly only when the file actually crosses this line.
+    const isLargeFile = content.length > 500 * 1024;
+    editor.updateOptions({
+      largeFileOptimizations: true,
+      maxTokenizationLineLength: 2000,
+      ...(isLargeFile && {
+        minimap: { enabled: false },
+        folding: false,
+        renderWhitespace: 'none',
+        occurrencesHighlight: 'off',
+      }),
+    });
     useEditorStatusStore.getState().setLanguage(language);
     const pos = editor.getPosition();
     if (pos !== null) useEditorStatusStore.getState().setPosition(pos.lineNumber, pos.column);
