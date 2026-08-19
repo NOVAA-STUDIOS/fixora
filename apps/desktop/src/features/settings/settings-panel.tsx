@@ -7,7 +7,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch,
 } from '@fixora/ui';
 import { useEffect, useId, useState } from 'react';
 
@@ -19,8 +18,10 @@ import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
 
 import { detectProvider, normaliseKey } from './detect-provider.js';
+import { GitHubActionsPanel } from './github-actions-panel.js';
 import { ModelPicker } from './model-picker.js';
 import { ProviderManager } from './provider-manager.js';
+import { Group, ToggleField } from './settings-fields.js';
 
 const PURCHASE_URL = 'https://fixoraa.lemonsqueezy.com/checkout/buy/70b9fae4-82e0-465d-bd3a-c8b595048ae6';
 
@@ -56,6 +57,7 @@ export function SettingsPanel(): React.JSX.Element {
           <AppearanceSettings />
           <EditorSettings />
           <AnalysisSettings />
+          <GitHubActionsPanel />
           <StartupSettings />
           <PerformanceSettings />
           <AiSettings />
@@ -659,21 +661,6 @@ function Keybindings(): React.JSX.Element {
  * *label* style; using it for every section heading left the page with no typographic hierarchy at
  * all, because the headings were smaller and quieter than the settings they introduced.
  */
-function Group({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <section className="flex flex-col gap-4">
-      <h3 className="border-b border-border-subtle pb-2 text-sm font-semibold text-fg">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
 /**
  * A labelled setting: label and explanation on the left, control on the right.
  *
@@ -713,36 +700,6 @@ function Field({
  * baseline grid — the three switch sections previously each hand-rolled their own flex layout and
  * drifted apart in gap and alignment.
  */
-function ToggleField({
-  label,
-  htmlFor,
-  description,
-  checked,
-  onCheckedChange,
-}: {
-  label: string;
-  htmlFor: string;
-  description: string;
-  checked: boolean;
-  onCheckedChange: (v: boolean) => void;
-}): React.JSX.Element {
-  return (
-    <div className="flex items-start justify-between gap-8">
-      <label htmlFor={htmlFor} className="flex min-w-0 cursor-pointer flex-col gap-0.5">
-        <span className="text-sm font-medium text-fg">{label}</span>
-        <span className="text-xs leading-relaxed text-fg-muted">{description}</span>
-      </label>
-      <Switch
-        className="mt-0.5 shrink-0"
-        id={htmlFor}
-        checked={checked}
-        onCheckedChange={onCheckedChange}
-        aria-label={label}
-      />
-    </div>
-  );
-}
-
 /**
  * One capability, stated plainly. Green means the provider says the model supports it; the muted
  * state is not a failure, it is a fact about the model — so it reads as information, not an alarm.

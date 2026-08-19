@@ -10,7 +10,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const invoke = vi.hoisted(() => vi.fn());
-vi.mock('../lib/bridge.js', () => ({ invoke, subscribe: () => () => undefined }));
+vi.mock('../lib/bridge.js', () => ({
+  invoke,
+  // `waitForAppReady` (app-ready.ts) subscribes to 'app:ready' and blocks `initialize` until it
+  // fires — main is already ready by the time this test's render happens, so the listener is
+  // called immediately rather than never, the same way the real main process's already-emitted
+  // event would look to a renderer that subscribes after the fact... except main only emits once,
+  // so this mock is the "already ready" case, not a race the real app is meant to handle either.
+  subscribe: (_channel: string, listener: (payload: unknown) => void) => {
+    listener({});
+    return () => undefined;
+  },
+}));
 
 vi.mock('../features/shell/app-shell.js', () => ({
   AppShell: () => <button type="button">Real app button</button>,
@@ -60,10 +71,13 @@ describe('App — splash focus containment', () => {
       expect(button.closest('[inert]')).not.toBeNull();
 
       // Let the resolved `hydrateCurrent` promise's microtask run, then the splash's bounded
-      // animation-completion floor (use-splash.ts) plus its closing fade.
+      // animation-completion floor (use-splash.ts) plus its closing fade. `initialize` now chains
+      // through `waitForAppReady().then(() => hydrateCurrent(...))` (app-ready.ts) first, adding
+      // more microtask hops than a fixed count is worth hand-tracking — several flushes, not one.
       await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
+        for (let i = 0; i < 10; i++) {
+          await Promise.resolve();
+        }
       });
       await act(async () => {
         vi.advanceTimersByTime(2200);

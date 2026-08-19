@@ -66,6 +66,11 @@ export const AnalysisWatchEventSchema = z.object({
 });
 export type AnalysisWatchEvent = z.infer<typeof AnalysisWatchEventSchema>;
 
+/** Background indexing progress — how many files indexed so far. No total/percent: a single-pass
+ * walk doesn't know the file count until it finishes. */
+export const WorkspaceIndexProgressSchema = z.object({ indexed: z.number().int().nonnegative() });
+export type WorkspaceIndexProgress = z.infer<typeof WorkspaceIndexProgressSchema>;
+
 export const eventContracts = {
   'window:maximizedChanged': WindowMaximizedChangedSchema,
   'workspace:filesChanged': FilesChangedSchema,
@@ -81,6 +86,8 @@ export const eventContracts = {
   'terminal:title': TerminalTitleSchema,
   'analysis:watchEvent': AnalysisWatchEventSchema,
   'workspace:largeProject': WorkspaceLargeProjectSchema,
+  'workspace:indexProgress': WorkspaceIndexProgressSchema,
+  'app:ready': z.object({}),
   'auth:callback': AuthCallbackSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 

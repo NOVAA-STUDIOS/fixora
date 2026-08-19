@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+
 import {
   UserFacingError,
   type DirEntryInfo,
@@ -14,6 +16,7 @@ import {
   readTextFile,
   renamePath,
   writeTextFile,
+  writeWorkspaceFile,
 } from '../../services/fs/fs-service.js';
 import { createWorkspaceWatcher, type WorkspaceWatcher } from '../../services/fs/watcher.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
@@ -86,7 +89,11 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     // Kick off indexing in the background; do not await it (first paint must not wait).
     setImmediate(() => {
       service
-        .indexFiles(open)
+        .indexFiles(open, undefined, (indexed) => {
+          if (window !== null && !window.isDestroyed()) {
+            emitToWindow(window, 'workspace:indexProgress', { indexed });
+          }
+        })
         .then((fileCount) => {
           // Informational only — the always-ignore set (ignore-rules.ts) already excludes
           // node_modules/dist/build/out/etc from both the tree and analysis by default, so there
@@ -170,6 +177,14 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
   registerHandler('fs:writeFile', ({ relPath, content }) => {
     const { rootPath } = service.requireRoot();
     writeTextFile(rootPath, relPath, content);
+  });
+
+  // Generated files (GitHub Actions panel): creates missing parent directories and overwrites an
+  // existing file at that path — "Generate workflow file" clicked twice must replace, not refuse.
+  registerHandler('fs:writeWorkspaceFile', ({ relPath, content }) => {
+    const { rootPath } = service.requireRoot();
+    writeWorkspaceFile(rootPath, relPath, content);
+    return { absolutePath: join(rootPath, relPath) };
   });
 
   // File tree context menu / "+" button. Same guards as read/write: workspace-relative,

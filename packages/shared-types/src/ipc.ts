@@ -232,6 +232,10 @@ export const contracts = {
     request: z.object({ relPath: z.string().min(1) }),
     response: z.void(),
   },
+  'fs:writeWorkspaceFile': {
+    request: z.object({ relPath: z.string().min(1), content: z.string() }),
+    response: z.object({ absolutePath: z.string() }),
+  },
   'fs:createDir': {
     request: z.object({ relPath: z.string().min(1) }),
     response: z.void(),

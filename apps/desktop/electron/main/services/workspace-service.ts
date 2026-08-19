@@ -183,7 +183,12 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
     // Raised from 50k: a large monorepo's real, non-ignored file count can exceed that, and the
     // walk itself yields (see YIELD_EVERY below), so the ceiling is no longer what protects main's
     // responsiveness — this is now purely a sanity bound against pathological input.
-    async indexFiles(workspace: OpenWorkspace, maxFiles = 200_000): Promise<number> {
+    async indexFiles(
+      workspace: OpenWorkspace,
+      maxFiles = 200_000,
+      onProgress?: (indexed: number) => void,
+    ): Promise<number> {
+      const PROGRESS_EVERY = 1_000;
       // Shorter, more frequent yields: a burst of 200 files (each with a full-content SHA256 read)
       // saturated main's event loop for long enough to make every other IPC call sluggish for the
       // burst's duration. 50 is a quarter the work per burst, four times as many breathing points.
@@ -248,6 +253,7 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
             } catch {
               // vanished between readdir and stat — skip
             }
+            if (records.length % PROGRESS_EVERY === 0) onProgress?.(records.length);
             if (records.length % YIELD_EVERY === 0) await yieldToEventLoop();
           }
         }

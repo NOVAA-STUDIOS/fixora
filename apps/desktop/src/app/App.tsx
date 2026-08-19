@@ -9,6 +9,7 @@ import { useSplash } from '../features/shell/use-splash.js';
 import { useFileWatch } from '../features/workspace/use-file-watch.js';
 import { useWorkspaceStore } from '../features/workspace/workspace-store.js';
 import { useAppearance } from '../hooks/use-appearance.js';
+import { waitForAppReady } from '../lib/app-ready.js';
 import { invoke } from '../lib/bridge.js';
 import { useAiStore } from '../stores/ai-store.js';
 
@@ -37,11 +38,20 @@ export function App(): React.JSX.Element {
 
   // Stable across renders so the splash hook does not re-run initialization on every store update.
   // The stage callback lets the launch screen report work that actually happened.
+  //
+  // Waits for `app:ready` first: main now creates this window and starts it loading BEFORE
+  // constructing its services and registering IPC handlers (electron/main/index.ts), so an
+  // `invoke` fired the instant the renderer mounts could otherwise race a handler that doesn't
+  // exist yet. `hydrateCurrent` is the one thing on the critical path that genuinely needs a real
+  // round trip, so it's the one gated here — the splash simply stays up a little longer while
+  // main finishes, which is exactly what it's already built to do for slow work.
   const initialize = useCallback(
     (onStage?: (stage: string) => void) =>
-      hydrateCurrent((stage) => {
-        onStage?.(stage);
-      }),
+      waitForAppReady().then(() =>
+        hydrateCurrent((stage) => {
+          onStage?.(stage);
+        }),
+      ),
     [hydrateCurrent],
   );
   const { state, retry, dismiss } = useSplash(initialize);

@@ -67,6 +67,27 @@ export function StatusBar(): React.JSX.Element {
     });
   }, []);
 
+  // Background file-index progress (workspace-service.ts's indexFiles). No "done" event exists —
+  // a single-pass walk doesn't know it has finished until it has, at which point there is nothing
+  // left to announce — so this hides itself after a short idle gap since the last progress push
+  // instead, treating silence as completion.
+  const [indexed, setIndexed] = useState<number | null>(null);
+  useEffect(() => {
+    setIndexed(null);
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = subscribe('workspace:indexProgress', ({ indexed: count }) => {
+      setIndexed(count);
+      if (hideTimer !== null) clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        setIndexed(null);
+      }, 2000);
+    });
+    return () => {
+      unsubscribe();
+      if (hideTimer !== null) clearTimeout(hideTimer);
+    };
+  }, [workspace]);
+
   const line = useEditorStatusStore((s) => s.line);
   const column = useEditorStatusStore((s) => s.column);
   const language = useEditorStatusStore((s) => s.language);
@@ -97,6 +118,14 @@ export function StatusBar(): React.JSX.Element {
               ·
             </span>
             <span className="shrink-0">{analysis}</span>
+            {indexed !== null && (
+              <>
+                <span aria-hidden="true" className="text-border-strong">
+                  ·
+                </span>
+                <span className="shrink-0">Indexing… {indexed.toLocaleString()} files</span>
+              </>
+            )}
             {watchModeEnabled && (
               <>
                 <span aria-hidden="true" className="text-border-strong">

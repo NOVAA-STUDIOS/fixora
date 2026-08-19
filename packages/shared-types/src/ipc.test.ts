@@ -40,6 +40,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'fs:listDir',
       'fs:readFile',
       'fs:writeFile',
+      'fs:writeWorkspaceFile',
       'fs:createFile',
       'fs:createDir',
       'fs:rename',

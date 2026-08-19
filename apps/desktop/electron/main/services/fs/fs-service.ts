@@ -308,6 +308,22 @@ export function createFile(root: string, relPath: string): void {
   });
 }
 
+/**
+ * Write a generated file into the workspace, creating any missing parent directories and
+ * overwriting an existing file at that path (regenerating a previously-written file, e.g. the
+ * GitHub Actions panel's workflow, is expected to replace it — unlike `createFile`, which refuses
+ * an existing path for the "New File" UI, where that would silently discard the user's content).
+ */
+export function writeWorkspaceFile(root: string, relPath: string, content: string): void {
+  const normalized = relPath.replace(/\\/g, '/');
+  if (isSecretPath(normalized)) throw new SecretFileError(normalized);
+  const absolute = assertInsideWorkspace(join(root, relPath), root);
+  fsTry('write to', normalized, () => {
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(absolute, content, 'utf8');
+  });
+}
+
 /** File tree "New Folder". */
 export function createDirectory(root: string, relPath: string): void {
   const normalized = relPath.replace(/\\/g, '/');

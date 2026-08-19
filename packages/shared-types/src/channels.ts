@@ -45,6 +45,9 @@ export const channels = [
   'fs:listDir',
   'fs:readFile',
   'fs:writeFile',
+  // GitHub Actions panel (settings): writes a generated file, creating parent directories —
+  // unlike fs:writeFile (existing files only) and fs:createFile (refuses an existing path).
+  'fs:writeWorkspaceFile',
   // File tree context menu / "+" button: New File, New Folder, Rename, Delete.
   'fs:createFile',
   'fs:createDir',
@@ -176,6 +179,12 @@ export const eventChannels = [
   // exclude node_modules/dist/build/etc — see ignore-rules.ts — this is informational, not a
   // request for a decision).
   'workspace:largeProject',
+  // Background indexing progress, on a long walk (status-bar.tsx). Not a percentage — the total
+  // file count isn't known until the walk finishes, so nothing here fabricates one.
+  'workspace:indexProgress',
+  // Everything main needs to open a window with has finished constructing (index.ts) — the
+  // renderer's splash gates real IPC use on this so a call can't race main's own startup.
+  'app:ready',
   // The `fixora://auth/callback` URL the OS hands back after the system-browser OAuth round trip.
   'auth:callback',
   // Watch Mode status pushes (analysis.handlers.ts) — a change was detected, a re-analysis started
