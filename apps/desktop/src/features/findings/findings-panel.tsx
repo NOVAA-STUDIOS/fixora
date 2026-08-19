@@ -36,6 +36,7 @@ import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { useBulkRepairStore } from './bulk-repair-store.js';
 import { useFindingsStore } from './findings-store.js';
+import { GroupedRepairPanel } from './grouped-repair-panel.js';
 
 /**
  * The findings panel (roadmap M3): the evidence layer made visible. Virtualised, filterable by
@@ -79,6 +80,26 @@ const SEVERITY_BORDER: Record<Severity, string> = {
   warning: 'border-l-warn',
   info: 'border-l-border-strong',
 };
+/**
+ * A coarse severity label for security findings, in the vocabulary a security reviewer expects
+ * (Critical/Medium/Low) — NOT a real CVSS score, since nothing in the analyzer pipeline computes
+ * one (no rule carries CVSS metadata today). Derived from the same three-level `finding.severity`
+ * every other finding already has, so this is a relabelling for the security context, not a new
+ * signal invented for it.
+ */
+function securitySeverityLabel(severity: Severity): 'Critical' | 'Medium' | 'Low' {
+  if (severity === 'error') return 'Critical';
+  if (severity === 'warning') return 'Medium';
+  return 'Low';
+}
+
+/** Findings are sorted by `categoryRank` (below) inside each of these buckets — security first,
+ * ranked by its own severity, ahead of everything else regardless of that finding's own category. */
+function securityPriorityRank(finding: Finding): number {
+  if (finding.category !== 'security') return finding.severity === 'error' ? 2 : 3;
+  return finding.severity === 'error' ? 0 : 1;
+}
+
 /** Repair-state icon, paired with the existing badge colour — not a new colour, a label for it. */
 const REPAIR_STATE_ICON: Record<ReturnType<typeof repairStateFor>, string> = {
   repairable: '⚡',
@@ -131,6 +152,8 @@ export function FindingsPanel(): React.JSX.Element {
   const bulkStart = useBulkRepairStore((s) => s.start);
   const bulkCancel = useBulkRepairStore((s) => s.cancel);
   const bulkDismiss = useBulkRepairStore((s) => s.dismiss);
+  const groupedRepair = useBulkRepairStore((s) => s.groupedRepair);
+  const [groupRepairOpen, setGroupRepairOpen] = useState(false);
 
   useEffect(() => listen(), [listen]);
   useEffect(() => {
@@ -149,7 +172,12 @@ export function FindingsPanel(): React.JSX.Element {
       findings
         .filter((f) => !ignoredIds.includes(f.id))
         .slice()
-        .sort((a, b) => categoryRank(a) - categoryRank(b)),
+        // Security first (its own errors ahead of its own warnings), then the existing
+        // repairable-first grouping inside every other bucket — security priority layers on top
+        // of, rather than replaces, the sort the rest of the panel already relies on.
+        .sort(
+          (a, b) => securityPriorityRank(a) - securityPriorityRank(b) || categoryRank(a) - categoryRank(b),
+        ),
     [findings, ignoredIds],
   );
   const categoryCounts = countByCategory(visible);
@@ -157,6 +185,10 @@ export function FindingsPanel(): React.JSX.Element {
   // the rows below it and re-derives on every run, ignore and applied fix.
   const extensionCounts = countByExtension(visible);
   const hiddenHere = findings.length - visible.length;
+  const securityFindings = useMemo(
+    () => visible.filter((f) => f.category === 'security'),
+    [visible],
+  );
 
   // Text search is local, client-side state — it narrows the already-fetched page (severity stays
   // the server-side filter via `setFilter`) rather than round-tripping to the backend, so typing
@@ -305,6 +337,17 @@ export function FindingsPanel(): React.JSX.Element {
             Repair All Repairable
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0"
+          disabled={workspace === null || visible.length === 0}
+          onClick={() => {
+            setGroupRepairOpen(true);
+          }}
+        >
+          Group Repair
+        </Button>
         {status === 'running' ? (
           <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void cancel()}>
             Cancel
@@ -552,6 +595,26 @@ export function FindingsPanel(): React.JSX.Element {
         </div>
       )}
 
+      {securityFindings.length > 0 && (
+        <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-l-[3px] border-l-danger bg-danger-subtle px-3 py-2">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-danger-text">
+              🔒 Security Issues ({securityFindings.length})
+            </p>
+            <p className="text-[11px] text-fg-secondary">Address these first — highest risk.</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0"
+            disabled={bulkStatus === 'running' || workspace === null}
+            onClick={() => void groupedRepair('security', securityFindings)}
+          >
+            Fix All Security
+          </Button>
+        </div>
+      )}
+
       {searched.length === 0 ? (
         <EmptyState
           status={status}
@@ -656,6 +719,11 @@ export function FindingsPanel(): React.JSX.Element {
           renderItem={(finding) => <FindingRow finding={finding} onActivate={activate} />}
         />
       )}
+      <GroupedRepairPanel
+        open={groupRepairOpen}
+        onOpenChange={setGroupRepairOpen}
+        findings={visible}
+      />
     </section>
   );
 }
@@ -750,11 +818,14 @@ const FindingRow = memo(function FindingRow({
         // read as the same design language.
         'group/row mx-1.5 my-0.5 flex min-w-0 flex-col rounded-xl border border-white/[0.06] animate-ios-slide-up',
         // Severity accent on the left edge, not a dot inside it — one signal instead of two.
+        // Security overrides it to the danger token regardless of the finding's own severity — a
+        // security *warning* still reads as more urgent than a correctness *warning* does.
         'border-l-[3px]',
-        SEVERITY_BORDER[finding.severity],
+        finding.category === 'security' ? 'border-l-danger' : SEVERITY_BORDER[finding.severity],
         'gap-(--fx-card-gap) px-(--fx-card-padding-x) py-(--fx-card-padding-y)',
         'transition-all duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
-        !isSelected && 'hover:bg-white/[0.04]',
+        !isSelected &&
+          (finding.category === 'security' ? 'hover:bg-danger-subtle' : 'hover:bg-white/[0.04]'),
         // The selected row is what the details pane is describing — say so, with a bar rather than a
         // fill, so the severity colours stay the loudest thing in the list.
         isSelected && 'bg-hover shadow-[inset_2px_0_0_0_var(--fx-color-accent)]',
@@ -785,6 +856,16 @@ const FindingRow = memo(function FindingRow({
           of competing with the action buttons on the bottom row.
         */}
         <span className="flex w-full min-w-0 items-center gap-1.5">
+          {finding.category === 'security' && (
+            <>
+              <span className="shrink-0 rounded bg-danger-subtle px-1.5 py-0.5 text-[10px] font-semibold text-danger-text">
+                🔒 Security · {securitySeverityLabel(finding.severity)}
+              </span>
+              <span className="shrink-0 text-[10px] text-fg-muted" aria-hidden="true">
+                ·
+              </span>
+            </>
+          )}
           <span className={cn('shrink-0 text-[10px] font-semibold tracking-wide uppercase', SEVERITY_STYLE[finding.severity])}>
             {finding.severity}
           </span>

@@ -1,4 +1,4 @@
-import { isRepairAttemptable, repairStateFor, type Finding } from '@fixora/shared-types';
+import { isRepairAttemptable, repairStateFor, type Category, type Finding } from '@fixora/shared-types';
 import { create } from 'zustand';
 
 import { invoke } from '../../lib/bridge.js';
@@ -41,6 +41,11 @@ export type BulkRepairSummary = {
   needsManualFix: { findingId: string; ruleId: string; reason: string }[];
 };
 
+/** Per-finding state for the grouped-repair panel (grouped-repair-panel.tsx) — the aggregate
+ * `progress` above answers "how's the whole queue doing", this answers "what's happening to THIS
+ * finding right now", which a per-group card needs to render each row's ✓ / ⟳ / ○ / ✕. */
+export type FindingRepairStatus = 'pending' | 'fixing' | 'done' | 'failed';
+
 interface BulkRepairState {
   status: 'idle' | 'running' | 'done';
   total: number;
@@ -58,7 +63,13 @@ interface BulkRepairState {
   progress: BulkRepairSummary;
   summary: BulkRepairSummary | null;
   cancelRequested: boolean;
+  /** Keyed by finding id, for whichever findings the most recent `start` call queued. */
+  findingStatus: Record<string, FindingRepairStatus>;
   start: (findings: readonly Finding[]) => Promise<void>;
+  /** Repairs only the findings in one category — grouped-repair-panel's per-group "Fix All". */
+  groupedRepair: (category: Category, findings: readonly Finding[]) => Promise<void>;
+  /** Repairs an arbitrary, caller-chosen subset — the primitive `groupedRepair` itself is built on. */
+  repairGroup: (findings: readonly Finding[]) => Promise<void>;
   cancel: () => void;
   dismiss: () => void;
 }
@@ -84,6 +95,7 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
   progress: { repaired: 0, skipped: 0, failed: 0, needsManualFix: [] },
   summary: null,
   cancelRequested: false,
+  findingStatus: {},
 
   start: async (findings) => {
     // Truly un-attemptable (unsupported file type, a config/environment issue) — never attempted,
@@ -105,6 +117,7 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
       progress: { repaired: 0, skipped: 0, failed: 0, needsManualFix: [] },
       summary: null,
       cancelRequested: false,
+      findingStatus: Object.fromEntries(queue.map((f) => [f.id, 'pending'])),
     });
 
     let repaired = 0;
@@ -127,11 +140,12 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
     // (`activeFindingId`/`proposal`), which is a correctness hazard, not just a pacing one.
     for (const finding of queue) {
       if (get().cancelRequested) break;
-      set({
+      set((s) => ({
         index: processed + 1,
         currentFindingId: finding.id,
         currentFindingLabel: `${basename(finding.location.file)} — ${finding.ruleId}`,
-      });
+        findingStatus: { ...s.findingStatus, [finding.id]: 'fixing' },
+      }));
       const itemStartedAt = Date.now();
 
       const allowManual = repairStateFor(finding) === 'manual-only';
@@ -140,10 +154,12 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
       if (get().cancelRequested) break;
 
       const { status, proposal } = useAiStore.getState();
+      let itemApplied = false;
       if (status === 'done' && proposal?.profile === 'repair' && evaluateApplyGate(proposal).enabled) {
         const applied = await useAiStore.getState().applyRepair();
         if (applied) repaired += 1;
         else failed += 1;
+        itemApplied = applied;
       } else {
         // 'blocked' (secret gate), 'error' (provider/verification failure), or a verified-but-
         // regressing proposal the apply gate refuses — all genuine repair failures, not skips.
@@ -172,10 +188,11 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
 
       // Progress after THIS item, not just at the end — and the macrotask yield that keeps the
       // window painting and the Cancel button clickable between items (see yieldToEventLoop above).
-      set({
+      set((s) => ({
         progress: { repaired, skipped: notRepairable, failed, needsManualFix: [...needsManualFix] },
         etaMs,
-      });
+        findingStatus: { ...s.findingStatus, [finding.id]: itemApplied ? 'done' : 'failed' },
+      }));
       await yieldToEventLoop();
     }
 
@@ -202,6 +219,16 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
     if (repaired > 0) void useFindingsStore.getState().run();
   },
 
+  // Both below are thin filters over `start` — they queue a subset, then run the exact same
+  // gated/verified pipeline `start` already runs for every item. No separate repair path exists.
+  repairGroup: async (findings) => {
+    await get().start(findings);
+  },
+
+  groupedRepair: async (category, findings) => {
+    await get().repairGroup(findings.filter((f) => f.category === category));
+  },
+
   cancel: () => {
     set({ cancelRequested: true });
     // Aborts whichever single repair is currently in flight so the loop's `await` returns promptly
@@ -217,6 +244,7 @@ export const useBulkRepairStore = create<BulkRepairState>((set, get) => ({
       currentFindingId: null,
       progress: { repaired: 0, skipped: 0, failed: 0, needsManualFix: [] },
       summary: null,
+      findingStatus: {},
     });
   },
 }));

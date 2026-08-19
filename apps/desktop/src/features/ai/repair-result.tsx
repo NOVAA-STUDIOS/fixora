@@ -8,6 +8,7 @@ import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 
 import { evaluateApplyGate, recoveryHintFor } from './apply-diagnostics.js';
+import { ProveTheFixBadge } from './prove-the-fix-badge.js';
 import { RepairDiagnosticsPanel } from './repair-diagnostics-panel.js';
 import { IMPACT_DOT, IMPACT_LABEL, IMPACT_TEXT, repairImpact } from './repair-impact.js';
 import { repairModeInfo } from './repair-mode.js';
@@ -384,6 +385,7 @@ export function RepairResult({
           />
         </div>
         <PatchCard proposal={proposal} badges={badges} />
+        <ProveTheFixBadge proposal={proposal} />
       </div>
 
       {/*
