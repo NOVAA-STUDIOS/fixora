@@ -160,7 +160,7 @@ export const contracts = {
   /**
    * Both go through main, not a renderer `fetch`: the CSP's `connect-src` is `'self'` only
    * (Security §2 — the renderer that renders untrusted repo content has no business reaching the
-   * network directly), and the LemonSqueezy API key this validates against must never live in the
+   * network directly), and the Gumroad API key this validates against must never live in the
    * renderer bundle regardless. `license:getRepairCount` reads the same day-scoped counter main
    * persists, so a restart can't reset the free-tier limit.
    */
@@ -248,6 +248,20 @@ export const contracts = {
     request: z.object({ relPath: z.string().min(1) }),
     response: z.void(),
   },
+
+  // Pre-commit hook panel (settings): generates `.git/hooks/pre-commit`, gated on the workspace
+  // actually being a git repo. `installed: false` from `hook:install` means "no .git here", not a
+  // thrown error — refusing to install is an expected outcome, not a fault.
+  'hook:install': {
+    request: z.object({
+      blockOnErrors: z.boolean(),
+      blockOnSecurity: z.boolean(),
+      stagedOnly: z.boolean(),
+    }),
+    response: z.object({ installed: z.boolean() }),
+  },
+  'hook:remove': { request: empty, response: z.void() },
+  'hook:status': { request: empty, response: z.object({ installed: z.boolean() }) },
 
   // Analysis (M3). `analysis:run` kicks off a workspace analysis in the isolated utility process
   // (ADR-017); findings stream back as `analysis:findingsAdded` events and are persisted, so the

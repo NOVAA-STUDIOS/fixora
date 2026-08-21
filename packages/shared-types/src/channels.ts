@@ -53,6 +53,10 @@ export const channels = [
   'fs:createDir',
   'fs:rename',
   'fs:delete',
+  // Pre-commit hook panel (settings): writes/removes/reads `.git/hooks/pre-commit`.
+  'hook:install',
+  'hook:remove',
+  'hook:status',
   'analysis:run',
   'analysis:cancel',
   'analysis:list',

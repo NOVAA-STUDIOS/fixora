@@ -1,7 +1,7 @@
 import type { Plan } from '@fixora/shared-types';
 import { create } from 'zustand';
 
-import { PRODUCT_IDS, validateLicense } from '../lib/lemonsqueezy.js';
+import { PRODUCT_PERMALINKS, validateLicense } from '../lib/gumroad.js';
 
 const STORAGE_KEY = 'fixora.license.v1';
 export const DAILY_LIMIT: Record<Plan, number> = { free: 10, go: 50, pro: Infinity };
@@ -37,7 +37,7 @@ type LicenseState = {
   canRepair: () => boolean;
   incrementRepair: () => void;
   /** Tries the key against GO, then PRO — the caller (Settings, the upgrade dialog) supplies one
-   * key with no tier picker; whichever LemonSqueezy product it validates against wins. Resolves
+   * key with no tier picker; whichever Gumroad product it validates against wins. Resolves
    * the activated plan on success, so callers can show a tier-specific confirmation. */
   activate: (licenseKey: string) => Promise<'go' | 'pro' | null>;
   setUpgradeDialogOpen: (open: boolean) => void;
@@ -69,8 +69,8 @@ export const useLicenseStore = create<LicenseState>((set, get) => ({
   },
 
   activate: async (licenseKey) => {
-    for (const [, productId] of Object.entries(PRODUCT_IDS)) {
-      const { valid, plan } = await validateLicense(licenseKey, productId);
+    for (const [, permalink] of Object.entries(PRODUCT_PERMALINKS)) {
+      const { valid, plan } = await validateLicense(licenseKey, permalink);
       if (valid && (plan === 'go' || plan === 'pro')) {
         // Left open (not auto-closed) so the caller can show a confirmation before the user
         // dismisses it themselves.

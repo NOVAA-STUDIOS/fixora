@@ -5,6 +5,7 @@ import { invoke } from '../../lib/bridge.js';
 import { copyToClipboard } from '../../lib/clipboard.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
+import { PreCommitPanel } from './pre-commit-panel.js';
 import { Group, ToggleField } from './settings-fields.js';
 
 const WORKFLOW_PATH = '.github/workflows/fixora.yml';
@@ -175,6 +176,10 @@ export function GitHubActionsPanel(): React.JSX.Element | null {
         </p>
       )}
       {error !== null && <p className="text-xs text-danger-text">{error}</p>}
+
+      <div className="border-t border-border-subtle pt-4">
+        <PreCommitPanel />
+      </div>
     </Group>
   );
 }

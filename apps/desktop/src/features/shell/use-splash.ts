@@ -43,7 +43,7 @@ export const SPLASH_RETRY_MIN_MS = 900;
  * no error, no retry, no way out. This is deliberately generous (real startup is two round-trips that
  * finish in well under a second) so it never fires on a genuinely slow but working machine.
  */
-export const SPLASH_HANG_TIMEOUT_MS = 20_000;
+export const SPLASH_HANG_TIMEOUT_MS = 30_000;
 
 /**
  * The status line, in the order startup actually reaches them.

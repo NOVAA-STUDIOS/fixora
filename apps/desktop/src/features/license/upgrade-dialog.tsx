@@ -5,8 +5,8 @@ import { invoke } from '../../lib/bridge.js';
 import { useLicenseStore } from '../../stores/license-store.js';
 
 const CHECKOUT_URLS = {
-  go: 'https://fixoraa.lemonsqueezy.com/checkout/buy/3479d1c3-7b5c-4c2c-b201-a1ac27e18406',
-  pro: 'https://fixoraa.lemonsqueezy.com/checkout/buy/70b9fae4-82e0-465d-bd3a-c8b595048ae6',
+  go: 'https://rohanstar558.gumroad.com/l/euprne',
+  pro: 'https://rohanstar558.gumroad.com/l/bqbxp',
 } as const;
 
 const ACTIVATION_MESSAGE: Record<'go' | 'pro', string> = {
@@ -88,7 +88,7 @@ export function UpgradeDialog(): React.JSX.Element | null {
             onClick={() => {
               void activate(key).then((plan) => {
                 if (plan === null) {
-                  setError('Invalid license key. Purchase at fixoraa.lemonsqueezy.com');
+                  setError('Invalid license key. Purchase at rohanstar558.gumroad.com');
                   setSuccess(null);
                   return;
                 }

@@ -3,10 +3,10 @@ import { join } from 'node:path';
 
 import { registerHandler } from '../router.js';
 
-const VALIDATE_URL = 'https://api.lemonsqueezy.com/v1/licenses/validate';
-const PRODUCT_TO_PLAN: Record<string, 'go' | 'pro'> = {
-  '1296461': 'go',
-  '1296487': 'pro',
+const VALIDATE_URL = 'https://api.gumroad.com/v2/licenses/verify';
+const PERMALINK_TO_PLAN: Record<string, 'go' | 'pro'> = {
+  euprne: 'go',
+  bqbxp: 'pro',
 };
 
 /** Today, in the local calendar day, as a stable key for the free-tier counter. */
@@ -92,23 +92,21 @@ export function registerLicenseHandlers(deps: { dir: string }): void {
   counter = createRepairCounter(deps.dir);
   scheduleMidnightReset();
 
-  registerHandler('license:validate', async ({ licenseKey, productId }) => {
-    const plan = PRODUCT_TO_PLAN[productId];
+  registerHandler('license:validate', async ({ licenseKey, productId: productPermalink }) => {
+    const plan = PERMALINK_TO_PLAN[productPermalink];
     if (plan === undefined) return { valid: false, plan: null };
 
     try {
       const res = await fetch(VALIDATE_URL, {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ license_key: licenseKey }),
+        body: new URLSearchParams({ product_permalink: productPermalink, license_key: licenseKey }),
       });
       if (!res.ok) return { valid: false, plan: null };
-      const body = (await res.json()) as {
-        valid?: boolean;
-        meta?: { product_id?: number };
-      };
-      const matchesProduct = String(body.meta?.product_id ?? '') === productId;
-      return { valid: body.valid === true && matchesProduct, plan: body.valid === true && matchesProduct ? plan : null };
+      const body = (await res.json()) as { success?: boolean };
+      // The permalink is already scoped to this exact product in the request itself, so a
+      // successful response can only mean a key for this product — no separate id check needed.
+      return { valid: body.success === true, plan: body.success === true ? plan : null };
     } catch (error) {
       console.error('[license] validate request failed', { message: (error as Error).message });
       return { valid: false, plan: null };

@@ -31,6 +31,7 @@ import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
 import { registerConsentHandlers } from './ipc/handlers/consent.handlers.js';
 import { registerEditorHandlers } from './ipc/handlers/editor.handlers.js';
 import { registerGitHandlers } from './ipc/handlers/git.handlers.js';
+import { registerHookHandlers } from './ipc/handlers/hook.handlers.js';
 import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
 import { registerPackageManagerHandlers } from './ipc/handlers/package-manager.handlers.js';
 import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
@@ -357,6 +358,7 @@ function startBackend(window: BrowserWindow): void {
   registerWorkspaceHandlers(workspaceService);
   registerEditorHandlers(workspaceService, analysisHost);
   registerGitHandlers(workspaceService);
+  registerHookHandlers(workspaceService);
   registerAnalysisHandlers(analysisService, workspaceService);
   registerProviderHandlers({
     registry: providerRegistry,

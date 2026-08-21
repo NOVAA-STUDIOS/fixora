@@ -28,8 +28,8 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
   // Supabase OAuth (auth-store.ts): the provider's consent screen and our project's own auth host.
   'accounts.google.com',
   'avnvwgymlmzrbppmvvgl.supabase.co',
-  // LemonSqueezy checkout (upgrade-dialog.tsx, settings-panel.tsx).
-  'fixoraa.lemonsqueezy.com',
+  // Gumroad checkout (upgrade-dialog.tsx, settings-panel.tsx).
+  'rohanstar558.gumroad.com',
   // Fixora's own docs site, linked from the account menu (activity-rail.tsx).
   'fixora-opal.vercel.app',
   // Documentation hosts for the analyzers we run. The problem details panel links a finding to the

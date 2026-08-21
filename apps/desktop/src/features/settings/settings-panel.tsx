@@ -23,7 +23,7 @@ import { ModelPicker } from './model-picker.js';
 import { ProviderManager } from './provider-manager.js';
 import { Group, ToggleField } from './settings-fields.js';
 
-const PURCHASE_URL = 'https://fixoraa.lemonsqueezy.com/checkout/buy/70b9fae4-82e0-465d-bd3a-c8b595048ae6';
+const PURCHASE_URL = 'https://rohanstar558.gumroad.com/l/bqbxp';
 
 
 /**
@@ -461,7 +461,7 @@ function LicenseSettings(): React.JSX.Element {
       setDraft('');
       return;
     }
-    setError('Invalid license key. Purchase at fixoraa.lemonsqueezy.com');
+    setError('Invalid license key. Purchase at rohanstar558.gumroad.com');
   };
 
   return (
