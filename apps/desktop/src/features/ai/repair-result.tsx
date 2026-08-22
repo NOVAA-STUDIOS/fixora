@@ -1,6 +1,6 @@
 import type { AiProposal, Finding, RepairSummaryEntry, Severity } from '@fixora/shared-types';
 import { AlertIcon, Button, cn } from '@fixora/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { copyToClipboard } from '../../lib/clipboard.js';
 import { basename } from '../../lib/path.js';
@@ -8,6 +8,8 @@ import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 
 import { evaluateApplyGate, recoveryHintFor } from './apply-diagnostics.js';
+import { CascadingWarningDialog } from './cascading-warning-dialog.js';
+import { assessForceApplyRisk } from './force-apply-risk.js';
 import { ProveTheFixBadge } from './prove-the-fix-badge.js';
 import { RepairDiagnosticsPanel } from './repair-diagnostics-panel.js';
 import { IMPACT_DOT, IMPACT_LABEL, IMPACT_TEXT, repairImpact } from './repair-impact.js';
@@ -354,6 +356,17 @@ export function RepairResult({
 
   const rationale = proposal.rationale;
 
+  // Cascading Problem Detection: a rejected gate IS "this fix introduces new problems" (or fails
+  // to parse/apply at all). The compact alert below stays the immediate, non-blocking notice — a
+  // modal auto-covering it the instant a proposal arrives would hide that exact banner from the
+  // accessibility tree (Radix aria-hides the background while a Dialog is open), the "banner the
+  // user can only read past" this panel was deliberately rebuilt to avoid. The dialog opens on
+  // request instead, via "Review" — Fix Anyway is a deliberate second step, not an ambush popup.
+  const [cascadingOpen, setCascadingOpen] = useState(false);
+  useEffect(() => {
+    setCascadingOpen(false);
+  }, [proposal.historyId]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/*
@@ -408,8 +421,25 @@ export function RepairResult({
               {recoveryHintFor(gate.reason)}
             </p>
           </div>
+          <button
+            type="button"
+            className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] text-danger-text underline hover:no-underline"
+            onClick={() => {
+              setCascadingOpen(true);
+            }}
+          >
+            Review
+          </button>
         </div>
       )}
+      <CascadingWarningDialog
+        open={cascadingOpen}
+        risk={rejected ? assessForceApplyRisk(proposal) : null}
+        onFixAnyway={() => {
+          void applyRepair({ forced: true });
+        }}
+        onSkip={dismiss}
+      />
 
       {/*
         ── Review happens in the EDITOR, not here ──────────────────────────────────────────────────

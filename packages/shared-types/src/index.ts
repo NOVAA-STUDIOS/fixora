@@ -208,6 +208,24 @@ export {
 } from './repair-support.js';
 export { neighbourRelevanceScore } from './neighbour-relevance.js';
 
+export {
+  McpToolNameSchema,
+  McpGetFindingsResponseSchema,
+  McpTriggerAnalysisResponseSchema,
+  McpRepairFindingRequestSchema,
+  McpRepairFindingResponseSchema,
+  McpGetStatusResponseSchema,
+  type McpToolName,
+  type McpTool,
+  type McpRequest,
+  type McpResponse,
+  type McpGetFindingsResponse,
+  type McpTriggerAnalysisResponse,
+  type McpRepairFindingRequest,
+  type McpRepairFindingResponse,
+  type McpGetStatusResponse,
+} from './mcp.js';
+
 export { classifyDiagnostic, type ConfigDiagnosis } from './diagnostic-classifier.js';
 
 export { grammarFor, type GrammarId } from './grammar.js';

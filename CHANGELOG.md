@@ -6,6 +6,46 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## v1.1.6 — Security & Reliability Update
+
+_Released August 23, 2026_
+
+### 🔒 Security
+
+- Repair limit enforcement moved to main process — no longer bypassable via browser tools
+- File backup created before every AI repair — your code is safe even if something goes wrong
+- Cookie consent banner added — analytics only load after you opt in (GDPR compliant)
+- MCP Server is now off by default — requires explicit opt-in in Settings
+- IPC rate limiting added to prevent abuse (10 repairs/min, 5 terminals/min)
+- OAuth login hardened with duplicate-callback protection
+
+### 🐛 Bug Fixes
+
+- Fixed app freezing when opening large projects (50k+ files)
+- Fixed repair limit not resetting after 3 hours
+- Fixed countdown timer showing "NaN" in some cases
+- Fixed repair count showing stale data after limit reset
+- Fixed GitHub OAuth login failing on re-login without restart
+- Fixed cascading repair dialog disappearing when panel was closed
+- Fixed Google Analytics loading before cookie consent
+
+### ✨ Improvements
+
+- Repair limit now resets every 3 hours (previously daily)
+- Countdown timer shows exact time remaining: "Resets in 2h 34m"
+- App name now shows "Fixora" in Windows Task Manager
+- Added refund policy page to website
+- Added Monaco Editor and Electron attribution in Settings → About
+- MCP Server status indicator in status bar when active
+- Warning-severity issues now included in Group Repair
+- Harmful fix detection: risky repairs flagged before applying
+
+### ⚠️ Known Limitations
+
+- Windows binary is not yet code-signed (SmartScreen warning on first install — click "More info →
+  Run anyway")
+- MCP Server works best when launched standalone via `--mcp` flag
+
 ## [Unreleased]
 
 Built on `sprint-1/ui-stability`, after the `v0.9.0-beta.1` tag below. Not released; no installer,

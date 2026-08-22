@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
+import { useMcpStore } from '../../stores/mcp-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useEditorStatusStore } from '../editor/editor-status-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
@@ -92,6 +93,12 @@ export function StatusBar(): React.JSX.Element {
   const column = useEditorStatusStore((s) => s.column);
   const language = useEditorStatusStore((s) => s.language);
 
+  const mcpRunning = useMcpStore((s) => s.running);
+  const loadMcp = useMcpStore((s) => s.load);
+  useEffect(() => {
+    void loadMcp();
+  }, [loadMcp]);
+
   const analysis =
     status === 'running'
       ? 'Analyzing…'
@@ -109,6 +116,22 @@ export function StatusBar(): React.JSX.Element {
       className="flex h-(--fx-status-bar-height) shrink-0 items-center justify-between gap-3 px-3 text-xs text-fg-muted select-none"
     >
       <div className="flex min-w-0 items-center gap-2">
+        {/* An external process can trigger repairs that write to this project while MCP is
+            serving. That must never be invisible — if it is running, the user can see it. */}
+        {mcpRunning && (
+          <>
+            <span
+              className="flex shrink-0 items-center gap-1.5 text-warn"
+              title="An external MCP client can analyze and repair this project. Turn it off in Settings → MCP Server."
+            >
+              <span aria-hidden="true" className="size-1.5 rounded-full bg-warn" />
+              MCP Active
+            </span>
+            <span aria-hidden="true" className="text-border-strong">
+              ·
+            </span>
+          </>
+        )}
         <span className="truncate" title={workspace?.rootPath ?? undefined}>
           {workspace === null ? 'No folder open' : workspace.name}
         </span>

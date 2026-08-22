@@ -223,7 +223,16 @@ function targetFor(open: OpenWorkspace, relPath: string): AnalysisTargetRef | nu
  * `indexFiles` applies — a synchronous walk over a 100k+ file repo (each entry a readdir/stat)
  * held main's event loop, including every pending IPC call, for the walk's whole duration.
  */
+/** How long a walk's result is trusted for the same root before repeating it — long enough to
+ *  absorb back-to-back runs (a re-check right after opening, a retry) without another O(repo)
+ *  walk, short enough that a walk started minutes ago never answers for the tree's current state. */
+const TARGET_CACHE_TTL_MS = 30_000;
+const targetCache = new Map<string, { targets: AnalysisTargetRef[]; expiresAt: number }>();
+
 async function collectTargets(open: OpenWorkspace): Promise<AnalysisTargetRef[]> {
+  const cached = targetCache.get(open.rootPath);
+  if (cached !== undefined && cached.expiresAt > Date.now()) return cached.targets;
+
   const targets: AnalysisTargetRef[] = [];
 
   const walk = async (relDir: string): Promise<void> => {
@@ -248,5 +257,6 @@ async function collectTargets(open: OpenWorkspace): Promise<AnalysisTargetRef[]>
   };
 
   await walk('');
+  targetCache.set(open.rootPath, { targets, expiresAt: Date.now() + TARGET_CACHE_TTL_MS });
   return targets;
 }

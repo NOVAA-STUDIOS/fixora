@@ -171,69 +171,55 @@ export function writeTextFile(root: string, relPath: string, content: string): v
   // never a half-written mix. If anything fails, the temp file is removed and the original is left
   // exactly as it was (repair rollback, requirement §8).
   const tmp = join(dirname(absolute), `.${randomBytes(6).toString('hex')}.fixora-tmp`);
-  // TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause). Gated on the disposable
-  // repro filename so no other file's content is ever logged. This is the LAST point before the OS
-  // write syscall — everything upstream of here has already been logged by the caller.
-  const diag = normalized.includes('proceed-diag');
-  if (diag) {
-    const contentNul = content.split(String.fromCharCode(0)).length - 1;
-    console.error('[Q3-DIAG] fs-service: writeTextFile input (immediately before writeFileSync)', {
-      normalized,
-      typeofContent: typeof content,
-      contentLength: content.length,
-      contentByteLength: Buffer.byteLength(content, 'utf8'),
-      contentNulCount: contentNul,
-      preview: JSON.stringify(content.slice(0, 60)) + ' ... ' + JSON.stringify(content.slice(-60)),
+  /*
+   * A one-generation backup, written BEFORE the target is touched.
+   *
+   * The rename below is atomic, so the file is never half-written — but "atomic" only guarantees
+   * the write is all-or-nothing, not that it was the write the user wanted. A verified-but-wrong
+   * repair, or an Apply the user immediately regrets after closing the editor (Monaco's undo stack
+   * lives in memory and does not survive a restart), previously had no recovery path at all. This
+   * is that path: the previous bytes, on disk, next to the file.
+   *
+   * Removed on success — a backup that outlives its usefulness becomes clutter in someone's repo
+   * and, worse, drifts into being mistaken for a real source file. It survives only a FAILED write,
+   * which is exactly when it is worth having.
+   */
+  const backup = `${absolute}.fixora-backup`;
+  let backupWritten = false;
+  try {
+    writeFileSync(backup, readFileSync(absolute), { flag: 'w' });
+    backupWritten = true;
+  } catch (error) {
+    // Not fatal: a repair must not be refused because a backup could not be written (a read-only
+    // directory, a full disk). The atomic rename below still protects against a partial write.
+    console.error('[fs] could not write repair backup', {
+      relPath: normalized,
+      message: error instanceof Error ? error.message : String(error),
     });
   }
+
   fsTry('write to', normalized, () => {
-    writeFileSync(tmp, content, 'utf8');
-    if (diag) {
-      // Read the TEMP file back — before the rename — to tell apart "content was already wrong" from
-      // "the rename step (or something racing it) is what introduced the corruption".
-      try {
-        const tmpBytes = readFileSync(tmp);
-        let tmpNulCount = 0;
-        for (const byte of tmpBytes) if (byte === 0) tmpNulCount++;
-        console.error('[Q3-DIAG] fs-service: temp file bytes (before rename)', {
-          tmp,
-          tmpByteLength: tmpBytes.length,
-          tmpNulCount,
-        });
-      } catch (diagError) {
-        console.error('[Q3-DIAG] fs-service: temp file read-back FAILED', {
-          message: diagError instanceof Error ? diagError.message : String(diagError),
-        });
-      }
-    }
     try {
+      writeFileSync(tmp, content, 'utf8');
       renameSync(tmp, absolute);
     } catch (error) {
-      // The rename failed, so the target is untouched. Clean up the temp before surfacing the error.
+      // The write or rename failed, so the target is untouched. Clean up the temp and KEEP the
+      // backup — a failed write is precisely the case where the user may need it.
       try {
         rmSync(tmp, { force: true });
       } catch {
-        // A leftover temp file is harmless (dotfile, ignored); the real error is the rename's.
+        // A leftover temp file is harmless (dotfile, ignored); the real error is the write's.
       }
       throw error;
     }
-    if (diag) {
+    // Succeeded: the new bytes are in place, so the backup has nothing left to protect.
+    if (backupWritten) {
       try {
-        const finalBytes = readFileSync(absolute);
-        let finalNulCount = 0;
-        for (const byte of finalBytes) if (byte === 0) finalNulCount++;
-        console.error('[Q3-DIAG] fs-service: target bytes (immediately after rename)', {
-          absolute,
-          finalByteLength: finalBytes.length,
-          finalNulCount,
-        });
-      } catch (diagError) {
-        console.error('[Q3-DIAG] fs-service: post-rename read-back FAILED', {
-          message: diagError instanceof Error ? diagError.message : String(diagError),
-        });
+        rmSync(backup, { force: true });
+      } catch {
+        // A leftover backup is harmless — never fail a successful repair over cleanup.
       }
     }
-
     verifyWrittenFile(absolute, normalized, content);
   });
 }

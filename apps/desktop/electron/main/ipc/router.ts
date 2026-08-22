@@ -15,6 +15,8 @@ import {
 import { BrowserWindow, ipcMain } from 'electron';
 import log from 'electron-log';
 
+import { checkRateLimit } from '../lib/ipc-rate-limiter.js';
+
 /**
  * The typed IPC router (ADR-018).
  *
@@ -111,29 +113,13 @@ export function mountRouter(): void {
         return err(contractViolation(requestId));
       }
 
-      // TEMP-DIAGNOSTIC BUG-002 pre-zod (Q3 file-corruption incident — remove after root cause).
-      // The one point in the whole app where `raw.payload` is truly as it arrived off the IPC
-      // wire — every handler-side marker (fs-service.ts, ai.handlers.ts, proceed-service.ts) only
-      // ever sees it AFTER `safeParse` below, so none of them could tell a transport-level
-      // corruption apart from one already present in the renderer's own string. Gated the same way
-      // as every other Q3 marker: only for the disposable repro filename, probed defensively since
-      // `raw.payload` is `unknown` here — the shape it should have is exactly what's in question.
-      if (
-        (channel === 'ai:applyRepair' || channel === 'proceed:run') &&
-        typeof raw.payload === 'object' &&
-        raw.payload !== null &&
-        'file' in raw.payload &&
-        typeof (raw.payload as { file: unknown }).file === 'string' &&
-        (raw.payload as { file: string }).file.includes('proceed-diag')
-      ) {
-        const rawJson = JSON.stringify(raw.payload);
-        const nulCount = rawJson.split(String.fromCharCode(0)).length - 1;
-        console.error('[Q3-DIAG] router: raw payload before safeParse', {
-          channel,
-          byteLength: Buffer.byteLength(rawJson, 'utf8'),
-          nulCount,
-          preview: rawJson.slice(0, 100),
-        });
+      // Rate limit before validation and before the handler: the point is to stop the work, and
+      // the three metered channels each cost something the user cannot get back (provider credits,
+      // an OS process, a whole-repo walk). Unmetered channels pay one map lookup.
+      const rate = checkRateLimit(channel);
+      if (!rate.allowed) {
+        console.error('[ipc] rate limited', { channel, requestId, retryAfter: rate.retryAfter });
+        return err(rateLimited(requestId, rate.retryAfter));
       }
 
       const contract = contracts[channel];
@@ -230,6 +216,18 @@ function contractViolation(requestId: string): FixoraError {
       label: 'Report this bug',
       url: 'https://github.com/fixora/fixora-desktop/issues/new',
     },
+  );
+}
+
+/** A metered channel refused a call. Retrying IS the right next step — after the stated wait. */
+function rateLimited(requestId: string, retryAfter: number): FixoraError {
+  return fail(
+    'RATE_LIMITED',
+    requestId,
+    `Fixora is limiting how often that action can run. Try again in ${String(retryAfter)} second${
+      retryAfter === 1 ? '' : 's'
+    }.`,
+    { type: 'retry', label: 'Try again' },
   );
 }
 

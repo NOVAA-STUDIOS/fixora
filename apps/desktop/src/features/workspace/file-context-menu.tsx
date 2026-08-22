@@ -2,6 +2,7 @@ import { Button, ConfirmDialog, Dialog, DialogContent, DialogDescription, Dialog
 import { useEffect, useRef, useState } from 'react';
 
 import { basename, dirname } from '../../lib/path.js';
+import { useTestGenerationStore } from '../../stores/test-generation-store.js';
 
 import { useWorkspaceStore } from './workspace-store.js';
 
@@ -33,6 +34,7 @@ export function useFileActions(): {
   const createFolder = useWorkspaceStore((s) => s.createFolder);
   const renameEntry = useWorkspaceStore((s) => s.renameEntry);
   const deleteEntry = useWorkspaceStore((s) => s.deleteEntry);
+  const generateTests = useTestGenerationStore((s) => s.generate);
 
   const openMenu = (target: MenuTarget, x: number, y: number): void => {
     setContextMenu({ target, x, y });
@@ -75,6 +77,19 @@ export function useFileActions(): {
                 setContextMenu(null);
               }}
             />
+            {contextMenu.target.kind === 'file' && (
+              <>
+                <div className="my-1 border-t border-border-subtle" />
+                <MenuItem
+                  label="Generate Tests"
+                  onClick={() => {
+                    if (contextMenu.target.kind !== 'file') return;
+                    void generateTests(contextMenu.target.relPath);
+                    setContextMenu(null);
+                  }}
+                />
+              </>
+            )}
             {contextMenu.target.kind !== 'root' && (
               <>
                 <div className="my-1 border-t border-border-subtle" />

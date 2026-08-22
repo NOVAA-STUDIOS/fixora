@@ -20,7 +20,7 @@ import { useMemo } from 'react';
 
 import { basename } from '../../lib/path.js';
 
-import { useBulkRepairStore, type FindingRepairStatus } from './bulk-repair-store.js';
+import { useBulkRepairStore, type FindingRepairStatus, type FindingReviewFlag } from './bulk-repair-store.js';
 
 /** Red-first: the order a triage pass would actually work in, not alphabetical. Mirrors
  * `CategorySchema`'s own declared order (shared-types), kept explicit here since the panel's
@@ -43,6 +43,7 @@ const STATUS_META: Record<
   fixing: { Icon: RefreshIcon, className: 'text-accent-text', spin: true },
   done: { Icon: CheckIcon, className: 'text-success-text' },
   failed: { Icon: CloseIcon, className: 'text-danger-text' },
+  'needs-review': { Icon: ClockIcon, className: 'text-warn' },
 };
 
 /**
@@ -63,7 +64,11 @@ export function GroupedRepairPanel({
 }): React.JSX.Element {
   const status = useBulkRepairStore((s) => s.status);
   const findingStatus = useBulkRepairStore((s) => s.findingStatus);
+  const reviewFlags = useBulkRepairStore((s) => s.reviewFlags);
+  const lowConfidenceIds = useBulkRepairStore((s) => s.lowConfidenceIds);
   const groupedRepair = useBulkRepairStore((s) => s.groupedRepair);
+  const applyReviewed = useBulkRepairStore((s) => s.applyReviewed);
+  const skipReviewed = useBulkRepairStore((s) => s.skipReviewed);
 
   const groups = useMemo(() => {
     const byCategory = new Map<Category, Finding[]>();
@@ -91,10 +96,14 @@ export function GroupedRepairPanel({
               category={category}
               findings={groupFindings}
               findingStatus={findingStatus}
+              reviewFlags={reviewFlags}
+              lowConfidenceIds={lowConfidenceIds}
               busy={status === 'running'}
               onFixAll={() => {
                 void groupedRepair(category, groupFindings);
               }}
+              onApplyReviewed={(id) => void applyReviewed(id)}
+              onSkipReviewed={skipReviewed}
             />
           ))
         )}
@@ -107,14 +116,22 @@ function CategoryCard({
   category,
   findings,
   findingStatus,
+  reviewFlags,
+  lowConfidenceIds,
   busy,
   onFixAll,
+  onApplyReviewed,
+  onSkipReviewed,
 }: {
   category: Category;
   findings: readonly Finding[];
   findingStatus: Record<string, FindingRepairStatus>;
+  reviewFlags: Record<string, FindingReviewFlag>;
+  lowConfidenceIds: Record<string, boolean>;
   busy: boolean;
   onFixAll: () => void;
+  onApplyReviewed: (findingId: string) => void;
+  onSkipReviewed: (findingId: string) => void;
 }): React.JSX.Element {
   const meta = CATEGORY_META[category];
   const repairable = findings.some((f) => {
@@ -139,16 +156,63 @@ function CategoryCard({
         {findings.map((finding) => {
           const rowStatus = findingStatus[finding.id] ?? 'pending';
           const { Icon, className, spin } = STATUS_META[rowStatus];
+          const review = reviewFlags[finding.id];
+          const lowConfidence = lowConfidenceIds[finding.id] === true;
           return (
-            <li
-              key={finding.id}
-              title={finding.message}
-              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-hover"
-            >
-              <Icon className={cn('size-3.5 shrink-0', className, spin && 'animate-spin')} />
-              <span className="min-w-0 flex-1 truncate text-fg-secondary">
-                {basename(finding.location.file)} — {finding.ruleId}
-              </span>
+            <li key={finding.id} className="flex flex-col gap-1.5">
+              <div
+                title={finding.message}
+                className={cn(
+                  'flex items-center gap-2.5 rounded-lg border-l-2 px-2 py-1.5 text-sm hover:bg-hover',
+                  // Severity accent (req. 1): error rows red, warning rows yellow — findings other
+                  // than error/warning (info) carry no accent, matching how little they say here.
+                  finding.severity === 'error' && 'border-l-danger-text',
+                  finding.severity === 'warning' && 'border-l-warn',
+                  finding.severity !== 'error' && finding.severity !== 'warning' && 'border-l-transparent',
+                )}
+              >
+                <Icon className={cn('size-3.5 shrink-0', className, spin && 'animate-spin')} />
+                <span className="min-w-0 flex-1 truncate text-fg-secondary">
+                  {basename(finding.location.file)} — {finding.ruleId}
+                </span>
+                {lowConfidence && (
+                  <span className="shrink-0 rounded-full bg-warn/15 px-2 py-0.5 text-[10px] font-medium text-warn">
+                    Review Recommended
+                  </span>
+                )}
+              </div>
+              {review !== undefined && (
+                <div className="ml-6 flex flex-col gap-2 rounded-lg border border-danger-text/30 bg-danger-text/5 px-3 py-2">
+                  <p className="text-xs font-medium text-danger-text">
+                    ⚠️ This fix may be risky — review before applying
+                  </p>
+                  <ul className="list-inside list-disc text-xs text-fg-muted">
+                    {review.harmfulReasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => {
+                        onApplyReviewed(finding.id);
+                      }}
+                    >
+                      Review & Apply
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        onSkipReviewed(finding.id);
+                      }}
+                    >
+                      Skip
+                    </Button>
+                  </div>
+                </div>
+              )}
             </li>
           );
         })}

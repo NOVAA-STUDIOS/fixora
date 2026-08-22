@@ -33,6 +33,7 @@ import { registerEditorHandlers } from './ipc/handlers/editor.handlers.js';
 import { registerGitHandlers } from './ipc/handlers/git.handlers.js';
 import { registerHookHandlers } from './ipc/handlers/hook.handlers.js';
 import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
+import { registerMcpHandlers } from './ipc/handlers/mcp.handlers.js';
 import { registerPackageManagerHandlers } from './ipc/handlers/package-manager.handlers.js';
 import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
 import { registerProjectHandlers } from './ipc/handlers/project.handlers.js';
@@ -41,9 +42,13 @@ import { registerSearchHandlers } from './ipc/handlers/search.handlers.js';
 import { registerSuggestionHandlers } from './ipc/handlers/suggestions.handlers.js';
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
 import { registerTerminalHandlers } from './ipc/handlers/terminal.handlers.js';
+import { registerTestGenerationHandlers } from './ipc/handlers/test-generation.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
 import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
+import { initMcpSetting, isMcpEnabled } from './lib/mcp-setting.js';
+import { getPlan } from './lib/repair-limit.js';
+import { startMcpServer } from './mcp/mcp-server.js';
 import { createMailService } from './services/mail/mail-service.js';
 import { migrateLegacyUserData } from './services/migrate-user-data.js';
 import { createWorkspaceService } from './services/workspace-service.js';
@@ -80,6 +85,10 @@ import { createMainWindow } from './windows/main-window.js';
 // not gated on `gpuPreference`. Must also be set before the GPU process starts, same as the switch
 // below.
 app.commandLine.appendSwitch('enable-gpu-rasterization');
+
+/** Whether the stdio MCP server actually started this launch — read by `mcp:getSetting` so the
+ *  settings toggle and status bar can distinguish "enabled" from "running right now". */
+let mcpRunning = false;
 
 export const gpuPreference =
   process.platform === 'win32' ? createGpuPreferenceStore(app.getPath('userData')) : null;
@@ -137,10 +146,42 @@ if (app.isPackaged) {
 /** Forwards an `fixora://auth/callback` URL to the renderer, which hands it to Supabase's
  * `getSessionFromUrl` equivalent (`auth-store.ts`'s `onAuthStateChange` picks up the resulting
  * session). No-ops for any other URL — this protocol has exactly one use today. */
+/** The last callback forwarded, and when. Windows can deliver one protocol activation through more
+ *  than one path (a `second-instance` argv AND a cold-start argv, or a browser that retries the
+ *  handoff), and each delivery would otherwise be exchanged for a session independently. */
+let lastForwarded: { url: string; at: number } | null = null;
+const FORWARD_DEDUPE_MS = 2000;
+
 function forwardAuthCallback(url: string): void {
   if (!url.startsWith('fixora://auth/callback')) return;
+
+  const now = Date.now();
+  if (lastForwarded !== null && lastForwarded.url === url && now - lastForwarded.at < FORWARD_DEDUPE_MS) {
+    console.error('[auth] duplicate callback suppressed', { withinMs: now - lastForwarded.at });
+    return;
+  }
+  lastForwarded = { url, at: now };
+  // DIAGNOSTIC (OAuth session-not-set investigation). Never logs the URL itself or any token — a
+  // callback URL IS the credential. Only the shape: did the fragment survive the protocol
+  // handoff, and does it carry the two values `setSession` needs?
+  const hashIndex = url.indexOf('#');
+  const fragment = hashIndex === -1 ? '' : url.slice(hashIndex + 1);
+  const fragmentParams = new URLSearchParams(fragment);
+  console.error('[auth] forwarding callback', {
+    urlLength: url.length,
+    hasFragment: hashIndex !== -1,
+    fragmentLength: fragment.length,
+    hasAccessToken: fragmentParams.has('access_token'),
+    hasRefreshToken: fragmentParams.has('refresh_token'),
+    fragmentKeys: [...fragmentParams.keys()],
+    hasQueryError: url.includes('error='),
+  });
+
   const [existing] = BrowserWindow.getAllWindows();
-  if (existing === undefined) return;
+  if (existing === undefined) {
+    console.error('[auth] callback dropped — no window exists yet');
+    return;
+  }
   emitToWindow(existing, 'auth:callback', { url });
   // The user just came back from the system browser — bring the window forward so the completed
   // sign-in is the first thing they see, not something they discover after switching back by hand.
@@ -150,7 +191,16 @@ function forwardAuthCallback(url: string): void {
 }
 
 const gotTheLock = app.requestSingleInstanceLock();
+// Logged because the whole protocol-callback path depends on it: the instance that HOLDS the lock
+// is the one that receives `second-instance`, and the one that does not is the one carrying the
+// `fixora://` URL. If a callback never arrives, this line says which side this process was on.
+console.error('[auth] single-instance lock', {
+  acquired: gotTheLock,
+  launchedWithProtocolUrl: process.argv.some((arg) => arg.startsWith('fixora://')),
+});
 if (!gotTheLock) {
+  // Electron has already forwarded this process's argv (including the `fixora://` URL) to the
+  // primary instance as part of `requestSingleInstanceLock()`, so quitting here loses nothing.
   app.quit();
 } else {
   const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
@@ -158,18 +208,28 @@ if (!gotTheLock) {
   // Windows/Linux: a protocol launch while the app is already running arrives as a second
   // instance, the URL as a command-line argument — not as `open-url` (macOS-only).
   app.on('second-instance', (_event, argv) => {
-    console.error('[auth] second-instance argv:', argv);
+    // Searched across the WHOLE argv, never assumed at a fixed index: a dev run is
+    // `electron.exe <entryScript> fixora://…` while a packaged one is `Fixora.exe fixora://…`, so
+    // the URL's position differs by build.
+    const url = argv.find((arg) => arg.startsWith('fixora://'));
+    // Never log `argv` itself — it contains the callback URL, and that URL carries a live
+    // `access_token`. Logging it would write a working credential into electron-log's on-disk
+    // file, where it outlives the session it belongs to.
+    console.error('[auth] second-instance received', {
+      argCount: argv.length,
+      hasProtocolUrl: url !== undefined,
+    });
     const [existing] = BrowserWindow.getAllWindows();
     if (existing !== undefined) {
       if (existing.isMinimized()) existing.restore();
       existing.focus();
     }
-    const url = argv.find((arg) => arg.startsWith('fixora://'));
     if (url !== undefined) forwardAuthCallback(url);
   });
 
   app.on('open-url', (event, url) => {
-    console.error('[auth] open-url received:', url);
+    // Same reason as above: the URL is a credential, so only its shape is recorded.
+    console.error('[auth] open-url received', { hasProtocolUrl: url.startsWith('fixora://') });
     event.preventDefault();
     forwardAuthCallback(url);
   });
@@ -178,16 +238,11 @@ if (!gotTheLock) {
     () => {
       // Window first, everything else after. `createMainWindow` only builds a `BrowserWindow` and
       // starts it loading the renderer bundle (`show: false` until `ready-to-show`) — it depends
-      // on nothing below. DB open, migrations, and every service/handler construction used to run
-      // BEFORE this call, meaning nothing existed for the user to see — not even a hidden,
-      // loading window — for however long that setup took (a real DB migration on an old
-      // `userData` dir, or a slow disk, made that a multi-second black-screen launch). Everything
-      // that used to run inline here now runs inside a `setImmediate` below instead, so Chromium
-      // gets the event-loop turn it needs to actually create the window and start loading the
-      // renderer before main goes on to do its own heavy synchronous setup. The renderer's splash
-      // (`App.tsx`) waits for `app:ready`, emitted once that setup finishes, before it does
-      // anything that needs real IPC — so the window can paint and show a loading state while main
-      // is still opening the database behind it.
+      // on nothing below. DB open, migrations, and every service/handler construction run inside
+      // the `setImmediate` below instead, so Chromium gets the event-loop turn it needs to
+      // actually create the window and start loading the renderer before main goes on to do its
+      // own heavy synchronous setup. The renderer's splash covers this wait and closes once
+      // `app:ready` fires below.
       const window = createMainWindow(devServerUrl, () => gpuPreference?.markLaunchConfirmed());
 
       app.on('activate', () => {
@@ -199,6 +254,19 @@ if (!gotTheLock) {
       setImmediate(() => {
         startBackend(window);
       });
+
+      // COLD START: if the app was NOT already running, the OS launches it with the `fixora://`
+      // URL in this instance's own argv — `second-instance` never fires (there is no second
+      // instance) and `open-url` is macOS-only. That callback was previously dropped entirely.
+      // Deferred to the renderer's own `app:ready` handshake: `emitToWindow` reaches a window that
+      // exists but whose renderer has not yet subscribed, and the event would land on nothing.
+      const launchUrl = process.argv.find((arg) => arg.startsWith('fixora://'));
+      if (launchUrl !== undefined) {
+        console.error('[auth] callback present in launch argv (cold start)');
+        window.webContents.once('did-finish-load', () => {
+          forwardAuthCallback(launchUrl);
+        });
+      }
     },
     (error: unknown) => {
       console.error('[main] failed to start', error);
@@ -384,6 +452,16 @@ function startBackend(window: BrowserWindow): void {
     history: repairHistory,
     catalogue: modelCatalogue,
   });
+  registerTestGenerationHandlers({ workspace: workspaceService, orchestrator });
+  initMcpSetting(app.getPath('userData'));
+  registerMcpHandlers({
+    workspace: workspaceService,
+    findings: findingsRepo,
+    analysis: analysisService,
+    registry: providerRegistry,
+    credentials,
+    isRunning: () => mcpRunning,
+  });
   // Proceed Mode (P2.2R). Reuses the SAME key store, verification service and findings the repair
   // path uses; scope selection runs on the verification worker (which owns tree-sitter). Applying
   // a Proceed edit goes through `ai:applyRepair` — the one verified write path.
@@ -441,6 +519,21 @@ function startBackend(window: BrowserWindow): void {
   assertEveryChannelIsHandled();
   mountRouter();
 
+  // Embedded MCP server (feature #10) — BOTH conditions, never either alone.
+  //
+  // The flag says "this launch is meant to serve MCP" (Claude Desktop's spawned command, per
+  // mcp-config-example.json). The setting says "the user agreed to that at all". A flag on its own
+  // is not consent: anything able to spawn this executable can pass one, and a connected MCP client
+  // can rewrite whatever project is open with none of the review-then-Apply gating the UI enforces.
+  // Default is off (`mcp-setting.ts`).
+  const mcpRequested = process.argv.includes('--mcp') || process.env['MCP_ENABLED'] === '1';
+  if (mcpRequested && isMcpEnabled()) {
+    startMcpServer();
+    mcpRunning = true;
+  } else if (mcpRequested) {
+    console.error('[mcp] refused to start: not enabled in Settings (Integrations → MCP Server)');
+  }
+
   app.on('will-quit', () => {
     analysisHost.dispose();
     verification.dispose();
@@ -457,6 +550,13 @@ function startBackend(window: BrowserWindow): void {
   // Backend fully constructed and every handler registered — the renderer's splash can now do
   // anything that needs real IPC without racing a handler that did not exist yet.
   if (!window.isDestroyed()) emitToWindow(window, 'app:ready', {});
+
+  // Main is the authority on the plan now, but it only learns one from a successful
+  // `license:validate`. A user who activated before that moved main-side has their key in the
+  // renderer and nothing here — ask for a re-validation rather than silently metering them as free.
+  if (getPlan() === 'free' && !window.isDestroyed()) {
+    emitToWindow(window, 'license:revalidateNeeded', {});
+  }
 
   // A renderer that is alive but not pumping its message loop — the actual "(Not Responding)"
   // state — is a DIFFERENT signal than either event above (both fire only once the process is

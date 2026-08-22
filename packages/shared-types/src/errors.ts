@@ -29,6 +29,9 @@ export const FixoraErrorCodeSchema = z.enum([
   'IPC_HANDLER_FAILED',
   /** A path resolved outside the open workspace root. Logged as a SECURITY EVENT (Security §3). */
   'PATH_OUTSIDE_WORKSPACE',
+  /** Too many calls to a metered channel (ipc-rate-limiter.ts). Bounds the damage a compromised
+   *  renderer — or a request fired in a render loop — can do with provider credits or OS processes. */
+  'RATE_LIMITED',
 ]);
 export type FixoraErrorCode = z.infer<typeof FixoraErrorCodeSchema>;
 

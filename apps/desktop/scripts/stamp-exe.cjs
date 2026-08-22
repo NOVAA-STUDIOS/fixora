@@ -63,6 +63,11 @@ exports.default = async function stampExe(context) {
         ProductName: 'Fixora',
         FileDescription: 'Fixora - AI Code Repair',
         CompanyName: 'NOVAA Studios',
+        // Task Manager's "Name" column and the exe Properties dialog both fall back to these when
+        // present — left at electron-builder's default ("Electron"/"electron.exe") otherwise, which
+        // is what showed "Electron" even with ProductName/FileDescription already correct.
+        InternalName: 'Fixora',
+        OriginalFilename: 'Fixora.exe',
       });
     }
     versionInfo.outputToResourceEntries(resource.entries);

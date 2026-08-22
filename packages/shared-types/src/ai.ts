@@ -694,6 +694,9 @@ export const AiRunResponseSchema = z.discriminatedUnion('status', [
       // timeout of any kind, so a stalled provider stream left the UI running forever — this code is
       // what makes "timed out" a reportable terminal state rather than an infinite spinner.
       'timeout',
+      // The plan's repairs-per-window allowance is used up. Enforced in MAIN (repair-limit.ts),
+      // not the renderer, so it is a real terminal state rather than a UI suggestion.
+      'repair_limit_exceeded',
       'internal_error',
     ]),
     message: z.string(),

@@ -36,3 +36,8 @@ __pycache__/
 .suite-out.txt
 .validate-out.txt
 "FIXORA - Shortcut.lnk"
+
+# Repair write artifacts (fs-service.ts). The backup survives only a FAILED write and the temp only
+# a crash mid-write — neither is source, and neither should ever be committed.
+*.fixora-backup
+*.fixora-tmp

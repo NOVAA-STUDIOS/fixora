@@ -174,3 +174,8 @@ export {
   type ModelCapabilities,
   type ProfileSupport,
 } from './provider/capabilities.js';
+export {
+  buildTestGenerationRequest,
+  parseGeneratedTests,
+  type TestGenerationInput,
+} from './test-generation/test-generator.js';

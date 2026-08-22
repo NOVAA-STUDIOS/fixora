@@ -32,6 +32,15 @@ import { stopAnalysisWatch } from './analysis.handlers.js';
 let watcher: WorkspaceWatcher | null = null;
 let watchedRoot: string | null = null;
 
+/**
+ * Startup hang fix: chokidar's initial watch does a synchronous readdir walk of the tree, which
+ * competes with the renderer's own boot for the event loop right when the splash is narrating
+ * "Loading workspace…". Deferred 2s past the guard checks below (which stay synchronous, so a
+ * rapid re-open still short-circuits correctly) — long enough to be clear of first paint, short
+ * enough that live file-change events are still effectively immediate to the user.
+ */
+const WATCH_START_DELAY_MS = 2000;
+
 function ensureWatching(service: WorkspaceService, window: BrowserWindow | null): void {
   const open = service.getCurrent();
   if (open === null || window === null) return;
@@ -39,9 +48,13 @@ function ensureWatching(service: WorkspaceService, window: BrowserWindow | null)
 
   void watcher?.close();
   watchedRoot = open.rootPath;
-  watcher = createWorkspaceWatcher(open.rootPath, open.ignore, (changedDirs) => {
-    if (!window.isDestroyed()) emitToWindow(window, 'workspace:filesChanged', { changedDirs });
-  });
+  watcher = null;
+  setTimeout(() => {
+    if (service.getCurrent()?.rootPath !== open.rootPath || window.isDestroyed()) return;
+    watcher = createWorkspaceWatcher(open.rootPath, open.ignore, (changedDirs) => {
+      if (!window.isDestroyed()) emitToWindow(window, 'workspace:filesChanged', { changedDirs });
+    });
+  }, WATCH_START_DELAY_MS);
 }
 
 /**
@@ -86,8 +99,10 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     const { workspace } = service.open(path);
     const open = service.requireRoot();
     ensureWatching(service, window);
-    // Kick off indexing in the background; do not await it (first paint must not wait).
-    setImmediate(() => {
+    // Kick off indexing in the background; do not await it (first paint must not wait). Delayed
+    // the same 2s as the watcher above — indexing a large repo is exactly the other synchronous
+    // walk that was competing with the renderer's own startup work.
+    setTimeout(() => {
       service
         .indexFiles(open, undefined, (indexed) => {
           if (window !== null && !window.isDestroyed()) {
@@ -105,7 +120,7 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
         .catch(() => {
           // Indexing feeds M3; a failure here must not break opening the workspace.
         });
-    });
+    }, WATCH_START_DELAY_MS);
     return { workspace: toInfo(workspace) };
   });
 

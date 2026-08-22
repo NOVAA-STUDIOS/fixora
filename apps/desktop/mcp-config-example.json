@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "fixora": {
+      "command": "path/to/Fixora.exe",
+      "args": ["--mcp"],
+      "env": {
+        "MCP_ENABLED": "1"
+      }
+    }
+  }
+}

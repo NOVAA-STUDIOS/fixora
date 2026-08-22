@@ -13,6 +13,7 @@ import { useEffect, useId, useState } from 'react';
 import { invoke } from '../../lib/bridge.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useLicenseStore } from '../../stores/license-store.js';
+import { useMcpStore } from '../../stores/mcp-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
@@ -64,7 +65,9 @@ export function SettingsPanel(): React.JSX.Element {
           <ProviderSettings />
           <LicenseSettings />
           <PrivacySettings />
+          <McpSettings />
           <Keybindings />
+          <AboutSettings />
           <LegalLinks />
         </div>
       </div>
@@ -651,6 +654,56 @@ function Keybindings(): React.JSX.Element {
           </li>
         ))}
       </ul>
+    </Group>
+  );
+}
+
+/**
+ * The MCP capability switch. Off by default and deliberately explicit about what it grants: an
+ * external tool that connects can trigger repairs, which WRITE to the open project's source
+ * without the review-then-Apply step the rest of the app requires.
+ */
+function McpSettings(): React.JSX.Element {
+  const enabled = useMcpStore((s) => s.enabled);
+  const running = useMcpStore((s) => s.running);
+  const setEnabled = useMcpStore((s) => s.setEnabled);
+  const load = useMcpStore((s) => s.load);
+  const id = useId();
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <Group title="MCP Server">
+      <ToggleField
+        label="Allow external tools (MCP)"
+        htmlFor={id}
+        description="Lets an external MCP client (e.g. Claude Desktop) analyze and repair the open project. Repairs triggered this way are applied without the usual review step. Takes effect on the next launch, and only when Fixora is started with --mcp."
+        checked={enabled}
+        onCheckedChange={(next) => {
+          void setEnabled(next);
+        }}
+      />
+      {enabled && !running && (
+        <p className="text-xs text-fg-muted">
+          Enabled, but not serving in this session — start Fixora with <code>--mcp</code> to run
+          the server.
+        </p>
+      )}
+      {running && <p className="text-xs text-warn">MCP server is active in this session.</p>}
+    </Group>
+  );
+}
+
+/** Third-party attribution. Monaco and Electron are MIT-licensed, and MIT requires the notice to
+ *  travel with the software — an About section is where a user can actually find it. */
+function AboutSettings(): React.JSX.Element {
+  return (
+    <Group title="About">
+      <p className="text-xs leading-relaxed text-fg-muted">
+        Built with Monaco Editor (MIT) and Electron (MIT)
+      </p>
     </Group>
   );
 }

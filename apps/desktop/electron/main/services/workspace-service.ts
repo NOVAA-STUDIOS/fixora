@@ -1,4 +1,5 @@
-import { readdirSync, statSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
 import { basename, extname, join, posix } from 'node:path';
 
 import { UserFacingError } from '@fixora/shared-types';
@@ -212,7 +213,7 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
         if (records.length >= maxFiles) return;
         let entries;
         try {
-          entries = readdirSync(
+          entries = await readdir(
             assertInsideWorkspace(join(workspace.rootPath, relDir), workspace.rootPath),
             {
               withFileTypes: true,
@@ -260,7 +261,16 @@ export function createWorkspaceService(deps: WorkspaceServiceDeps) {
       };
 
       await walk('');
-      deps.files.replaceAll(workspace.id, records);
+      // Deferred a tick: the walk's last chunk may have just yielded, and running the write's own
+      // synchronous SQLite transaction (see replaceAll) back-to-back with it still risks holding
+      // the loop across two heavy steps in one turn — this gives main a chance to service whatever
+      // is pending (a paint, an IPC reply) before the transaction runs.
+      await new Promise<void>((resolve) => {
+        setImmediate(() => {
+          deps.files.replaceAll(workspace.id, records);
+          resolve();
+        });
+      });
       return records.length;
     },
   };

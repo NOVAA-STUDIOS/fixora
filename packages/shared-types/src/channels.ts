@@ -99,6 +99,17 @@ export const channels = [
   'ai:history',
   'ai:historyRemove',
   'ai:historyClear',
+  // Test generation (feature #7): grounds on a file, not a finding — a separate, additive path.
+  'ai:generateTests',
+  // Embedded MCP server (feature #10): called in-process by mcp-server.ts (getHandler, not a real
+  // IPC round trip), reusing the same logic these channels' handlers back onto for the renderer.
+  'mcp:getFindings',
+  'mcp:triggerAnalysis',
+  'mcp:repairFinding',
+  'mcp:getStatus',
+  // The user-facing capability switch + whether the server is actually running right now.
+  'mcp:getSetting',
+  'mcp:setEnabled',
   // Proceed Mode (P2.2R): natural-language editing. Apply deliberately reuses `ai:applyRepair` —
   // there is exactly one verified write path in the app and Proceed does not get a second one.
   'proceed:run',
@@ -194,6 +205,10 @@ export const eventChannels = [
   // Watch Mode status pushes (analysis.handlers.ts) — a change was detected, a re-analysis started
   // for it, or that re-analysis finished.
   'analysis:watchEvent',
+  // Main holds no paid plan for this device (repair-limit.ts), so a user who activated before the
+  // plan moved main-side would silently be metered as free. Asks the renderer — which still has
+  // the license key — to re-run `license:validate` and restore it.
+  'license:revalidateNeeded',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

@@ -3,15 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Google Analytics 4 -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-YZY62W8C15"></script>
+    <!--
+      Google Analytics 4 — consent-gated (GDPR/ePrivacy).
+
+      The tag is NOT loaded here. Analytics cookies are only set once the visitor accepts, so a
+      first visit (or a decline) never contacts Google at all. `gtag` is still defined immediately
+      as a queue: the download buttons call it inline, and they must keep working whether or not
+      analytics ever loads — a declined visitor's clicks simply accumulate in `dataLayer` and are
+      never sent anywhere.
+    -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag() {
         dataLayer.push(arguments);
       }
-      gtag('js', new Date());
-      gtag('config', 'G-YZY62W8C15');
     </script>
     <title>Fixora — Verified AI Code Repair</title>
     <meta
@@ -238,6 +243,63 @@
       .btn:hover::after {
         transform: translateX(120%);
         transition: transform 0.6s ease;
+      }
+      /* Cookie consent bar. Fixed to the bottom, above everything, and deliberately quiet — it is
+         a question, not a takeover. Accept and Decline carry equal visual weight apart from the
+         accent fill, so declining is a real option rather than a hidden one. */
+      .cookie-banner {
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        z-index: 999;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 14px;
+        width: calc(100% - 32px);
+        max-width: 620px;
+        padding: 14px 16px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      }
+      .cookie-banner[hidden] {
+        display: none;
+      }
+      .cookie-banner p {
+        margin: 0;
+        flex: 1 1 240px;
+        font-size: 14px;
+        color: var(--fg-muted);
+      }
+      .cookie-actions {
+        display: flex;
+        gap: 8px;
+        margin-left: auto;
+      }
+      .cookie-btn {
+        padding: 8px 16px;
+        font: inherit;
+        font-size: 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--fg);
+        cursor: pointer;
+      }
+      .cookie-btn:hover {
+        border-color: var(--border-hover);
+      }
+      .cookie-btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-fg);
+      }
+      .cookie-btn-primary:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
       }
       .btn-primary {
         background: var(--accent);
@@ -1103,7 +1165,7 @@
             <div class="cta-note" style="margin-top:0">Forever</div>
             <ul>
               <li>✓ Unlimited analysis</li>
-              <li>✓ 10 AI repairs/day</li>
+              <li>✓ 10 AI repairs per 3 hours</li>
               <li>✓ All languages</li>
               <li>✓ Local &amp; private</li>
             </ul>
@@ -1115,7 +1177,7 @@
             <div class="cta-note" style="margin-top:0">One-time</div>
             <ul>
               <li>✓ Everything in Free</li>
-              <li>✓ 50 AI repairs/day</li>
+              <li>✓ 50 AI repairs per 3 hours</li>
               <li>✓ Repair history</li>
             </ul>
             <a class="btn btn-primary" href="https://rohanstar558.gumroad.com/l/euprne">Get GO →</a>
@@ -1208,7 +1270,8 @@
         <details>
           <summary>Is it free?</summary>
           <p>
-            Fixora has a free tier with 10 AI repairs per day. GO ($2.99) gives 50 repairs/day. PRO
+            Fixora has a free tier with 10 AI repairs per 3 hours. GO ($2.99) gives 50 repairs per 3
+            hours. PRO
             ($4.99) gives unlimited repairs and all features. Bring your own API key — we never
             charge for AI usage.
           </p>
@@ -1306,6 +1369,7 @@
       <div class="wrap">
         Fixora — verified AI code repair. ·
         <a href="/terms.html">Terms of Service</a> · <a href="/privacy.html">Privacy Policy</a> ·
+        <a href="/refund.html">Refund Policy</a> ·
         <a href="https://github.com/NOVAA-STUDIOS/fixora">GitHub</a> ·
         <a href="mailto:nova.team.support@gmail.com">Contact</a> ·
         <a href="/.well-known/security.txt">Security</a>
@@ -1556,6 +1620,74 @@
           requestAnimationFrame(draw);
         }
         requestAnimationFrame(draw);
+      })();
+    </script>
+
+    <!-- Cookie consent (GDPR/ePrivacy). Analytics loads only on an explicit Accept. -->
+    <div id="cookie-banner" class="cookie-banner" role="dialog" aria-label="Cookie consent" hidden>
+      <p>We use analytics cookies to improve your experience.</p>
+      <div class="cookie-actions">
+        <button type="button" id="cookie-decline" class="cookie-btn">Decline</button>
+        <button type="button" id="cookie-accept" class="cookie-btn cookie-btn-primary">
+          Accept
+        </button>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var KEY = 'cookieConsent';
+        var banner = document.getElementById('cookie-banner');
+
+        function loadAnalytics() {
+          if (window.__fixoraAnalyticsLoaded) return;
+          window.__fixoraAnalyticsLoaded = true;
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtag/js?id=G-YZY62W8C15';
+          document.head.appendChild(s);
+          // Drop anything the stub queued BEFORE consent was given. The download buttons call
+          // `gtag('event', …)` inline, so a visitor who clicks one while the banner is still up
+          // has events sitting in `dataLayer` — and GA processes that queue on load, which would
+          // transmit pre-consent activity retroactively. Cleared here so consent means "from now
+          // on", not "including everything you did while deciding".
+          window.dataLayer = [];
+          gtag('js', new Date());
+          gtag('config', 'G-YZY62W8C15');
+        }
+
+        function read() {
+          try {
+            return localStorage.getItem(KEY);
+          } catch (e) {
+            // Storage blocked. Treated as "no consent recorded" — we show the banner and load
+            // nothing, which is the side that cannot violate anyone's privacy.
+            return null;
+          }
+        }
+
+        function decide(value) {
+          try {
+            localStorage.setItem(KEY, value);
+          } catch (e) {
+            // Unable to remember the choice; honour it for this page view regardless.
+          }
+          banner.hidden = true;
+          if (value === 'accepted') loadAnalytics();
+        }
+
+        var choice = read();
+        if (choice === 'accepted') {
+          loadAnalytics();
+        } else if (choice !== 'declined') {
+          banner.hidden = false;
+        }
+
+        document.getElementById('cookie-accept').addEventListener('click', function () {
+          decide('accepted');
+        });
+        document.getElementById('cookie-decline').addEventListener('click', function () {
+          decide('declined');
+        });
       })();
     </script>
   </body>

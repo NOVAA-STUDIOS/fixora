@@ -35,11 +35,11 @@ import type { ModelCatalogueService } from '../../ai/model-catalogue.js';
 import { anyProviderConfigured } from '../../ai/providers/orchestrator.js';
 import type { ProviderRegistry } from '../../ai/providers/provider-registry.js';
 import type { RepairHistoryRepository } from '../../db/repositories.js';
+import { checkAndIncrementRepairLimit } from '../../lib/repair-limit.js';
 import { readTextFile, writeTextFile } from '../../services/fs/fs-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { locateRange, sliceLines, spliceLines } from '../../verification/patch.js';
 import { emitToWindow } from '../emit.js';
-import { incrementRepairCount } from './license.handlers.js';
 import { registerHandler } from '../router.js';
 
 /**
@@ -279,6 +279,18 @@ export function registerAiHandlers(deps: {
    */
   registerHandler('ai:run', async (request, { window, requestId }) => {
     const started = Date.now();
+
+    // The paywall, enforced BEFORE a provider is called — the renderer's own `canRepair()` is a
+    // UX affordance on a value the renderer owns, so it cannot be the gate. Only `repair` consumes
+    // an allowance; `explain`/`test` are not repairs and are not metered.
+    if (request.profile === 'repair') {
+      const check = checkAndIncrementRepairLimit();
+      if (!check.allowed) {
+        const message = check.message ?? 'Repair limit reached for this window.';
+        if (window !== null) emitToWindow(window, 'ai:runState', { status: 'error', message });
+        return { status: 'error' as const, code: 'repair_limit_exceeded' as const, message, retryable: false };
+      }
+    }
     console.error('[ai:run] entered', {
       requestId,
       profile: request.profile,
@@ -371,6 +383,11 @@ export function registerAiHandlers(deps: {
 
   registerHandler(
     'ai:applyRepair',
+    // Deliberately `async` with nothing to await: every guard below (path, secrets denylist,
+    // stale range) reports by THROWING, and callers — the router, and the red-team tests that
+    // pin these refusals — consume that as a rejected promise. A synchronous throw here would
+    // escape those `.rejects` paths entirely and change a security contract to satisfy a lint rule.
+    // eslint-disable-next-line @typescript-eslint/require-await
     async ({ file, startLine, endLine, code, expectedOriginal, historyId, forced }): Promise<ApplyOutcome> => {
       /**
        * Audit: an UNVERIFIED patch is entering the user's source tree at their explicit request.
@@ -530,8 +547,11 @@ export function registerAiHandlers(deps: {
         return outcome;
       }
       if (historyId !== undefined) deps.history.markApplied(historyId);
+      // NOT counted here any more: the allowance is consumed at `ai:run` (above), which is the
+      // point a provider call actually costs something and the only point every repair path —
+      // including MCP, which never applies through this handler — passes through. Counting in
+      // both places would charge twice for one repair.
       console.error('[apply] applied', { file, bytesWritten: patched.length, relocated });
-      incrementRepairCount();
       return { applied: true, staleRangeCheck: finalRangeCheck, bytesWritten: patched.length, relocated };
     },
   );

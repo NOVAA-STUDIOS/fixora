@@ -89,6 +89,7 @@ export const eventContracts = {
   'workspace:indexProgress': WorkspaceIndexProgressSchema,
   'app:ready': z.object({}),
   'auth:callback': AuthCallbackSchema,
+  'license:revalidateNeeded': z.object({}),
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

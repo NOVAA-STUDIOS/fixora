@@ -17,6 +17,13 @@ import {
 } from './ai.js';
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
+import {
+  McpGetFindingsResponseSchema,
+  McpGetStatusResponseSchema,
+  McpRepairFindingRequestSchema,
+  McpRepairFindingResponseSchema,
+  McpTriggerAnalysisResponseSchema,
+} from './mcp.js';
 import { PackageListSchema, PackageSearchResponseSchema } from './packages-manager.js';
 import { ProviderListSchema } from './providers.js';
 import { SearchResponseSchema } from './search.js';
@@ -170,7 +177,56 @@ export const contracts = {
   },
   'license:getRepairCount': {
     request: empty,
-    response: z.object({ repairsToday: z.number().int().nonnegative() }),
+    response: z.object({
+      repairsToday: z.number().int().nonnegative(),
+      /** Epoch ms at which the current 3h window rolls over and the count returns to zero. */
+      resetsAt: z.number().int().nonnegative(),
+    }),
+  },
+
+  /**
+   * Generate a unit-test file for `file` using the same BYOK provider chain as repair. Grounds on
+   * the file's own content (and a nearby test file's style, if one exists) rather than a stored
+   * finding, so it needs no `findingId`. Writes the generated file to disk itself (same guarded fs
+   * path as every other write) and returns its path so the renderer can open it as a new tab.
+   */
+  'ai:generateTests': {
+    request: z.object({ file: z.string().min(1) }),
+    response: z.object({
+      relPath: z.string(),
+      framework: z.string(),
+      rationale: z.string(),
+    }),
+  },
+
+  /** Backs the embedded MCP server's four tools. Callable from the renderer too (harmless, same
+   *  logic), but the MCP server calls these through `getHandler()` in-process, not a real IPC send. */
+  'mcp:getFindings': {
+    request: empty,
+    response: McpGetFindingsResponseSchema,
+  },
+  'mcp:triggerAnalysis': {
+    request: empty,
+    response: McpTriggerAnalysisResponseSchema,
+  },
+  'mcp:repairFinding': {
+    request: McpRepairFindingRequestSchema,
+    response: McpRepairFindingResponseSchema,
+  },
+  'mcp:getStatus': {
+    request: empty,
+    response: McpGetStatusResponseSchema,
+  },
+  /** `enabled` is the stored consent; `running` is whether the stdio server actually started this
+   *  launch (it needs BOTH the setting and `--mcp`/`MCP_ENABLED=1`), so the UI can tell "on next
+   *  restart" apart from "on right now". */
+  'mcp:getSetting': {
+    request: empty,
+    response: z.object({ enabled: z.boolean(), running: z.boolean() }),
+  },
+  'mcp:setEnabled': {
+    request: z.object({ enabled: z.boolean() }),
+    response: z.object({ enabled: z.boolean(), running: z.boolean() }),
   },
 
   'workspace:pickFolder': {

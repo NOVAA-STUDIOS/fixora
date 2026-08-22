@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useAuthStore } from '../features/auth/auth-store.js';
 import { LoginScreen } from '../features/auth/login-screen.js';
+import { BulkCascadingDialog } from '../features/findings/bulk-cascading-dialog.js';
 import { UpgradeDialog } from '../features/license/upgrade-dialog.js';
 import { AppShell } from '../features/shell/app-shell.js';
 import { SplashScreen } from '../features/shell/splash-screen.js';
@@ -12,6 +13,7 @@ import { useAppearance } from '../hooks/use-appearance.js';
 import { waitForAppReady } from '../lib/app-ready.js';
 import { invoke } from '../lib/bridge.js';
 import { useAiStore } from '../stores/ai-store.js';
+import { listenForRevalidation, useLicenseStore } from '../stores/license-store.js';
 
 /**
  * The root. It applies the persisted appearance (theme + density), adopts any workspace the main
@@ -36,25 +38,27 @@ export function App(): React.JSX.Element {
     void getSession();
   }, [getSession]);
 
-  // Stable across renders so the splash hook does not re-run initialization on every store update.
-  // The stage callback lets the launch screen report work that actually happened.
-  //
-  // Waits for `app:ready` first: main now creates this window and starts it loading BEFORE
-  // constructing its services and registering IPC handlers (electron/main/index.ts), so an
-  // `invoke` fired the instant the renderer mounts could otherwise race a handler that doesn't
-  // exist yet. `hydrateCurrent` is the one thing on the critical path that genuinely needs a real
-  // round trip, so it's the one gated here — the splash simply stays up a little longer while
-  // main finishes, which is exactly what it's already built to do for slow work.
+  // Waits for `app:ready` — main starts loading this window before constructing its services, so
+  // an `invoke` fired the instant the renderer mounts could otherwise race a handler that doesn't
+  // exist yet — then restores the workspace. The splash covers exactly this wait.
   const initialize = useCallback(
-    (onStage?: (stage: string) => void) =>
-      waitForAppReady().then(() =>
-        hydrateCurrent((stage) => {
-          onStage?.(stage);
-        }),
-      ),
+    () => waitForAppReady().then(() => hydrateCurrent()),
     [hydrateCurrent],
   );
-  const { state, retry, dismiss } = useSplash(initialize);
+  const splash = useSplash(initialize);
+
+  // Fetched independently of `initialize` — the splash's closing timing must never wait on this,
+  // it only fills in a line of the screen if it arrives while the splash is still up.
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void invoke('system:getAppInfo', {}).then((r) => {
+      if (!cancelled && r.ok) setVersion(r.value.version);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // The findings panel reads `config?.configured` to choose Repair vs. "Set up AI to repair", but
   // nothing fetched it until the user separately opened the AI panel or Settings — so it showed
@@ -66,44 +70,26 @@ export function App(): React.JSX.Element {
     void loadConfig();
   }, [loadConfig]);
 
-  // Fetched independently of `initialize` — the splash's closing timing must never wait on this,
-  // it only fills in a line of the screen if it arrives while the splash is still up.
-  const [version, setVersion] = useState<string | null>(null);
+  // Main emits this at startup when it holds no paid plan for this device; the renderer still has
+  // the license key, so it can restore the plan without the user doing anything.
+  useEffect(() => listenForRevalidation(), []);
+
+  // Main owns the repair count; this store's copy is display only. Synced once at startup so the
+  // first paint shows the real number rather than whatever localStorage last held.
+  const syncLicenseFromMain = useLicenseStore((s) => s.syncFromMain);
   useEffect(() => {
-    console.error('[app] effect running:', 'getAppInfo');
-    let cancelled = false;
-    void invoke('system:getAppInfo', {}).then((r) => {
-      if (!cancelled && r.ok) setVersion(r.value.version);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void waitForAppReady().then(() => syncLicenseFromMain());
+  }, [syncLicenseFromMain]);
 
   return (
-    <div aria-busy={state.visible} className="contents">
-      {/* `inert` while the splash is up: the splash is a plain overlay div, not a Radix dialog, so
-          nothing else stops a keyboard/screen-reader user from tabbing into the fully interactive
-          (but visually covered) shell behind it — worst in the error state, which never
-          auto-dismisses. `inert` removes the whole subtree from both the tab order and the
-          accessibility tree, and blocks pointer events, until the splash is gone. (Beta audit A1,
-          Splash Screen finding 1 / Keyboard Navigation finding 1.) */}
-      <div className="contents" inert={state.visible}>
-        <AppShell />
-        <UpgradeDialog />
-        {showSignIn && <LoginScreen />}
-      </div>
-      {state.visible && (
-        <SplashScreen
-          phase={state.phase}
-          message={state.message}
-          working={state.working}
-          errorMessage={state.errorMessage}
-          version={version}
-          onRetry={retry}
-          onDismiss={dismiss}
-        />
-      )}
-    </div>
+    <>
+      <AppShell />
+      <UpgradeDialog />
+      {/* Root-level: a paused bulk repair must stay answerable even if the Group Repair panel
+          that started it has been closed. */}
+      <BulkCascadingDialog />
+      {showSignIn && <LoginScreen />}
+      {splash.visible && <SplashScreen phase={splash.phase} version={version} />}
+    </>
   );
 }

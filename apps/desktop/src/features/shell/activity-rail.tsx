@@ -23,6 +23,7 @@ import { useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { DAILY_LIMIT, useLicenseStore } from '../../stores/license-store.js';
+import { useResetCountdown } from '../license/use-reset-countdown.js';
 import { toast } from '../../stores/toast-store.js';
 import { useUiStore, type ActivityView } from '../../stores/ui-store.js';
 import { useAuthStore } from '../auth/auth-store.js';
@@ -79,8 +80,13 @@ export function ActivityRail(): React.JSX.Element {
   const showAvatar = avatarUrl !== undefined && !avatarFailed;
   const initial = displayName.charAt(0).toUpperCase() || '•';
   const dailyLimit = DAILY_LIMIT[plan];
+  const resetCountdown = useResetCountdown();
   const usageLabel =
-    dailyLimit === Infinity ? 'Unlimited' : `${String(repairsToday)} / ${String(dailyLimit)} repairs used today`;
+    dailyLimit === Infinity
+      ? 'Unlimited'
+      : `${String(repairsToday)} / ${String(dailyLimit)} repairs used${
+          resetCountdown === null ? '' : ` · ${resetCountdown}`
+        }`;
   const usagePct = dailyLimit === Infinity ? 0 : Math.min(100, (repairsToday / dailyLimit) * 100);
 
   const PLAN_META = {

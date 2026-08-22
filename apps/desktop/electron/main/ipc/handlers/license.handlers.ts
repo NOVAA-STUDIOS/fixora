@@ -1,6 +1,11 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-
+import {
+  getRepairCount,
+  getWindowResetsAt,
+  initRepairLimit,
+  REPAIR_WINDOW_MS,
+  resetIfWindowElapsed,
+  setPlan,
+} from '../../lib/repair-limit.js';
 import { registerHandler } from '../router.js';
 
 const VALIDATE_URL = 'https://api.gumroad.com/v2/licenses/verify';
@@ -9,88 +14,17 @@ const PERMALINK_TO_PLAN: Record<string, 'go' | 'pro'> = {
   bqbxp: 'pro',
 };
 
-/** Today, in the local calendar day, as a stable key for the free-tier counter. */
-function todayKey(): string {
-  return new Date().toLocaleDateString('en-CA');
-}
-
-interface Stored {
-  day: string;
-  repairsToday: number;
-}
-
-/**
- * Persisted to disk (not the renderer's `localStorage`, which `localStorage.clear()` or DevTools
- * defeats in one line) — a plain JSON file in `userData`, main-owned, the same trust boundary as
- * the rest of the app's on-disk state. `dir` is passed in rather than read from `app.getPath`
- * here, so this module stays testable without an Electron runtime.
- */
-export function createRepairCounter(dir: string): {
-  increment: () => number;
-  get: () => number;
-  resetIfNewDay: () => void;
-} {
-  const file = join(dir, 'repair-count.json');
-
-  function load(): Stored {
-    try {
-      const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<Stored>;
-      if (typeof parsed.day === 'string' && typeof parsed.repairsToday === 'number') {
-        return parsed as Stored;
-      }
-    } catch {
-      // No file yet, or a corrupt one — start the count at zero rather than crash.
-    }
-    return { day: todayKey(), repairsToday: 0 };
-  }
-
-  function save(state: Stored): void {
-    writeFileSync(file, JSON.stringify(state), 'utf8');
-  }
-
-  let state = load();
-  if (state.day !== todayKey()) state = { day: todayKey(), repairsToday: 0 };
-
-  return {
-    increment: () => {
-      if (state.day !== todayKey()) state = { day: todayKey(), repairsToday: 0 };
-      state = { ...state, repairsToday: state.repairsToday + 1 };
-      save(state);
-      return state.repairsToday;
-    },
-    get: () => {
-      if (state.day !== todayKey()) state = { day: todayKey(), repairsToday: 0 };
-      return state.repairsToday;
-    },
-    resetIfNewDay: () => {
-      if (state.day !== todayKey()) {
-        state = { day: todayKey(), repairsToday: 0 };
-        save(state);
-      }
-    },
-  };
-}
-
-let counter: ReturnType<typeof createRepairCounter> | null = null;
-
-/** Called from `ai.handlers.ts` on a successful `ai:applyRepair` — the one place a repair is
- * actually committed, so this is the one place the count is actually trustworthy to bump. */
-export function incrementRepairCount(): number {
-  return counter?.increment() ?? 0;
-}
-
-function scheduleMidnightReset(): void {
-  const now = new Date();
-  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
-  setTimeout(() => {
-    counter?.resetIfNewDay();
-    scheduleMidnightReset();
-  }, next.getTime() - now.getTime());
+/** Checked well inside the 3h window, so an app left open still rolls over close to on time
+ * rather than waiting for the next repair to notice. */
+function scheduleWindowReset(): void {
+  setInterval(resetIfWindowElapsed, 5 * 60 * 1000);
 }
 
 export function registerLicenseHandlers(deps: { dir: string }): void {
-  counter = createRepairCounter(deps.dir);
-  scheduleMidnightReset();
+  // Counter AND plan both live in `repair-limit.ts` now — the one place `ai:run` and
+  // `mcp:repairFinding` gate on, so there is exactly one allowance and one owner of it.
+  initRepairLimit(deps.dir);
+  scheduleWindowReset();
 
   registerHandler('license:validate', async ({ licenseKey, productId: productPermalink }) => {
     const plan = PERMALINK_TO_PLAN[productPermalink];
@@ -106,12 +40,29 @@ export function registerLicenseHandlers(deps: { dir: string }): void {
       const body = (await res.json()) as { success?: boolean };
       // The permalink is already scoped to this exact product in the request itself, so a
       // successful response can only mean a key for this product — no separate id check needed.
-      return { valid: body.success === true, plan: body.success === true ? plan : null };
+      if (body.success !== true) return { valid: false, plan: null };
+      // Persisted MAIN-side: this is what `checkAndIncrementRepairLimit` reads. The renderer's own
+      // copy is for UI only and is not trusted for enforcement.
+      setPlan(plan);
+      return { valid: true, plan };
     } catch (error) {
       console.error('[license] validate request failed', { message: (error as Error).message });
       return { valid: false, plan: null };
     }
   });
 
-  registerHandler('license:getRepairCount', () => ({ repairsToday: counter?.get() ?? 0 }));
+  // `getRepairCount` first: it rolls the window over if it has elapsed, so `resetsAt` is read from
+  // the CURRENT window rather than the expired one.
+  registerHandler('license:getRepairCount', () => {
+    const repairsToday = getRepairCount();
+    const raw = getWindowResetsAt();
+    // Belt to `getWindowResetsAt`'s braces. The contract says this is a non-negative integer, so a
+    // non-finite value would fail response validation and surface as a generic IPC error rather
+    // than a wrong countdown — worse to debug, and still a broken display either way.
+    const resetsAt = Number.isFinite(raw) ? Math.round(raw) : Date.now() + REPAIR_WINDOW_MS;
+    if (!Number.isFinite(raw)) {
+      console.error('[license] getWindowResetsAt returned a non-finite value', { raw });
+    }
+    return { repairsToday, resetsAt };
+  });
 }

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 
+import { useTestGenerationStore } from '../../stores/test-generation-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
@@ -26,6 +27,8 @@ export function useAppCommands(): Command[] {
   const activeTab = useEditorStore((s) => s.activeTab);
   const splitRelPath = useEditorStore((s) => s.splitRelPath);
   const setSplit = useEditorStore((s) => s.setSplit);
+  const generateTests = useTestGenerationStore((s) => s.generate);
+  const generatingFor = useTestGenerationStore((s) => s.generatingFor);
 
   return useMemo(
     () => [
@@ -91,6 +94,18 @@ export function useAppCommands(): Command[] {
           const index = tabs.findIndex((t) => t.relPath === activeTab);
           const other = tabs[(index + 1) % tabs.length] ?? tabs[0];
           if (other !== undefined) setSplit(other.relPath);
+        },
+      },
+      {
+        id: 'ai.generateTests',
+        title: generatingFor !== null ? 'Generating tests…' : 'Generate Tests',
+        group: 'AI',
+        keywords: ['unit', 'test', 'vitest', 'jest', 'pytest'],
+        enabled: () => activeTab !== null && generatingFor === null,
+        run: () => {
+          if (activeTab === null) return;
+          setPaletteOpen(false);
+          void generateTests(activeTab);
         },
       },
       {
@@ -176,6 +191,8 @@ export function useAppCommands(): Command[] {
       activeTab,
       splitRelPath,
       setSplit,
+      generateTests,
+      generatingFor,
     ],
   );
 }

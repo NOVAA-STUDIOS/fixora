@@ -4,17 +4,19 @@ import { useAuthStore } from '../../features/auth/auth-store.js';
 import { invoke } from '../../lib/bridge.js';
 import { useLicenseStore } from '../../stores/license-store.js';
 
+import { useResetCountdown } from './use-reset-countdown.js';
+
 const CHECKOUT_URLS = {
   go: 'https://rohanstar558.gumroad.com/l/euprne',
   pro: 'https://rohanstar558.gumroad.com/l/bqbxp',
 } as const;
 
 const ACTIVATION_MESSAGE: Record<'go' | 'pro', string> = {
-  go: 'Fixora GO activated! You now have 50 repairs/day.',
+  go: 'Fixora GO activated! You now have 50 repairs/3h.',
   pro: 'Fixora PRO activated! Unlimited repairs unlocked.',
 };
 
-/** Shown when `canRepair()` goes false — the free tier's 10-repairs/day ceiling. */
+/** Shown when `canRepair()` goes false — the free tier's 10-repairs/3h ceiling. */
 export function UpgradeDialog(): React.JSX.Element | null {
   const open = useLicenseStore((s) => s.showUpgradeDialog);
   const setOpen = useLicenseStore((s) => s.setUpgradeDialogOpen);
@@ -24,6 +26,9 @@ export function UpgradeDialog(): React.JSX.Element | null {
   const [key, setKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  // Above the early return: a hook after a conditional `return null` would be skipped on the
+  // closed render and change hook order between renders.
+  const resetCountdown = useResetCountdown();
 
   if (!open) return null;
 
@@ -31,39 +36,37 @@ export function UpgradeDialog(): React.JSX.Element | null {
   // anonymous checkout no one can recover if the key is lost.
   const startCheckout = (url: string): void => {
     if (authUser === null) {
-      console.log('[checkout] not signed in — showing sign-in overlay instead');
       setShowSignIn(true);
       return;
     }
-    console.log('[checkout] invoking system:openExternal', url);
-    void invoke('system:openExternal', { url }).then((result) => {
-      console.log('[checkout] system:openExternal result', result);
-    });
+    void invoke('system:openExternal', { url });
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#000000] p-6">
-        <h2 className="text-lg font-semibold text-white">You've hit today's free-tier limit</h2>
-        <p className="mt-1 text-sm text-white/50">Upgrade for more repairs per day.</p>
+        <h2 className="text-lg font-semibold text-white">You've hit this window's free-tier limit</h2>
+        <p className="mt-1 text-sm text-white/50">
+          {resetCountdown === null
+            ? 'Upgrade for more repairs every 3 hours.'
+            : `${resetCountdown}. Upgrade for more repairs every 3 hours.`}
+        </p>
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => {
-              console.log('[checkout] GO clicked');
               startCheckout(CHECKOUT_URLS.go);
             }}
             className="rounded-xl border border-white/10 p-4 text-left hover:bg-white/[0.04]"
           >
             <div className="text-sm font-medium text-white">GO</div>
-            <div className="mt-1 text-xs text-white/50">50 repairs/day</div>
+            <div className="mt-1 text-xs text-white/50">50 repairs/3h</div>
             <div className="mt-2 text-base font-semibold text-white">$2.99</div>
           </button>
           <button
             type="button"
             onClick={() => {
-              console.log('[checkout] PRO clicked');
               startCheckout(CHECKOUT_URLS.pro);
             }}
             className="rounded-xl border border-white/10 p-4 text-left hover:bg-white/[0.04]"
