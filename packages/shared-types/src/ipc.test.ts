@@ -88,6 +88,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'mcp:getStatus',
       'mcp:getSetting',
       'mcp:setEnabled',
+      'notifications:show',
       'proceed:run',
       'proceed:cancel',
       'suggestions:submit',

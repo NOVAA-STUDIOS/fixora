@@ -1,11 +1,12 @@
 {
+  "//": "Claude Desktop MCP config for Fixora. Copy this block into claude_desktop_config.json and replace the command path with your install location (default: C:\\Users\\<you>\\AppData\\Local\\Programs\\Fixora\\Fixora.exe).",
+  "//1": "Enable MCP first: open Fixora → Settings → MCP Server → 'Allow external tools (MCP)'. Off by default, and the server refuses to serve without it.",
+  "//2": "`--mcp` starts a headless MCP-only process — no window, no dock icon. It runs INDEPENDENTLY of a running Fixora instance: you can have the app open and Claude Desktop spawning this at the same time.",
+  "//3": "The MCP process exits when its client closes the pipe, so Claude Desktop owns its lifetime.",
   "mcpServers": {
     "fixora": {
-      "command": "path/to/Fixora.exe",
-      "args": ["--mcp"],
-      "env": {
-        "MCP_ENABLED": "1"
-      }
+      "command": "C:\\Users\\<you>\\AppData\\Local\\Programs\\Fixora\\Fixora.exe",
+      "args": ["--mcp"]
     }
   }
 }

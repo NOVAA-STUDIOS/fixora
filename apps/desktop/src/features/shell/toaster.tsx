@@ -12,7 +12,21 @@ import {
 import { useEffect } from 'react';
 
 import { subscribe } from '../../lib/bridge.js';
-import { toast, useToastStore } from '../../stores/toast-store.js';
+import {
+  MAX_VISIBLE_TOASTS,
+  toast,
+  useToastStore,
+  type ToastTone,
+} from '../../stores/toast-store.js';
+
+/** Tone → the icon chip's colours. Uses the semantic tokens, so it follows the theme rather than
+ *  hard-coding a green/yellow/red/blue that only works in one of them. */
+const TONE_STYLE: Record<ToastTone, string> = {
+  success: 'bg-success-subtle text-success-text',
+  warning: 'bg-warn-subtle text-warn-text',
+  error: 'bg-danger-subtle text-danger-text',
+  info: 'bg-accent-subtle text-accent-text',
+};
 
 /**
  * The toast host. Mounted once in the shell; every surface pushes through `toast.*` rather than
@@ -23,8 +37,10 @@ import { toast, useToastStore } from '../../stores/toast-store.js';
  * multi-state banner, and this component is already the guaranteed-once mount point for it.
  */
 export function Toaster(): React.JSX.Element {
-  const toasts = useToastStore((s) => s.toasts);
+  const allToasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
+  // Oldest first, capped: the queue keeps the rest and they surface as these expire.
+  const toasts = allToasts.slice(0, MAX_VISIBLE_TOASTS);
 
   useEffect(
     () =>
@@ -51,9 +67,7 @@ export function Toaster(): React.JSX.Element {
           <span
             className={cn(
               'flex size-5 shrink-0 items-center justify-center rounded-full',
-              t.tone === 'success'
-                ? 'bg-success-subtle text-success-text'
-                : 'bg-danger-subtle text-danger-text',
+              TONE_STYLE[t.tone],
             )}
           >
             {t.tone === 'success' ? (

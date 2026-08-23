@@ -229,6 +229,17 @@ export const contracts = {
     response: z.object({ enabled: z.boolean(), running: z.boolean() }),
   },
 
+  /** `shown` is false when the app was focused (the in-app toast already said it) or the OS has
+   *  notifications unavailable — the caller can tell "suppressed" from "delivered". */
+  'notifications:show': {
+    request: z.object({
+      title: z.string().min(1),
+      body: z.string(),
+      urgency: z.enum(['normal', 'critical']).optional(),
+    }),
+    response: z.object({ shown: z.boolean() }),
+  },
+
   'workspace:pickFolder': {
     request: empty,
     // null when the user cancels the native dialog.

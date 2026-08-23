@@ -843,7 +843,15 @@ const FindingRow = memo(function FindingRow({
         'border-l-[3px]',
         finding.category === 'security' ? 'border-l-danger' : SEVERITY_BORDER[finding.severity],
         'gap-(--fx-card-gap) px-(--fx-card-padding-x) py-(--fx-card-padding-y)',
-        'transition-all duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+        // Only the properties that CANNOT change layout.
+        //
+        // This was `transition-all`, on a row the virtualizer measures with a ResizeObserver and
+        // positions absolutely via `translateY`. Animating `all` means any height-affecting change
+        // (a repair-state swap, a wrapping label) is measured mid-flight, so the virtualizer
+        // computes offsets from a transient height and the next row is placed on top of this one —
+        // the garbled, overlapping text during repair transitions. Colour and shadow cannot change
+        // a row's height, so they are safe to animate; height and spacing must land instantly.
+        'transition-[background-color,box-shadow,border-color] duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
         !isSelected &&
           (finding.category === 'security' ? 'hover:bg-danger-subtle' : 'hover:bg-white/[0.04]'),
         // The selected row is what the details pane is describing — say so, with a bar rather than a

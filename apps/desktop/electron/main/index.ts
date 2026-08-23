@@ -34,6 +34,7 @@ import { registerGitHandlers } from './ipc/handlers/git.handlers.js';
 import { registerHookHandlers } from './ipc/handlers/hook.handlers.js';
 import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
 import { registerMcpHandlers } from './ipc/handlers/mcp.handlers.js';
+import { registerNotificationHandlers } from './ipc/handlers/notifications.handlers.js';
 import { registerPackageManagerHandlers } from './ipc/handlers/package-manager.handlers.js';
 import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
 import { registerProjectHandlers } from './ipc/handlers/project.handlers.js';
@@ -46,9 +47,10 @@ import { registerTestGenerationHandlers } from './ipc/handlers/test-generation.h
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
 import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
-import { initMcpSetting, isMcpEnabled } from './lib/mcp-setting.js';
+import { revalidateIfDue } from './lib/gumroad-revalidate.js';
+import { initMcpSetting } from './lib/mcp-setting.js';
 import { getPlan } from './lib/repair-limit.js';
-import { startMcpServer } from './mcp/mcp-server.js';
+import { isMcpOnlyLaunch, startMcpOnly } from './mcp-standalone.js';
 import { createMailService } from './services/mail/mail-service.js';
 import { migrateLegacyUserData } from './services/migrate-user-data.js';
 import { createWorkspaceService } from './services/workspace-service.js';
@@ -87,8 +89,13 @@ import { createMainWindow } from './windows/main-window.js';
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 
 /** Whether the stdio MCP server actually started this launch — read by `mcp:getSetting` so the
- *  settings toggle and status bar can distinguish "enabled" from "running right now". */
+ *  settings toggle and status bar can distinguish "enabled" from "running right now". Set by
+ *  `mcp-standalone.ts`, the only thing that starts the server. */
 let mcpRunning = false;
+
+export function markMcpRunning(): void {
+  mcpRunning = true;
+}
 
 export const gpuPreference =
   process.platform === 'win32' ? createGpuPreferenceStore(app.getPath('userData')) : null;
@@ -156,7 +163,11 @@ function forwardAuthCallback(url: string): void {
   if (!url.startsWith('fixora://auth/callback')) return;
 
   const now = Date.now();
-  if (lastForwarded !== null && lastForwarded.url === url && now - lastForwarded.at < FORWARD_DEDUPE_MS) {
+  if (
+    lastForwarded !== null &&
+    lastForwarded.url === url &&
+    now - lastForwarded.at < FORWARD_DEDUPE_MS
+  ) {
     console.error('[auth] duplicate callback suppressed', { withinMs: now - lastForwarded.at });
     return;
   }
@@ -190,110 +201,120 @@ function forwardAuthCallback(url: string): void {
   existing.show();
 }
 
-const gotTheLock = app.requestSingleInstanceLock();
-// Logged because the whole protocol-callback path depends on it: the instance that HOLDS the lock
-// is the one that receives `second-instance`, and the one that does not is the one carrying the
-// `fixora://` URL. If a callback never arrives, this line says which side this process was on.
-console.error('[auth] single-instance lock', {
-  acquired: gotTheLock,
-  launchedWithProtocolUrl: process.argv.some((arg) => arg.startsWith('fixora://')),
-});
-if (!gotTheLock) {
-  // Electron has already forwarded this process's argv (including the `fixora://` URL) to the
-  // primary instance as part of `requestSingleInstanceLock()`, so quitting here loses nothing.
-  app.quit();
+// MCP-only mode is decided BEFORE the lock is even requested.
+//
+// Asking for the lock is what breaks this case: an MCP client spawning `Fixora.exe --mcp` while the
+// GUI is open would fail to acquire it and quit, and the client would see a pipe that closed
+// without a word. A headless MCP process is not a second copy of the app competing for a window —
+// it is a child the client owns — so it does not participate in the lock at all.
+if (isMcpOnlyLaunch()) {
+  startMcpOnly(startBackend, markMcpRunning);
 } else {
-  const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
-
-  // Windows/Linux: a protocol launch while the app is already running arrives as a second
-  // instance, the URL as a command-line argument — not as `open-url` (macOS-only).
-  app.on('second-instance', (_event, argv) => {
-    // Searched across the WHOLE argv, never assumed at a fixed index: a dev run is
-    // `electron.exe <entryScript> fixora://…` while a packaged one is `Fixora.exe fixora://…`, so
-    // the URL's position differs by build.
-    const url = argv.find((arg) => arg.startsWith('fixora://'));
-    // Never log `argv` itself — it contains the callback URL, and that URL carries a live
-    // `access_token`. Logging it would write a working credential into electron-log's on-disk
-    // file, where it outlives the session it belongs to.
-    console.error('[auth] second-instance received', {
-      argCount: argv.length,
-      hasProtocolUrl: url !== undefined,
-    });
-    const [existing] = BrowserWindow.getAllWindows();
-    if (existing !== undefined) {
-      if (existing.isMinimized()) existing.restore();
-      existing.focus();
-    }
-    if (url !== undefined) forwardAuthCallback(url);
+  const gotTheLock = app.requestSingleInstanceLock();
+  // Logged because the whole protocol-callback path depends on it: the instance that HOLDS the lock
+  // is the one that receives `second-instance`, and the one that does not is the one carrying the
+  // `fixora://` URL. If a callback never arrives, this line says which side this process was on.
+  console.error('[auth] single-instance lock', {
+    acquired: gotTheLock,
+    launchedWithProtocolUrl: process.argv.some((arg) => arg.startsWith('fixora://')),
   });
+  if (!gotTheLock) {
+    // Electron has already forwarded this process's argv (including the `fixora://` URL) to the
+    // primary instance as part of `requestSingleInstanceLock()`, so quitting here loses nothing.
+    app.quit();
+  } else {
+    const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
 
-  app.on('open-url', (event, url) => {
-    // Same reason as above: the URL is a credential, so only its shape is recorded.
-    console.error('[auth] open-url received', { hasProtocolUrl: url.startsWith('fixora://') });
-    event.preventDefault();
-    forwardAuthCallback(url);
-  });
-
-  app.whenReady().then(
-    () => {
-      // Window first, everything else after. `createMainWindow` only builds a `BrowserWindow` and
-      // starts it loading the renderer bundle (`show: false` until `ready-to-show`) — it depends
-      // on nothing below. DB open, migrations, and every service/handler construction run inside
-      // the `setImmediate` below instead, so Chromium gets the event-loop turn it needs to
-      // actually create the window and start loading the renderer before main goes on to do its
-      // own heavy synchronous setup. The renderer's splash covers this wait and closes once
-      // `app:ready` fires below.
-      const window = createMainWindow(devServerUrl, () => gpuPreference?.markLaunchConfirmed());
-
-      app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-          createMainWindow(devServerUrl);
-        }
+    // Windows/Linux: a protocol launch while the app is already running arrives as a second
+    // instance, the URL as a command-line argument — not as `open-url` (macOS-only).
+    app.on('second-instance', (_event, argv) => {
+      // Searched across the WHOLE argv, never assumed at a fixed index: a dev run is
+      // `electron.exe <entryScript> fixora://…` while a packaged one is `Fixora.exe fixora://…`, so
+      // the URL's position differs by build.
+      const url = argv.find((arg) => arg.startsWith('fixora://'));
+      // Never log `argv` itself — it contains the callback URL, and that URL carries a live
+      // `access_token`. Logging it would write a working credential into electron-log's on-disk
+      // file, where it outlives the session it belongs to.
+      console.error('[auth] second-instance received', {
+        argCount: argv.length,
+        hasProtocolUrl: url !== undefined,
       });
-
-      setImmediate(() => {
-        startBackend(window);
-      });
-
-      // COLD START: if the app was NOT already running, the OS launches it with the `fixora://`
-      // URL in this instance's own argv — `second-instance` never fires (there is no second
-      // instance) and `open-url` is macOS-only. That callback was previously dropped entirely.
-      // Deferred to the renderer's own `app:ready` handshake: `emitToWindow` reaches a window that
-      // exists but whose renderer has not yet subscribed, and the event would land on nothing.
-      const launchUrl = process.argv.find((arg) => arg.startsWith('fixora://'));
-      if (launchUrl !== undefined) {
-        console.error('[auth] callback present in launch argv (cold start)');
-        window.webContents.once('did-finish-load', () => {
-          forwardAuthCallback(launchUrl);
-        });
+      const [existing] = BrowserWindow.getAllWindows();
+      if (existing !== undefined) {
+        if (existing.isMinimized()) existing.restore();
+        existing.focus();
       }
-    },
-    (error: unknown) => {
-      console.error('[main] failed to start', error);
-      app.quit();
-    },
-  );
+      if (url !== undefined) forwardAuthCallback(url);
+    });
 
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-      app.quit();
-    }
-  });
+    app.on('open-url', (event, url) => {
+      // Same reason as above: the URL is a credential, so only its shape is recorded.
+      console.error('[auth] open-url received', { hasProtocolUrl: url.startsWith('fixora://') });
+      event.preventDefault();
+      forwardAuthCallback(url);
+    });
 
-  /**
-   * A renderer process that dies takes its window with it, not the app. From M2 that window
-   * may hold unsaved work, so the recovery path is a milestone-2 concern — but the listener
-   * exists now so the failure is visible in logs rather than silent. `electron-log`, not
-   * `console.error`: a packaged build has no attached console, so that line would otherwise
-   * exist nowhere a user could ever hand back to us.
-   */
-  app.on('render-process-gone', (_event, _webContents, details) => {
-    log.error('[main] renderer process gone', { reason: details.reason });
-  });
+    app.whenReady().then(
+      () => {
+        // Window first, everything else after. `createMainWindow` only builds a `BrowserWindow` and
+        // starts it loading the renderer bundle (`show: false` until `ready-to-show`) — it depends
+        // on nothing below. DB open, migrations, and every service/handler construction run inside
+        // the `setImmediate` below instead, so Chromium gets the event-loop turn it needs to
+        // actually create the window and start loading the renderer before main goes on to do its
+        // own heavy synchronous setup. The renderer's splash covers this wait and closes once
+        // `app:ready` fires below.
+        const window = createMainWindow(devServerUrl, () => gpuPreference?.markLaunchConfirmed());
 
-  app.on('child-process-gone', (_event, details) => {
-    log.error('[main] child process gone', { type: details.type, reason: details.reason });
-  });
+        app.on('activate', () => {
+          if (BrowserWindow.getAllWindows().length === 0) {
+            createMainWindow(devServerUrl);
+          }
+        });
+
+        setImmediate(() => {
+          startBackend(window);
+        });
+
+        // COLD START: if the app was NOT already running, the OS launches it with the `fixora://`
+        // URL in this instance's own argv — `second-instance` never fires (there is no second
+        // instance) and `open-url` is macOS-only. That callback was previously dropped entirely.
+        // Deferred to the renderer's own `app:ready` handshake: `emitToWindow` reaches a window that
+        // exists but whose renderer has not yet subscribed, and the event would land on nothing.
+        const launchUrl = process.argv.find((arg) => arg.startsWith('fixora://'));
+        if (launchUrl !== undefined) {
+          console.error('[auth] callback present in launch argv (cold start)');
+          window.webContents.once('did-finish-load', () => {
+            forwardAuthCallback(launchUrl);
+          });
+        }
+      },
+      (error: unknown) => {
+        console.error('[main] failed to start', error);
+        app.quit();
+      },
+    );
+
+    app.on('window-all-closed', () => {
+      if (process.platform !== 'darwin') {
+        app.quit();
+      }
+    });
+
+    /**
+     * A renderer process that dies takes its window with it, not the app. From M2 that window
+     * may hold unsaved work, so the recovery path is a milestone-2 concern — but the listener
+     * exists now so the failure is visible in logs rather than silent. `electron-log`, not
+     * `console.error`: a packaged build has no attached console, so that line would otherwise
+     * exist nowhere a user could ever hand back to us.
+     */
+    app.on('render-process-gone', (_event, _webContents, details) => {
+      log.error('[main] renderer process gone', { reason: details.reason });
+    });
+
+    app.on('child-process-gone', (_event, details) => {
+      log.error('[main] child process gone', { type: details.type, reason: details.reason });
+    });
+  }
 }
 
 /**
@@ -303,7 +324,7 @@ if (!gotTheLock) {
  * synchronous work runs. Emits `app:ready` once done — the renderer's splash waits for it before
  * making any real IPC call, so nothing races a handler that main hasn't registered yet.
  */
-function startBackend(window: BrowserWindow): void {
+function startBackend(window: BrowserWindow | null): void {
   /**
    * Say which build this is, first thing, on every launch.
    *
@@ -453,6 +474,7 @@ function startBackend(window: BrowserWindow): void {
     catalogue: modelCatalogue,
   });
   registerTestGenerationHandlers({ workspace: workspaceService, orchestrator });
+  registerNotificationHandlers();
   initMcpSetting(app.getPath('userData'));
   registerMcpHandlers({
     workspace: workspaceService,
@@ -526,13 +548,12 @@ function startBackend(window: BrowserWindow): void {
   // is not consent: anything able to spawn this executable can pass one, and a connected MCP client
   // can rewrite whatever project is open with none of the review-then-Apply gating the UI enforces.
   // Default is off (`mcp-setting.ts`).
-  const mcpRequested = process.argv.includes('--mcp') || process.env['MCP_ENABLED'] === '1';
-  if (mcpRequested && isMcpEnabled()) {
-    startMcpServer();
-    mcpRunning = true;
-  } else if (mcpRequested) {
-    console.error('[mcp] refused to start: not enabled in Settings (Integrations → MCP Server)');
-  }
+  // The MCP server is NOT started here.
+  //
+  // It used to be, gated on `--mcp` — but that flag now routes the whole launch to
+  // `mcp-standalone.ts` before the lock is even requested, and that module calls this function to
+  // build the backend before starting the server itself. Starting it here too would attach a second
+  // readline listener to the same stdin and answer every JSON-RPC request twice.
 
   app.on('will-quit', () => {
     analysisHost.dispose();
@@ -549,14 +570,26 @@ function startBackend(window: BrowserWindow): void {
 
   // Backend fully constructed and every handler registered — the renderer's splash can now do
   // anything that needs real IPC without racing a handler that did not exist yet.
-  if (!window.isDestroyed()) emitToWindow(window, 'app:ready', {});
+  // `window` is null in MCP-only mode: there is no renderer to tell, and these two pushes are the
+  // only things in this function that address one.
+  if (window !== null && !window.isDestroyed()) emitToWindow(window, 'app:ready', {});
 
   // Main is the authority on the plan now, but it only learns one from a successful
   // `license:validate`. A user who activated before that moved main-side has their key in the
   // renderer and nothing here — ask for a re-validation rather than silently metering them as free.
-  if (getPlan() === 'free' && !window.isDestroyed()) {
+  if (getPlan() === 'free' && window !== null && !window.isDestroyed()) {
     emitToWindow(window, 'license:revalidateNeeded', {});
   }
+
+  // Periodic licence re-check, fire-and-forget: it makes a network call, and startup must never
+  // wait on Gumroad being reachable. Only a definitive rejection changes anything (see
+  // `gumroad-revalidate.ts`), so the offline case is a no-op rather than a downgrade.
+  void revalidateIfDue().then((outcome) => {
+    if (outcome !== 'revoked') return;
+    if (window !== null && !window.isDestroyed()) {
+      emitToWindow(window, 'license:planRevoked', {});
+    }
+  });
 
   // A renderer that is alive but not pumping its message loop — the actual "(Not Responding)"
   // state — is a DIFFERENT signal than either event above (both fire only once the process is

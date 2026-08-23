@@ -119,7 +119,7 @@ describe('verifyWrittenFile (Q3 data-integrity hardening)', () => {
     const abs = join(root, 'src', 'verify-match.ts');
     writeFileSync(abs, 'const a = 2;\n');
     expect(() => {
-      verifyWrittenFile(abs, 'src/verify-match.ts', 'const a = 2;\n');
+      verifyWrittenFile(abs, 'src/verify-match.ts', Buffer.from('const a = 2;\n'));
     }).not.toThrow();
   });
 
@@ -128,7 +128,7 @@ describe('verifyWrittenFile (Q3 data-integrity hardening)', () => {
     writeFileSync(abs, 'something completely different'); // what's actually on disk
     let caught: unknown;
     try {
-      verifyWrittenFile(abs, 'src/verify-mismatch.ts', 'const a = 2;\n'); // what we intended
+      verifyWrittenFile(abs, 'src/verify-mismatch.ts', Buffer.from('const a = 2;\n')); // what we intended
     } catch (error) {
       caught = error;
     }
@@ -143,7 +143,7 @@ describe('verifyWrittenFile (Q3 data-integrity hardening)', () => {
     const intended = 'const a = 2;\n';
     writeFileSync(abs, Buffer.alloc(Buffer.byteLength(intended, 'utf8'), 0)); // right length, all zero
     expect(() => {
-      verifyWrittenFile(abs, 'src/verify-allzero.ts', intended);
+      verifyWrittenFile(abs, 'src/verify-allzero.ts', Buffer.from(intended));
     }).toThrow(UserFacingError);
   });
 
@@ -151,7 +151,7 @@ describe('verifyWrittenFile (Q3 data-integrity hardening)', () => {
     const abs = join(root, 'src', 'verify-truncated.ts');
     writeFileSync(abs, 'const'); // only the start survives
     expect(() => {
-      verifyWrittenFile(abs, 'src/verify-truncated.ts', 'const a = 2;\n');
+      verifyWrittenFile(abs, 'src/verify-truncated.ts', Buffer.from('const a = 2;\n'));
     }).toThrow(UserFacingError);
   });
 
@@ -163,7 +163,7 @@ describe('verifyWrittenFile (Q3 data-integrity hardening)', () => {
     const externalEdit = 'const a = 42; // edited in another program\n';
     writeFileSync(abs, externalEdit);
     expect(() => {
-      verifyWrittenFile(abs, 'src/verify-external.ts', 'const a = 2;\n');
+      verifyWrittenFile(abs, 'src/verify-external.ts', Buffer.from('const a = 2;\n'));
     }).toThrow(UserFacingError);
     // No auto-rollback: verifyWrittenFile only reads and compares, never writes — the external edit
     // is left completely untouched. Silently overwriting it could destroy real, legitimate work.
@@ -176,7 +176,7 @@ describe('verifyWrittenFile (Q3 data-integrity hardening)', () => {
     writeFileSync(abs, secretLooking);
     let caught: unknown;
     try {
-      verifyWrittenFile(abs, 'src/verify-secret.ts', 'const a = 2;\n');
+      verifyWrittenFile(abs, 'src/verify-secret.ts', Buffer.from('const a = 2;\n'));
     } catch (error) {
       caught = error;
     }

@@ -147,11 +147,7 @@ export function AiPanel(): React.JSX.Element {
               prose routinely contains things with none — a bare URL, a long import path, a minified
               identifier. Without it one such token forces the whole assistant pane to scroll
               sideways, which at this pane's width is most of the time. */}
-          {profile === 'explain' && streamText.length > 0 && (
-            <pre className="whitespace-pre-wrap font-sans [overflow-wrap:anywhere]">
-              {streamText}
-            </pre>
-          )}
+          {profile === 'explain' && streamText.length > 0 && <ExplainText text={streamText} />}
 
           {/*
             A repair in flight. The raw stream is a JSON object, which is not something to show a
@@ -166,9 +162,7 @@ export function AiPanel(): React.JSX.Element {
           )}
 
           {status === 'done' && proposal?.profile === 'explain' && (
-            <pre className="whitespace-pre-wrap font-sans [overflow-wrap:anywhere]">
-              {proposal.explanation}
-            </pre>
+            <ExplainText text={proposal.explanation} />
           )}
 
           {status === 'done' && proposal?.profile === 'test' && (
@@ -235,5 +229,37 @@ function IdleGuide({ configured }: { configured: boolean }): React.JSX.Element {
         Go to Problems
       </Button>
     </div>
+  );
+}
+
+/**
+ * The explanation, with its `**bold**` labels rendered.
+ *
+ * The explain prompt emits four bolded section headers (`🔴 **What's wrong**`, and so on). Shown in
+ * a plain `<pre>` those asterisks render literally, which reads as broken output — the one thing a
+ * beginner-facing explanation cannot afford. This handles exactly the subset that prompt produces
+ * rather than pulling in a markdown renderer: a dependency parsing model output inside the app's
+ * most privileged surface is a much larger commitment than four bold labels justify.
+ *
+ * Everything is rendered as TEXT — `**` only ever selects which `<span>` a run of characters lands
+ * in, and no branch interprets model output as markup. It cannot inject an element.
+ */
+export function ExplainText({ text }: { text: string }): React.JSX.Element {
+  // Split on the delimiter itself so the segments alternate plain/bold — odd indices are the
+  // emphasised runs. An unterminated `**` (mid-stream, which happens on every keystroke of a
+  // streaming response) simply leaves a trailing plain segment rather than swallowing the rest.
+  const segments = text.split('**');
+  return (
+    <pre className="whitespace-pre-wrap font-sans [overflow-wrap:anywhere]">
+      {segments.map((segment, index) =>
+        index % 2 === 1 ? (
+          <span key={index} className="font-semibold text-fg">
+            {segment}
+          </span>
+        ) : (
+          segment
+        ),
+      )}
+    </pre>
   );
 }

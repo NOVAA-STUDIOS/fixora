@@ -90,6 +90,7 @@ export const eventContracts = {
   'app:ready': z.object({}),
   'auth:callback': AuthCallbackSchema,
   'license:revalidateNeeded': z.object({}),
+  'license:planRevoked': z.object({}),
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

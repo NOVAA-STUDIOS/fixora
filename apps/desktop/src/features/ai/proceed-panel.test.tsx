@@ -59,13 +59,16 @@ describe('ProceedPanel', () => {
 });
 
 describe('EditModeTabs', () => {
-  it('offers Repair, Proceed, and a disabled Explain placeholder', () => {
+  it('offers Repair, Proceed, and Explain — all enabled', () => {
     const onChange = vi.fn();
     render(<EditModeTabs active="proceed" onChange={onChange} />);
     expect(screen.getByRole('tab', { name: 'Repair' })).toBeTruthy();
     expect(screen.getByRole('tab', { selected: true }).textContent).toContain('Proceed');
-    const explain = screen.getByRole('tab', { name: /Explain/ });
-    expect(explain.hasAttribute('disabled')).toBe(true);
+    // Explain shipped: the tab is live and no longer carries a "(soon)" placeholder label, which
+    // is the user-visible half of the feature actually existing.
+    const explain = screen.getByRole('tab', { name: 'Explain' });
+    expect(explain.hasAttribute('disabled')).toBe(false);
+    expect(explain.textContent).not.toContain('soon');
   });
 
   it('switches mode on click', () => {

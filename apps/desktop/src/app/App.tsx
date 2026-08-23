@@ -13,7 +13,11 @@ import { useAppearance } from '../hooks/use-appearance.js';
 import { waitForAppReady } from '../lib/app-ready.js';
 import { invoke } from '../lib/bridge.js';
 import { useAiStore } from '../stores/ai-store.js';
-import { listenForRevalidation, useLicenseStore } from '../stores/license-store.js';
+import {
+  listenForPlanRevoked,
+  listenForRevalidation,
+  useLicenseStore,
+} from '../stores/license-store.js';
 
 /**
  * The root. It applies the persisted appearance (theme + density), adopts any workspace the main
@@ -73,6 +77,7 @@ export function App(): React.JSX.Element {
   // Main emits this at startup when it holds no paid plan for this device; the renderer still has
   // the license key, so it can restore the plan without the user doing anything.
   useEffect(() => listenForRevalidation(), []);
+  useEffect(() => listenForPlanRevoked(), []);
 
   // Main owns the repair count; this store's copy is display only. Synced once at startup so the
   // first paint shows the real number rather than whatever localStorage last held.

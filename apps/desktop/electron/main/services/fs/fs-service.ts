@@ -14,6 +14,7 @@ import { dirname, join, posix } from 'node:path';
 
 import { UserFacingError } from '@fixora/shared-types';
 
+import { decodeBuffer, detectEncoding, encodeText, type FileEncoding } from './encoding.js';
 import { fsTry, fsTryAsync } from './fs-errors.js';
 import { type IgnoreMatcher } from './ignore-rules.js';
 import { detectLanguage } from './language.js';
@@ -38,6 +39,8 @@ export type FileContent = {
   relPath: string;
   language: string | null;
   content: string;
+  /** How the bytes were decoded, so a write can put them back the same way. */
+  encoding: FileEncoding;
 };
 
 /** Reading a file that is too large to open as text in the editor is refused with this size. */
@@ -116,10 +119,17 @@ export function readTextFile(root: string, relPath: string): FileContent {
     throw new FileTooLargeError(normalized, target.size);
   }
 
+  // Read as BYTES, then decode. Reading straight to a utf8 string silently replaced every
+  // non-ASCII character in a UTF-16 or Latin-1 file with U+FFFD — invisible until the file was
+  // written back, at which point the replacement was permanent.
+  const bytes = fsTry('read', normalized, () => readFileSync(absolute));
+  const encoding = detectEncoding(bytes);
+
   return {
     relPath: normalized,
     language: detectLanguage(relPath),
-    content: fsTry('read', normalized, () => readFileSync(absolute, 'utf8')),
+    content: decodeBuffer(bytes, encoding),
+    encoding,
   };
 }
 
@@ -198,9 +208,26 @@ export function writeTextFile(root: string, relPath: string, content: string): v
     });
   }
 
+  /*
+   * Written back in the encoding it was READ in, detected from the file's own current bytes.
+   *
+   * Detected here rather than threaded through as a parameter, on purpose: every write path —
+   * Repair's apply, Proceed's Accept, a manual editor Save — goes through this function, and a
+   * parameter is something each of them can forget or get wrong. The bytes on disk cannot be
+   * forgotten. This function already re-reads the file for its guards, so the detection is free.
+   */
+  let encoding: FileEncoding = 'utf8';
+  try {
+    encoding = detectEncoding(readFileSync(absolute));
+  } catch {
+    // Unreadable here means the write below will fail too and report properly; defaulting to utf8
+    // keeps this from being the thing that throws first, with a less useful message.
+  }
+  const bytes = encodeText(content, encoding);
+
   fsTry('write to', normalized, () => {
     try {
-      writeFileSync(tmp, content, 'utf8');
+      writeFileSync(tmp, bytes);
       renameSync(tmp, absolute);
     } catch (error) {
       // The write or rename failed, so the target is untouched. Clean up the temp and KEEP the
@@ -220,7 +247,7 @@ export function writeTextFile(root: string, relPath: string, content: string): v
         // A leftover backup is harmless — never fail a successful repair over cleanup.
       }
     }
-    verifyWrittenFile(absolute, normalized, content);
+    verifyWrittenFile(absolute, normalized, bytes);
   });
 }
 
@@ -240,8 +267,7 @@ export function writeTextFile(root: string, relPath: string, content: string): v
  * ever land in between; only a genuinely separate OS process could do that, which is exactly the
  * class of cause this guards against without needing to know which one it was.
  */
-export function verifyWrittenFile(absolute: string, normalized: string, content: string): void {
-  const expected = Buffer.from(content, 'utf8');
+export function verifyWrittenFile(absolute: string, normalized: string, expected: Buffer): void {
   const actual = readFileSync(absolute);
   if (!actual.equals(expected)) {
     const allZero = actual.length > 0 && actual.every((byte) => byte === 0);

@@ -24,10 +24,16 @@ export const DirEntrySchema = z.object({
 });
 export type DirEntryInfo = z.infer<typeof DirEntrySchema>;
 
+export const FileEncodingSchema = z.enum(['utf8', 'utf8-bom', 'utf16le', 'utf16be', 'latin1']);
+export type FileEncodingName = z.infer<typeof FileEncodingSchema>;
+
 export const FileContentSchema = z.object({
   relPath: z.string(),
   language: z.string().nullable(),
   content: z.string(),
+  /** How the bytes on disk were decoded. Carried so the editor can say when a file is not UTF-8 —
+   *  and so nothing downstream assumes it is. */
+  encoding: FileEncodingSchema,
 });
 export type FileContentInfo = z.infer<typeof FileContentSchema>;
 

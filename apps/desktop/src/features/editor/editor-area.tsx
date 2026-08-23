@@ -1,3 +1,4 @@
+import type { FileEncodingName } from '@fixora/shared-types';
 import { ConfirmDialog, FileIcon, WinCloseIcon, cn } from '@fixora/ui';
 import { useEffect, useState } from 'react';
 
@@ -358,7 +359,12 @@ function Breadcrumbs({ relPath }: { relPath: string }): React.JSX.Element {
 function ActiveFile({ relPath }: { relPath: string }): React.JSX.Element {
   const [state, setState] = useState<
     | { status: 'loading' }
-    | { status: 'ready'; content: string; language: string | null }
+    | {
+        status: 'ready';
+        content: string;
+        language: string | null;
+        encoding: FileEncodingName;
+      }
     | { status: 'error'; message: string }
   >({ status: 'loading' });
 
@@ -373,6 +379,7 @@ function ActiveFile({ relPath }: { relPath: string }): React.JSX.Element {
               status: 'ready',
               content: result.value.file.content,
               language: result.value.file.language,
+              encoding: result.value.file.encoding,
             }
           : { status: 'error', message: result.error.message },
       );
@@ -397,5 +404,35 @@ function ActiveFile({ relPath }: { relPath: string }): React.JSX.Element {
       </div>
     );
   }
-  return <CodeEditor relPath={relPath} content={state.content} language={state.language} />;
+  const encodingLabel = ENCODING_LABEL[state.encoding];
+  if (encodingLabel === null) {
+    return <CodeEditor relPath={relPath} content={state.content} language={state.language} />;
+  }
+  // Only for files that are NOT UTF-8. Saying "UTF-8" on almost every file would be noise; saying
+  // "Latin-1" on the rare one is the whole point — it tells the user why a character looked odd,
+  // and confirms Fixora will write it back the way it found it rather than converting it.
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="shrink-0 border-b border-border-subtle px-3 py-1">
+        <span
+          title={`This file is ${encodingLabel}, not UTF-8. Fixora preserves its encoding when saving or repairing.`}
+          className="rounded bg-inset px-1.5 py-0.5 text-[10px] font-medium text-fg-muted"
+        >
+          {encodingLabel} file
+        </span>
+      </div>
+      <div className="min-h-0 flex-1">
+        <CodeEditor relPath={relPath} content={state.content} language={state.language} />
+      </div>
+    </div>
+  );
 }
+
+/** Which encodings are worth telling the user about. UTF-8 (BOM or not) is unremarkable. */
+const ENCODING_LABEL: Record<FileEncodingName, string | null> = {
+  utf8: null,
+  'utf8-bom': null,
+  utf16le: 'UTF-16 LE',
+  utf16be: 'UTF-16 BE',
+  latin1: 'Latin-1',
+};

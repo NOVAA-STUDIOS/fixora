@@ -48,10 +48,12 @@ export {
 export {
   DirEntrySchema,
   FileContentSchema,
+  FileEncodingSchema,
   FilesChangedSchema,
   WorkspaceSchema,
   type DirEntryInfo,
   type FileContentInfo,
+  type FileEncodingName,
   type FilesChanged,
   type WorkspaceInfo,
 } from './workspace.js';

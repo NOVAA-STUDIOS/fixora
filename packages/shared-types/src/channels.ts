@@ -110,6 +110,8 @@ export const channels = [
   // The user-facing capability switch + whether the server is actually running right now.
   'mcp:getSetting',
   'mcp:setEnabled',
+  // OS-level notification, shown only while the app is unfocused (notifications.handlers.ts).
+  'notifications:show',
   // Proceed Mode (P2.2R): natural-language editing. Apply deliberately reuses `ai:applyRepair` —
   // there is exactly one verified write path in the app and Proceed does not get a second one.
   'proceed:run',
@@ -209,6 +211,9 @@ export const eventChannels = [
   // plan moved main-side would silently be metered as free. Asks the renderer — which still has
   // the license key — to re-run `license:validate` and restore it.
   'license:revalidateNeeded',
+  // A stored licence failed its periodic Gumroad check — the plan has already been reverted in
+  // main, and the renderer must stop showing the paid tier.
+  'license:planRevoked',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

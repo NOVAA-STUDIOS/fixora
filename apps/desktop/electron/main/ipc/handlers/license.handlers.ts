@@ -4,7 +4,7 @@ import {
   initRepairLimit,
   REPAIR_WINDOW_MS,
   resetIfWindowElapsed,
-  setPlan,
+  recordValidation,
 } from '../../lib/repair-limit.js';
 import { registerHandler } from '../router.js';
 
@@ -42,8 +42,9 @@ export function registerLicenseHandlers(deps: { dir: string }): void {
       // successful response can only mean a key for this product — no separate id check needed.
       if (body.success !== true) return { valid: false, plan: null };
       // Persisted MAIN-side: this is what `checkAndIncrementRepairLimit` reads. The renderer's own
-      // copy is for UI only and is not trusted for enforcement.
-      setPlan(plan);
+      // copy is for UI only and is not trusted for enforcement. The key and the timestamp travel
+      // with it so `revalidateIfDue` can re-check this exact licence a day from now.
+      recordValidation(plan, licenseKey);
       return { valid: true, plan };
     } catch (error) {
       console.error('[license] validate request failed', { message: (error as Error).message });

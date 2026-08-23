@@ -2,6 +2,7 @@ import type { AnalysisWarning, Finding, FindingsFilter, FindingsSummary } from '
 import { create } from 'zustand';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
+import { notify } from '../notifications/notify.js';
 
 /**
  * The findings panel's state (M3). Findings live in SQLite (the store of record); this holds the
@@ -136,6 +137,12 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
         if (flushTimer !== null) {
           clearTimeout(flushTimer);
           flush();
+        }
+        // Only when something was found: "Found 0 issues" is a notification about nothing, and a
+        // toast per clean run trains the user to ignore the corner of the screen.
+        const found = state.summary?.total ?? 0;
+        if (found > 0) {
+          notify('info', `Found ${String(found)} issue${found === 1 ? '' : 's'}`);
         }
         void get().refresh();
       }

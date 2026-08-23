@@ -17,8 +17,11 @@ import {
 } from '../features/ai/apply-diagnostics.js';
 import { refreshModelText } from '../features/editor/models.js';
 import { useHistoryStore } from '../features/history/history-store.js';
-import { useLicenseStore } from './license-store.js';
+import { notify } from '../features/notifications/notify.js';
 import { invoke, subscribe } from '../lib/bridge.js';
+import { basename } from '../lib/path.js';
+
+import { DAILY_LIMIT, useLicenseStore } from './license-store.js';
 
 /**
  * The renderer's AI state (M5, BYOK). It holds the *config the renderer is allowed to know* (configured,
@@ -218,9 +221,23 @@ export const useAiStore = create<AiState>((set, get) => ({
       const license = useLicenseStore.getState();
       if (!license.canRepair()) {
         license.setUpgradeDialogOpen(true);
+        // OS-level too: the limit can be reached by a bulk run the user walked away from, and
+        // returning to a silently stalled queue is worse than being told why it stopped.
+        notify('error', 'Repair limit reached', 'Upgrade or wait for your window to reset.', {
+          alsoNotifyOs: true,
+          urgency: 'critical',
+        });
         return;
       }
       license.incrementRepair();
+
+      // Warn once, on the way past the second-to-last repair — early enough to be actionable and
+      // only on the exact crossing, so a long session is not nagged every single repair.
+      const { plan, repairsToday } = useLicenseStore.getState();
+      const remaining = DAILY_LIMIT[plan] - repairsToday;
+      if (remaining === 2) {
+        notify('warning', '⚠️ 2 repairs left this window', 'Your limit resets every 3 hours.');
+      }
     }
 
     // Claim this run. Any earlier one still awaiting its round-trip is now stale and will discard
@@ -426,17 +443,21 @@ export const useAiStore = create<AiState>((set, get) => ({
     };
     set({ lastApplyAttempt: settled });
 
+    const fileName = basename(proposal.target.file);
     if (!result.ok) {
       // The preview is NOT torn down on failure. Setting status to 'error' unmounted the whole
       // repair result, so the user lost the proposal they were about to apply — the failure and the
       // thing that failed both disappeared, which is why this read as "Apply does nothing".
       set({ errorMessage: result.error.message });
+      notify('error', 'Repair Failed ❌', `${fileName} — ${result.error.message}`);
       return false;
     }
     if (!result.value.applied) {
       set({ errorMessage: result.value.message });
+      notify('error', 'Repair Failed ❌', `${fileName} — ${result.value.message}`);
       return false;
     }
+    notify('success', 'Fix Applied ✅', fileName);
     // Reflect the applied repair everywhere the user can see it: the open buffer (so the editor shows
     // the new code, undo intact) and the history list.
     const reread = await invoke('fs:readFile', { relPath: proposal.target.file });

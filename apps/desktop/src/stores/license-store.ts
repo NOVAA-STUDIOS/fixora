@@ -118,6 +118,27 @@ export const useLicenseStore = create<LicenseState>((set, get) => ({
  * user bought this and should not have to do anything. If we don't, say so once, quietly: a paid
  * user being metered as free without explanation is the worse failure of the two.
  */
+/**
+ * Main's periodic Gumroad check rejected the stored licence — it has ALREADY reverted the plan, so
+ * this only makes the UI agree. The local key is cleared too: keeping it would leave Settings
+ * showing an activated licence that no longer unlocks anything.
+ */
+export function listenForPlanRevoked(): () => void {
+  return subscribe('license:planRevoked', () => {
+    set_planToFree();
+    toast.error(
+      'Your license could not be verified',
+      "You've been moved to the free tier. Re-activate in Settings → License if this looks wrong.",
+    );
+  });
+}
+
+function set_planToFree(): void {
+  const { repairsToday } = useLicenseStore.getState();
+  useLicenseStore.setState({ plan: 'free', licenseKey: null });
+  persist({ plan: 'free', licenseKey: null, repairsToday, windowStart });
+}
+
 export function listenForRevalidation(): () => void {
   return subscribe('license:revalidateNeeded', () => {
     const { licenseKey, plan, activate } = useLicenseStore.getState();

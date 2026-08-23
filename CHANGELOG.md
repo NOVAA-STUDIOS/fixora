@@ -6,6 +6,57 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## v1.1.7 — Smarter, Safer, More Informative
+
+_Released August 23, 2026_
+
+### ✨ New Features
+
+#### 🔔 Notification System
+
+- In-app toast notifications for all key actions (repair success, failures, limit warnings, updates)
+- OS-level notifications when Fixora is in the background (Watch Mode, updates, limit reached)
+- Notifications stack cleanly — max 3 visible at once, queued automatically
+
+#### 💡 Explain Feature (Now Live)
+
+- "Explain" is no longer marked "soon" — it's fully live
+- AI explains any error or warning in plain, beginner-friendly language
+- Uses real-world analogies so anyone can understand what went wrong
+- Structured format: What's wrong → Why it matters → How to fix it → Example
+- Free to use — does not consume your repair limit
+
+#### 🔌 MCP Server — Standalone Mode
+
+- MCP server now works independently alongside a running Fixora instance
+- Launch with `Fixora.exe --mcp` — no conflict with the main app
+- Enables Claude Desktop and other MCP clients to use Fixora simultaneously
+
+#### 🌐 File Encoding Detection
+
+- Fixora now detects and preserves file encoding on every repair
+- Supports UTF-8, UTF-16 LE/BE, and Latin-1 — no more file corruption
+- BOM (byte order mark) preserved automatically
+- Subtle encoding badge shown in editor for non-UTF-8 files
+
+### 🔒 Security & Reliability
+
+#### License Re-Validation
+
+- GO and PRO licenses are now re-verified with Gumroad every 24 hours
+- Refunded or cancelled subscriptions are automatically moved to free tier
+- Network errors and timeouts never downgrade a paying customer
+
+### 🐛 Bug Fixes
+
+- Fixed problem card text overlapping during repair state transitions
+- Fixed MCP server failing to start when Fixora was already running
+
+### ⚠️ Known Limitations
+
+- Windows binary is not yet code-signed (SmartScreen warning on first install)
+- MCP repair limit metering may be slightly imprecise when both app and MCP run simultaneously
+
 ## v1.1.6 — Security & Reliability Update
 
 _Released August 23, 2026_

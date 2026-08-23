@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { notify } from '../features/notifications/notify.js';
 import { subscribe } from '../lib/bridge.js';
 
 /**
@@ -34,6 +35,11 @@ export const useUpdateStore = create<UpdateStoreState>((set) => ({
   listen: () => {
     const offAvailable = subscribe('update:available', ({ version }) => {
       set({ update: { status: 'available', version } });
+      // OS-level too: an update arriving is exactly the kind of thing that happens while the app
+      // sits in the background, and the banner alone would go unseen until they next look.
+      notify('info', '🚀 New Update Ready', `Version ${version} is ready to install.`, {
+        alsoNotifyOs: true,
+      });
     });
     const offDownloaded = subscribe('update:downloaded', ({ version }) => {
       set({ update: { status: 'downloaded', version } });

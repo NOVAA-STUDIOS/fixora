@@ -25,7 +25,17 @@ interface Stored {
   windowStart: number;
   repairsToday: number;
   plan: Plan;
+  /** The key the plan was granted for, kept so it can be re-checked against Gumroad later. Stored
+   *  in plaintext beside `plan`, which is itself plaintext — encrypting one and not the other would
+   *  buy nothing, since editing `plan` directly is the shorter path anyway. */
+  licenseKey?: string;
+  /** Epoch ms of the last SUCCESSFUL Gumroad check. Absent until one has happened. */
+  lastValidatedAt?: number;
 }
+
+/** How long a validated licence is trusted before it is checked again. A day is short enough that
+ *  a refund stops working promptly, and long enough that normal use is never gated on the network. */
+export const REVALIDATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 function isPlan(value: unknown): value is Plan {
   return value === 'free' || value === 'go' || value === 'pro';
@@ -76,6 +86,14 @@ function load(): Stored {
         // A hand-edited negative count would otherwise buy unlimited repairs.
         repairsToday: Math.max(0, repairsToday),
         plan: isPlan(parsed.plan) ? parsed.plan : 'free',
+        ...(typeof parsed.licenseKey === 'string' && parsed.licenseKey !== ''
+          ? { licenseKey: parsed.licenseKey }
+          : {}),
+        // A future timestamp would postpone the next check indefinitely — clamp it to now, so the
+        // worst a tampered value can buy is one interval rather than forever.
+        ...(typeof parsed.lastValidatedAt === 'number' && Number.isFinite(parsed.lastValidatedAt)
+          ? { lastValidatedAt: Math.min(parsed.lastValidatedAt, Date.now()) }
+          : {}),
       };
     }
   } catch {
@@ -121,6 +139,30 @@ export function getPlan(): Plan {
 export function setPlan(plan: Plan): void {
   state = { ...state, plan };
   save();
+}
+
+/** Records a successful activation or re-check: the key it was granted for, and when. */
+export function recordValidation(plan: Plan, licenseKey: string): void {
+  state = { ...state, plan, licenseKey, lastValidatedAt: Date.now() };
+  save();
+}
+
+/** Drops the paid plan and the key behind it — a licence that failed verification must not be
+ *  retried forever on a key Gumroad has already rejected. */
+export function revokePlan(): void {
+  const { windowStart, repairsToday } = state;
+  state = { windowStart, repairsToday, plan: 'free' };
+  save();
+}
+
+export function getLicenseKey(): string | null {
+  return state.licenseKey ?? null;
+}
+
+export function isRevalidationDue(): boolean {
+  if (state.plan === 'free' || state.licenseKey === undefined) return false;
+  // Never validated (an upgrade from a build that did not record it) counts as due.
+  return Date.now() - (state.lastValidatedAt ?? 0) >= REVALIDATION_INTERVAL_MS;
 }
 
 /**
