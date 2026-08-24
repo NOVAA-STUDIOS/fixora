@@ -118,6 +118,7 @@ export {
   AiDeltaSchema,
   AiProposalSchema,
   AiRunRequestSchema,
+  FOLLOWUP_MAX_MESSAGES,
   AiFailureSchema,
   AiRunResponseSchema,
   AiRunStageSchema,

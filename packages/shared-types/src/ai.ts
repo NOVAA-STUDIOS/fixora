@@ -187,8 +187,31 @@ export const AiRunRequestSchema = z.object({
    * `manual` findings are refused there exactly as before.
    */
   allowManual: z.boolean().optional(),
+  /**
+   * A follow-up question about an explanation the user has already been given.
+   *
+   * Carried on `ai:run` with `profile: 'explain'` rather than a channel of its own, so the whole
+   * grounding pipeline — real file content, the exact finding, the analyzer's own message — is
+   * rebuilt for every question. A follow-up answered from the conversation alone would drift away
+   * from the code within two turns, which for a beginner-facing feature is worse than no answer.
+   */
+  followUp: z
+    .object({
+      question: z.string().min(1),
+      /** The explanation this thread started from, verbatim. */
+      priorExplanation: z.string(),
+      /** Earlier turns, oldest first. Capped by the caller (see FOLLOWUP_MAX_MESSAGES). */
+      history: z
+        .array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() }))
+        .max(20),
+    })
+    .optional(),
 });
 export type AiRunRequest = z.infer<typeof AiRunRequestSchema>;
+
+/** How many messages (questions + answers) one explanation thread may hold before it stops
+ *  accepting more. Ten keeps the prompt bounded and the cost predictable. */
+export const FOLLOWUP_MAX_MESSAGES = 10;
 
 /** Where in the file a repair applies — carried through so Phase D can diff + apply by range. */
 export const RepairTargetSchema = z.object({

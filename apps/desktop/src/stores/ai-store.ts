@@ -1,3 +1,4 @@
+import { FOLLOWUP_MAX_MESSAGES } from '@fixora/shared-types';
 import type {
   AiFailure,
   AiConfig,
@@ -16,6 +17,7 @@ import {
   type ApplyAttempt,
 } from '../features/ai/apply-diagnostics.js';
 import { refreshModelText } from '../features/editor/models.js';
+import { useFeedbackStore } from '../features/feedback/feedback-store.js';
 import { useHistoryStore } from '../features/history/history-store.js';
 import { notify } from '../features/notifications/notify.js';
 import { invoke, subscribe } from '../lib/bridge.js';
@@ -88,6 +90,13 @@ type AiState = {
   applyRepair: (options?: { forced?: boolean }) => Promise<boolean>;
   dismiss: () => void;
   listen: () => () => void;
+
+  /** Follow-up Q&A about the current explanation, oldest first. Cleared on every new run. */
+  followUps: { role: 'user' | 'assistant'; content: string }[];
+  /** True while an answer is streaming. */
+  followUpPending: boolean;
+  /** Asks a follow-up. No-op when there is no explanation to follow up on, or the cap is reached. */
+  askFollowUp: (question: string) => Promise<void>;
 };
 
 /**
@@ -170,6 +179,54 @@ export const useAiStore = create<AiState>((set, get) => ({
   models: null,
   lastApplyAttempt: null,
   stage: null,
+  followUps: [],
+  followUpPending: false,
+
+  askFollowUp: async (question) => {
+    const trimmed = question.trim();
+    const { proposal, activeFindingId, followUps, followUpPending } = get();
+    if (trimmed === '' || followUpPending) return;
+    if (proposal?.profile !== 'explain' || activeFindingId === null) return;
+    // The cap counts BOTH sides of the conversation, so ten messages is five exchanges. Enforced
+    // here rather than only in the UI, since this is the thing that spends tokens.
+    if (followUps.length >= FOLLOWUP_MAX_MESSAGES) return;
+
+    // Optimistic: the question appears immediately, so the thread reads as a conversation rather
+    // than as a form that goes blank while it thinks.
+    set({ followUps: [...followUps, { role: 'user', content: trimmed }], followUpPending: true });
+
+    const result = await invoke('ai:run', {
+      profile: 'explain',
+      findingId: activeFindingId,
+      followUp: {
+        question: trimmed,
+        // The explanation this thread hangs off, verbatim — never a summary. Main re-sends the
+        // real file and finding alongside it, so each answer is re-grounded in the actual code.
+        priorExplanation: proposal.explanation,
+        history: followUps,
+      },
+    });
+
+    if (!result.ok || result.value.status !== 'ok' || result.value.proposal.profile !== 'explain') {
+      const message =
+        !result.ok
+          ? result.error.message
+          : result.value.status === 'error'
+            ? result.value.message
+            : 'That question could not be answered.';
+      set((s) => ({
+        followUpPending: false,
+        followUps: [...s.followUps, { role: 'assistant', content: message }],
+      }));
+      return;
+    }
+
+    const answer = result.value.proposal.explanation;
+    set((s) => ({
+      followUpPending: false,
+      followUps: [...s.followUps, { role: 'assistant', content: answer }],
+    }));
+  },
 
   loadModels: async (refresh = false) => {
     const result = await invoke('ai:listModels', refresh ? { refresh: true } : {});
@@ -251,6 +308,10 @@ export const useAiStore = create<AiState>((set, get) => ({
       activeProfile: profile,
       activeMode: mode ?? null,
       streamText: '',
+      // A new run ends the previous explanation thread: follow-ups about an explanation that is no
+      // longer on screen would be answering questions against code the user has moved on from.
+      followUps: [],
+      followUpPending: false,
       proposal: null,
       blocked: null,
       errorMessage: null,
@@ -458,6 +519,9 @@ export const useAiStore = create<AiState>((set, get) => ({
       return false;
     }
     notify('success', 'Fix Applied ✅', fileName);
+    // Counted only for repairs that actually landed on disk — the feedback prompt is meant to
+    // follow the product working, not the button being pressed.
+    useFeedbackStore.getState().recordRepair();
     // Reflect the applied repair everywhere the user can see it: the open buffer (so the editor shows
     // the new code, undo intact) and the history list.
     const reread = await invoke('fs:readFile', { relPath: proposal.target.file });
@@ -476,6 +540,10 @@ export const useAiStore = create<AiState>((set, get) => ({
       activeFindingId: null,
       activeProfile: null,
       streamText: '',
+      // A new run (or a dismissal) ends the previous explanation thread — follow-ups about an
+      // explanation that is no longer on screen would answer questions the user cannot see.
+      followUps: [],
+      followUpPending: false,
       proposal: null,
       blocked: null,
       errorMessage: null,

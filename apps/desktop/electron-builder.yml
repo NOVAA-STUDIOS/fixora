@@ -81,29 +81,39 @@ win:
   target:
     - nsis
   artifactName: Fixora-Setup.exe
-  # KNOWN LIMITATION — this flag controls two things, and we only want to skip one of them.
+  # The name of the packaged binary itself. Left implicit it derives from `productName`, which is
+  # already "Fixora" — but NSIS reads this field when it names the Start Menu entry, and stating it
+  # is what stops that entry falling back to Electron's own metadata.
+  executableName: Fixora
+  # This flag gates TWO things: code signing (which we still do not do — ADR-021 defers it to the
+  # paid launch, and no certificate is configured, so signing is skipped with a log line) AND
+  # rcedit's rewrite of the exe's icon + version resources, which we DO want. With it off, the
+  # shipped Fixora.exe reported itself as "Electron 43.1.0 — GitHub, Inc." in Task Manager and in
+  # its Properties dialog.
   #
-  # It gates code signing (which we genuinely do not do yet: ADR-021 defers it to the paid launch)
-  # AND rcedit's rewrite of the exe's icon + version resources (which we DO want). With it off, the
-  # shipped Fixora.exe reports itself as "Electron 43.1.0 — GitHub, Inc." in Task Manager and in its
-  # Properties dialog, and carries the default Electron icon. The NSIS installer and the Start Menu
-  # entry are branded correctly; this affects the inner executable only.
+  # BUILD REQUIREMENT — this build now FAILS without one of the following:
+  #   - Windows Developer Mode enabled (Settings → System → For developers), or
+  #   - the packaging command run from an elevated shell.
   #
-  # It cannot simply be turned on here: electron-builder first extracts the winCodeSign toolchain,
-  # whose archive contains macOS symlinks (darwin/**/lib*.dylib). Creating a symlink on Windows needs
-  # SeCreateSymbolicLinkPrivilege, so the extraction fails with "A required privilege is not held by
-  # the client" and takes the whole build with it. Pre-seeding the cache does not help — the archive
-  # is extracted to a freshly randomised directory on every run.
+  # Why: electron-builder extracts the winCodeSign toolchain first, and that archive contains macOS
+  # symlinks (darwin/**/lib*.dylib). Creating a symlink on Windows needs
+  # SeCreateSymbolicLinkPrivilege, so without it the extraction dies with "A required privilege is
+  # not held by the client" and takes the whole build with it. Pre-seeding the cache does not help —
+  # the archive goes to a freshly randomised directory every run.
   #
-  # To fix: enable Windows Developer Mode (Settings → System → For developers), or run the packaging
-  # command from an elevated shell, then set this to true. Verify with:
+  # Verify after packaging:
   #   (Get-Item 'release\win-unpacked\Fixora.exe').VersionInfo
   # which must report ProductName "Fixora" and ProductVersion matching package.json.
-  signAndEditExecutable: false
+  signAndEditExecutable: true
 
-# Writes the icon into Fixora.exe, which `signAndEditExecutable: false` above otherwise skips —
-# leaving the exe, and therefore every shortcut pointing at it, showing Electron's default icon.
-# Runs before NSIS packs the installer, so the installed copy carries it too. See the script header.
+# Writes the icon and version resource into Fixora.exe.
+#
+# Kept even though `signAndEditExecutable` is now true, and deliberately so: rcedit and this hook
+# write the same fields, so the hook is now a belt to rcedit's braces rather than a replacement for
+# it. If the toolchain extraction ever fails again — a machine without Developer Mode, a locked-down
+# CI runner — rcedit silently does nothing and this is what still stamps the binary. It runs AFTER
+# rcedit and before NSIS packs the installer, so its values win and the installed copy carries them.
+# See the script header.
 afterPack: scripts/stamp-exe.cjs
 
 nsis:
@@ -115,3 +125,6 @@ nsis:
   artifactName: Fixora-Setup.exe
   createDesktopShortcut: always
   shortcutName: Fixora
+  # The Start Menu folder the shortcut is filed under. Without it the installer groups the entry by
+  # the exe's own metadata, which is where "Electron" was coming from.
+  menuCategory: Fixora

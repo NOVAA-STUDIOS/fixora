@@ -97,6 +97,15 @@ type UiState = {
   activeView: ActivityView;
   /** Which layout the workbench uses. Persisted — it is a working preference, not session state. */
   workspaceMode: WorkspaceMode;
+  /**
+   * Which tab the assistant pane shows (`workbench.tsx`'s EditModeTabs).
+   *
+   * Lifted out of `workbench.tsx`'s local state so a click in the Problems panel can switch to it:
+   * running Explain and leaving the user on the Repair tab puts the answer they asked for somewhere
+   * they are not looking. Not persisted — which tab you were on is session state.
+   */
+  editMode: 'repair' | 'proceed' | 'explain';
+  setEditMode: (mode: 'repair' | 'proceed' | 'explain') => void;
   /** Not persisted — a palette open across restarts would be a bug, not a feature. */
   paletteOpen: boolean;
   /** The New Project modal. Not persisted — same reasoning as `paletteOpen`. */
@@ -180,6 +189,7 @@ export const useUiStore = create<UiState>()(
       theme: 'dark',
       density: 'comfortable',
       activeView: 'workspace',
+      editMode: 'repair',
       workspaceMode: 'fix',
       paletteOpen: false,
       newProjectOpen: false,
@@ -216,6 +226,9 @@ export const useUiStore = create<UiState>()(
       },
       setActiveView: (activeView) => {
         set({ activeView });
+      },
+      setEditMode: (editMode) => {
+        set({ editMode });
       },
       setWorkspaceMode: (workspaceMode) => {
         // Switching mode also moves to that mode's home view — Problems for Fix & Analyze, Files

@@ -1,10 +1,10 @@
 import { PanelGroupRoot, ResizablePanel, ResizeHandle } from '@fixora/ui';
-import { lazy, Suspense, useCallback, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useRef } from 'react';
 
 import { ErrorBoundary } from '../../app/error-boundary.js';
 import { useUiStore, type PaneSizes } from '../../stores/ui-store.js';
 import { AiPanel } from '../ai/ai-panel.js';
-import { EditModeTabs, ProceedView, type EditMode } from '../ai/proceed-panel.js';
+import { EditModeTabs, ProceedView } from '../ai/proceed-panel.js';
 import { EditorArea } from '../editor/editor-area.js';
 import { FindingsPanel } from '../findings/findings-panel.js';
 import { HistoryPanel } from '../history/history-panel.js';
@@ -246,7 +246,9 @@ function WorkbenchContent(): React.JSX.Element {
  * renders exactly the panel it always did, and Explain stays the disabled placeholder it is.
  */
 function AssistantPanel(): React.JSX.Element {
-  const [mode, setMode] = useState<EditMode>('repair');
+  // From the store, not local state: the Problems panel's Explain button switches to this tab.
+  const mode = useUiStore((s) => s.editMode);
+  const setMode = useUiStore((s) => s.setEditMode);
   // A flex column that owns the pane's height. The first version returned a bare Fragment, so the tab
   // strip and the `h-full` AiPanel were siblings with no height distribution — together they exceeded
   // the pane, squeezing the strip and overflowing the panel. `min-h-0` lets the body actually shrink.

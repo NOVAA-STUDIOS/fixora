@@ -11,6 +11,7 @@ import {
   describeProviderFailure,
   describeSchemaFailureForUser,
   estimateComplexity,
+  FOLLOWUP_SYSTEM,
   DEFAULT_BUDGETS,
   parseRepairOutput,
   parseTestOutput,
@@ -741,6 +742,29 @@ export function createAiService(deps: AiServiceDeps): AiService {
        * closure — the same reason the refs below exist.
        */
       let activeRequest = prepared.request;
+
+      /*
+       * A follow-up question is APPENDED to the fully-grounded explain request, never sent on its
+       * own. `prepared.request` already carries the real file content, the exact finding and the
+       * analyzer's verbatim message, so every turn is re-anchored to the code rather than to the
+       * conversation. Answering from the transcript alone is how a thread drifts into describing
+       * code that is not there — which for a beginner audience is the worst failure available,
+       * because they cannot tell that it happened.
+       */
+      if (request.profile === 'explain' && request.followUp !== undefined) {
+        const { question, priorExplanation, history } = request.followUp;
+        activeRequest = {
+          ...activeRequest,
+          messages: [
+            ...activeRequest.messages,
+            { role: 'system' as const, content: FOLLOWUP_SYSTEM },
+            { role: 'assistant' as const, content: priorExplanation },
+            ...history.map((m) => ({ role: m.role, content: m.content })),
+            { role: 'user' as const, content: question },
+          ],
+        };
+      }
+
       trace.prompt(activeRequest.messages.map((m) => `[${m.role}]\n${m.content}`).join('\n\n'));
 
       const controller = new AbortController();

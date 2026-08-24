@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useAuthStore } from '../features/auth/auth-store.js';
 import { LoginScreen } from '../features/auth/login-screen.js';
+import { FeedbackDialog } from '../features/feedback/feedback-dialog.js';
 import { BulkCascadingDialog } from '../features/findings/bulk-cascading-dialog.js';
 import { UpgradeDialog } from '../features/license/upgrade-dialog.js';
 import { AppShell } from '../features/shell/app-shell.js';
@@ -93,6 +94,7 @@ export function App(): React.JSX.Element {
       {/* Root-level: a paused bulk repair must stay answerable even if the Group Repair panel
           that started it has been closed. */}
       <BulkCascadingDialog />
+      <FeedbackDialog />
       {showSignIn && <LoginScreen />}
       {splash.visible && <SplashScreen phase={splash.phase} version={version} />}
     </>

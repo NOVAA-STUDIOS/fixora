@@ -811,6 +811,7 @@ const FindingRow = memo(function FindingRow({
   const ignore = useFindingsStore((s) => s.ignore);
   const isSelected = useFindingsStore((s) => s.selectedId === finding.id);
   const runAi = useAiStore((s) => s.run);
+  const setEditMode = useUiStore((s) => s.setEditMode);
   const aiConfigured = useAiStore((s) => s.config?.configured ?? false);
   const aiBusy = useAiStore((s) => s.status === 'running');
   const setActiveView = useUiStore((s) => s.setActiveView);
@@ -979,7 +980,12 @@ const FindingRow = memo(function FindingRow({
                       ? undefined
                       : capability.reason
                 }
-                onClick={() => void runAi(action.profile, finding.id)}
+                onClick={() => {
+                  // Explain renders in the assistant pane's Explain tab, so take the user there —
+                  // otherwise the answer streams in behind whichever tab they were already on.
+                  if (action.profile === 'explain') setEditMode('explain');
+                  void runAi(action.profile, finding.id);
+                }}
                 className="shrink-0 rounded-md border border-border-strong bg-raised px-2 py-0.5 text-[11px] font-medium text-fg-secondary transition-colors duration-(--fx-motion-duration-fast) hover:border-accent-border hover:bg-hover hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
               >
                 {action.label}

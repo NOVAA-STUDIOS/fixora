@@ -58,6 +58,7 @@ export {
 } from './context/context-builder.js';
 export {
   buildProviderRequest,
+  FOLLOWUP_SYSTEM,
   profileWantsStructuredOutput,
   type BuildRequestOptions,
 } from './profiles/profiles.js';

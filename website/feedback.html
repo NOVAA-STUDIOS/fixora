@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fixora — User Feedback</title>
+    <meta name="description" content="What people are saying about Fixora." />
+    <style>
+      :root {
+        --bg: #0b0b0f;
+        --surface-2: #16161d;
+        --fg: #ecebf3;
+        --fg-muted: #a0a0b0;
+        --accent: #8b5cf6;
+        --border: #262633;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #fbfbfd;
+          --surface-2: #f2f2f7;
+          --fg: #16161d;
+          --fg-muted: #5c5c6b;
+          --accent: #7c3aed;
+          --border: #e6e6ee;
+        }
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.7;
+      }
+      .wrap {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 56px 24px 80px;
+      }
+      a {
+        color: var(--accent);
+      }
+      h1 {
+        letter-spacing: -0.02em;
+        margin-bottom: 4px;
+      }
+      .back {
+        color: var(--fg-muted);
+        text-decoration: none;
+        font-size: 14px;
+      }
+      .count {
+        color: var(--fg-muted);
+        font-size: 14px;
+        margin: 0 0 28px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+      @media (max-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+      }
+      .stars {
+        color: #f5a623;
+        font-size: 14px;
+        letter-spacing: 2px;
+      }
+      .comment {
+        margin: 10px 0 0;
+        font-size: 14px;
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+      }
+      .date {
+        margin: 10px 0 0;
+        font-size: 12px;
+        color: var(--fg-muted);
+      }
+      .skeleton {
+        height: 118px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: linear-gradient(90deg, var(--surface-2) 25%, var(--bg) 50%, var(--surface-2) 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.4s ease-in-out infinite;
+      }
+      @keyframes shimmer {
+        from {
+          background-position: 200% 0;
+        }
+        to {
+          background-position: -200% 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .skeleton {
+          animation: none;
+        }
+      }
+      .pager {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 32px;
+      }
+      .pager button {
+        font: inherit;
+        font-size: 14px;
+        padding: 8px 16px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--fg);
+        cursor: pointer;
+      }
+      .pager button[disabled] {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .empty {
+        color: var(--fg-muted);
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <a class="back" href="/">← Fixora</a>
+      <h1>User Feedback</h1>
+      <p class="count" id="count">Loading…</p>
+
+      <div class="grid" id="grid">
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+      </div>
+
+      <div class="pager" id="pager" hidden>
+        <button type="button" id="prev">← Previous</button>
+        <span id="page-label"></span>
+        <button type="button" id="next">Next →</button>
+      </div>
+    </div>
+
+    <script>
+      /*
+       * The full wall.
+       *
+       * "ALL reviews (1-5 stars)" is the intent, but what actually arrives is whatever the anon key
+       * is permitted to read — consented, commented rows (docs/feedback-table.sql). A 2★ review
+       * appears here if and only if its author ticked the publish box; nothing is surfaced because
+       * this page asked for it. The rating filter is dropped, the consent requirement is not, and
+       * it is not this page's to drop.
+       */
+      (function () {
+        var SUPABASE_URL = 'https://avnvwgymlmzrbppmvvgl.supabase.co';
+        var ANON_KEY = 'sb_publishable_nXlTySou511b4UjRTJla1Q_hMSKPkrj';
+        var PAGE_SIZE = 20;
+
+        var grid = document.getElementById('grid');
+        var countEl = document.getElementById('count');
+        var pager = document.getElementById('pager');
+        var prev = document.getElementById('prev');
+        var next = document.getElementById('next');
+        var pageLabel = document.getElementById('page-label');
+
+        var page = 0;
+        var total = 0;
+
+        function stars(n) {
+          return '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
+        }
+        function formatDate(iso) {
+          var d = new Date(iso);
+          return isNaN(d.getTime())
+            ? ''
+            : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+        }
+        // textContent throughout — comments are user-written and this is a public page.
+        function card(row) {
+          var el = document.createElement('div');
+          el.className = 'card';
+          var s = document.createElement('div');
+          s.className = 'stars';
+          s.textContent = stars(row.rating);
+          var c = document.createElement('p');
+          c.className = 'comment';
+          c.textContent = row.comment;
+          var d = document.createElement('p');
+          d.className = 'date';
+          d.textContent = formatDate(row.created_at);
+          el.appendChild(s);
+          el.appendChild(c);
+          el.appendChild(d);
+          return el;
+        }
+
+        function render(rows) {
+          grid.innerHTML = '';
+          if (rows.length === 0) {
+            var p = document.createElement('p');
+            p.className = 'empty';
+            p.textContent = 'No feedback has been shared publicly yet.';
+            grid.appendChild(p);
+            return;
+          }
+          rows.forEach(function (row) {
+            grid.appendChild(card(row));
+          });
+        }
+
+        function load() {
+          var from = page * PAGE_SIZE;
+          var to = from + PAGE_SIZE - 1;
+          fetch(
+            SUPABASE_URL +
+              '/rest/v1/feedback?select=rating,comment,created_at&comment=not.is.null&order=created_at.desc',
+            {
+              headers: {
+                apikey: ANON_KEY,
+                Authorization: 'Bearer ' + ANON_KEY,
+                // `count=exact` puts the total in Content-Range, so the page count is real rather
+                // than inferred from whether the last page happened to be full.
+                Prefer: 'count=exact',
+                Range: from + '-' + to,
+              },
+            },
+          )
+            .then(function (r) {
+              if (!r.ok && r.status !== 206) throw new Error('HTTP ' + r.status);
+              var range = r.headers.get('content-range');
+              if (range) {
+                var parsed = parseInt(range.split('/')[1], 10);
+                if (!isNaN(parsed)) total = parsed;
+              }
+              return r.json();
+            })
+            .then(function (rows) {
+              if (!Array.isArray(rows)) throw new Error('bad payload');
+              render(rows);
+              countEl.textContent =
+                total === 1
+                  ? '1 user has shared feedback'
+                  : total + ' users have shared feedback';
+              var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+              pageLabel.textContent = 'Page ' + (page + 1) + ' of ' + pages;
+              prev.disabled = page === 0;
+              next.disabled = page + 1 >= pages;
+              pager.hidden = pages <= 1;
+            })
+            .catch(function () {
+              grid.innerHTML = '';
+              countEl.textContent = 'Feedback could not be loaded right now.';
+              pager.hidden = true;
+            });
+        }
+
+        prev.addEventListener('click', function () {
+          if (page > 0) {
+            page -= 1;
+            load();
+          }
+        });
+        next.addEventListener('click', function () {
+          page += 1;
+          load();
+        });
+        load();
+      })();
+    </script>
+  </body>
+</html>

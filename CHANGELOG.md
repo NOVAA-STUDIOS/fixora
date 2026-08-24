@@ -6,6 +6,42 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## v1.1.8 — Feedback, Smarter Explain & Polish
+
+_Released August 24, 2026_
+
+### ✨ New Features
+
+#### 💬 User Feedback System
+- Rate your experience after your first few repairs (1–5 stars)
+- Share optional comments to help us improve
+- Opt-in to have your feedback shown on the Fixora website
+- "Maybe Later" snoozes the prompt — never shown again after you submit
+
+#### 🌐 Public Feedback Wall
+- Visit fixora-opal.vercel.app/feedback.html to see shared feedback
+- Only feedback you explicitly opt to share appears publicly
+
+#### 💡 Explain — Follow-up Chat
+- Ask follow-up questions after any explanation
+- AI answers in simple, beginner-friendly language
+- Every answer is grounded in your actual code — no generic responses
+- Up to 10 follow-up questions per session, completely free
+
+### 🔒 Security & Reliability
+- File encoding now detected and preserved on every repair (UTF-8, UTF-16, Latin-1)
+- Gumroad licenses re-verified every 24 hours — refunded keys automatically revoked
+- MCP Server now works alongside a running Fixora instance (standalone mode)
+- Privacy policy updated to accurately disclose all data collection
+
+### 🐛 Bug Fixes
+- Fixed Windows Start Menu showing "Electron" instead of "Fixora"
+- Fixed app executable metadata (version, company name, description)
+- Fixed problem card text overlapping during repair state transitions
+
+### ⚠️ Known Limitations
+- Windows binary is not yet code-signed (SmartScreen warning on first install — click "More info → Run anyway")
+
 ## v1.1.7 — Smarter, Safer, More Informative
 
 _Released August 23, 2026_

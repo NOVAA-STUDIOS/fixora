@@ -1,6 +1,6 @@
-import type { AiRunStage } from '@fixora/shared-types';
-import { Button } from '@fixora/ui';
-import { useEffect } from 'react';
+import { FOLLOWUP_MAX_MESSAGES, type AiRunStage } from '@fixora/shared-types';
+import { Button, cn } from '@fixora/ui';
+import { useEffect, useState } from 'react';
 
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
@@ -162,7 +162,10 @@ export function AiPanel(): React.JSX.Element {
           )}
 
           {status === 'done' && proposal?.profile === 'explain' && (
-            <ExplainText text={proposal.explanation} />
+            <>
+              <ExplainText text={proposal.explanation} />
+              <FollowUpChat />
+            </>
           )}
 
           {status === 'done' && proposal?.profile === 'test' && (
@@ -261,5 +264,82 @@ export function ExplainText({ text }: { text: string }): React.JSX.Element {
         ),
       )}
     </pre>
+  );
+}
+
+/**
+ * Follow-up questions about the explanation above.
+ *
+ * Every question is answered against the SAME grounded context the explanation used — main rebuilds
+ * the real file and the exact finding for each one (`ai-service.ts`), so an answer five turns in is
+ * still describing the user's actual code rather than the transcript. Free, like Explain itself:
+ * `ai:run` meters `profile: 'repair'` only.
+ */
+function FollowUpChat(): React.JSX.Element {
+  const followUps = useAiStore((s) => s.followUps);
+  const pending = useAiStore((s) => s.followUpPending);
+  const ask = useAiStore((s) => s.askFollowUp);
+  const [question, setQuestion] = useState('');
+
+  const atCap = followUps.length >= FOLLOWUP_MAX_MESSAGES;
+
+  const send = (): void => {
+    const trimmed = question.trim();
+    if (trimmed === '' || pending || atCap) return;
+    setQuestion('');
+    void ask(trimmed);
+  };
+
+  return (
+    <div className="mt-4 flex flex-col gap-2 border-t border-border-subtle pt-3">
+      {followUps.map((turn, index) => (
+        <div
+          key={index}
+          className={cn(
+            'rounded-lg px-2.5 py-1.5 text-xs leading-relaxed [overflow-wrap:anywhere]',
+            turn.role === 'user'
+              ? 'self-end bg-accent-subtle text-accent-text'
+              : 'bg-inset text-fg-secondary',
+          )}
+        >
+          {turn.role === 'assistant' ? <ExplainText text={turn.content} /> : turn.content}
+        </div>
+      ))}
+
+      {pending && <p className="text-xs text-fg-muted">Thinking…</p>}
+
+      {atCap ? (
+        <p className="text-xs text-fg-muted">
+          That&apos;s the end of this thread. Run Explain again to start a new one.
+        </p>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <input
+            value={question}
+            onChange={(e) => {
+              setQuestion(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            disabled={pending}
+            placeholder="Ask anything about this issue…"
+            className="min-w-0 flex-1 rounded-lg border border-border-strong bg-inset px-2.5 py-1.5 text-xs text-fg placeholder:text-fg-muted disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-focus-ring focus-visible:outline"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0"
+            disabled={pending || question.trim() === ''}
+            onClick={send}
+          >
+            Send
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

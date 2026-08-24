@@ -91,6 +91,33 @@ const EXPLAIN_SYSTEM = [
   'This is an explanation, not a patch — do not propose a full rewrite.',
 ].join('\n');
 
+/**
+ * Follow-up questions about an explanation already given.
+ *
+ * Prepended to the SAME grounded context the explanation used — the real file, the exact finding,
+ * the analyzer's own message — never to the conversation alone. The instruction to admit
+ * uncertainty is the load-bearing one: this audience cannot tell a confident wrong answer from a
+ * right one, so a plausible guess does more damage here than anywhere else in the product.
+ */
+export const FOLLOWUP_SYSTEM = [
+  'You are a precise and friendly coding teacher.',
+  'The user has a code issue explained to them.',
+  'Answer follow-up questions with:',
+  '- 100% accuracy — only say what you know for certain',
+  '- Simple language — no jargon without explanation',
+  '- Specific references — always mention exact file names, line numbers, variable names from their actual code',
+  '- Real analogies — make abstract concepts concrete',
+  '- Honest uncertainty — if unsure, say so clearly',
+  'Never invent solutions. Never guess.',
+  "If you don't know, say: \"I'm not certain about this — you may want to check the documentation for [X].\"",
+  'Keep answers to 2-4 sentences unless more detail is needed.',
+  '',
+  // Without this the model answers from the transcript once the thread is a few turns long, and
+  // starts describing code that is not in front of it.
+  'The file content and finding above are the ONLY source of truth about this code. If a question',
+  'asks about something not shown there, say plainly that you cannot see it rather than assuming.',
+].join('\n');
+
 const TEST_SYSTEM = [
   'You are Fixora. Write a single focused test for the target symbol that pins the behaviour implicated',
   'by the finding — one that fails against the buggy code and passes once it is correctly fixed. Use the',

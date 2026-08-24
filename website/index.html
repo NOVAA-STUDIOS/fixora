@@ -247,6 +247,64 @@
       /* Cookie consent bar. Fixed to the bottom, above everything, and deliberately quiet — it is
          a question, not a takeover. Accept and Decline carry equal visual weight apart from the
          accent fill, so declining is a real option rather than a hidden one. */
+      /* Feedback wall. 3 columns on desktop, 1 on mobile. */
+      .feedback-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 24px;
+      }
+      @media (max-width: 900px) {
+        .feedback-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .feedback-card {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+      }
+      .feedback-stars {
+        color: #f5a623;
+        font-size: 14px;
+        letter-spacing: 2px;
+      }
+      .feedback-comment {
+        margin: 10px 0 0;
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--fg);
+        overflow-wrap: anywhere;
+      }
+      .feedback-date {
+        margin: 10px 0 0;
+        font-size: 12px;
+        color: var(--fg-muted);
+      }
+      /* Loading placeholders — same box as a real card so the section does not jump when they are
+         replaced by content. */
+      .feedback-skeleton {
+        height: 118px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface) 50%, var(--surface-2) 75%);
+        background-size: 200% 100%;
+        animation: feedback-shimmer 1.4s ease-in-out infinite;
+      }
+      @keyframes feedback-shimmer {
+        from {
+          background-position: 200% 0;
+        }
+        to {
+          background-position: -200% 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .feedback-skeleton {
+          animation: none;
+        }
+      }
       .cookie-banner {
         position: fixed;
         left: 50%;
@@ -1365,11 +1423,27 @@
       })();
     </script>
 
+    <!--
+      Feedback wall. Hidden by default and only revealed once at least MIN_REVIEWS have loaded — a
+      testimonial section showing one review reads worse than no section at all, and an empty one
+      reads worst of all. Only consented, commented, 4★+ rows are readable by the anon key (see
+      docs/feedback-table.sql), so the filtering below mirrors a policy the server already enforces
+      rather than being the thing that protects anyone's privacy.
+    -->
+    <section id="feedback-wall" class="wrap" hidden style="padding: 64px 24px">
+      <h2 style="letter-spacing: -0.02em">What Users Say</h2>
+      <div id="feedback-grid" class="feedback-grid"></div>
+      <p style="margin-top: 20px; font-size: 14px">
+        <a href="/feedback.html">See all feedback →</a>
+      </p>
+    </section>
+
     <footer>
       <div class="wrap">
         Fixora — verified AI code repair. ·
         <a href="/terms.html">Terms of Service</a> · <a href="/privacy.html">Privacy Policy</a> ·
         <a href="/refund.html">Refund Policy</a> ·
+        <a href="/feedback.html">User Feedback</a> ·
         <a href="https://github.com/NOVAA-STUDIOS/fixora">GitHub</a> ·
         <a href="mailto:nova.team.support@gmail.com">Contact</a> ·
         <a href="/.well-known/security.txt">Security</a>
@@ -1620,6 +1694,74 @@
           requestAnimationFrame(draw);
         }
         requestAnimationFrame(draw);
+      })();
+    </script>
+
+    <script>
+      // Feedback wall loader. The anon key is a public, RLS-scoped credential — it is already
+      // shipped inside the desktop app's bundle, and the policies decide what it can see, not
+      // secrecy. Anything it can read here is by definition already public.
+      (function () {
+        var SUPABASE_URL = 'https://avnvwgymlmzrbppmvvgl.supabase.co';
+        var ANON_KEY = 'sb_publishable_nXlTySou511b4UjRTJla1Q_hMSKPkrj';
+        var MIN_REVIEWS = 3;
+
+        var section = document.getElementById('feedback-wall');
+        var grid = document.getElementById('feedback-grid');
+        if (!section || !grid) return;
+
+        function stars(n) {
+          return '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
+        }
+        function formatDate(iso) {
+          var d = new Date(iso);
+          return isNaN(d.getTime())
+            ? ''
+            : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+        }
+        // textContent, never innerHTML, for anything a user typed: a comment is untrusted input and
+        // this is a public page.
+        function card(row) {
+          var el = document.createElement('div');
+          el.className = 'feedback-card';
+          var s = document.createElement('div');
+          s.className = 'feedback-stars';
+          s.textContent = stars(row.rating);
+          var c = document.createElement('p');
+          c.className = 'feedback-comment';
+          c.textContent = row.comment;
+          var d = document.createElement('p');
+          d.className = 'feedback-date';
+          d.textContent = formatDate(row.created_at);
+          el.appendChild(s);
+          el.appendChild(c);
+          el.appendChild(d);
+          return el;
+        }
+
+        var query =
+          '/rest/v1/feedback?select=rating,comment,created_at' +
+          '&comment=not.is.null&rating=gte.4&order=created_at.desc&limit=50';
+
+        fetch(SUPABASE_URL + query, {
+          headers: { apikey: ANON_KEY, Authorization: 'Bearer ' + ANON_KEY },
+        })
+          .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function (rows) {
+            if (!Array.isArray(rows) || rows.length < MIN_REVIEWS) return;
+            grid.innerHTML = '';
+            rows.slice(0, 6).forEach(function (row) {
+              grid.appendChild(card(row));
+            });
+            section.hidden = false;
+          })
+          .catch(function () {
+            // Stays hidden. A testimonial section that says "could not load reviews" is worse than
+            // one that was never there.
+          });
       })();
     </script>
 
