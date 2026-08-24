@@ -334,6 +334,13 @@ export function createFindingsRepository(driver: SqliteDriver, now: () => number
 
 export type FindingsRepository = ReturnType<typeof createFindingsRepository>;
 
+/** The status bar's repair-stats read (`getStatsToday`), all scoped to the current workspace. */
+export interface RepairStatsToday {
+  repairedToday: number;
+  repairedTotal: number;
+  filesFixed: number;
+}
+
 /** What a repair records at proposal time — everything but the row id and timestamps. */
 export interface NewRepair {
   workspaceId: string;
@@ -402,6 +409,7 @@ function toHistoryEntry(row: Row): RepairHistoryEntry {
     endLine: row['end_line'] as number,
     createdAt: row['created_at'] as number,
     appliedAt: (row['applied_at'] as number | null) ?? null,
+    wasForced: (row['was_forced'] as number) === 1,
   };
 }
 
@@ -416,7 +424,9 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
   // `flush()` replays every descriptor inside one `driver.transaction()`. One buffer, not one per
   // workspace, because main only ever has one workspace open at a time (every other repository here
   // makes the same assumption via `deps.workspace.getCurrent()`).
-  type BufferedOp = { kind: 'insert'; id: string; repair: NewRepair } | { kind: 'markApplied'; id: string };
+  type BufferedOp =
+    | { kind: 'insert'; id: string; repair: NewRepair }
+    | { kind: 'markApplied'; id: string; forced: boolean };
   let buffered: BufferedOp[] | null = null;
 
   const insert = (id: string, repair: NewRepair): void => {
@@ -451,8 +461,10 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
       );
   };
 
-  const applyMark = (id: string): void => {
-    driver.prepare('UPDATE repairs SET applied = 1, applied_at = ? WHERE id = ?').run(now(), id);
+  const applyMark = (id: string, forced: boolean): void => {
+    driver
+      .prepare('UPDATE repairs SET applied = 1, applied_at = ?, was_forced = ? WHERE id = ?')
+      .run(now(), forced ? 1 : 0, id);
   };
 
   return {
@@ -472,7 +484,7 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
       driver.transaction(() => {
         for (const op of ops) {
           if (op.kind === 'insert') insert(op.id, op.repair);
-          else applyMark(op.id);
+          else applyMark(op.id, op.forced);
         }
       });
       return ops.length;
@@ -485,9 +497,9 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
       return id;
     },
 
-    markApplied(id: string): void {
-      if (buffered !== null) buffered.push({ kind: 'markApplied', id });
-      else applyMark(id);
+    markApplied(id: string, forced = false): void {
+      if (buffered !== null) buffered.push({ kind: 'markApplied', id, forced });
+      else applyMark(id, forced);
     },
 
     list(workspaceId: string, limit = 200): RepairHistoryEntry[] {
@@ -497,12 +509,46 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
         .map(toHistoryEntry);
     },
 
+    /** Repairs for one file, newest first — the per-file view of the same audit trail `list()`
+     * gives for the whole workspace. */
+    getByFile(workspaceId: string, relPath: string, limit = 50): RepairHistoryEntry[] {
+      return driver
+        .prepare(
+          'SELECT * FROM repairs WHERE workspace_id = ? AND rel_path = ? ORDER BY created_at DESC LIMIT ?',
+        )
+        .all(workspaceId, relPath, limit)
+        .map(toHistoryEntry);
+    },
+
     remove(id: string): void {
       driver.prepare('DELETE FROM repairs WHERE id = ?').run(id);
     },
 
     clearWorkspace(workspaceId: string): void {
       driver.prepare('DELETE FROM repairs WHERE workspace_id = ?').run(workspaceId);
+    },
+
+    /** The status bar's "⚡ X fixed today" — applied repairs only, `today` meaning local midnight
+     * to now, same as every other "today" in the app. */
+    getStatsToday(workspaceId: string): RepairStatsToday {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const repairedToday = (
+        driver
+          .prepare('SELECT COUNT(*) AS c FROM repairs WHERE workspace_id = ? AND applied = 1 AND applied_at >= ?')
+          .get(workspaceId, todayStart.getTime()) as { c: number }
+      ).c;
+      const repairedTotal = (
+        driver
+          .prepare('SELECT COUNT(*) AS c FROM repairs WHERE workspace_id = ? AND applied = 1')
+          .get(workspaceId) as { c: number }
+      ).c;
+      const filesFixed = (
+        driver
+          .prepare('SELECT COUNT(DISTINCT rel_path) AS c FROM repairs WHERE workspace_id = ? AND applied = 1')
+          .get(workspaceId) as { c: number }
+      ).c;
+      return { repairedToday, repairedTotal, filesFixed };
     },
   };
 }

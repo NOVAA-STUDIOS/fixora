@@ -5,9 +5,12 @@ import { LoginScreen } from '../features/auth/login-screen.js';
 import { FeedbackDialog } from '../features/feedback/feedback-dialog.js';
 import { BulkCascadingDialog } from '../features/findings/bulk-cascading-dialog.js';
 import { UpgradeDialog } from '../features/license/upgrade-dialog.js';
+import { OnboardingModal } from '../features/onboarding/onboarding-modal.js';
+import { ShareDialog } from '../features/sharing/share-dialog.js';
 import { AppShell } from '../features/shell/app-shell.js';
 import { SplashScreen } from '../features/shell/splash-screen.js';
 import { useSplash } from '../features/shell/use-splash.js';
+import { ShortcutsPanel } from '../features/shortcuts/shortcuts-panel.js';
 import { useFileWatch } from '../features/workspace/use-file-watch.js';
 import { useWorkspaceStore } from '../features/workspace/workspace-store.js';
 import { useAppearance } from '../hooks/use-appearance.js';
@@ -19,6 +22,7 @@ import {
   listenForRevalidation,
   useLicenseStore,
 } from '../stores/license-store.js';
+import { useShortcutsStore } from '../stores/shortcuts-store.js';
 
 /**
  * The root. It applies the persisted appearance (theme + density), adopts any workspace the main
@@ -87,6 +91,30 @@ export function App(): React.JSX.Element {
     void waitForAppReady().then(() => syncLicenseFromMain());
   }, [syncLicenseFromMain]);
 
+  // '?' opens the shortcuts reference from anywhere, same as the command palette's global listener
+  // — but a bare '?' must never fire while the user is typing it into a field (a commit message, a
+  // comment, a search box), so it is ignored whenever the event originates in an editable element.
+  const openShortcuts = useShortcutsStore((s) => s.open);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== '?') return;
+      const target = event.target;
+      const inEditable =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT');
+      if (inEditable) return;
+      event.preventDefault();
+      openShortcuts();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [openShortcuts]);
+
   return (
     <>
       <AppShell />
@@ -95,6 +123,9 @@ export function App(): React.JSX.Element {
           that started it has been closed. */}
       <BulkCascadingDialog />
       <FeedbackDialog />
+      <OnboardingModal />
+      <ShortcutsPanel />
+      <ShareDialog />
       {showSignIn && <LoginScreen />}
       {splash.visible && <SplashScreen phase={splash.phase} version={version} />}
     </>

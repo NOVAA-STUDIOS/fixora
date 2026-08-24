@@ -35,6 +35,8 @@ async function handlers(history: {
       markApplied: vi.fn(),
       record: vi.fn(),
       list: () => [],
+      getByFile: () => [],
+      getStatsToday: () => ({ repairedToday: 0, repairedTotal: 0, filesFixed: 0 }),
       remove: vi.fn(),
       clearWorkspace: vi.fn(),
       beginBulk: history.beginBulk,

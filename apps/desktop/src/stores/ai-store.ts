@@ -24,6 +24,8 @@ import { invoke, subscribe } from '../lib/bridge.js';
 import { basename } from '../lib/path.js';
 
 import { DAILY_LIMIT, useLicenseStore } from './license-store.js';
+import { useShareStore } from './share-store.js';
+import { useStatsStore } from './stats-store.js';
 
 /**
  * The renderer's AI state (M5, BYOK). It holds the *config the renderer is allowed to know* (configured,
@@ -522,11 +524,13 @@ export const useAiStore = create<AiState>((set, get) => ({
     // Counted only for repairs that actually landed on disk — the feedback prompt is meant to
     // follow the product working, not the button being pressed.
     useFeedbackStore.getState().recordRepair();
+    useShareStore.getState().recordRepair();
     // Reflect the applied repair everywhere the user can see it: the open buffer (so the editor shows
     // the new code, undo intact) and the history list.
     const reread = await invoke('fs:readFile', { relPath: proposal.target.file });
     if (reread.ok) refreshModelText(proposal.target.file, reread.value.file.content);
     void useHistoryStore.getState().refresh();
+    void useStatsStore.getState().refresh();
     get().dismiss();
     return true;
   },

@@ -14,6 +14,7 @@ import {
   ProceedOutcomeSchema,
   ProceedRunRequestSchema,
   RepairHistoryEntrySchema,
+  RepairStatsSchema,
 } from './ai.js';
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
@@ -480,6 +481,16 @@ export const contracts = {
   'ai:historyClear': {
     request: empty,
     response: z.object({ entries: z.array(RepairHistoryEntrySchema) }),
+  },
+  // The same audit trail, scoped to one file — for a "repairs made to this file" view.
+  'ai:historyByFile': {
+    request: z.object({ file: z.string().min(1) }),
+    response: z.object({ entries: z.array(RepairHistoryEntrySchema) }),
+  },
+  // The status bar's "⚡ X fixed today" read.
+  'ai:getStats': {
+    request: empty,
+    response: RepairStatsSchema,
   },
 
   // Sprint F1 (Suggestion System). Local-only: a suggestion never leaves the machine except through

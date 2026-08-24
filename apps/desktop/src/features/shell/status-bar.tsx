@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
 import { useMcpStore } from '../../stores/mcp-store.js';
+import { useStatsStore } from '../../stores/stats-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useEditorStatusStore } from '../editor/editor-status-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
@@ -99,6 +100,12 @@ export function StatusBar(): React.JSX.Element {
     void loadMcp();
   }, [loadMcp]);
 
+  const stats = useStatsStore((s) => s.stats);
+  const refreshStats = useStatsStore((s) => s.refresh);
+  useEffect(() => {
+    void refreshStats();
+  }, [refreshStats, workspace]);
+
   const analysis =
     status === 'running'
       ? 'Analyzing…'
@@ -116,6 +123,16 @@ export function StatusBar(): React.JSX.Element {
       className="flex h-(--fx-status-bar-height) shrink-0 items-center justify-between gap-3 px-3 text-xs text-fg-muted select-none"
     >
       <div className="flex min-w-0 items-center gap-2">
+        {stats !== null && stats.repairedToday > 0 && (
+          <>
+            <span title={`${String(stats.repairedTotal)} total repairs all time`}>
+              ⚡ {stats.repairedToday} fixed today
+            </span>
+            <span aria-hidden="true" className="text-border-strong">
+              ·
+            </span>
+          </>
+        )}
         {/* An external process can trigger repairs that write to this project while MCP is
             serving. That must never be invisible — if it is running, the user can see it. */}
         {mcpRunning && (

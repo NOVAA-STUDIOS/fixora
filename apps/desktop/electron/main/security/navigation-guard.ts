@@ -42,6 +42,8 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
   'mypy.readthedocs.io',
   'pkg.go.dev',
   'semgrep.dev',
+  // Tweet-intent link from the share dialog (share-dialog.tsx) after a successful repair.
+  'twitter.com',
 ]);
 
 function isAllowedExternalHost(host: string): boolean {

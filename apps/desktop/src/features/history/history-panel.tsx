@@ -215,6 +215,14 @@ function HistoryRow({
                   applied
                 </span>
               )}
+              {entry.wasForced && (
+                <span
+                  className="shrink-0 rounded-full bg-warn-subtle px-1.5 py-px text-[10px] font-medium text-warn-text"
+                  title="Applied without passing verification"
+                >
+                  forced
+                </span>
+              )}
               {/* Yields to the ✕ on hover, so the two never collide in the same corner. */}
               <span className="ml-auto shrink-0 text-[11px] tabular-nums text-fg-muted transition-opacity duration-(--fx-motion-duration-fast) group-hover/row:opacity-0">
                 {relativeTime(entry.createdAt)}

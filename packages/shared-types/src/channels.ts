@@ -99,6 +99,8 @@ export const channels = [
   'ai:history',
   'ai:historyRemove',
   'ai:historyClear',
+  'ai:historyByFile',
+  'ai:getStats',
   // Test generation (feature #7): grounds on a file, not a finding — a separate, additive path.
   'ai:generateTests',
   // Embedded MCP server (feature #10): called in-process by mcp-server.ts (getHandler, not a real

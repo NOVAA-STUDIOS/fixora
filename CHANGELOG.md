@@ -6,6 +6,42 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## v1.1.9 — Polish & Power Features
+
+_Released August 24, 2026_
+
+### ✨ New Features
+
+#### 🎓 Onboarding Experience
+- First-time users see a guided 5-step welcome tour
+- Empty states throughout the app — no more blank screens
+- Clear guidance on how to open projects, analyze, and repair
+
+#### ⌨️ Keyboard Shortcuts Panel
+- Press ? anywhere to see all keyboard shortcuts
+- Grouped by Navigation, Analysis, Editor, AI Features
+- Clean, searchable reference panel
+
+#### 🏅 "Fixed by Fixora" Badge
+- Add a badge to your README after fixing bugs
+- Share your fix on Twitter/X with one click
+- Badge appears after every 5th successful repair
+
+#### 📊 Repair Stats
+- Status bar shows "⚡ X fixed today"
+- Hover to see all-time repair count
+- Updates live after every repair
+
+#### 📋 Repair History Improvements
+- "Forced" badge on repairs applied without verification
+- Per-file repair history (available via API)
+- was_forced flag tracked in database
+
+### 🔌 VS Code Extension (Beta)
+- Install from GitHub Releases (.vsix file)
+- Analyze current file from VS Code
+- Powered by Fixora's MCP server
+
 ## v1.1.8 — Feedback, Smarter Explain & Polish
 
 _Released August 24, 2026_

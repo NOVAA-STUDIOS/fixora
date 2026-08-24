@@ -44,6 +44,14 @@ jobs:
 
       - run: dir apps\desktop\release
 
+      - name: Build VS Code extension .vsix
+        shell: bash
+        run: |
+          cd packages/vscode-extension
+          npm install -g @vscode/vsce
+          npx tsc
+          vsce package
+
       - name: Generate release notes from git log
         shell: bash
         run: |
@@ -65,6 +73,7 @@ jobs:
           files: |
             apps/desktop/release/*.exe
             apps/desktop/release/latest.yml
+            packages/vscode-extension/*.vsix
           body_path: RELEASE_NOTES.md
           draft: false
         env:

@@ -196,4 +196,14 @@ export const migrations: readonly Migration[] = [
       d.exec(`ALTER TABLE repairs ADD COLUMN verify_attempts TEXT NOT NULL DEFAULT '[]'`);
     },
   },
+  {
+    version: 9,
+    name: 'repairs_was_forced',
+    up: (d) => {
+      // Whether VERIFICATION was overridden (ai.handlers.ts's `forced`) at apply time. Previously
+      // logged only to the console — the audit trail is the one place this belongs, since it is
+      // exactly the record "trust us with your code" promises the user can inspect.
+      d.exec(`ALTER TABLE repairs ADD COLUMN was_forced INTEGER NOT NULL DEFAULT 0`);
+    },
+  },
 ];

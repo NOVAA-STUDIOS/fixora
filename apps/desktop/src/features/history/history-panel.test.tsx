@@ -42,6 +42,7 @@ function entry(overrides: Partial<RepairHistoryEntry> = {}): RepairHistoryEntry 
     endLine: 1,
     createdAt: Date.now(),
     appliedAt: null,
+    wasForced: false,
     ...overrides,
   };
 }

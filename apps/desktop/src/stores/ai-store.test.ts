@@ -614,8 +614,13 @@ describe('ai store — Force Apply reaches the write', () => {
       value: { applied: true, reason: null, message: 'applied', staleRangeCheck: null },
     });
     invoke.mockResolvedValueOnce({ ok: true, value: { file: { content: 'new content' } } });
-    // The history refresh that follows every successful apply (fire-and-forget in the store).
+    // The history and stats refreshes that follow every successful apply (fire-and-forget in the
+    // store).
     invoke.mockResolvedValueOnce({ ok: true, value: { entries: [] } });
+    invoke.mockResolvedValueOnce({
+      ok: true,
+      value: { repairedToday: 1, repairedTotal: 1, filesFixed: 1 },
+    });
 
     const ok = await useAiStore.getState().applyRepair({ forced: true });
 
@@ -639,8 +644,13 @@ describe('ai store — Force Apply reaches the write', () => {
       value: { applied: true, reason: null, message: 'applied', staleRangeCheck: null },
     });
     invoke.mockResolvedValueOnce({ ok: true, value: { file: { content: 'new content' } } });
-    // The history refresh that follows every successful apply (fire-and-forget in the store).
+    // The history and stats refreshes that follow every successful apply (fire-and-forget in the
+    // store).
     invoke.mockResolvedValueOnce({ ok: true, value: { entries: [] } });
+    invoke.mockResolvedValueOnce({
+      ok: true,
+      value: { repairedToday: 1, repairedTotal: 1, filesFixed: 1 },
+    });
 
     await useAiStore.getState().applyRepair({ forced: true });
 
@@ -679,6 +689,10 @@ describe('ai store — Force Apply reaches the write', () => {
     });
     invoke.mockResolvedValueOnce({ ok: true, value: { file: { content: 'new' } } });
     invoke.mockResolvedValueOnce({ ok: true, value: { entries: [] } });
+    invoke.mockResolvedValueOnce({
+      ok: true,
+      value: { repairedToday: 1, repairedTotal: 1, filesFixed: 1 },
+    });
 
     await useAiStore.getState().applyRepair();
 

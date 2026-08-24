@@ -546,7 +546,7 @@ export function registerAiHandlers(deps: {
         console.error('[apply] refused', { reason: outcome.reason, message: outcome.message });
         return outcome;
       }
-      if (historyId !== undefined) deps.history.markApplied(historyId);
+      if (historyId !== undefined) deps.history.markApplied(historyId, forced === true);
       // NOT counted here any more: the allowance is consumed at `ai:run` (above), which is the
       // point a provider call actually costs something and the only point every repair path —
       // including MCP, which never applies through this handler — passes through. Counting in
@@ -590,6 +590,18 @@ export function registerAiHandlers(deps: {
     if (workspace === null) return { entries: [] };
     deps.history.clearWorkspace(workspace.id);
     return { entries: deps.history.list(workspace.id) };
+  });
+
+  registerHandler('ai:historyByFile', ({ file }) => {
+    const workspace = deps.workspace.getCurrent();
+    if (workspace === null) return { entries: [] };
+    return { entries: deps.history.getByFile(workspace.id, file) };
+  });
+
+  registerHandler('ai:getStats', () => {
+    const workspace = deps.workspace.getCurrent();
+    if (workspace === null) return { repairedToday: 0, repairedTotal: 0, filesFixed: 0 };
+    return deps.history.getStatsToday(workspace.id);
   });
 }
 

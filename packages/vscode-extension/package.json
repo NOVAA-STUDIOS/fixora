@@ -1,0 +1,65 @@
+{
+  "name": "fixora-vscode",
+  "displayName": "Fixora — AI Code Repair",
+  "description": "AI-powered code analysis and repair in VS Code",
+  "version": "0.0.1",
+  "private": true,
+  "publisher": "novaa-studios",
+  "repository": "https://github.com/NOVAA-STUDIOS/fixora",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Linters", "AI"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "fixora.analyze",
+        "title": "Fixora: Analyze Current File"
+      },
+      {
+        "command": "fixora.repair",
+        "title": "Fixora: Repair Selected Issue"
+      },
+      {
+        "command": "fixora.explain",
+        "title": "Fixora: Explain Issue"
+      },
+      {
+        "command": "fixora.openApp",
+        "title": "Fixora: Open Fixora App"
+      }
+    ],
+    "configuration": {
+      "title": "Fixora",
+      "properties": {
+        "fixora.exePath": {
+          "type": "string",
+          "default": "Fixora.exe",
+          "description": "Path to the Fixora executable."
+        },
+        "fixora.mcpPort": {
+          "type": ["number", "null"],
+          "default": null,
+          "description": "MCP server port. Leave unset to auto-select."
+        },
+        "fixora.autoAnalyze": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically analyze files on save."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@fixora/tsconfig": "workspace:*",
+    "@types/node": "26.1.1",
+    "@types/vscode": "^1.85.0",
+    "typescript": "6.0.3"
+  }
+}

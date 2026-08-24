@@ -585,8 +585,19 @@ export const RepairHistoryEntrySchema = z.object({
   endLine: z.number().int().positive(),
   createdAt: z.number(),
   appliedAt: z.number().nullable(),
+  /** Whether VERIFICATION was overridden at apply time. False for repairs recorded before this
+   * shipped, which is the honest answer — nothing before it could have been forced. */
+  wasForced: z.boolean().default(false),
 });
 export type RepairHistoryEntry = z.infer<typeof RepairHistoryEntrySchema>;
+
+/** The status bar's "⚡ X fixed today" read. */
+export const RepairStatsSchema = z.object({
+  repairedToday: z.number().int().nonnegative(),
+  repairedTotal: z.number().int().nonnegative(),
+  filesFixed: z.number().int().nonnegative(),
+});
+export type RepairStats = z.infer<typeof RepairStatsSchema>;
 
 /** One reason the gate refused a send — which part, which rule — with no secret attached. */
 export const GateMatchInfoSchema = z.object({

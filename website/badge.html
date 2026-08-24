@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fixora — README Badge</title>
+    <meta name="description" content="Add a 'Fixed by Fixora' badge to your project's README." />
+    <style>
+      :root {
+        --bg: #0b0b0f;
+        --fg: #ecebf3;
+        --fg-muted: #a0a0b0;
+        --accent: #8b5cf6;
+        --border: #262633;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #fbfbfd;
+          --fg: #16161d;
+          --fg-muted: #5c5c6b;
+          --accent: #7c3aed;
+          --border: #e6e6ee;
+        }
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.7;
+      }
+      .wrap {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 56px 24px 80px;
+      }
+      a {
+        color: var(--accent);
+      }
+      h1 {
+        letter-spacing: -0.02em;
+      }
+      .back {
+        color: var(--fg-muted);
+        text-decoration: none;
+        font-size: 14px;
+      }
+      .preview {
+        margin: 20px 0;
+      }
+      pre {
+        background: color-mix(in srgb, var(--fg) 6%, transparent);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        font-size: 13px;
+      }
+      code {
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      }
+      button {
+        margin-top: 10px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 14px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button:hover {
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <a class="back" href="/">← Fixora</a>
+      <h1>README Badge</h1>
+      <p>Show that a repo is kept clean with Fixora. Drop this in your README:</p>
+
+      <div class="preview">
+        <img src="/badge.svg" alt="Fixed by Fixora" width="118" height="20" />
+      </div>
+
+      <pre><code id="snippet">[![Fixed by Fixora](https://fixora-opal.vercel.app/badge.svg)](https://fixora-opal.vercel.app)</code></pre>
+      <button type="button" id="copy-btn">Copy Markdown</button>
+    </div>
+    <script>
+      const btn = document.getElementById('copy-btn');
+      const snippet = document.getElementById('snippet');
+      btn.addEventListener('click', () => {
+        navigator.clipboard.writeText(snippet.textContent).then(() => {
+          btn.textContent = 'Copied!';
+          setTimeout(() => {
+            btn.textContent = 'Copy Markdown';
+          }, 1500);
+        });
+      });
+    </script>
+  </body>
+</html>
