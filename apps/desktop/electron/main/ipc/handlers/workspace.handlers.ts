@@ -24,6 +24,7 @@ import { emitToWindow } from '../emit.js';
 import { registerHandler } from '../router.js';
 
 import { stopAnalysisWatch } from './analysis.handlers.js';
+import { resetShieldThrottle } from './shield.handlers.js';
 
 /**
  * One watcher at a time, restarted when the open workspace changes. The renderer re-lists only the
@@ -99,6 +100,9 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     const { workspace } = service.open(path);
     const open = service.requireRoot();
     ensureWatching(service, window);
+    // A cached Code Shield report is only valid for the workspace it was measured in — a stale
+    // entry from whatever was open before must never answer for this one.
+    resetShieldThrottle();
     // Kick off indexing in the background; do not await it (first paint must not wait). Delayed
     // the same 2s as the watcher above — indexing a large repo is exactly the other synchronous
     // walk that was competing with the renderer's own startup work.
@@ -171,6 +175,7 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     // Watch Mode (analysis.handlers.ts) is a separate watcher, scoped to the same workspace — must
     // stop for the same reason: re-analyzing files in a folder that is no longer open.
     stopAnalysisWatch();
+    resetShieldThrottle();
     service.close();
   });
 

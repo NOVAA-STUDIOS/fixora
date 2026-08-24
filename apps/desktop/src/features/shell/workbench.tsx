@@ -9,6 +9,8 @@ import { EditorArea } from '../editor/editor-area.js';
 import { FindingsPanel } from '../findings/findings-panel.js';
 import { HistoryPanel } from '../history/history-panel.js';
 import { SettingsPanel } from '../settings/settings-panel.js';
+import { ShieldPanel } from '../shield/shield-panel.js';
+import { useShieldWatch } from '../shield/use-shield-watch.js';
 import { SuggestionPanel } from '../suggestions/suggestion-panel.js';
 import { WorkspacePanel } from '../workspace/workspace-panel.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
@@ -113,6 +115,9 @@ function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
  */
 export function Workbench(): React.JSX.Element {
   const activeView = useUiStore((s) => s.activeView);
+  // Code Shield auto-analyzes the active file. Driven from here, not from a view, so switching
+  // panels never tears down the watcher and loses the report the status bar is showing.
+  useShieldWatch();
   // Deferred until the user first opens Terminal — not up front on app boot — but once mounted it
   // stays mounted forever (see the comment below): the CSS-hidden trick that keeps background
   // shells alive only works if this flag never goes back to false.
@@ -130,6 +135,7 @@ export function Workbench(): React.JSX.Element {
         </div>
       )}
       {activeView !== 'terminal' && <WorkbenchContent />}
+      <ShieldPanel />
     </>
   );
 }

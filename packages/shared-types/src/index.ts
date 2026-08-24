@@ -231,6 +231,25 @@ export {
   type McpGetStatusResponse,
 } from './mcp.js';
 
+export {
+  ShieldCategorySchema,
+  ShieldSeveritySchema,
+  ShieldIssueSchema,
+  ShieldCheckSchema,
+  PrReadinessSchema,
+  CodeShieldReportSchema,
+  ShieldSensitivitySchema,
+  ShieldSettingsSchema,
+  type ShieldCategory,
+  type ShieldSeverity,
+  type ShieldIssue,
+  type ShieldCheck,
+  type PrReadiness,
+  type CodeShieldReport,
+  type ShieldSensitivity,
+  type ShieldSettings,
+} from './shield.js';
+
 export { classifyDiagnostic, type ConfigDiagnosis } from './diagnostic-classifier.js';
 
 export { grammarFor, type GrammarId } from './grammar.js';

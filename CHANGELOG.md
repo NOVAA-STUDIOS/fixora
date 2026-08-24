@@ -6,6 +6,58 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## v1.2.0 — Code Shield & VS Code Extension
+
+_Released August 24, 2026_
+
+### 🛡️ Code Shield — Your Personal Senior Engineer
+
+The most significant feature in Fixora's history. Code Shield analyzes every file you open and gives you a real-time quality score — like having a senior engineer review your code before every commit.
+
+- **PR Readiness Score (0–100)** — know exactly when your code is merge-ready
+- **Three readiness states** — Ready ✅, Needs Work ⚠️, Not Ready ❌
+- **Specific senior advice** — plain English guidance tied to your actual code
+- **Auto-Fix** for deterministic issues — one click, done
+- **Smart file detection** — never scores files it can't actually analyze
+- **30-second timeout protection** — never hangs on large or complex files
+- **Three sensitivity levels** — Strict, Balanced, Relaxed
+- **Status bar integration** — 🛡️ score always visible, click to open panel
+- **On by default** — toggle off anytime in Settings
+
+### 🔌 VS Code Extension — Now Truly Standalone
+
+- **No desktop app required** — works with your own API key
+- **Supports OpenAI, Anthropic, Gemini, OpenRouter**
+- **Inline diagnostics** — issues appear as squiggly lines in your editor
+- **First-time setup wizard** — guided API key configuration
+- **Available on VS Code Marketplace** — search "Fixora"
+
+### 🤖 GitHub PR Integration
+
+- Automatically analyzes every pull request in your repo
+- Posts a clean issue table as a PR comment, updates on each push
+- Zero configuration — copy one workflow file to get started
+
+### ✨ Polish & Developer Experience
+
+- Onboarding tour for first-time users
+- Keyboard shortcuts panel (press ? anywhere)
+- Repair stats in the status bar (⚡ X fixed today)
+- Full repair history with forced-apply tracking
+- Share repairs on Twitter/X, "Fixed by Fixora" README badge
+
+### 🐛 Bug Fixes
+
+- Fixed Code Shield showing fabricated scores for non-code files
+- Fixed silent analysis failures producing incorrect scores
+- Fixed cross-workspace cache collision showing the wrong project's score
+- Fixed stale score displayed during file switching
+- Fixed settings race condition on first file open
+
+### ⚠️ Known Limitations
+
+- Windows binary is not yet code-signed (SmartScreen warning on first install)
+
 ## v1.1.9 — Polish & Power Features
 
 _Released August 24, 2026_

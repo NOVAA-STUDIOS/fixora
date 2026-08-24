@@ -1,0 +1,55 @@
+name: Fixora PR Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  analyze:
+    name: Analyze changed files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.12.0
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: List changed files
+        id: changed
+        run: |
+          git diff --name-only --diff-filter=ACMR "origin/${{ github.base_ref }}"...HEAD \
+            | grep -E '\.(ts|tsx|js|jsx)$' > changed-files.txt || true
+          echo "count=$(wc -l < changed-files.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Run ESLint on changed files
+        if: steps.changed.outputs.count != '0'
+        run: |
+          cd apps/desktop
+          xargs -a ../../changed-files.txt npx eslint --format json --no-warn-ignored -o ../../eslint-results.json || true
+        continue-on-error: true
+
+      - name: Run tsc --noEmit
+        run: |
+          cd apps/desktop
+          npx tsc --noEmit -p tsconfig.node.json > ../../tsc-node.txt 2>&1 || true
+          npx tsc --noEmit -p tsconfig.web.json > ../../tsc-web.txt 2>&1 || true
+
+      - name: Post PR comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: node scripts/pr-comment.mjs

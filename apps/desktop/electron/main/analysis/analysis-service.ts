@@ -148,14 +148,15 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
      * run (which clears the whole workspace once, up front), this must replace only what this one
      * file owned, leaving every other file's findings untouched.
      */
-    async analyzeFile(window: BrowserWindow, relPath: string): Promise<void> {
+    async analyzeFile(window: BrowserWindow, relPath: string): Promise<{ ok: boolean }> {
       const open = deps.workspaces.requireRoot();
       const target = targetFor(open, relPath);
       // Not analyzable (wrong language, ignored, secret-denied, or vanished) — nothing to do, and
       // nothing to clear either: a file that was never indexed never had findings to remove.
-      if (target === null) return;
+      if (target === null) return { ok: true };
 
       let receivedFindings = false;
+      let ok = true;
       await new Promise<void>((resolve) => {
         deps.host.run({
           id: randomUUID(),
@@ -181,10 +182,12 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
             resolve();
           },
           onError: () => {
+            ok = false;
             resolve();
           },
         });
       });
+      return { ok };
     },
   };
 }
@@ -200,7 +203,7 @@ const yieldToEventLoop = (): Promise<void> =>
 /** Is this path analyzable, and if so, its worker target? The same vetting `collectTargets`'s walk
  * applies inline, factored out so `analyzeFile` (Watch Mode) can ask it about one path without
  * walking the tree at all. */
-function targetFor(open: OpenWorkspace, relPath: string): AnalysisTargetRef | null {
+export function targetFor(open: OpenWorkspace, relPath: string): AnalysisTargetRef | null {
   const language = detectLanguage(relPath);
   if (language === null || !isDeepLanguage(language)) return null;
   if (open.ignore.ignores(relPath) || isSecretPath(relPath)) return null;

@@ -1,15 +1,18 @@
 {
   "name": "fixora-vscode",
   "displayName": "Fixora — AI Code Repair",
-  "description": "AI-powered code analysis and repair in VS Code",
-  "version": "0.0.1",
+  "description": "AI-powered code analysis and repair. Find bugs, understand errors in plain English, and fix them instantly.",
+  "version": "0.2.0",
   "private": true,
   "publisher": "novaa-studios",
-  "repository": "https://github.com/NOVAA-STUDIOS/fixora",
+  "repository": { "type": "git", "url": "https://github.com/NOVAA-STUDIOS/fixora" },
+  "icon": "images/icon.png",
+  "galleryBanner": { "color": "#000000", "theme": "dark" },
+  "categories": ["Linters", "Other"],
+  "keywords": ["AI", "code repair", "lint", "fix", "bug", "analysis", "repair"],
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Linters", "AI"],
   "activationEvents": ["onStartupFinished"],
   "main": "./dist/extension.js",
   "contributes": {
@@ -29,6 +32,10 @@
       {
         "command": "fixora.openApp",
         "title": "Fixora: Open Fixora App"
+      },
+      {
+        "command": "fixora.setup",
+        "title": "Fixora: Setup API Key"
       }
     ],
     "configuration": {
@@ -48,6 +55,22 @@
           "type": "boolean",
           "default": false,
           "description": "Automatically analyze files on save."
+        },
+        "fixora.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for standalone analysis (used when the Fixora desktop app is not running)."
+        },
+        "fixora.aiProvider": {
+          "type": "string",
+          "enum": ["openai", "anthropic", "gemini", "openrouter"],
+          "default": "openrouter",
+          "description": "AI provider for standalone analysis."
+        },
+        "fixora.model": {
+          "type": "string",
+          "default": "google/gemini-flash-1.5",
+          "description": "Model id for standalone analysis."
         }
       }
     }

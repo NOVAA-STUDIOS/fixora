@@ -1,3 +1,4 @@
+import { cn } from '@fixora/ui';
 import { useEffect, useState } from 'react';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
@@ -6,6 +7,8 @@ import { useStatsStore } from '../../stores/stats-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useEditorStatusStore } from '../editor/editor-status-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
+import { scoreTone } from '../shield/shield-panel.js';
+import { useShieldStore } from '../shield/shield-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 /**
@@ -123,6 +126,10 @@ export function StatusBar(): React.JSX.Element {
       className="flex h-(--fx-status-bar-height) shrink-0 items-center justify-between gap-3 px-3 text-xs text-fg-muted select-none"
     >
       <div className="flex min-w-0 items-center gap-2">
+        <ShieldPill />
+        <span aria-hidden="true" className="text-border-strong">
+          ·
+        </span>
         {stats !== null && stats.repairedToday > 0 && (
           <>
             <span title={`${String(stats.repairedTotal)} total repairs all time`}>
@@ -234,6 +241,46 @@ export function StatusBar(): React.JSX.Element {
         </StatusButton>
       </div>
     </footer>
+  );
+}
+
+/**
+ * Code Shield's score, at a glance. Deliberately shows `--` rather than a number whenever there is
+ * no measured report — no file open, or a run that failed. A stale or invented score in the corner
+ * of the window would be read as current, which is precisely the trust this feature trades on.
+ */
+function ShieldPill(): React.JSX.Element {
+  const report = useShieldStore((s) => s.currentReport);
+  const isAnalyzing = useShieldStore((s) => s.isAnalyzing);
+  const setPanelOpen = useShieldStore((s) => s.setPanelOpen);
+  const panelOpen = useShieldStore((s) => s.panelOpen);
+
+  const measuredScore =
+    report !== null && report.error === null && report.score !== null ? report.score : null;
+  const label = isAnalyzing ? '...' : measuredScore !== null ? String(measuredScore) : '--';
+  const tone = measuredScore !== null && !isAnalyzing ? scoreTone(measuredScore) : null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setPanelOpen(!panelOpen);
+      }}
+      title={
+        measuredScore !== null
+          ? `Code Shield: ${String(measuredScore)}/100 — click for the full report`
+          : 'Code Shield — open a file to see its score'
+      }
+      aria-label={`Code Shield score ${label}`}
+      className={cn(
+        'shrink-0 rounded px-1.5 py-0.5 tabular-nums transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline',
+        tone === 'good' && 'text-success-text',
+        tone === 'warn' && 'text-warn-text',
+        tone === 'bad' && 'text-danger-text',
+      )}
+    >
+      🛡️ {label}
+    </button>
   );
 }
 

@@ -40,6 +40,7 @@ import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
 import { registerProjectHandlers } from './ipc/handlers/project.handlers.js';
 import { registerProviderHandlers } from './ipc/handlers/providers.handlers.js';
 import { registerSearchHandlers } from './ipc/handlers/search.handlers.js';
+import { registerShieldHandlers } from './ipc/handlers/shield.handlers.js';
 import { registerSuggestionHandlers } from './ipc/handlers/suggestions.handlers.js';
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
 import { registerTerminalHandlers } from './ipc/handlers/terminal.handlers.js';
@@ -50,9 +51,11 @@ import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
 import { revalidateIfDue } from './lib/gumroad-revalidate.js';
 import { initMcpSetting } from './lib/mcp-setting.js';
 import { getPlan } from './lib/repair-limit.js';
+import { initShieldSettings } from './lib/shield-settings.js';
 import { isMcpOnlyLaunch, startMcpOnly } from './mcp-standalone.js';
 import { createMailService } from './services/mail/mail-service.js';
 import { migrateLegacyUserData } from './services/migrate-user-data.js';
+import { createShieldService } from './services/shield/shield-service.js';
 import { createWorkspaceService } from './services/workspace-service.js';
 import { createSuggestionRepository } from './suggestions/suggestion-repository.js';
 import { createSuggestionService } from './suggestions/suggestion-service.js';
@@ -475,6 +478,17 @@ function startBackend(window: BrowserWindow | null): void {
   });
   registerTestGenerationHandlers({ workspace: workspaceService, orchestrator });
   registerNotificationHandlers();
+  // Code Shield: reads only — it re-runs the analyzers already wired above and reports what they
+  // found. Registered with the same services the Problems panel uses, so the two cannot disagree.
+  initShieldSettings(app.getPath('userData'));
+  registerShieldHandlers({
+    shield: createShieldService({
+      workspace: workspaceService,
+      analysis: analysisService,
+      findings: findingsRepo,
+    }),
+    workspace: workspaceService,
+  });
   initMcpSetting(app.getPath('userData'));
   registerMcpHandlers({
     workspace: workspaceService,

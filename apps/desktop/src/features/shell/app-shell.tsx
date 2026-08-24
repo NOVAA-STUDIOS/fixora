@@ -46,7 +46,9 @@ export function AppShell(): React.JSX.Element {
       */}
       <div className="flex h-screen flex-col overflow-hidden bg-inset text-fg">
         <TitleBar />
-        <div className="flex min-h-0 flex-1 gap-1.5 px-1.5 pb-1.5">
+        {/* `relative` is the positioning context Code Shield's slide-in panel resolves against —
+            without it the panel escapes to the viewport and covers the title and status bars. */}
+        <div className="relative flex min-h-0 flex-1 gap-1.5 px-1.5 pb-1.5">
           <ActivityRail />
           <Workbench />
         </div>

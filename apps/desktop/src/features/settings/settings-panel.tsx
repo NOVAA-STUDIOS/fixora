@@ -1,3 +1,4 @@
+import type { ShieldSensitivity } from '@fixora/shared-types';
 import {
   Button,
   Input,
@@ -17,6 +18,7 @@ import { useMcpStore } from '../../stores/mcp-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
+import { useShieldSettingsStore } from '../shield/shield-store.js';
 
 import { detectProvider, normaliseKey } from './detect-provider.js';
 import { GitHubActionsPanel } from './github-actions-panel.js';
@@ -58,6 +60,7 @@ export function SettingsPanel(): React.JSX.Element {
           <AppearanceSettings />
           <EditorSettings />
           <AnalysisSettings />
+          <ShieldSettings />
           <GitHubActionsPanel />
           <StartupSettings />
           <PerformanceSettings />
@@ -692,6 +695,66 @@ function McpSettings(): React.JSX.Element {
         </p>
       )}
       {running && <p className="text-xs text-warn">MCP server is active in this session.</p>}
+    </Group>
+  );
+}
+
+/**
+ * Code Shield. Sensitivity is worth an explanation rather than three bare words: it changes the
+ * score by changing which real findings are counted, and a user who reads it as a cosmetic filter
+ * will not understand why their number moved.
+ */
+function ShieldSettings(): React.JSX.Element {
+  const enabled = useShieldSettingsStore((s) => s.enabled);
+  const sensitivity = useShieldSettingsStore((s) => s.sensitivity);
+  const load = useShieldSettingsStore((s) => s.load);
+  const save = useShieldSettingsStore((s) => s.save);
+  const id = useId();
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const OPTIONS: { value: ShieldSensitivity; label: string; hint: string }[] = [
+    { value: 'strict', label: 'Strict', hint: 'Counts errors, warnings and info' },
+    { value: 'balanced', label: 'Balanced', hint: 'Counts errors and warnings' },
+    { value: 'relaxed', label: 'Relaxed', hint: 'Counts errors only' },
+  ];
+
+  return (
+    <Group title="Code Shield">
+      <ToggleField
+        label="Enable Code Shield"
+        htmlFor={id}
+        description="Your personal senior engineer — analyzes code quality, security, and PR readiness. It only reads: the score comes from the same analyzers the Problems panel runs, and nothing is sent anywhere."
+        checked={enabled}
+        onCheckedChange={(next) => {
+          void save({ enabled: next, sensitivity });
+        }}
+      />
+      {enabled && (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="text-sm font-medium text-fg">Sensitivity</legend>
+          {OPTIONS.map((option) => (
+            <label key={option.value} className="flex cursor-pointer items-start gap-2">
+              <input
+                type="radio"
+                name={`${id}-sensitivity`}
+                value={option.value}
+                checked={sensitivity === option.value}
+                onChange={() => {
+                  void save({ enabled, sensitivity: option.value });
+                }}
+                className="mt-1 shrink-0"
+              />
+              <span className="flex min-w-0 flex-col">
+                <span className="text-sm text-fg">{option.label}</span>
+                <span className="text-xs text-fg-muted">{option.hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
     </Group>
   );
 }

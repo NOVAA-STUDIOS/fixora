@@ -24,6 +24,18 @@ the Windows installer: **[PACKAGING.md](./docs/PACKAGING.md)**. How the beta was
 
 ---
 
+## GitHub PR Integration
+
+[![Fixed by Fixora](https://fixora-opal.vercel.app/badge.svg)](https://fixora-opal.vercel.app)
+
+Fixora can comment on every pull request with the lint/type issues in the changed files, and update
+that same comment on every push instead of spamming new ones. To add it to any repo, copy
+[`.github/workflows/fixora-pr.yml`](.github/workflows/fixora-pr.yml) and
+[`scripts/pr-comment.mjs`](scripts/pr-comment.mjs), then adjust the lint/typecheck commands to match
+that repo. It needs no secrets beyond the `GITHUB_TOKEN` GitHub Actions already provides.
+
+---
+
 ## Prerequisites
 
 | Tool     | Version | Why                                                        |

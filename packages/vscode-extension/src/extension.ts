@@ -2,7 +2,9 @@ import { spawn } from 'child_process';
 
 import * as vscode from 'vscode';
 
+import { analyzeCode, type AiProvider, type AnalysisIssue } from './ai-client.js';
 import { McpClient } from './mcp-client.js';
+import { openSetupWebview } from './setup-webview.js';
 
 interface Finding {
   file: string;
@@ -18,6 +20,15 @@ interface Finding {
 let mcpClient: McpClient | null = null;
 let diagnostics: vscode.DiagnosticCollection;
 let outputChannel: vscode.OutputChannel;
+let extensionContext: vscode.ExtensionContext;
+
+/** Suggested-fix text for a diagnostic from the standalone AI path, keyed by
+ *  `${uri}|${line}|${message}` — read back by the quick-fix `CodeActionProvider`. */
+const fixesByKey = new Map<string, string>();
+
+function fixKey(uri: vscode.Uri, line: number, message: string): string {
+  return `${uri.toString()}|${String(line)}|${message}`;
+}
 
 function fixoraExePath(): string {
   return vscode.workspace.getConfiguration('fixora').get<string>('exePath') ?? 'Fixora.exe';
@@ -34,6 +45,33 @@ function getClient(): McpClient {
   return mcpClient;
 }
 
+function hasApiKey(): boolean {
+  const key = vscode.workspace.getConfiguration('fixora').get<string>('apiKey') ?? '';
+  return key.trim() !== '';
+}
+
+function standaloneDiagnostics(uri: vscode.Uri, issues: readonly AnalysisIssue[]): vscode.Diagnostic[] {
+  return issues.map((issue) => {
+    const line = Math.max(0, issue.line - 1);
+    const diagnostic = new vscode.Diagnostic(
+      new vscode.Range(line, 0, line, Number.MAX_SAFE_INTEGER),
+      issue.message,
+      severityToVsCode(issue.severity),
+    );
+    diagnostic.source = 'Fixora (AI)';
+    if (issue.fix !== undefined) {
+      fixesByKey.set(fixKey(uri, line, issue.message), issue.fix);
+      diagnostic.code = 'fixora-ai-fix';
+    }
+    return diagnostic;
+  });
+}
+
+/**
+ * Analyzes the active file. MCP (the Fixora desktop app) is tried first — it is the richer,
+ * verified path — and only on failure (the app is not installed/running) does this fall back to a
+ * direct call to the user's own configured AI provider.
+ */
 async function analyzeActiveFile(): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
@@ -66,6 +104,31 @@ async function analyzeActiveFile(): Promise<void> {
     diagnostics.set(editor.document.uri, fileDiagnostics);
     void vscode.window.showInformationMessage(
       `Fixora: found ${String(fileDiagnostics.length)} issue(s) in ${editor.document.fileName}.`,
+    );
+    return;
+  } catch {
+    // Fixora app not installed/running — fall through to standalone analysis.
+  }
+
+  if (!hasApiKey()) {
+    const choice = await vscode.window.showInformationMessage(
+      'Fixora could not reach the desktop app, and no API key is configured for standalone analysis.',
+      'Setup API Key',
+    );
+    if (choice === 'Setup API Key') runSetup();
+    return;
+  }
+
+  try {
+    const config = vscode.workspace.getConfiguration('fixora');
+    const apiKey = config.get<string>('apiKey') ?? '';
+    const provider = (config.get<string>('aiProvider') ?? 'openrouter') as AiProvider;
+    const model = config.get<string>('model') ?? 'google/gemini-flash-1.5';
+
+    const result = await analyzeCode(editor.document.getText(), filePath, apiKey, provider, model);
+    diagnostics.set(editor.document.uri, standaloneDiagnostics(editor.document.uri, result.issues));
+    void vscode.window.showInformationMessage(
+      `Fixora (standalone): found ${String(result.issues.length)} issue(s) in ${editor.document.fileName}.`,
     );
   } catch (error) {
     void vscode.window.showErrorMessage(`Fixora analyze failed: ${(error as Error).message}`);
@@ -147,9 +210,51 @@ function openApp(): void {
   }
 }
 
+function runSetup(): void {
+  openSetupWebview(extensionContext, () => {
+    void analyzeActiveFile();
+  });
+}
+
+/** Offers the AI-suggested replacement (`ai-client.ts`'s `fix`) as a quick fix on the squiggly. */
+class FixoraCodeActionProvider implements vscode.CodeActionProvider {
+  provideCodeActions(
+    document: vscode.TextDocument,
+    _range: vscode.Range,
+    context: vscode.CodeActionContext,
+  ): vscode.CodeAction[] {
+    const actions: vscode.CodeAction[] = [];
+    for (const diagnostic of context.diagnostics) {
+      if (diagnostic.code !== 'fixora-ai-fix') continue;
+      const line = diagnostic.range.start.line;
+      const fix = fixesByKey.get(fixKey(document.uri, line, diagnostic.message));
+      if (fix === undefined) continue;
+
+      const action = new vscode.CodeAction('Fixora: Apply suggested fix', vscode.CodeActionKind.QuickFix);
+      action.diagnostics = [diagnostic];
+      action.edit = new vscode.WorkspaceEdit();
+      action.edit.replace(document.uri, document.lineAt(line).range, fix);
+      actions.push(action);
+    }
+    return actions;
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
+  extensionContext = context;
   diagnostics = vscode.languages.createDiagnosticCollection('fixora');
   outputChannel = vscode.window.createOutputChannel('Fixora');
+
+  if (!hasApiKey()) {
+    void vscode.window
+      .showInformationMessage(
+        'Fixora: set up an API key to analyze code even when the desktop app is not running.',
+        'Setup API Key',
+      )
+      .then((choice) => {
+        if (choice === 'Setup API Key') runSetup();
+      });
+  }
 
   context.subscriptions.push(
     diagnostics,
@@ -158,6 +263,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('fixora.repair', repairSelectedIssue),
     vscode.commands.registerCommand('fixora.explain', explainSelectedIssue),
     vscode.commands.registerCommand('fixora.openApp', openApp),
+    vscode.commands.registerCommand('fixora.setup', runSetup),
+    vscode.languages.registerCodeActionsProvider('*', new FixoraCodeActionProvider(), {
+      providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
+    }),
     vscode.workspace.onWillSaveTextDocument((event) => {
       const autoAnalyze = vscode.workspace.getConfiguration('fixora').get<boolean>('autoAnalyze');
       if (autoAnalyze && event.document === vscode.window.activeTextEditor?.document) {

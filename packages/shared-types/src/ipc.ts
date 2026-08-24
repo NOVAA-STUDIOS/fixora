@@ -28,6 +28,7 @@ import {
 import { PackageListSchema, PackageSearchResponseSchema } from './packages-manager.js';
 import { ProviderListSchema } from './providers.js';
 import { SearchResponseSchema } from './search.js';
+import { CodeShieldReportSchema, ShieldSettingsSchema } from './shield.js';
 import {
   ShareSuggestionResponseSchema,
   ShareViaGmailResponseSchema,
@@ -492,6 +493,15 @@ export const contracts = {
     request: empty,
     response: RepairStatsSchema,
   },
+
+  // Code Shield: the per-file quality/PR-readiness report. `analyze` re-runs the real analyzers on
+  // one file and derives the report from what they actually found — see `shield-service.ts`.
+  'shield:analyze': {
+    request: z.object({ filePath: z.string().min(1) }),
+    response: CodeShieldReportSchema,
+  },
+  'shield:getSettings': { request: empty, response: ShieldSettingsSchema },
+  'shield:saveSettings': { request: ShieldSettingsSchema, response: ShieldSettingsSchema },
 
   // Sprint F1 (Suggestion System). Local-only: a suggestion never leaves the machine except through
   // the explicit, user-initiated 'suggestions:export', which writes a file the user picks via a
