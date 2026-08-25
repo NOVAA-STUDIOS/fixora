@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Sitemap: https://fixora.dev/sitemap.xml
+Disallow: /.well-known/
