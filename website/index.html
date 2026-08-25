@@ -962,6 +962,7 @@
         <div class="brand"><img src="icon.png" style="height:28px;width:28px;margin-right:8px;vertical-align:middle;border-radius:6px;"> Fixora</div>
         <nav>
           <a class="link" href="#features">Features</a>
+          <a class="link" href="#examples">Examples</a>
           <a class="link" href="#how">How it works</a>
           <a class="link" href="#screenshots">Screenshots</a>
           <a class="link" href="#privacy">Privacy</a>
@@ -1096,6 +1097,111 @@
               rel="noreferrer noopener"
               >Install from Marketplace</a
             >
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="examples" style="padding:80px 24px;max-width:960px;margin:0 auto;">
+      <h2 style="text-align:center;font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;margin-bottom:12px;">Real fixes, real code</h2>
+      <p style="text-align:center;color:#888;margin-bottom:48px;font-size:1rem;">What Fixora actually repairs — and where it knows to step back.</p>
+
+      <!-- Example 1 -->
+      <div style="margin-bottom:48px;background:#0d0d0d;border:1px solid #222;border-radius:12px;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:1px solid #222;display:flex;align-items:center;gap:10px;">
+          <span style="background:#ff4444;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;">SQL INJECTION</span>
+          <span style="color:#666;font-size:13px;">security · fixable</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+          <div style="padding:20px;border-right:1px solid #222;">
+            <div style="font-size:11px;color:#666;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">Before</div>
+            <pre style="margin:0;font-size:13px;line-height:1.6;color:#ff6b6b;overflow-x:auto;"><code>function getData(id) {
+  return db.query(
+    "SELECT * FROM users
+     WHERE id=" + id
+  )
+}</code></pre>
+          </div>
+          <div style="padding:20px;">
+            <div style="font-size:11px;color:#4caf50;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">After · Fixora</div>
+            <pre style="margin:0;font-size:13px;line-height:1.6;color:#a8ff78;overflow-x:auto;"><code>async function getData(
+  id: string
+): Promise&lt;User | null&gt; {
+  try {
+    const r = await db.query(
+      'SELECT * FROM users
+       WHERE id = $1', [id]
+    )
+    return r.rows[0] ?? null
+  } catch (err) {
+    logger.error('failed', { err })
+    return null
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Example 2 -->
+      <div style="margin-bottom:48px;background:#0d0d0d;border:1px solid #222;border-radius:12px;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:1px solid #222;display:flex;align-items:center;gap:10px;">
+          <span style="background:#ff9800;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;">COMPLEXITY</span>
+          <span style="color:#666;font-size:13px;">cyclomatic-complexity · fixable</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+          <div style="padding:20px;border-right:1px solid #222;">
+            <div style="font-size:11px;color:#666;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">Before</div>
+            <pre style="margin:0;font-size:13px;line-height:1.6;color:#ff6b6b;overflow-x:auto;"><code>function process(x) {
+  if (x.a) {
+    if (x.b) {
+      if (x.c) {
+        if (x.d) {
+          return x.a+x.b+x.c+x.d
+        }
+      }
+    }
+  }
+  return null
+}</code></pre>
+          </div>
+          <div style="padding:20px;">
+            <div style="font-size:11px;color:#4caf50;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">After · Fixora</div>
+            <pre style="margin:0;font-size:13px;line-height:1.6;color:#a8ff78;overflow-x:auto;"><code>function process(
+  x: Input
+): number | null {
+  const { a, b, c, d } = x
+  if (!a || !b || !c || !d)
+    return null
+  return a + b + c + d
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- What it won't fix -->
+      <div style="background:#0d0d0d;border:1px solid #333;border-radius:12px;padding:28px 32px;">
+        <h3 style="font-size:1rem;font-weight:600;margin:0 0 16px;color:#fff;">Where Fixora steps back 🤝</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <span style="color:#555;font-size:18px;margin-top:1px;">✗</span>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:#ccc;">Logic bugs</div>
+              <div style="font-size:12px;color:#555;margin-top:2px;">Can't understand your intent</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <span style="color:#555;font-size:18px;margin-top:1px;">✗</span>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:#ccc;">Cross-file refactoring</div>
+              <div style="font-size:12px;color:#555;margin-top:2px;">Multi-file repair coming soon</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <span style="color:#555;font-size:18px;margin-top:1px;">✗</span>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:#ccc;">Business logic</div>
+              <div style="font-size:12px;color:#555;margin-top:2px;">You're still the engineer</div>
+            </div>
           </div>
         </div>
       </div>
