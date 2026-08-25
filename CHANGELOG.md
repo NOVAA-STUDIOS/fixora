@@ -6,6 +6,29 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## [1.2.1] — 2026-08-25
+
+### ✨ New Features
+- **Update Notifications:** Instant status bar pill when update is ready — "🔄 v1.2.1 ready" with one-click restart
+- **What's New Modal:** Changelog now shows automatically after update restart, not before
+
+### 🐛 Bug Fixes
+- **VS Code Extension:** `Fixora: Analyze` always reported "0 issues" in MCP mode — fixed via new `mcp:analyzeFile` channel with proper `file` parameter
+- **VS Code Extension:** `Fixora: Repair` and `Fixora: Explain` now work standalone (BYOK) without Fixora Desktop
+
+### ⚡ Performance
+- Lazy-load WorkspacePanel, FindingsPanel, HistoryPanel, SettingsPanel — faster startup
+- Conditionally mount dialogs — reduced memory usage when idle
+
+### 🌐 Website
+- Added `sitemap.xml`, `robots.txt`, `manifest.json` for SEO
+- Google Search Console verified and sitemap submitted
+
+### ⚠️ Known Limitations
+- Code Shield has no automated test coverage
+- Proceed Mode repair limit not enforced (pre-existing)
+- Windows binary unsigned (code signing pending)
+
 ## v1.2.0 — Code Shield & VS Code Extension
 
 _Released August 24, 2026_
