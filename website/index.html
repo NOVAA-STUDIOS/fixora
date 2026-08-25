@@ -41,7 +41,11 @@
     -->
     <link rel="canonical" href="https://fixora.dev/" />
     <meta name="theme-color" content="#000000" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+    <link rel="icon" type="image/png" href="/icon.png" />
     <meta name="robots" content="index, follow" />
+    <meta name="google-site-verification" content="dpVDnhHFLO3a8kfFD2dZhWc9vU5BBUZW7FZ2nQhYWms" />
 
     <!-- Open Graph / Twitter: what a shared link looks like in Slack, Discord, X. -->
     <meta property="og:type" content="website" />
@@ -75,6 +79,8 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <link rel="dns-prefetch" href="//github.com" />
+    <link rel="dns-prefetch" href="//api.github.com" />
 
     <script type="application/ld+json">
       {
@@ -82,9 +88,21 @@
         "@type": "SoftwareApplication",
         "name": "Fixora",
         "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Windows 10, Windows 11",
+        "operatingSystem": "Windows",
         "description": "Verified AI code repair. Every repair is re-checked against your own linters and type-checker before you can apply it. Bring your own API key; your code never touches a Fixora server.",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "screenshot": [
+          "https://fixora.dev/screenshots/home.png",
+          "https://fixora.dev/screenshots/repair-verified.png",
+          "https://fixora.dev/screenshots/problems.png"
+        ],
+        "featureList": [
+          "AI Code Repair",
+          "Code Shield",
+          "VS Code Extension",
+          "GitHub PR Integration",
+          "Real-time Analysis"
+        ]
       }
     </script>
     <style>
