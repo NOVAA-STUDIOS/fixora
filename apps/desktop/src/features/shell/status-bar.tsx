@@ -1,10 +1,11 @@
-import { cn } from '@fixora/ui';
+import { Button, Dialog, DialogContent, DialogTitle, cn } from '@fixora/ui';
 import { useEffect, useState } from 'react';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
 import { useMcpStore } from '../../stores/mcp-store.js';
 import { useStatsStore } from '../../stores/stats-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
+import { useUpdateStore } from '../../stores/update-store.js';
 import { useEditorStatusStore } from '../editor/editor-status-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { scoreTone } from '../shield/shield-panel.js';
@@ -127,6 +128,7 @@ export function StatusBar(): React.JSX.Element {
     >
       <div className="flex min-w-0 items-center gap-2">
         <ShieldPill />
+        <UpdateReadyPill />
         <span aria-hidden="true" className="text-border-strong">
           ·
         </span>
@@ -281,6 +283,58 @@ function ShieldPill(): React.JSX.Element {
     >
       🛡️ {label}
     </button>
+  );
+}
+
+/**
+ * The update-ready pill. Renders nothing until a download has actually finished (`downloaded`) —
+ * never on first launch, never while only "available"/downloading, since `update:install` is only
+ * safe to send once main has something to install. Clicking opens the confirmation modal rather
+ * than restarting immediately, so a user mid-repair is never surprised by the app quitting under
+ * them.
+ */
+function UpdateReadyPill(): React.JSX.Element | null {
+  const update = useUpdateStore((s) => s.update);
+  const listen = useUpdateStore((s) => s.listen);
+  const [open, setOpen] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+
+  useEffect(() => listen(), [listen]);
+
+  if (update.status !== 'downloaded') return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(true);
+        }}
+        title={`Update v${update.version} ready — click to restart`}
+        aria-label={`Update v${update.version} ready. Click to restart.`}
+        className="shrink-0 rounded px-1.5 py-0.5 text-accent-text transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+      >
+        🔄 v{update.version} ready
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogTitle className="text-base font-semibold text-fg">Update ready</DialogTitle>
+          <p className="py-2 text-sm text-fg-secondary">
+            Version {update.version} has downloaded and is ready to install.
+          </p>
+          <Button
+            variant="primary"
+            disabled={restarting}
+            onClick={() => {
+              setRestarting(true);
+              void invoke('update:install', {});
+            }}
+          >
+            {restarting ? 'Restarting…' : 'Restart Now'}
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

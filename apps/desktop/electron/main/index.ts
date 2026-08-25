@@ -49,6 +49,7 @@ import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
 import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
 import { revalidateIfDue } from './lib/gumroad-revalidate.js';
+import { checkAndRecordLaunchedVersion } from './lib/last-launched-version.js';
 import { initMcpSetting } from './lib/mcp-setting.js';
 import { getPlan } from './lib/repair-limit.js';
 import { initShieldSettings } from './lib/shield-settings.js';
@@ -348,6 +349,10 @@ function startBackend(window: BrowserWindow | null): void {
   // userData dir (see the module doc). Must run before anything below opens `userData`.
   migrateLegacyUserData(app.getPath('appData'), app.getPath('userData'));
 
+  // Read (and overwrite) the last-launched version now, before anything else touches userData —
+  // whether the What's New modal fires depends only on comparing versions, never on load order.
+  const { previousVersion } = checkAndRecordLaunchedVersion(app.getPath('userData'), app.getVersion());
+
   // Local persistence. A corrupt DB degrades to "history unavailable" and never blocks
   // launch (DB §1) — `openDatabase` returns `recovered` rather than throwing.
   const { driver } = openDatabase({ dir: app.getPath('userData') });
@@ -587,6 +592,18 @@ function startBackend(window: BrowserWindow | null): void {
   // `window` is null in MCP-only mode: there is no renderer to tell, and these two pushes are the
   // only things in this function that address one.
   if (window !== null && !window.isDestroyed()) emitToWindow(window, 'app:ready', {});
+
+  // Only when a previous launch actually recorded a DIFFERENT version — never on a fresh install
+  // (`previousVersion === null`) and never on a same-version relaunch.
+  const currentVersion = app.getVersion();
+  if (
+    previousVersion !== null &&
+    previousVersion !== currentVersion &&
+    window !== null &&
+    !window.isDestroyed()
+  ) {
+    emitToWindow(window, 'app:justUpdated', { previousVersion, currentVersion });
+  }
 
   // Main is the authority on the plan now, but it only learns one from a successful
   // `license:validate`. A user who activated before that moved main-side has their key in the

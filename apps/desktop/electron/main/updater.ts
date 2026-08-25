@@ -51,7 +51,19 @@ export function initAutoUpdater(): void {
 
   autoUpdater.on('update-available', (info) => {
     const window = currentWindow();
-    if (window !== null) emitToWindow(window, 'update:available', { version: info.version });
+    if (window === null) return;
+    // `releaseNotes` can be a string, a per-version array, or absent depending on the provider —
+    // only the string case is ever meaningful to show, so anything else is treated as "none".
+    const releaseNotes = typeof info.releaseNotes === 'string' ? info.releaseNotes : undefined;
+    emitToWindow(window, 'update:available', {
+      version: info.version,
+      ...(releaseNotes !== undefined ? { releaseNotes } : {}),
+    });
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    const window = currentWindow();
+    if (window !== null) emitToWindow(window, 'update:progress', { percent: progress.percent });
   });
 
   autoUpdater.on('update-downloaded', (info) => {

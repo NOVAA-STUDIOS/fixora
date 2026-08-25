@@ -1,27 +1,21 @@
-import { Button } from '@fixora/ui';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
-import { invoke } from '../../lib/bridge.js';
 import { useUpdateStore } from '../../stores/update-store.js';
 
 /**
- * Auto-update, surfaced as two moments and nothing in between.
- *
- * Deliberately not a `Toast`: those auto-dismiss after ~3s (`toast-store.ts`), which is fine for
- * "your action worked" and wrong here — "downloading" should stay visible for as long as it is
- * true, and "ready to restart" must stay until the user acts on it or closes the app. A fixed,
- * corner-anchored banner is what "non-blocking" means: nothing else on screen shifts or waits for
- * it, and the very same Repair, Explain and Apply flows this app is built around keep working
- * exactly as before while it sits there.
+ * Auto-update, downloading moment only. "Ready to restart" moved to the status bar's update pill
+ * (`status-bar.tsx`'s `UpdateReadyPill`) plus its modal — this banner now covers exactly the
+ * unobtrusive, nothing-to-do-yet state: a fixed, corner-anchored strip that says a download is in
+ * progress and disappears the moment there is a decision to make.
  */
 export function UpdateBanner(): React.JSX.Element | null {
   const update = useUpdateStore((s) => s.update);
   const listen = useUpdateStore((s) => s.listen);
-  const [restarting, setRestarting] = useState(false);
+  const downloadProgress = useUpdateStore((s) => s.downloadProgress);
 
   useEffect(() => listen(), [listen]);
 
-  if (update.status === 'idle') return null;
+  if (update.status !== 'available') return null;
 
   return (
     <div
@@ -29,35 +23,10 @@ export function UpdateBanner(): React.JSX.Element | null {
       aria-live="polite"
       className="fixed top-4 right-4 z-50 flex max-w-xs items-center gap-3 rounded-lg border border-border-subtle bg-raised px-3 py-2.5 shadow-lg"
     >
-      {update.status === 'available' ? (
-        <p className="text-xs text-fg-secondary">
-          Update <span className="font-mono text-fg">v{update.version}</span> available,
-          downloading…
-        </p>
-      ) : (
-        <>
-          <div className="min-w-0">
-            <p className="text-xs text-fg-secondary">
-              Update <span className="font-mono text-fg">v{update.version}</span> ready.
-            </p>
-            {restarting && (
-              <p className="text-xs text-fg-muted">App will restart in a moment</p>
-            )}
-          </div>
-          <Button
-            variant="primary"
-            size="sm"
-            className="shrink-0"
-            disabled={restarting}
-            onClick={() => {
-              setRestarting(true);
-              void invoke('update:install', {});
-            }}
-          >
-            {restarting ? 'Restarting…' : 'Update'}
-          </Button>
-        </>
-      )}
+      <p className="text-xs text-fg-secondary">
+        Update <span className="font-mono text-fg">v{update.version}</span> available, downloading
+        {downloadProgress !== null ? ` (${String(Math.round(downloadProgress))}%)` : '…'}
+      </p>
     </div>
   );
 }

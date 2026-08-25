@@ -15,37 +15,52 @@ export type UpdateState = { status: 'idle' } | { status: 'available' | 'download
 
 type UpdateStoreState = {
   update: UpdateState;
+  /** Download percent for the in-flight update, or `null` when nothing is downloading. */
+  downloadProgress: number | null;
+  /** The version currently available/downloading/downloaded — kept alongside `update` so a
+   *  consumer can read "which version" without narrowing `update.status` first. */
+  pendingVersion: string | null;
   setAvailable: (version: string) => void;
   setDownloaded: (version: string) => void;
-  /** Subscribes to both push events; returns the unsubscribe. Call once, from the banner. */
+  setProgress: (percent: number) => void;
+  /** Subscribes to all push events; returns the unsubscribe. Call once per consumer. */
   listen: () => () => void;
 };
 
 export const useUpdateStore = create<UpdateStoreState>((set) => ({
   update: { status: 'idle' },
+  downloadProgress: null,
+  pendingVersion: null,
   setAvailable: (version) => {
-    set({ update: { status: 'available', version } });
+    set({ update: { status: 'available', version }, pendingVersion: version });
   },
   setDownloaded: (version) => {
     // Downloaded supersedes available outright — there is nothing left to wait for once this
     // arrives, so no code path needs to compare the two versions against each other.
-    set({ update: { status: 'downloaded', version } });
+    set({ update: { status: 'downloaded', version }, pendingVersion: version, downloadProgress: null });
+  },
+  setProgress: (percent) => {
+    set({ downloadProgress: percent });
   },
 
   listen: () => {
     const offAvailable = subscribe('update:available', ({ version }) => {
-      set({ update: { status: 'available', version } });
+      set({ update: { status: 'available', version }, pendingVersion: version });
       // OS-level too: an update arriving is exactly the kind of thing that happens while the app
       // sits in the background, and the banner alone would go unseen until they next look.
       notify('info', '🚀 New Update Ready', `Version ${version} is ready to install.`, {
         alsoNotifyOs: true,
       });
     });
+    const offProgress = subscribe('update:progress', ({ percent }) => {
+      set({ downloadProgress: percent });
+    });
     const offDownloaded = subscribe('update:downloaded', ({ version }) => {
-      set({ update: { status: 'downloaded', version } });
+      set({ update: { status: 'downloaded', version }, pendingVersion: version, downloadProgress: null });
     });
     return () => {
       offAvailable();
+      offProgress();
       offDownloaded();
     };
   },

@@ -7,6 +7,7 @@ import { WorkspaceSwitchGuard } from '../workspace/workspace-switch-guard.js';
 
 import { ActivityRail } from './activity-rail.js';
 import { NewProjectModal } from './new-project-modal.js';
+import { PostUpdateWhatsNew } from './post-update-whats-new.js';
 import { StatusBar } from './status-bar.js';
 import { TitleBar } from './title-bar.js';
 import { Toaster } from './toaster.js';
@@ -59,6 +60,7 @@ export function AppShell(): React.JSX.Element {
       <FullDiffOverlay />
       <Toaster />
       <UpdateBanner />
+        <PostUpdateWhatsNew />
         <NewProjectModal />
         <WorkspaceSwitchGuard />
       </CommandProvider>
