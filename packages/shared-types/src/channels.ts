@@ -110,6 +110,7 @@ export const channels = [
   // IPC round trip), reusing the same logic these channels' handlers back onto for the renderer.
   'mcp:getFindings',
   'mcp:triggerAnalysis',
+  'mcp:analyzeFile',
   'mcp:repairFinding',
   'mcp:getStatus',
   // The user-facing capability switch + whether the server is actually running right now.
@@ -190,8 +191,11 @@ export const eventChannels = [
   'ai:delta',
   'ai:runState',
   'update:available',
+  'update:progress',
   'update:downloaded',
   'update:error',
+  // Fired once per update, after `app:ready` — never on a fresh install (whats-new-dialog.tsx).
+  'app:justUpdated',
   // Terminal output/exit, streamed per-session (keyed by the id `terminal:create` returned).
   'terminal:data',
   'terminal:exit',

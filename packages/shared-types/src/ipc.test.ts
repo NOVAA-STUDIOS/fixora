@@ -84,6 +84,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'ai:generateTests',
       'mcp:getFindings',
       'mcp:triggerAnalysis',
+      'mcp:analyzeFile',
       'mcp:repairFinding',
       'mcp:getStatus',
       'mcp:getSetting',

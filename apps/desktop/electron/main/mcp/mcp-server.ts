@@ -18,8 +18,12 @@ import { getHandler } from '../ipc/router.js';
 const TOOLS: readonly McpTool[] = [
   {
     name: 'fixora_analyze',
-    description: 'Trigger a code analysis run on the currently open project.',
-    inputSchema: { type: 'object', properties: {} },
+    description: 'Analyze one file and return its findings, as JSON.',
+    inputSchema: {
+      type: 'object',
+      properties: { file: { type: 'string', description: 'Absolute path to file to analyze' } },
+      required: ['file'],
+    },
   },
   {
     name: 'fixora_repair',
@@ -50,9 +54,13 @@ function context(): { requestId: string; window: null } {
 async function callTool(name: string, args: unknown): Promise<unknown> {
   switch (name) {
     case 'fixora_analyze': {
-      const handler = getHandler('mcp:triggerAnalysis');
-      if (handler === undefined) throw new Error('mcp:triggerAnalysis is not registered');
-      return handler({}, context());
+      const file = (args as { file?: unknown } | null)?.file;
+      if (typeof file !== 'string' || file.length === 0) {
+        throw new Error('fixora_analyze requires a string "file" argument');
+      }
+      const handler = getHandler('mcp:analyzeFile');
+      if (handler === undefined) throw new Error('mcp:analyzeFile is not registered');
+      return handler({ file }, context());
     }
     case 'fixora_findings': {
       const handler = getHandler('mcp:getFindings');

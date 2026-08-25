@@ -19,6 +19,8 @@ import {
 import { FindingSchema, FindingsFilterSchema, FindingsSummarySchema } from './analysis.js';
 import type { Channel } from './channels.js';
 import {
+  McpAnalyzeFileRequestSchema,
+  McpAnalyzeFileResponseSchema,
   McpGetFindingsResponseSchema,
   McpGetStatusResponseSchema,
   McpRepairFindingRequestSchema,
@@ -210,6 +212,10 @@ export const contracts = {
   'mcp:triggerAnalysis': {
     request: empty,
     response: McpTriggerAnalysisResponseSchema,
+  },
+  'mcp:analyzeFile': {
+    request: McpAnalyzeFileRequestSchema,
+    response: McpAnalyzeFileResponseSchema,
   },
   'mcp:repairFinding': {
     request: McpRepairFindingRequestSchema,

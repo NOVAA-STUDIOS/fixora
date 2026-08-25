@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 
 import * as vscode from 'vscode';
 
-import { analyzeCode, type AiProvider, type AnalysisIssue } from './ai-client.js';
+import { analyzeCode, explainIssue, repairIssue, type AiProvider, type AnalysisIssue } from './ai-client.js';
 import { McpClient } from './mcp-client.js';
 import { openSetupWebview } from './setup-webview.js';
 
@@ -38,6 +38,12 @@ function severityToVsCode(severity: Finding['severity']): vscode.DiagnosticSever
   if (severity === 'error') return vscode.DiagnosticSeverity.Error;
   if (severity === 'info') return vscode.DiagnosticSeverity.Information;
   return vscode.DiagnosticSeverity.Warning;
+}
+
+function diagnosticSeverityToString(severity: vscode.DiagnosticSeverity): 'error' | 'warning' | 'info' {
+  if (severity === vscode.DiagnosticSeverity.Error) return 'error';
+  if (severity === vscode.DiagnosticSeverity.Information || severity === vscode.DiagnosticSeverity.Hint) return 'info';
+  return 'warning';
 }
 
 function getClient(): McpClient {
@@ -161,6 +167,43 @@ async function repairSelectedIssue(): Promise<void> {
     });
     void vscode.window.showInformationMessage('Fixora: repair applied.');
     await analyzeActiveFile();
+    return;
+  } catch {
+    // Fixora app not installed/running — fall through to standalone repair.
+  }
+
+  if (!hasApiKey()) {
+    void vscode.window.showErrorMessage(
+      'Fixora Desktop not running. Add API key in settings for standalone repair.',
+    );
+    return;
+  }
+
+  try {
+    const config = vscode.workspace.getConfiguration('fixora');
+    const apiKey = config.get<string>('apiKey') ?? '';
+    const provider = (config.get<string>('aiProvider') ?? 'openrouter') as AiProvider;
+    const model = config.get<string>('model') ?? 'google/gemini-flash-1.5';
+
+    const result = await repairIssue(
+      {
+        message: target.message,
+        line: target.range.start.line + 1,
+        severity: diagnosticSeverityToString(target.severity),
+      },
+      editor.document.getText(),
+      filePath,
+      apiKey,
+      provider,
+      model,
+    );
+
+    const doc = await vscode.workspace.openTextDocument({
+      content: result.repairedCode,
+      language: editor.document.languageId,
+    });
+    await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+    void vscode.window.showInformationMessage(`Fixora (standalone): ${result.explanation}`);
   } catch (error) {
     void vscode.window.showErrorMessage(`Fixora repair failed: ${(error as Error).message}`);
   }
@@ -196,6 +239,38 @@ async function explainSelectedIssue(): Promise<void> {
     outputChannel.appendLine(`Fixora explanation — ${filePath}`);
     outputChannel.appendLine('');
     outputChannel.appendLine(JSON.stringify({ findings, explanation }, null, 2));
+    outputChannel.show(true);
+    return;
+  } catch {
+    // Fixora app not installed/running — fall through to standalone explain.
+  }
+
+  if (!hasApiKey()) {
+    void vscode.window.showErrorMessage(
+      'Fixora Desktop not running. Add API key in settings for standalone explain.',
+    );
+    return;
+  }
+
+  try {
+    const config = vscode.workspace.getConfiguration('fixora');
+    const apiKey = config.get<string>('apiKey') ?? '';
+    const provider = (config.get<string>('aiProvider') ?? 'openrouter') as AiProvider;
+    const model = config.get<string>('model') ?? 'google/gemini-flash-1.5';
+    const rule = typeof target.code === 'string' ? target.code : undefined;
+
+    const explanation = await explainIssue(
+      { message: target.message, line: target.range.start.line + 1, ...(rule !== undefined ? { rule } : {}) },
+      editor.document.getText(),
+      apiKey,
+      provider,
+      model,
+    );
+
+    outputChannel.clear();
+    outputChannel.appendLine(`Fixora explanation (standalone) — ${filePath}`);
+    outputChannel.appendLine('');
+    outputChannel.appendLine(explanation);
     outputChannel.show(true);
   } catch (error) {
     void vscode.window.showErrorMessage(`Fixora explain failed: ${(error as Error).message}`);

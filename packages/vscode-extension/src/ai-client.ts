@@ -53,6 +53,46 @@ function parseResult(raw: string): AnalysisResult {
   return { issues };
 }
 
+export interface RepairResult {
+  repairedCode: string;
+  explanation: string;
+}
+
+function buildRepairPrompt(
+  issue: { message: string; line: number; severity: string },
+  filePath: string,
+  code: string,
+): string {
+  return (
+    'You are an expert code repair assistant. Repair this issue in the code. ' +
+    'Return ONLY a JSON object, no prose, no markdown fences, in this exact shape: ' +
+    '{"repairedCode":"<the full repaired file content>","explanation":"<what was wrong and what changed>"}. ' +
+    `Issue: ${JSON.stringify(issue)}. File: ${filePath}. Code:\n\`\`\`\n${code}\n\`\`\``
+  );
+}
+
+/** Same tolerant-extraction approach as `parseResult` — a model does not always answer JSON-only. */
+function parseRepairResult(raw: string): RepairResult {
+  const match = /\{[\s\S]*\}/.exec(raw);
+  if (match === null) throw new Error('The model did not return a parseable JSON response.');
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(match[0]);
+  } catch {
+    throw new Error('The model returned malformed JSON.');
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('The model returned an unexpected response shape.');
+  }
+  const repairedCode = (parsed as Record<string, unknown>)['repairedCode'];
+  const explanation = (parsed as Record<string, unknown>)['explanation'];
+  if (typeof repairedCode !== 'string' || typeof explanation !== 'string') {
+    throw new Error('The model response is missing repairedCode or explanation.');
+  }
+  return { repairedCode, explanation };
+}
+
 async function callOpenAiCompatible(
   baseUrl: string,
   apiKey: string,
@@ -125,6 +165,16 @@ async function callGemini(apiKey: string, model: string, prompt: string): Promis
   return text;
 }
 
+async function callProvider(apiKey: string, provider: AiProvider, model: string, prompt: string): Promise<string> {
+  if (provider === 'anthropic') return callAnthropic(apiKey, model, prompt);
+  if (provider === 'gemini') return callGemini(apiKey, model, prompt);
+  if (provider === 'openai') return callOpenAiCompatible('https://api.openai.com/v1/chat/completions', apiKey, model, prompt);
+  return callOpenAiCompatible('https://openrouter.ai/api/v1/chat/completions', apiKey, model, prompt, {
+    'HTTP-Referer': 'https://fixora-opal.vercel.app',
+    'X-Title': 'Fixora VS Code',
+  });
+}
+
 /** Standalone analysis: calls the chosen provider directly with the user's own key — no Fixora
  *  desktop app involved. Used as the fallback when MCP is unavailable (extension.ts). */
 export async function analyzeCode(
@@ -137,23 +187,40 @@ export async function analyzeCode(
   if (apiKey.trim() === '') {
     throw new Error('No API key configured. Run "Fixora: Setup API Key" first.');
   }
-  const prompt = buildPrompt(code, filePath);
-
-  let raw: string;
-  if (provider === 'anthropic') {
-    raw = await callAnthropic(apiKey, model, prompt);
-  } else if (provider === 'gemini') {
-    raw = await callGemini(apiKey, model, prompt);
-  } else if (provider === 'openai') {
-    raw = await callOpenAiCompatible('https://api.openai.com/v1/chat/completions', apiKey, model, prompt);
-  } else {
-    raw = await callOpenAiCompatible(
-      'https://openrouter.ai/api/v1/chat/completions',
-      apiKey,
-      model,
-      prompt,
-      { 'HTTP-Referer': 'https://fixora-opal.vercel.app', 'X-Title': 'Fixora VS Code' },
-    );
-  }
+  const raw = await callProvider(apiKey, provider, model, buildPrompt(code, filePath));
   return parseResult(raw);
+}
+
+/** Standalone repair: same fallback role as `analyzeCode`, for the repair command. */
+export async function repairIssue(
+  issue: { message: string; line: number; severity: string },
+  code: string,
+  filePath: string,
+  apiKey: string,
+  provider: AiProvider,
+  model: string,
+): Promise<RepairResult> {
+  if (apiKey.trim() === '') {
+    throw new Error('No API key configured. Run "Fixora: Setup API Key" first.');
+  }
+  const raw = await callProvider(apiKey, provider, model, buildRepairPrompt(issue, filePath, code));
+  return parseRepairResult(raw);
+}
+
+/** Standalone explain: same fallback role as `analyzeCode`, for the explain command. */
+export async function explainIssue(
+  issue: { message: string; line: number; rule?: string },
+  code: string,
+  apiKey: string,
+  provider: AiProvider,
+  model: string,
+): Promise<string> {
+  if (apiKey.trim() === '') {
+    throw new Error('No API key configured. Run "Fixora: Setup API Key" first.');
+  }
+  const prompt =
+    `Explain this code issue clearly for a developer. Issue: ${issue.message} ` +
+    `(rule: ${issue.rule ?? 'unknown'}) in this code:\n\`\`\`\n${code}\n\`\`\`\n` +
+    'Keep the explanation concise and actionable. Respond with plain text only, no JSON, no markdown fences.';
+  return callProvider(apiKey, provider, model, prompt);
 }

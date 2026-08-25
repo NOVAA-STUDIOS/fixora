@@ -1,3 +1,5 @@
+import { relative, sep } from 'node:path';
+
 import type { CredentialStore } from '../../ai/credentials/credential-store.js';
 import { anyProviderConfigured } from '../../ai/providers/orchestrator.js';
 import type { ProviderRegistry } from '../../ai/providers/provider-registry.js';
@@ -5,6 +7,7 @@ import type { AnalysisService } from '../../analysis/analysis-service.js';
 import type { FindingsRepository } from '../../db/repositories.js';
 import { isMcpEnabled, setMcpEnabled } from '../../lib/mcp-setting.js';
 import { peekRepairLimit } from '../../lib/repair-limit.js';
+import { assertInsideWorkspace } from '../../services/fs/path-guard.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { getHandler, registerHandler } from '../router.js';
 
@@ -46,6 +49,37 @@ export function registerMcpHandlers(deps: {
     }
     deps.analysis.run(window);
     return { started: true, message: `Analysis started for ${open.rootPath}.` };
+  });
+
+  registerHandler('mcp:analyzeFile', async ({ file }) => {
+    const open = deps.workspace.getCurrent();
+    if (open === null) return { findings: [], error: 'No project is open.' };
+    if (file.trim() === '') return { findings: [], error: 'file param required' };
+
+    let resolvedAbs: string;
+    try {
+      resolvedAbs = assertInsideWorkspace(file, open.rootPath);
+    } catch {
+      return { findings: [], error: 'file param required' };
+    }
+    const relPath = relative(open.rootPath, resolvedAbs).split(sep).join('/');
+
+    // No renderer window backs a headless MCP caller — `analyzeFile` accepts `null` for exactly
+    // this case and reports the outcome through its return value instead of an emitted event.
+    const outcome = await deps.analysis.analyzeFile(null, relPath);
+    if (!outcome.ok) return { findings: [], error: 'Analysis failed.' };
+
+    return {
+      findings: deps.findings.list(open.id, { relPath }).map((f) => ({
+        id: f.id,
+        ruleId: f.ruleId,
+        severity: f.severity,
+        category: f.category,
+        message: f.message,
+        file: f.location.file,
+        line: f.location.startLine,
+      })),
+    };
   });
 
   registerHandler('mcp:repairFinding', async ({ findingId }, ctx) => {

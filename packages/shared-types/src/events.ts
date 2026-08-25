@@ -25,8 +25,15 @@ export const FindingsAddedSchema = z.object({ findings: z.array(FindingSchema) }
 export type FindingsAdded = z.infer<typeof FindingsAddedSchema>;
 
 /** A newer build exists and has started downloading in the background. */
-export const UpdateAvailableSchema = z.object({ version: z.string() });
+export const UpdateAvailableSchema = z.object({
+  version: z.string(),
+  releaseNotes: z.string().optional(),
+});
 export type UpdateAvailable = z.infer<typeof UpdateAvailableSchema>;
+
+/** Download progress for the update already in flight. */
+export const UpdateProgressSchema = z.object({ percent: z.number().min(0).max(100) });
+export type UpdateProgress = z.infer<typeof UpdateProgressSchema>;
 
 /** The download finished; `update:install` will quit and relaunch on it. */
 export const UpdateDownloadedSchema = z.object({ version: z.string() });
@@ -35,6 +42,15 @@ export type UpdateDownloaded = z.infer<typeof UpdateDownloadedSchema>;
 /** The check or download failed — never fatal to the app, but worth the renderer knowing. */
 export const UpdateErrorSchema = z.object({ message: z.string() });
 export type UpdateError = z.infer<typeof UpdateErrorSchema>;
+
+/** Fired once, after `app:ready`, only when the version on disk from the previous launch differs
+ *  from this one — i.e. an update just took effect. Never fires on a fresh install (no previous
+ *  version recorded yet). */
+export const AppJustUpdatedSchema = z.object({
+  previousVersion: z.string(),
+  currentVersion: z.string(),
+});
+export type AppJustUpdated = z.infer<typeof AppJustUpdatedSchema>;
 
 /** A chunk of PTY output, keyed by the session id `terminal:create` was called with. */
 export const TerminalDataSchema = z.object({ id: z.string().min(1), data: z.string() });
@@ -79,8 +95,10 @@ export const eventContracts = {
   'ai:delta': AiDeltaSchema,
   'ai:runState': AiRunStateSchema,
   'update:available': UpdateAvailableSchema,
+  'update:progress': UpdateProgressSchema,
   'update:downloaded': UpdateDownloadedSchema,
   'update:error': UpdateErrorSchema,
+  'app:justUpdated': AppJustUpdatedSchema,
   'terminal:data': TerminalDataSchema,
   'terminal:exit': TerminalExitSchema,
   'terminal:title': TerminalTitleSchema,

@@ -148,7 +148,7 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
      * run (which clears the whole workspace once, up front), this must replace only what this one
      * file owned, leaving every other file's findings untouched.
      */
-    async analyzeFile(window: BrowserWindow, relPath: string): Promise<{ ok: boolean }> {
+    async analyzeFile(window: BrowserWindow | null, relPath: string): Promise<{ ok: boolean }> {
       const open = deps.workspaces.requireRoot();
       const target = targetFor(open, relPath);
       // Not analyzable (wrong language, ignored, secret-denied, or vanished) — nothing to do, and
@@ -165,7 +165,9 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
           onFileFindings: (_file, findings) => {
             receivedFindings = true;
             deps.findings.replaceForFile(open.id, relPath, findings);
-            if (!window.isDestroyed()) emitToWindow(window, 'analysis:findingsAdded', { findings });
+            if (window !== null && !window.isDestroyed()) {
+              emitToWindow(window, 'analysis:findingsAdded', { findings });
+            }
           },
           onNotice: () => {
             // A single-file re-analysis is too small a unit for the "analysis was partial"
@@ -176,7 +178,9 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
             // for a file that HAS findings), and that clean result must still land — otherwise a
             // fixed file keeps showing its stale, now-wrong findings forever.
             if (!receivedFindings) deps.findings.replaceForFile(open.id, relPath, []);
-            if (!window.isDestroyed()) {
+            // `window` is null for a headless MCP caller (no renderer to push progress to) —
+            // the return value below is how that caller learns the outcome instead.
+            if (window !== null && !window.isDestroyed()) {
               emit(window, { status: 'done', summary: deps.findings.summary(open.id) });
             }
             resolve();

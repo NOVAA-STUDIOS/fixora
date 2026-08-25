@@ -41,18 +41,18 @@ export interface McpResponse {
   readonly error?: { readonly code: number; readonly message: string };
 }
 
+const McpFindingSchema = z.object({
+  id: z.string(),
+  ruleId: z.string(),
+  severity: z.string(),
+  category: z.string(),
+  message: z.string(),
+  file: z.string(),
+  line: z.number().int(),
+});
+
 export const McpGetFindingsResponseSchema = z.object({
-  findings: z.array(
-    z.object({
-      id: z.string(),
-      ruleId: z.string(),
-      severity: z.string(),
-      category: z.string(),
-      message: z.string(),
-      file: z.string(),
-      line: z.number().int(),
-    }),
-  ),
+  findings: z.array(McpFindingSchema),
 });
 export type McpGetFindingsResponse = z.infer<typeof McpGetFindingsResponseSchema>;
 
@@ -61,6 +61,19 @@ export const McpTriggerAnalysisResponseSchema = z.object({
   message: z.string(),
 });
 export type McpTriggerAnalysisResponse = z.infer<typeof McpTriggerAnalysisResponseSchema>;
+
+/** `fixora_analyze` (MCP tool): analyzes one file synchronously and returns its findings — unlike
+ *  `mcp:triggerAnalysis` (a fire-and-forget full-project run against a renderer window), this needs
+ *  neither a window nor the whole-project walk, which is what makes it usable from a headless
+ *  `--mcp` standalone process. */
+export const McpAnalyzeFileRequestSchema = z.object({ file: z.string().min(1) });
+export type McpAnalyzeFileRequest = z.infer<typeof McpAnalyzeFileRequestSchema>;
+
+export const McpAnalyzeFileResponseSchema = z.object({
+  findings: z.array(McpFindingSchema),
+  error: z.string().optional(),
+});
+export type McpAnalyzeFileResponse = z.infer<typeof McpAnalyzeFileResponseSchema>;
 
 export const McpRepairFindingRequestSchema = z.object({ findingId: z.string().min(1) });
 export type McpRepairFindingRequest = z.infer<typeof McpRepairFindingRequestSchema>;
