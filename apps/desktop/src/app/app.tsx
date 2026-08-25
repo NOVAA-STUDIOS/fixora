@@ -3,7 +3,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '../features/auth/auth-store.js';
 import { LoginScreen } from '../features/auth/login-screen.js';
 import { FeedbackDialog } from '../features/feedback/feedback-dialog.js';
+import { useFeedbackStore } from '../features/feedback/feedback-store.js';
 import { BulkCascadingDialog } from '../features/findings/bulk-cascading-dialog.js';
+import { useBulkRepairStore } from '../features/findings/bulk-repair-store.js';
 import { UpgradeDialog } from '../features/license/upgrade-dialog.js';
 import { OnboardingModal } from '../features/onboarding/onboarding-modal.js';
 import { ShareDialog } from '../features/sharing/share-dialog.js';
@@ -22,6 +24,8 @@ import {
   listenForRevalidation,
   useLicenseStore,
 } from '../stores/license-store.js';
+import { useOnboardingStore } from '../stores/onboarding-store.js';
+import { useShareStore } from '../stores/share-store.js';
 import { useShortcutsStore } from '../stores/shortcuts-store.js';
 
 /**
@@ -91,10 +95,19 @@ export function App(): React.JSX.Element {
     void waitForAppReady().then(() => syncLicenseFromMain());
   }, [syncLicenseFromMain]);
 
+  // Open-state for the always-listed-but-rarely-open root dialogs below — read here so each one
+  // mounts (and subscribes to its own store) only while actually shown, instead of on every render.
+  const showUpgradeDialog = useLicenseStore((s) => s.showUpgradeDialog);
+  const cascadingPauseActive = useBulkRepairStore((s) => s.cascadingPause !== null);
+  const feedbackOpen = useFeedbackStore((s) => s.open);
+  const hasSeenOnboarding = useOnboardingStore((s) => s.hasSeenOnboarding);
+  const shareOpen = useShareStore((s) => s.open);
+
   // '?' opens the shortcuts reference from anywhere, same as the command palette's global listener
   // — but a bare '?' must never fire while the user is typing it into a field (a commit message, a
   // comment, a search box), so it is ignored whenever the event originates in an editable element.
   const openShortcuts = useShortcutsStore((s) => s.open);
+  const shortcutsOpen = useShortcutsStore((s) => s.isOpen);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== '?') return;
@@ -118,14 +131,14 @@ export function App(): React.JSX.Element {
   return (
     <>
       <AppShell />
-      <UpgradeDialog />
+      {showUpgradeDialog && <UpgradeDialog />}
       {/* Root-level: a paused bulk repair must stay answerable even if the Group Repair panel
           that started it has been closed. */}
-      <BulkCascadingDialog />
-      <FeedbackDialog />
-      <OnboardingModal />
-      <ShortcutsPanel />
-      <ShareDialog />
+      {cascadingPauseActive && <BulkCascadingDialog />}
+      {feedbackOpen && <FeedbackDialog />}
+      {!hasSeenOnboarding && <OnboardingModal />}
+      {shortcutsOpen && <ShortcutsPanel />}
+      {shareOpen && <ShareDialog />}
       {showSignIn && <LoginScreen />}
       {splash.visible && <SplashScreen phase={splash.phase} version={version} />}
     </>

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { App } from './app/App.js';
+import { App } from './app/app.js';
 import { ErrorBoundary } from './app/error-boundary.js';
 import './styles/global.css';
 

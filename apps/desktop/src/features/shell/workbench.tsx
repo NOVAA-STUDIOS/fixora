@@ -6,13 +6,9 @@ import { useUiStore, type PaneSizes } from '../../stores/ui-store.js';
 import { AiPanel } from '../ai/ai-panel.js';
 import { EditModeTabs, ProceedView } from '../ai/proceed-panel.js';
 import { EditorArea } from '../editor/editor-area.js';
-import { FindingsPanel } from '../findings/findings-panel.js';
-import { HistoryPanel } from '../history/history-panel.js';
-import { SettingsPanel } from '../settings/settings-panel.js';
 import { ShieldPanel } from '../shield/shield-panel.js';
 import { useShieldWatch } from '../shield/use-shield-watch.js';
 import { SuggestionPanel } from '../suggestions/suggestion-panel.js';
-import { WorkspacePanel } from '../workspace/workspace-panel.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { HomeScreen } from './home-screen.js';
@@ -34,6 +30,18 @@ const SourceControlPanel = lazy(() =>
 );
 const TerminalPanel = lazy(() =>
   import('../terminal/terminal-panel.js').then((m) => ({ default: m.TerminalPanel })),
+);
+const WorkspacePanel = lazy(() =>
+  import('../workspace/workspace-panel.js').then((m) => ({ default: m.WorkspacePanel })),
+);
+const FindingsPanel = lazy(() =>
+  import('../findings/findings-panel.js').then((m) => ({ default: m.FindingsPanel })),
+);
+const HistoryPanel = lazy(() =>
+  import('../history/history-panel.js').then((m) => ({ default: m.HistoryPanel })),
+);
+const SettingsPanel = lazy(() =>
+  import('../settings/settings-panel.js').then((m) => ({ default: m.SettingsPanel })),
 );
 
 function PanelFallback(): React.JSX.Element {
@@ -78,9 +86,24 @@ const DEFAULT_LAYOUT: Record<string, Record<string, number>> = {
 const CODE_MODE_LAYOUT: PaneSizes = { primary: 16, editor: 66, ai: 18 };
 
 function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
-  if (view === 'workspace') return <WorkspacePanel />;
-  if (view === 'findings') return <FindingsPanel />;
-  if (view === 'history') return <HistoryPanel />;
+  if (view === 'workspace')
+    return (
+      <Suspense fallback={<PanelFallback />}>
+        <WorkspacePanel />
+      </Suspense>
+    );
+  if (view === 'findings')
+    return (
+      <Suspense fallback={<PanelFallback />}>
+        <FindingsPanel />
+      </Suspense>
+    );
+  if (view === 'history')
+    return (
+      <Suspense fallback={<PanelFallback />}>
+        <HistoryPanel />
+      </Suspense>
+    );
   if (view === 'search')
     return (
       <Suspense fallback={<PanelFallback />}>
@@ -193,7 +216,9 @@ function WorkbenchContent(): React.JSX.Element {
   if (activeView === 'settings') {
     return (
       <ErrorBoundary label="Settings">
-        <SettingsPanel />
+        <Suspense fallback={<PanelFallback />}>
+          <SettingsPanel />
+        </Suspense>
       </ErrorBoundary>
     );
   }
