@@ -2,7 +2,7 @@
   "name": "fixora-vscode",
   "displayName": "Fixora — AI Code Repair",
   "description": "AI-powered code analysis, repair & PR readiness scoring. Works standalone with your own API key.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "publisher": "novaa-studios",
   "repository": { "type": "git", "url": "https://github.com/NOVAA-STUDIOS/fixora" },
