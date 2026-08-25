@@ -1,15 +1,15 @@
 {
   "name": "fixora-vscode",
   "displayName": "Fixora — AI Code Repair",
-  "description": "AI-powered code analysis and repair. Find bugs, understand errors in plain English, and fix them instantly.",
+  "description": "AI-powered code analysis, repair & PR readiness scoring. Works standalone with your own API key.",
   "version": "0.2.0",
   "private": true,
   "publisher": "novaa-studios",
   "repository": { "type": "git", "url": "https://github.com/NOVAA-STUDIOS/fixora" },
   "icon": "images/icon.png",
   "galleryBanner": { "color": "#000000", "theme": "dark" },
-  "categories": ["Linters", "Other"],
-  "keywords": ["AI", "code repair", "lint", "fix", "bug", "analysis", "repair"],
+  "categories": ["Linters", "Programming Languages", "Machine Learning", "Other"],
+  "keywords": ["ai", "code-repair", "analysis", "linting", "openai", "anthropic", "gemini", "code-quality", "pr-readiness", "fixora"],
   "engines": {
     "vscode": "^1.85.0"
   },
