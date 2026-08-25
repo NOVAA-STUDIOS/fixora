@@ -25,7 +25,7 @@ import {
   VirtualList,
   cn,
 } from '@fixora/ui';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useFindingRowEstimate } from '../../hooks/use-density-metrics.js';
 import { basename } from '../../lib/path.js';
@@ -52,6 +52,13 @@ const CATEGORY_DOT: Record<FindingCategory, string> = {
   configuration: 'bg-info',
   information: 'bg-border-strong',
 };
+
+/** A flat, virtualizable projection of `groups` — one entry per header and per visible row, so
+ *  grouped mode (file/severity) can go through the same `VirtualList` flat mode already uses,
+ *  instead of rendering every row into the DOM at once. */
+type VirtualItem =
+  | { kind: 'header'; groupKey: string; label: string; count: number; isCollapsed: boolean }
+  | { kind: 'row'; finding: Finding; groupKey: string };
 
 type GroupMode = 'flat' | 'file' | 'severity';
 const GROUP_MODES: { mode: GroupMode; label: string; icon: string }[] = [
@@ -234,25 +241,28 @@ export function FindingsPanel(): React.JSX.Element {
     [groupMode, searched],
   );
 
-  // Grouped mode has no `VirtualList` container to own a roving `aria-activedescendant`, so it
-  // rolls its own roving-tabIndex: exactly one row's button is a real tab stop (findingLine below),
-  // Arrow Up/Down move it programmatically, and group headers are excluded from both — collapsed or
-  // not, a header never receives keyboard focus in this list.
-  const groupedRowIds = groups.flatMap((g) =>
-    collapsedGroups.has(g.key) ? [] : g.findings.map((f) => f.id),
-  );
-  const rowRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
-  const [focusedId, setFocusedId] = useState<string | null>(null);
-  const effectiveFocusedId =
-    focusedId !== null && groupedRowIds.includes(focusedId) ? focusedId : (groupedRowIds[0] ?? null);
-  const moveFocus = (fromId: string, delta: 1 | -1): void => {
-    const index = groupedRowIds.indexOf(fromId);
-    if (index === -1) return;
-    const nextId = groupedRowIds[Math.min(Math.max(index + delta, 0), groupedRowIds.length - 1)];
-    if (nextId === undefined) return;
-    setFocusedId(nextId);
-    rowRefs.current.get(nextId)?.focus();
-  };
+  // Grouped mode now renders through `VirtualList` too (below), which owns the roving
+  // `aria-activedescendant`/keyboard contract itself — headers and rows are flattened into one
+  // list so the virtualizer sees a single, uniform sequence of items.
+  const virtualItems = useMemo(() => {
+    const items: VirtualItem[] = [];
+    for (const group of groups) {
+      const isCollapsed = collapsedGroups.has(group.key);
+      items.push({
+        kind: 'header',
+        groupKey: group.key,
+        label: group.label,
+        count: group.findings.length,
+        isCollapsed,
+      });
+      if (!isCollapsed) {
+        for (const finding of group.findings) {
+          items.push({ kind: 'row', finding, groupKey: group.key });
+        }
+      }
+    }
+    return items;
+  }, [groups, collapsedGroups]);
 
   // One click, or Enter/Space on the keyboard-active row, does the whole job: describe it, open
   // it, jump to it, highlight it. Defined once and handed to both `VirtualList` (keyboard) and
@@ -284,7 +294,7 @@ export function FindingsPanel(): React.JSX.Element {
   return (
     <section
       aria-label="Problems"
-      className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border-subtle bg-canvas"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-border-subtle bg-canvas"
     >
       <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-raised px-3">
         <h2 className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
@@ -651,23 +661,35 @@ export function FindingsPanel(): React.JSX.Element {
           onShowHidden={showIgnored}
         />
       ) : groupMode !== 'flat' ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {groups.map((group) => {
-            const collapsed = collapsedGroups.has(group.key);
-            return (
-              <div key={group.key}>
+        <VirtualList
+          items={virtualItems}
+          label="Problems"
+          estimateRowHeight={rowEstimate}
+          dynamicRowHeight
+          getKey={(item) => (item.kind === 'header' ? `header-${item.groupKey}` : `row-${item.finding.id}`)}
+          isSelected={(item) => item.kind === 'row' && item.finding.id === selectedId}
+          className="min-h-0 flex-1"
+          // Headers and rows share one roving-focus sequence — Enter/Space toggles a header,
+          // activates a row, exactly like a click on either would.
+          onActivate={(item) => {
+            if (item.kind === 'header') toggleGroup(item.groupKey);
+            else activate(item.finding);
+          }}
+          renderItem={(item) => {
+            if (item.kind === 'header') {
+              return (
                 <button
                   type="button"
                   onClick={() => {
-                    toggleGroup(group.key);
+                    toggleGroup(item.groupKey);
                   }}
-                  aria-expanded={!collapsed}
-                  // Not a tab stop: a group header is a mouse-only collapse control here, so the
-                  // roving tab stop below always lands on a finding, never a header.
+                  aria-expanded={!item.isCollapsed}
+                  // Not a tab stop: `VirtualList`'s container is the single tab stop for this list
+                  // (headers included) — see its own doc comment on that contract.
                   tabIndex={-1}
                   className="sticky top-0 z-10 flex w-full items-center gap-1.5 border-b border-border-subtle bg-raised px-3 py-1.5 text-left hover:bg-hover"
                 >
-                  {collapsed ? (
+                  {item.isCollapsed ? (
                     <ChevronRightIcon className="size-3.5 shrink-0 text-fg-muted" />
                   ) : (
                     <ChevronDownIcon className="size-3.5 shrink-0 text-fg-muted" />
@@ -676,48 +698,19 @@ export function FindingsPanel(): React.JSX.Element {
                     className={cn(
                       'min-w-0 truncate text-xs font-medium capitalize',
                       groupMode === 'severity'
-                        ? SEVERITY_STYLE[group.key as Severity]
+                        ? SEVERITY_STYLE[item.groupKey as Severity]
                         : 'text-fg-secondary',
                     )}
                   >
-                    {group.label}
+                    {item.label}
                   </span>
-                  <span className="tabular-nums text-[11px] text-fg-muted">
-                    ({group.findings.length})
-                  </span>
+                  <span className="tabular-nums text-[11px] text-fg-muted">({item.count})</span>
                 </button>
-                {!collapsed &&
-                  group.findings.map((finding) => (
-                    <FindingRow
-                      key={finding.id}
-                      finding={finding}
-                      onActivate={activate}
-                      tabIndex={finding.id === effectiveFocusedId ? 0 : -1}
-                      rowRef={(el) => {
-                        if (el) rowRefs.current.set(finding.id, el);
-                        else rowRefs.current.delete(finding.id);
-                      }}
-                      onFocus={() => {
-                        setFocusedId(finding.id);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown') {
-                          e.preventDefault();
-                          moveFocus(finding.id, 1);
-                        } else if (e.key === 'ArrowUp') {
-                          e.preventDefault();
-                          moveFocus(finding.id, -1);
-                        }
-                        // Enter/Space need no handling here: a native `<button>` fires `onClick`
-                        // for both once it holds focus, which this row does whenever it is the
-                        // roving tab stop.
-                      }}
-                    />
-                  ))}
-              </div>
-            );
-          })}
-        </div>
+              );
+            }
+            return <FindingRow finding={item.finding} onActivate={activate} />;
+          }}
+        />
       ) : (
         <VirtualList
           items={searched}
