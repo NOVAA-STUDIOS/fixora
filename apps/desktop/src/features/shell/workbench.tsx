@@ -1,4 +1,4 @@
-import { PanelGroupRoot, ResizablePanel, ResizeHandle } from '@fixora/ui';
+import { PanelGroupRoot, ResizablePanel, ResizeHandle, Skeleton } from '@fixora/ui';
 import { lazy, Suspense, useCallback, useRef } from 'react';
 
 import { ErrorBoundary } from '../../app/error-boundary.js';
@@ -45,7 +45,23 @@ const SettingsPanel = lazy(() =>
 );
 
 function PanelFallback(): React.JSX.Element {
-  return <div className="flex h-full items-center justify-center text-xs text-fg-muted">Loading…</div>;
+  return (
+    <div className="flex h-full flex-col gap-3 p-4">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-4 w-5/6" />
+      <div className="mt-4 flex flex-col gap-2">
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+      </div>
+      <div className="mt-auto flex gap-2">
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-8 w-24" />
+      </div>
+    </div>
+  );
 }
 
 /**
