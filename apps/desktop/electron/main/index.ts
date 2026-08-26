@@ -591,7 +591,18 @@ function startBackend(window: BrowserWindow | null): void {
   // anything that needs real IPC without racing a handler that did not exist yet.
   // `window` is null in MCP-only mode: there is no renderer to tell, and these two pushes are the
   // only things in this function that address one.
-  if (window !== null && !window.isDestroyed()) emitToWindow(window, 'app:ready', {});
+  if (window !== null && !window.isDestroyed()) {
+    if (window.webContents.isLoading()) {
+      // Renderer JS hasn't finished loading yet — wait for it before emitting
+      // app:ready, otherwise the event fires before subscribe() is called and
+      // the splash never resolves (30s timeout → error state).
+      window.webContents.once('did-finish-load', () => {
+        if (!window.isDestroyed()) emitToWindow(window, 'app:ready', {});
+      });
+    } else {
+      emitToWindow(window, 'app:ready', {});
+    }
+  }
 
   // Only when a previous launch actually recorded a DIFFERENT version — never on a fresh install
   // (`previousVersion === null`) and never on a same-version relaunch.
