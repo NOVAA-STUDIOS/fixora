@@ -753,13 +753,37 @@ export function createAiService(deps: AiServiceDeps): AiService {
        */
       if (request.profile === 'explain' && request.followUp !== undefined) {
         const { question, priorExplanation, history } = request.followUp;
+
+        // Token budget guard: estimate tokens by char count (1 token ≈ 4 chars).
+        // Base context already in activeRequest.messages is the dominant cost —
+        // trim oldest history pairs first to stay under a safe ceiling.
+        const CHAR_BUDGET = 24_000; // ~6k tokens headroom before provider limit
+        const baseChars = activeRequest.messages.reduce((n, m) => n + m.content.length, 0);
+        const fixedChars = FOLLOWUP_SYSTEM.length + priorExplanation.length + question.length;
+        let remainingBudget = CHAR_BUDGET - baseChars - fixedChars;
+
+        // Keep as many trailing history messages as fit, dropping oldest pairs first.
+        // Always keep at least the last exchange (2 messages) if any history exists.
+        const trimmedHistory: typeof history = [];
+        for (let i = history.length - 1; i >= 0; i--) {
+          const item = history[i];
+          if (item === undefined) continue;
+          const msgChars = item.content.length;
+          if (remainingBudget - msgChars >= 0 || trimmedHistory.length < 2) {
+            trimmedHistory.unshift(item);
+            remainingBudget -= msgChars;
+          } else {
+            break;
+          }
+        }
+
         activeRequest = {
           ...activeRequest,
           messages: [
             ...activeRequest.messages,
             { role: 'system' as const, content: FOLLOWUP_SYSTEM },
             { role: 'assistant' as const, content: priorExplanation },
-            ...history.map((m) => ({ role: m.role, content: m.content })),
+            ...trimmedHistory.map((m) => ({ role: m.role, content: m.content })),
             { role: 'user' as const, content: question },
           ],
         };
