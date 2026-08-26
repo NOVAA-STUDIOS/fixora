@@ -12,6 +12,7 @@ import {
 } from '@fixora/ui';
 import { useEffect, useId, useMemo, useState } from 'react';
 
+import { useAuthStore } from '../../features/auth/auth-store.js';
 import { invoke } from '../../lib/bridge.js';
 import { copyToClipboard } from '../../lib/clipboard.js';
 import { useAiStore } from '../../stores/ai-store.js';
@@ -72,6 +73,11 @@ const SECTIONS: readonly {
   { title: 'Performance', labels: ['Disable GPU compositing'], Component: PerformanceSettings },
   { title: 'AI (bring your own key)', labels: ['Model'], Component: AiSettings },
   { title: 'AI providers & failover', labels: [], Component: ProviderSettings },
+  {
+    title: 'Account',
+    labels: ['Sign in with Google', 'Sign in with GitHub', 'Sign out'],
+    Component: AccountSettings,
+  },
   { title: 'License', labels: [], Component: LicenseSettings },
   { title: 'Privacy', labels: ['Anonymous usage telemetry'], Component: PrivacySettings },
   { title: 'MCP Server', labels: ['Allow external tools (MCP)'], Component: McpSettings },
@@ -509,6 +515,87 @@ export function PrimaryKeyField(): React.JSX.Element {
       )}
       {error !== null && <span className="text-xs text-danger-text">{error}</span>}
     </div>
+  );
+}
+
+/** Sign-in is optional (only repair/purchase need it — `auth-store.ts`), so this reads state only
+ *  and never gates the rest of Settings. Sign out is confirmed: it does not touch history or local
+ *  settings, but a user who did not mean to click it loses their synced-license session. */
+function AccountSettings(): React.JSX.Element {
+  const user = useAuthStore((s) => s.user);
+  const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
+  const signInWithGitHub = useAuthStore((s) => s.signInWithGitHub);
+  const signOut = useAuthStore((s) => s.signOut);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
+  if (user === null) {
+    return (
+      <Group title="Account">
+        <p className="text-xs leading-relaxed text-fg-muted">
+          Sign in to sync your license across devices.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => void signInWithGoogle()}>
+            Sign in with Google
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => void signInWithGitHub()}>
+            Sign in with GitHub
+          </Button>
+        </div>
+      </Group>
+    );
+  }
+
+  const displayName = (user.user_metadata['full_name'] as string | undefined) ?? user.email ?? '';
+  const avatarUrl = user.user_metadata['avatar_url'] as string | undefined;
+  const showAvatar = avatarUrl !== undefined && !avatarFailed;
+  const initial = displayName.charAt(0).toUpperCase() || '•';
+
+  return (
+    <Group title="Account">
+      <div className="flex items-center gap-3">
+        {showAvatar ? (
+          <img
+            src={avatarUrl}
+            alt=""
+            className="size-10 shrink-0 rounded-full object-cover"
+            onError={() => {
+              setAvatarFailed(true);
+            }}
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-on-accent"
+          >
+            {initial}
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-fg">{displayName}</p>
+          {user.email !== undefined && <p className="truncate text-xs text-fg-muted">{user.email}</p>}
+        </div>
+      </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="self-start"
+        onClick={() => {
+          setConfirmSignOut(true);
+        }}
+      >
+        Sign out
+      </Button>
+      <ConfirmDialog
+        open={confirmSignOut}
+        onOpenChange={setConfirmSignOut}
+        title="Sign out of Fixora?"
+        description="Your repair history and settings will remain. You'll need to sign in again to sync your license."
+        confirmLabel="Sign out"
+        onConfirm={() => void signOut()}
+      />
+    </Group>
   );
 }
 

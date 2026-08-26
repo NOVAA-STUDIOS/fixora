@@ -1,6 +1,7 @@
 import {
   AlertIcon,
   ClockIcon,
+  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -71,6 +72,7 @@ export function ActivityRail(): React.JSX.Element {
   const setUpgradeDialogOpen = useLicenseStore((s) => s.setUpgradeDialogOpen);
   const repairsToday = useLicenseStore((s) => s.repairsToday);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   // A dead/unreachable avatar URL (network hiccup, revoked token) must fall back to the initials
   // circle, not a broken-image icon — `<img onError>` is the only way to know it failed to load.
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -338,7 +340,7 @@ export function ActivityRail(): React.JSX.Element {
               <DropdownMenuItem
                 danger
                 onSelect={() => {
-                  void signOut();
+                  setConfirmSignOut(true);
                 }}
               >
                 🚪 Sign out
@@ -347,6 +349,14 @@ export function ActivityRail(): React.JSX.Element {
           </DropdownMenu>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmSignOut}
+        onOpenChange={setConfirmSignOut}
+        title="Sign out of Fixora?"
+        description="Your repair history and settings will remain. You'll need to sign in again to sync your license."
+        confirmLabel="Sign out"
+        onConfirm={() => void signOut()}
+      />
       {user !== null && (
         <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
           <DialogContent className="max-w-sm">
