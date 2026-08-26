@@ -10,14 +10,14 @@ import type { SplashPhase } from './splash-screen.js';
  */
 export const SPLASH_MIN_VISIBLE_MS = 300;
 export const SPLASH_FADE_MS = 300;
-/** Safety fallback: if `app:ready` never fires (a stuck main process), the app is still usable
- *  underneath — don't leave the user staring at the splash forever. */
-export const SPLASH_FALLBACK_MS = 5_000;
 
-export type SplashState = { visible: true; phase: SplashPhase } | { visible: false };
+export type SplashState =
+  | { visible: true; phase: SplashPhase; errorMessage?: string }
+  | { visible: false };
 
 export function useSplash(initialize: () => Promise<unknown>): SplashState {
   const [phase, setPhase] = useState<SplashPhase | 'done'>('entering');
+  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const cancelled = useRef(false);
   const initializeRef = useRef(initialize);
   initializeRef.current = initialize;
@@ -43,15 +43,23 @@ export function useSplash(initialize: () => Promise<unknown>): SplashState {
       }, remaining);
     };
 
-    void initializeRef.current().finally(dismiss);
-    const fallback = setTimeout(dismiss, SPLASH_FALLBACK_MS);
+    // `initialize` now carries its own timeout (`waitForAppReady`'s 30s race) — a rejection means
+    // `app:ready` genuinely never arrived, so this shows the error state instead of blindly
+    // dismissing into a half-started app.
+    initializeRef.current().then(dismiss, (error: unknown) => {
+      if (cancelled.current) return;
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setPhase('error');
+    });
 
     return () => {
       cancelled.current = true;
       clearTimeout(enter);
-      clearTimeout(fallback);
     };
   }, []);
 
-  return phase === 'done' ? { visible: false } : { visible: true, phase };
+  if (phase === 'done') return { visible: false };
+  return errorMessage !== undefined
+    ? { visible: true, phase, errorMessage }
+    : { visible: true, phase };
 }

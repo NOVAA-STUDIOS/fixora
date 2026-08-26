@@ -12,6 +12,10 @@ import { subscribe } from './bridge.js';
  */
 let readyPromise: Promise<void> | null = null;
 
+/** How long to wait for `app:ready` before giving up — a stuck main process must not leave the
+ *  splash spinning forever. */
+const TIMEOUT_MS = 30_000;
+
 export function waitForAppReady(): Promise<void> {
   readyPromise ??= new Promise((resolve) => {
     // Boxed rather than a plain `const unsubscribe = subscribe(...)`: `subscribe`'s real
@@ -28,5 +32,10 @@ export function waitForAppReady(): Promise<void> {
       resolve();
     });
   });
-  return readyPromise;
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error('App took too long to start'));
+    }, TIMEOUT_MS);
+  });
+  return Promise.race([readyPromise, timeout]);
 }

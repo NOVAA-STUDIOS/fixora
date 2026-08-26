@@ -140,7 +140,13 @@ export function App(): React.JSX.Element {
       {shortcutsOpen && <ShortcutsPanel />}
       {shareOpen && <ShareDialog />}
       {showSignIn && <LoginScreen />}
-      {splash.visible && <SplashScreen phase={splash.phase} version={version} />}
+      {splash.visible && (
+        <SplashScreen
+          phase={splash.phase}
+          version={version}
+          {...(splash.errorMessage !== undefined ? { errorMessage: splash.errorMessage } : {})}
+        />
+      )}
     </>
   );
 }

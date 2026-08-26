@@ -1,10 +1,9 @@
-import { FixoraMark } from '@fixora/ui';
+import { AlertIcon, FixoraMark } from '@fixora/ui';
 import { useEffect, useState } from 'react';
 
 /** The launch splash: logo, name, tagline, version, and a rotating message while initialization
- *  runs. No timeout copy, no error state — a brief brand moment over the already-mounted app
- *  underneath. */
-export type SplashPhase = 'entering' | 'loading' | 'leaving';
+ *  runs — or, if `app:ready` never arrives, an error state with a restart action. */
+export type SplashPhase = 'entering' | 'loading' | 'leaving' | 'error';
 
 const LOADING_MESSAGES = [
   'Getting your codebase ready...',
@@ -37,12 +36,16 @@ function useLoadingMessage(active: boolean): string {
 export function SplashScreen({
   phase,
   version,
+  errorMessage,
 }: {
   phase: SplashPhase;
   /** The running app version, or null while `system:getAppInfo` is still in flight. */
   version: string | null;
+  /** Shown only when `phase === 'error'`. */
+  errorMessage?: string;
 }): React.JSX.Element {
-  const message = useLoadingMessage(phase !== 'leaving');
+  // Loading messages stop rotating once there is an error to show instead.
+  const message = useLoadingMessage(phase !== 'leaving' && phase !== 'error');
 
   return (
     <div
@@ -65,10 +68,32 @@ export function SplashScreen({
         <p className="text-sm text-fg-muted">Fix smarter. Ship faster.</p>
         {version !== null && <p className="text-[11px] tabular-nums text-fg-muted">v{version}</p>}
       </div>
-      {phase !== 'leaving' && (
-        <p key={message} className="px-6 text-center text-sm text-fg-muted opacity-100 transition-opacity duration-300 ease-out">
-          {message}
-        </p>
+      {phase === 'error' ? (
+        <div className="flex flex-col items-center gap-3 px-6 text-center">
+          <AlertIcon className="size-6 text-fg-muted" />
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-fg">Taking longer than usual…</p>
+            <p className="text-xs text-fg-muted">Something may have gone wrong on startup.</p>
+            {errorMessage !== undefined && (
+              <p className="text-[11px] text-fg-muted">{errorMessage}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              window.close();
+            }}
+            className="rounded-full bg-hover px-4 py-1.5 text-xs font-medium text-fg hover:bg-active"
+          >
+            Restart Fixora
+          </button>
+        </div>
+      ) : (
+        phase !== 'leaving' && (
+          <p key={message} className="px-6 text-center text-sm text-fg-muted opacity-100 transition-opacity duration-300 ease-out">
+            {message}
+          </p>
+        )
       )}
     </div>
   );
