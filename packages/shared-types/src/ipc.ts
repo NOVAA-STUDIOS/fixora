@@ -96,6 +96,12 @@ const empty = z.object({});
 const WindowStateSchema = z.object({ isMaximized: z.boolean() });
 
 export const contracts = {
+  // Polled, not pushed (see `channels.ts`): main has no way to race a listener that never
+  // subscribed, because there is no listener — the renderer asks until the answer is yes.
+  'app:getReadyState': {
+    request: empty,
+    response: z.object({ ready: z.boolean() }),
+  },
   'system:getAppInfo': {
     request: empty,
     response: AppInfoSchema,

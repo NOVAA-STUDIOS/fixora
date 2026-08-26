@@ -108,7 +108,6 @@ export const eventContracts = {
   'analysis:watchEvent': AnalysisWatchEventSchema,
   'workspace:largeProject': WorkspaceLargeProjectSchema,
   'workspace:indexProgress': WorkspaceIndexProgressSchema,
-  'app:ready': z.object({}),
   'auth:callback': AuthCallbackSchema,
   'license:revalidateNeeded': z.object({}),
   'license:planRevoked': z.object({}),

@@ -47,7 +47,7 @@ import { registerTerminalHandlers } from './ipc/handlers/terminal.handlers.js';
 import { registerTestGenerationHandlers } from './ipc/handlers/test-generation.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
-import { assertEveryChannelIsHandled, mountRouter } from './ipc/router.js';
+import { assertEveryChannelIsHandled, mountRouter, registerHandler } from './ipc/router.js';
 import { revalidateIfDue } from './lib/gumroad-revalidate.js';
 import { checkAndRecordLaunchedVersion } from './lib/last-launched-version.js';
 import { initMcpSetting } from './lib/mcp-setting.js';
@@ -96,6 +96,10 @@ app.commandLine.appendSwitch('enable-gpu-rasterization');
  *  settings toggle and status bar can distinguish "enabled" from "running right now". Set by
  *  `mcp-standalone.ts`, the only thing that starts the server. */
 let mcpRunning = false;
+
+/** Set once `startBackend` has constructed every service and registered every handler. Polled by
+ *  the renderer via `app:getReadyState` (`app-ready.ts`) — a pull, so there is no listener to race. */
+let backendReady = false;
 
 export function markMcpRunning(): void {
   mcpRunning = true;
@@ -449,6 +453,8 @@ function startBackend(window: BrowserWindow | null): void {
     orchestrator,
   });
 
+  // Polled by the renderer's splash instead of pushed — see `backendReady` above.
+  registerHandler('app:getReadyState', () => ({ ready: backendReady }));
   registerSystemHandlers({ workspace: workspaceService, gpuPreference });
   registerLicenseHandlers({ dir: app.getPath('userData') });
   registerWindowHandlers();
@@ -587,22 +593,9 @@ function startBackend(window: BrowserWindow | null): void {
   // second check on every dock click would spam GitHub's release API for nothing.
   initAutoUpdater();
 
-  // Backend fully constructed and every handler registered — the renderer's splash can now do
-  // anything that needs real IPC without racing a handler that did not exist yet.
-  // `window` is null in MCP-only mode: there is no renderer to tell, and these two pushes are the
-  // only things in this function that address one.
-  if (window !== null && !window.isDestroyed()) {
-    if (window.webContents.isLoading()) {
-      // Renderer JS hasn't finished loading yet — wait for it before emitting
-      // app:ready, otherwise the event fires before subscribe() is called and
-      // the splash never resolves (30s timeout → error state).
-      window.webContents.once('did-finish-load', () => {
-        if (!window.isDestroyed()) emitToWindow(window, 'app:ready', {});
-      });
-    } else {
-      emitToWindow(window, 'app:ready', {});
-    }
-  }
+  // Backend fully constructed and every handler registered — `app:getReadyState` now answers
+  // `{ ready: true }`, which is what the renderer's splash polls before making any real IPC call.
+  backendReady = true;
 
   // Only when a previous launch actually recorded a DIFFERENT version — never on a fresh install
   // (`previousVersion === null`) and never on a same-version relaunch.

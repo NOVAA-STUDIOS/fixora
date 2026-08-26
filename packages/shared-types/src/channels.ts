@@ -20,6 +20,10 @@
 
 /** Renderer → main request/response channels (invoke). */
 export const channels = [
+  // Polled by the renderer's splash (`app-ready.ts`) until main has finished constructing every
+  // service and registering every handler — a pull, not a push, so it can never race a listener
+  // that hasn't subscribed yet the way the old `app:ready` event could.
+  'app:getReadyState',
   'system:getAppInfo',
   'system:getChangelog',
   'system:getGpuPreference',
@@ -208,9 +212,6 @@ export const eventChannels = [
   // Background indexing progress, on a long walk (status-bar.tsx). Not a percentage — the total
   // file count isn't known until the walk finishes, so nothing here fabricates one.
   'workspace:indexProgress',
-  // Everything main needs to open a window with has finished constructing (index.ts) — the
-  // renderer's splash gates real IPC use on this so a call can't race main's own startup.
-  'app:ready',
   // The `fixora://auth/callback` URL the OS hands back after the system-browser OAuth round trip.
   'auth:callback',
   // Watch Mode status pushes (analysis.handlers.ts) — a change was detected, a re-analysis started
