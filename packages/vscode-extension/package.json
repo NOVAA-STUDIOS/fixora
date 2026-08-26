@@ -1,13 +1,17 @@
 {
   "name": "fixora-vscode",
   "displayName": "Fixora — AI Code Repair",
-  "description": "AI-powered code analysis, repair & PR readiness scoring. Works standalone with your own API key.",
-  "version": "0.2.2",
+  "description": "AI code repair with diff preview, real-time PR readiness scoring, and inline diagnostics. Works standalone with your own API key — no desktop app needed.",
+  "longDescription": "Fixora analyzes your code using real ESLint and TypeScript findings, shows you exactly what changed before writing to disk, and gives every file a PR Readiness Score (0-100). Works with OpenAI, Anthropic, Gemini, and OpenRouter.",
+  "version": "0.2.3",
   "private": true,
   "publisher": "novaa-studios",
+  "license": "MIT",
+  "homepage": "https://fixora-opal.vercel.app",
+  "bugs": { "url": "https://github.com/NOVAA-STUDIOS/fixora/issues" },
   "repository": { "type": "git", "url": "https://github.com/NOVAA-STUDIOS/fixora" },
   "icon": "images/icon.png",
-  "galleryBanner": { "color": "#000000", "theme": "dark" },
+  "galleryBanner": { "color": "#0a0a0a", "theme": "dark" },
   "categories": ["Linters", "Programming Languages", "Machine Learning", "Other"],
   "keywords": ["ai", "code-repair", "analysis", "linting", "openai", "anthropic", "gemini", "code-quality", "pr-readiness", "fixora"],
   "engines": {
@@ -27,11 +31,11 @@
       },
       {
         "command": "fixora.explain",
-        "title": "Fixora: Explain Issue"
+        "title": "Fixora: Explain Selected Issue"
       },
       {
         "command": "fixora.openApp",
-        "title": "Fixora: Open Fixora App"
+        "title": "Fixora: Open Desktop App"
       },
       {
         "command": "fixora.setup",
