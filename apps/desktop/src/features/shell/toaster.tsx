@@ -28,6 +28,12 @@ const TONE_STYLE: Record<ToastTone, string> = {
   info: 'bg-accent-subtle text-accent-text',
 };
 
+/** Root paths already warned about this session — `workspace:largeProject` fires on every open of
+ *  the same big project, but the warning only needs to be seen once per session. Module state, not
+ *  component state, so it survives the Toaster remounting (it does not, but this is the same
+ *  belt-and-suspenders reasoning other session-lifetime caches in this app use). */
+const warnedRootPaths = new Set<string>();
+
 /**
  * The toast host. Mounted once in the shell; every surface pushes through `toast.*` rather than
  * owning its own notification state.
@@ -44,10 +50,12 @@ export function Toaster(): React.JSX.Element {
 
   useEffect(
     () =>
-      subscribe('workspace:largeProject', ({ fileCount }) => {
-        toast.success(
-          'Large project',
-          `${fileCount.toLocaleString()} files found. node_modules, dist, build and similar folders are excluded from analysis by default.`,
+      subscribe('workspace:largeProject', ({ fileCount, rootPath }) => {
+        if (warnedRootPaths.has(rootPath)) return;
+        warnedRootPaths.add(rootPath);
+        toast.warning(
+          `⚠️ Large project detected (${fileCount.toLocaleString()} files)`,
+          'Analysis may be slower. Consider adding a .gitignore.',
         );
       }),
     [],

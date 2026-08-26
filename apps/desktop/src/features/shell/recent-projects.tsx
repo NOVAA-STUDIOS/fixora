@@ -17,6 +17,7 @@ import {
   FolderIcon,
   MoreIcon,
   PinIcon,
+  SearchIcon,
   TrashIcon,
   cn,
 } from '@fixora/ui';
@@ -51,6 +52,7 @@ export function RecentProjects(): React.JSX.Element | null {
   const [recent, setRecent] = useState<WorkspaceInfo[] | null>(null);
   const [removing, setRemoving] = useState<string[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +125,17 @@ export function RecentProjects(): React.JSX.Element | null {
     );
   }
 
+  const trimmedSearch = search.trim().toLowerCase();
+  const searching = trimmedSearch !== '';
+  const filtered = searching
+    ? recent.filter(
+        (w) =>
+          w.name.toLowerCase().includes(trimmedSearch) ||
+          w.rootPath.toLowerCase().includes(trimmedSearch),
+      )
+    : recent;
+  const shown = searching ? filtered : shownWorkspaces(filtered);
+
   return (
     <section className="flex flex-col gap-2.5" aria-label="Recent projects">
       <Header
@@ -130,26 +143,46 @@ export function RecentProjects(): React.JSX.Element | null {
           setConfirmClear(true);
         }}
       />
-      <div className="grid gap-2 sm:grid-cols-2">
-        {shownWorkspaces(recent).map((w) => (
-          <RecentCard
-            key={w.id}
-            workspace={w}
-            busy={opening}
-            leaving={removing.includes(w.id)}
-            onOpen={() => void openPath(w.rootPath)}
-            onRemove={() => {
-              remove(w.id);
-            }}
-            onTogglePin={() => {
-              togglePin(w.id, w.pinnedAt === null);
-            }}
-            onClearAll={() => {
-              setConfirmClear(true);
-            }}
-          />
-        ))}
+      <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-inset px-2.5 py-1.5">
+        <SearchIcon className="size-3.5 shrink-0 text-fg-muted" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+          }}
+          placeholder="Search recent projects…"
+          aria-label="Search recent projects"
+          className="min-w-0 flex-1 bg-transparent text-xs text-fg outline-none placeholder:text-fg-muted"
+        />
       </div>
+      {shown.length === 0 ? (
+        <p className="px-0.5 text-xs text-fg-muted">No matching workspaces</p>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {shown.map((w) => (
+            <RecentCard
+              key={w.id}
+              workspace={w}
+              busy={opening}
+              leaving={removing.includes(w.id)}
+              onOpen={() => {
+                setSearch('');
+                void openPath(w.rootPath);
+              }}
+              onRemove={() => {
+                remove(w.id);
+              }}
+              onTogglePin={() => {
+                togglePin(w.id, w.pinnedAt === null);
+              }}
+              onClearAll={() => {
+                setConfirmClear(true);
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmClear}

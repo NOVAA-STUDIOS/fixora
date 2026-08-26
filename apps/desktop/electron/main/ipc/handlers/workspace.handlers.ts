@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import {
   UserFacingError,
@@ -117,8 +117,11 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
           // Informational only — the always-ignore set (ignore-rules.ts) already excludes
           // node_modules/dist/build/out/etc from both the tree and analysis by default, so there
           // is no toggle to offer here; this just tells the user their project is the size it is.
-          if (fileCount >= 50_000 && window !== null && !window.isDestroyed()) {
-            emitToWindow(window, 'workspace:largeProject', { fileCount });
+          if (fileCount > 10_000 && window !== null && !window.isDestroyed()) {
+            emitToWindow(window, 'workspace:largeProject', {
+              fileCount,
+              rootPath: basename(open.rootPath),
+            });
           }
         })
         .catch(() => {

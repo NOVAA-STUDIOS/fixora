@@ -68,7 +68,10 @@ export const TerminalTitleSchema = z.object({ id: z.string().min(1), processName
 export type TerminalTitle = z.infer<typeof TerminalTitleSchema>;
 
 /** The background index found this many analyzable files — large enough to be worth mentioning. */
-export const WorkspaceLargeProjectSchema = z.object({ fileCount: z.number().int().nonnegative() });
+export const WorkspaceLargeProjectSchema = z.object({
+  fileCount: z.number().int().nonnegative(),
+  rootPath: z.string(),
+});
 export type WorkspaceLargeProject = z.infer<typeof WorkspaceLargeProjectSchema>;
 
 /** The raw `fixora://auth/callback#...` URL the OS handed back after system-browser OAuth. */
