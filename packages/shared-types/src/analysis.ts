@@ -275,5 +275,8 @@ export const AnalysisStateSchema = z.object({
    * not present "no findings" as a clean bill of health.
    */
   warnings: AnalysisWarningSchema.array().optional(),
+  /** Workspace-relative paths skipped for being larger than the analyzable size cap — present
+   *  (non-empty) only on the final `'done'` state of a full run. */
+  skippedFiles: z.string().array().optional(),
 });
 export type AnalysisState = z.infer<typeof AnalysisStateSchema>;

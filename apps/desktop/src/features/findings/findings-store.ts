@@ -22,6 +22,8 @@ type FindingsState = {
   findingsSoFar: number | null;
   /** Reliability warnings (NOV7-01): tools killed at their timeout, so the run was partial. */
   warnings: AnalysisWarning[] | null;
+  /** Workspace-relative paths skipped for being too large to analyze, from the last completed run. */
+  skippedFiles: string[] | null;
   filter: FindingsFilter;
   error: string | null;
 
@@ -60,6 +62,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   status: 'idle',
   findingsSoFar: null,
   warnings: null,
+  skippedFiles: null,
   filter: {},
   error: null,
   ignoredIds: [],
@@ -80,7 +83,14 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
     // A fresh run's findings replace the previous run's — otherwise the first buffered batch would
     // land on top of stale rows still shown from before this run started.
     pendingFindings = [];
-    set({ status: 'running', error: null, findingsSoFar: null, warnings: null, findings: [] });
+    set({
+      status: 'running',
+      error: null,
+      findingsSoFar: null,
+      warnings: null,
+      skippedFiles: null,
+      findings: [],
+    });
     const result = await invoke('analysis:run', {});
     if (!result.ok) set({ status: 'error', error: result.error.message });
   },
@@ -128,6 +138,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
         ...(state.summary !== undefined ? { summary: state.summary } : {}),
         ...(state.findingsSoFar !== undefined ? { findingsSoFar: state.findingsSoFar } : {}),
         ...(state.warnings !== undefined ? { warnings: state.warnings } : {}),
+        ...(state.skippedFiles !== undefined ? { skippedFiles: state.skippedFiles } : {}),
       });
       if (state.status === 'error') set({ error: state.message ?? 'Analysis failed.' });
       if (state.status === 'done') {

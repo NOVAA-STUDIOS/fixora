@@ -20,6 +20,10 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   FolderIcon,
   SearchIcon,
   VirtualList,
@@ -28,8 +32,10 @@ import {
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useFindingRowEstimate } from '../../hooks/use-density-metrics.js';
+import { invoke } from '../../lib/bridge.js';
 import { basename } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
+import { toast } from '../../stores/toast-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useCapability } from '../ai/use-capability.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
@@ -123,6 +129,7 @@ export function FindingsPanel(): React.JSX.Element {
   const findingsSoFar = useFindingsStore((s) => s.findingsSoFar);
   const error = useFindingsStore((s) => s.error);
   const warnings = useFindingsStore((s) => s.warnings);
+  const skippedFiles = useFindingsStore((s) => s.skippedFiles);
   const filter = useFindingsStore((s) => s.filter);
   const ignoredIds = useFindingsStore((s) => s.ignoredIds);
   const refresh = useFindingsStore((s) => s.refresh);
@@ -162,10 +169,17 @@ export function FindingsPanel(): React.JSX.Element {
   const groupedRepair = useBulkRepairStore((s) => s.groupedRepair);
   const [groupRepairOpen, setGroupRepairOpen] = useState(false);
 
+  const [skippedBannerDismissed, setSkippedBannerDismissed] = useState(false);
+
   useEffect(() => listen(), [listen]);
   useEffect(() => {
     if (workspace !== null) void refresh();
   }, [workspace, refresh]);
+  // A fresh run's own skippedFiles (or absence of any) should always get a fresh banner — never
+  // suppressed by a dismissal left over from a previous run.
+  useEffect(() => {
+    if (status === 'running') setSkippedBannerDismissed(false);
+  }, [status]);
 
   // Clustered by category — actionable first — so the list reads as groups without changing which
   // findings are shown, and without interleaving header rows into `VirtualList`, whose roving-focus
@@ -186,6 +200,38 @@ export function FindingsPanel(): React.JSX.Element {
           (a, b) => securityPriorityRank(a) - securityPriorityRank(b) || categoryRank(a) - categoryRank(b),
         ),
     [findings, ignoredIds],
+  );
+
+  const exportFindings = useCallback(
+    async (format: 'json' | 'csv'): Promise<void> => {
+      const date = new Date().toISOString().slice(0, 10);
+      const filename = `fixora-findings-${date}.${format}`;
+      const rows = visible.map((f) => ({
+        message: f.message,
+        rule: f.ruleId,
+        severity: f.severity,
+        file: f.location.file,
+        line: f.location.startLine,
+      }));
+      const content =
+        format === 'json'
+          ? JSON.stringify(rows, null, 2)
+          : [
+              'message,rule,severity,file,line',
+              ...rows.map((r) =>
+                [r.message, r.rule, r.severity, r.file, String(r.line)]
+                  .map((v) => `"${v.replace(/"/g, '""')}"`)
+                  .join(','),
+              ),
+            ].join('\n');
+      const result = await invoke('fs:writeFile', { relPath: filename, content });
+      if (result.ok) {
+        toast.success(`Findings exported to ${filename}`);
+      } else {
+        toast.error("Couldn't export findings.", result.error.message);
+      }
+    },
+    [visible],
   );
   const categoryCounts = countByCategory(visible);
   // Same list the panel shows: ignored findings are excluded, so the breakdown always agrees with
@@ -352,6 +398,21 @@ export function FindingsPanel(): React.JSX.Element {
             Repair All Repairable
           </Button>
         )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="shrink-0" disabled={visible.length === 0}>
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => void exportFindings('json')}>
+              Export as JSON
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void exportFindings('csv')}>
+              Export as CSV
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           variant="ghost"
           size="sm"
@@ -483,6 +544,30 @@ export function FindingsPanel(): React.JSX.Element {
               </p>
             ))}
           </div>
+        </div>
+      )}
+
+      {skippedFiles !== null && skippedFiles.length > 0 && !skippedBannerDismissed && (
+        <div
+          role="status"
+          className="flex shrink-0 items-start gap-2 border-b border-border-subtle bg-warn-subtle px-3 py-2"
+        >
+          <AlertIcon className="mt-0.5 size-4 shrink-0 text-warn-text" />
+          <p className="min-w-0 flex-1 text-xs leading-relaxed text-fg-secondary">
+            ⚠️ {skippedFiles.length} file{skippedFiles.length === 1 ? '' : 's'} skipped (too large
+            to analyze): {skippedFiles.slice(0, 3).map((f) => basename(f)).join(', ')}
+            {skippedFiles.length > 3 ? ` and ${String(skippedFiles.length - 3)} more` : ''}
+          </p>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              setSkippedBannerDismissed(true);
+            }}
+            className="shrink-0 rounded p-0.5 text-fg-muted hover:bg-hover hover:text-fg"
+          >
+            <CloseIcon className="size-3.5" />
+          </button>
         </div>
       )}
 
@@ -704,7 +789,9 @@ export function FindingsPanel(): React.JSX.Element {
                   >
                     {item.label}
                   </span>
-                  <span className="tabular-nums text-[11px] text-fg-muted">({item.count})</span>
+                  <span className="tabular-nums text-[11px] text-fg-muted">
+                    ({item.count} issue{item.count === 1 ? '' : 's'})
+                  </span>
                 </button>
               );
             }

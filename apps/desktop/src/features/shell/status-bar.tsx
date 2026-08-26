@@ -180,22 +180,27 @@ export function StatusBar(): React.JSX.Element {
                 <span aria-hidden="true" className="text-border-strong">
                   ·
                 </span>
-                <span
-                  className="flex shrink-0 items-center gap-1"
+                <button
+                  type="button"
+                  onClick={() => {
+                    useUiStore.getState().setWatchModeEnabled(false);
+                  }}
                   title={
                     watchActivity === 'reanalyzing'
                       ? 'Watch Mode: re-analyzing the file you just saved.'
-                      : 'Watch Mode: on. Files are re-analyzed automatically when saved.'
+                      : 'Watch mode active — files re-analyze on save. Click to disable.'
                   }
+                  aria-label="Watch mode active. Click to disable."
+                  className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-success-text transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover"
                 >
                   <span
                     aria-hidden="true"
-                    className={watchActivity !== 'idle' ? 'animate-pulse' : undefined}
+                    className={watchActivity !== 'idle' ? 'animate-pulse' : 'animate-pulse opacity-70'}
                   >
                     👁
                   </span>
                   {watchActivity === 'reanalyzing' ? 'Re-analyzing…' : 'Watching'}
-                </span>
+                </button>
               </>
             )}
             {branch !== null && (

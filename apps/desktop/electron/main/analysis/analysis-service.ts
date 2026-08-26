@@ -44,7 +44,7 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
       // project this held main's event loop for the whole walk before the worker job was even
       // sent, the same freeze `workspace-service.ts`'s indexFiles had. `collectTargets` now yields
       // like that fix does, so this await is real background time, not one long synchronous call.
-      void collectTargets(open).then((targets) => {
+      void collectTargets(open).then(({ targets, skippedFiles }) => {
         // A workspace close/switch, or a newer run, may have superseded this one while the walk
         // was still yielding — starting the worker against a stale root would attribute the wrong
         // workspace's findings.
@@ -116,6 +116,7 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
                 status: 'done',
                 summary: deps.findings.summary(open.id),
                 ...(runWarnings !== undefined ? { warnings: runWarnings } : {}),
+                ...(skippedFiles.length > 0 ? { skippedFiles } : {}),
               });
             })();
           },
@@ -234,13 +235,24 @@ export function targetFor(open: OpenWorkspace, relPath: string): AnalysisTargetR
  *  absorb back-to-back runs (a re-check right after opening, a retry) without another O(repo)
  *  walk, short enough that a walk started minutes ago never answers for the tree's current state. */
 const TARGET_CACHE_TTL_MS = 30_000;
-const targetCache = new Map<string, { targets: AnalysisTargetRef[]; expiresAt: number }>();
+type CollectedTargets = { targets: AnalysisTargetRef[]; skippedFiles: string[] };
+const targetCache = new Map<string, { result: CollectedTargets; expiresAt: number }>();
 
-async function collectTargets(open: OpenWorkspace): Promise<AnalysisTargetRef[]> {
+/** Whether `relPath` is otherwise analyzable — same checks `targetFor` applies, minus the size cap
+ *  — so a walk can tell "skipped for being too large" apart from "skipped for any other reason"
+ *  (wrong language, ignored, secret-denied) without duplicating `targetFor`'s own contract. */
+function isAnalyzableIgnoringSize(open: OpenWorkspace, relPath: string): boolean {
+  const language = detectLanguage(relPath);
+  if (language === null || !isDeepLanguage(language)) return false;
+  return !open.ignore.ignores(relPath) && !isSecretPath(relPath);
+}
+
+async function collectTargets(open: OpenWorkspace): Promise<CollectedTargets> {
   const cached = targetCache.get(open.rootPath);
-  if (cached !== undefined && cached.expiresAt > Date.now()) return cached.targets;
+  if (cached !== undefined && cached.expiresAt > Date.now()) return cached.result;
 
   const targets: AnalysisTargetRef[] = [];
+  const skippedFiles: string[] = [];
 
   const walk = async (relDir: string): Promise<void> => {
     let entries;
@@ -258,12 +270,23 @@ async function collectTargets(open: OpenWorkspace): Promise<AnalysisTargetRef[]>
       }
       if (!entry.isFile()) continue;
       const target = targetFor(open, relPath);
-      if (target !== null) targets.push(target);
+      if (target !== null) {
+        targets.push(target);
+      } else if (isAnalyzableIgnoringSize(open, relPath)) {
+        try {
+          if (statSync(join(open.rootPath, relPath)).size > MAX_FILE_BYTES) {
+            skippedFiles.push(relPath);
+          }
+        } catch {
+          // Vanished mid-walk — not a size skip, nothing to report.
+        }
+      }
       if (targets.length % YIELD_EVERY === 0) await yieldToEventLoop();
     }
   };
 
   await walk('');
-  targetCache.set(open.rootPath, { targets, expiresAt: Date.now() + TARGET_CACHE_TTL_MS });
-  return targets;
+  const result: CollectedTargets = { targets, skippedFiles };
+  targetCache.set(open.rootPath, { result, expiresAt: Date.now() + TARGET_CACHE_TTL_MS });
+  return result;
 }
