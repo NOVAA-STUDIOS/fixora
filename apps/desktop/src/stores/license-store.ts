@@ -7,30 +7,33 @@ import { PRODUCT_PERMALINKS, validateLicense } from '../lib/gumroad.js';
 import { toast } from './toast-store.js';
 
 const STORAGE_KEY = 'fixora.license.v1';
-export const DAILY_LIMIT: Record<Plan, number> = { free: 10, go: 50, pro: Infinity };
 
-/** Rolling window, not a calendar day: the count resets 3h after the FIRST repair in the current
- * window, not at midnight. */
-export const REPAIR_WINDOW_MS = 3 * 60 * 60 * 1000;
+/**
+ * The renderer's own copy of the per-plan ceiling, for the pre-flight UX check only (`canRepair`).
+ * Enforcement — the count that actually gates a repair — lives solely in main's `repair-limit.ts`
+ * (`PLAN_LIMIT`, `checkAndIncrementRepairLimit`); this never increments and is never authoritative.
+ */
+export const PLAN_REPAIR_LIMIT: Record<Plan, number> = { free: 10, go: 50, pro: Infinity };
 
-type Stored = { plan: Plan; licenseKey: string | null; repairsToday: number; windowStart: number };
+/** What survives a restart: which plan is active, and the key that proved it. The repair count is
+ *  NOT part of this — it is main's authoritative count, re-fetched fresh via `syncFromMain` on
+ *  every launch, never written to disk here. */
+type PersistedLicense = { plan: Plan; licenseKey: string | null };
 
-function loadStored(): Stored {
+function loadPersistedLicense(): PersistedLicense {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw === null) throw new Error('none');
-    const parsed = JSON.parse(raw) as Stored;
-    // The window elapsed since this was last written — reset live, not just at load.
-    if (Date.now() - parsed.windowStart >= REPAIR_WINDOW_MS) {
-      return { ...parsed, repairsToday: 0, windowStart: Date.now() };
-    }
-    return parsed;
+    const parsed = JSON.parse(raw) as Partial<PersistedLicense>;
+    const plan: Plan = parsed.plan === 'go' || parsed.plan === 'pro' ? parsed.plan : 'free';
+    const licenseKey = typeof parsed.licenseKey === 'string' ? parsed.licenseKey : null;
+    return { plan, licenseKey };
   } catch {
-    return { plan: 'free', licenseKey: null, repairsToday: 0, windowStart: Date.now() };
+    return { plan: 'free', licenseKey: null };
   }
 }
 
-function persist(state: Stored): void {
+function persistLicense(state: PersistedLicense): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -40,7 +43,6 @@ type LicenseState = {
   repairsToday: number;
   showUpgradeDialog: boolean;
   canRepair: () => boolean;
-  incrementRepair: () => void;
   /** Tries the key against GO, then PRO — the caller (Settings, the upgrade dialog) supplies one
    * key with no tier picker; whichever Gumroad product it validates against wins. Resolves
    * the activated plan on success, so callers can show a tier-specific confirmation. */
@@ -50,29 +52,19 @@ type LicenseState = {
   syncFromMain: () => Promise<void>;
 };
 
-const initial = loadStored();
-let windowStart = initial.windowStart;
+const initial = loadPersistedLicense();
 
 export const useLicenseStore = create<LicenseState>((set, get) => ({
   plan: initial.plan,
   licenseKey: initial.licenseKey,
-  repairsToday: initial.repairsToday,
+  // Not persisted — main's `repair-limit.ts` is the sole authority on this count. Zero until
+  // `syncFromMain` (called on launch) fetches the real value.
+  repairsToday: 0,
   showUpgradeDialog: false,
 
   canRepair: () => {
-    // The window may have elapsed since the store was hydrated (app left open) — check live.
-    if (Date.now() - windowStart >= REPAIR_WINDOW_MS) {
-      windowStart = Date.now();
-      set({ repairsToday: 0 });
-    }
     const { plan, repairsToday } = get();
-    return repairsToday < DAILY_LIMIT[plan];
-  },
-
-  incrementRepair: () => {
-    const repairsToday = get().repairsToday + 1;
-    set({ repairsToday });
-    persist({ plan: get().plan, licenseKey: get().licenseKey, repairsToday, windowStart });
+    return repairsToday < PLAN_REPAIR_LIMIT[plan];
   },
 
   activate: async (licenseKey) => {
@@ -82,7 +74,7 @@ export const useLicenseStore = create<LicenseState>((set, get) => ({
         // Left open (not auto-closed) so the caller can show a confirmation before the user
         // dismisses it themselves.
         set({ plan, licenseKey });
-        persist({ plan, licenseKey, repairsToday: get().repairsToday, windowStart });
+        persistLicense({ plan, licenseKey });
         return plan;
       }
     }
@@ -107,9 +99,7 @@ export const useLicenseStore = create<LicenseState>((set, get) => ({
   syncFromMain: async () => {
     const result = await invoke('license:getRepairCount', {});
     if (!result.ok) return;
-    const { repairsToday } = result.value;
-    set({ repairsToday });
-    persist({ plan: get().plan, licenseKey: get().licenseKey, repairsToday, windowStart });
+    set({ repairsToday: result.value.repairsToday });
   },
 }));
 
@@ -134,9 +124,8 @@ export function listenForPlanRevoked(): () => void {
 }
 
 function set_planToFree(): void {
-  const { repairsToday } = useLicenseStore.getState();
   useLicenseStore.setState({ plan: 'free', licenseKey: null });
-  persist({ plan: 'free', licenseKey: null, repairsToday, windowStart });
+  persistLicense({ plan: 'free', licenseKey: null });
 }
 
 export function listenForRevalidation(): () => void {

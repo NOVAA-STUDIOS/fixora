@@ -22,11 +22,11 @@ import {
 import { useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
-import { DAILY_LIMIT, useLicenseStore } from '../../stores/license-store.js';
-import { useResetCountdown } from '../license/use-reset-countdown.js';
+import { PLAN_REPAIR_LIMIT, useLicenseStore } from '../../stores/license-store.js';
 import { toast } from '../../stores/toast-store.js';
 import { useUiStore, type ActivityView } from '../../stores/ui-store.js';
 import { useAuthStore } from '../auth/auth-store.js';
+import { useResetCountdown } from '../license/use-reset-countdown.js';
 
 const DOCS_URL = 'https://fixora-opal.vercel.app/docs';
 const ISSUES_URL = 'https://github.com/NOVAA-STUDIOS/fixora/issues';
@@ -79,7 +79,7 @@ export function ActivityRail(): React.JSX.Element {
   const avatarUrl = user?.user_metadata['avatar_url'] as string | undefined;
   const showAvatar = avatarUrl !== undefined && !avatarFailed;
   const initial = displayName.charAt(0).toUpperCase() || '•';
-  const dailyLimit = DAILY_LIMIT[plan];
+  const dailyLimit = PLAN_REPAIR_LIMIT[plan];
   const resetCountdown = useResetCountdown();
   const usageLabel =
     dailyLimit === Infinity

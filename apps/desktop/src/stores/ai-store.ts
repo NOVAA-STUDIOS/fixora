@@ -23,7 +23,7 @@ import { notify } from '../features/notifications/notify.js';
 import { invoke, subscribe } from '../lib/bridge.js';
 import { basename } from '../lib/path.js';
 
-import { DAILY_LIMIT, useLicenseStore } from './license-store.js';
+import { useLicenseStore } from './license-store.js';
 import { useShareStore } from './share-store.js';
 import { useStatsStore } from './stats-store.js';
 
@@ -287,15 +287,6 @@ export const useAiStore = create<AiState>((set, get) => ({
           urgency: 'critical',
         });
         return;
-      }
-      license.incrementRepair();
-
-      // Warn once, on the way past the second-to-last repair — early enough to be actionable and
-      // only on the exact crossing, so a long session is not nagged every single repair.
-      const { plan, repairsToday } = useLicenseStore.getState();
-      const remaining = DAILY_LIMIT[plan] - repairsToday;
-      if (remaining === 2) {
-        notify('warning', '⚠️ 2 repairs left this window', 'Your limit resets every 3 hours.');
       }
     }
 

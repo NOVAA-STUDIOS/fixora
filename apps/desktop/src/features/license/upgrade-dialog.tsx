@@ -53,28 +53,38 @@ export function UpgradeDialog(): React.JSX.Element | null {
         </p>
 
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              startCheckout(CHECKOUT_URLS.go);
-            }}
-            className="rounded-xl border border-white/10 p-4 text-left hover:bg-white/[0.04]"
-          >
-            <div className="text-sm font-medium text-white">GO</div>
-            <div className="mt-1 text-xs text-white/50">50 repairs/3h</div>
-            <div className="mt-2 text-base font-semibold text-white">$2.99</div>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              startCheckout(CHECKOUT_URLS.pro);
-            }}
-            className="rounded-xl border border-white/10 p-4 text-left hover:bg-white/[0.04]"
-          >
-            <div className="text-sm font-medium text-white">PRO</div>
-            <div className="mt-1 text-xs text-white/50">Unlimited repairs</div>
-            <div className="mt-2 text-base font-semibold text-white">$4.99</div>
-          </button>
+          <div className="flex flex-col rounded-xl border border-white/10 p-4">
+            <div className="text-sm font-medium text-white">GO — $2.99/mo</div>
+            <ul className="mt-1 flex flex-col gap-0.5 text-xs text-white/50">
+              <li>50 repairs / 3 hours</li>
+              <li>All AI providers</li>
+            </ul>
+            <button
+              type="button"
+              onClick={() => {
+                startCheckout(CHECKOUT_URLS.go);
+              }}
+              className="mt-3 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black hover:opacity-90"
+            >
+              Upgrade to GO →
+            </button>
+          </div>
+          <div className="flex flex-col rounded-xl border border-white/10 p-4">
+            <div className="text-sm font-medium text-white">PRO — $4.99/mo</div>
+            <ul className="mt-1 flex flex-col gap-0.5 text-xs text-white/50">
+              <li>Unlimited repairs</li>
+              <li>Priority support</li>
+            </ul>
+            <button
+              type="button"
+              onClick={() => {
+                startCheckout(CHECKOUT_URLS.pro);
+              }}
+              className="mt-3 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black hover:opacity-90"
+            >
+              Upgrade to PRO →
+            </button>
+          </div>
         </div>
 
         <div className="mt-5 flex gap-2">
