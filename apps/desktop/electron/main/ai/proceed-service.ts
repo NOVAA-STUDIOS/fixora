@@ -257,23 +257,6 @@ export function createProceedService(deps: ProceedDeps): ProceedService {
         return done(failed(failure), `model-output:${parsed.reason}`);
       }
 
-      // TEMP-DIAGNOSTIC (Q3 file-corruption incident — remove after root cause). Gated on the
-      // disposable repro filename so no other file's content is ever logged. Captures the model's
-      // editedCode exactly as parsed, before it crosses back to the renderer over `proceed:run`.
-      if (request.file.includes('proceed-diag')) {
-        const ec = parsed.value.editedCode;
-        const nulCount = ec.split(String.fromCharCode(0)).length - 1;
-        console.error('[Q3-DIAG] proceed-service: parsed editedCode', {
-          file: request.file,
-          typeofEditedCode: typeof ec,
-          length: ec.length,
-          byteLength: Buffer.byteLength(ec, 'utf8'),
-          containsNul: nulCount > 0,
-          nulCount,
-          preview: JSON.stringify(ec.slice(0, 60)),
-        });
-      }
-
       // 5) Verify — the REAL pipeline, in EDIT mode (finding: null). Never bypassed.
       const originalFindings = await deps.baselineFindings(request.file);
       const { report, originalCode } = await deps.verify({

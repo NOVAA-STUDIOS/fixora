@@ -7,6 +7,7 @@ import type { Orchestrator } from '../../ai/providers/orchestrator.js';
 import { projectConventions } from '../../ai/repair-context.js';
 import type { AnalysisHost } from '../../analysis/analysis-host.js';
 import type { FindingsRepository, RepairHistoryRepository } from '../../db/repositories.js';
+import { checkAndIncrementRepairLimit, peekRepairLimit } from '../../lib/repair-limit.js';
 import { readTextFile } from '../../services/fs/fs-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import type { VerificationService } from '../../verification/verification-service.js';
@@ -56,6 +57,15 @@ export function registerProceedHandlers(deps: {
     const workspace = deps.workspace.getCurrent();
     if (workspace === null) {
       return { status: 'error', code: 'not_found', message: 'Open a workspace first.' };
+    }
+
+    const limitCheck = peekRepairLimit();
+    if (!limitCheck.allowed) {
+      return {
+        status: 'error',
+        code: 'quota',
+        message: limitCheck.message ?? 'Repair limit reached — upgrade your plan to continue',
+      };
     }
 
     const controller = new AbortController();
@@ -136,7 +146,9 @@ export function registerProceedHandlers(deps: {
         },
       });
 
-      return await service.run(request, controller.signal);
+      const outcome = await service.run(request, controller.signal);
+      if (outcome.status === 'ok') checkAndIncrementRepairLimit();
+      return outcome;
     } catch (error) {
       // A worker crash / scope timeout reaches here. Report it as a typed outcome rather than
       // throwing, so the renderer shows the reason instead of the router's redacted string.

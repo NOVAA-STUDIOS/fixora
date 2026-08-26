@@ -32,7 +32,6 @@ export function EditModeTabs({ active, onChange }: EditModeTabsProps): React.JSX
   const modes: readonly { id: EditMode; label: string; disabled?: boolean }[] = [
     { id: 'repair', label: 'Repair' },
     { id: 'proceed', label: 'Proceed' },
-    { id: 'explain', label: 'Explain' },
   ];
   return (
     <div
