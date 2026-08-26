@@ -13,6 +13,8 @@ type OnboardingState = {
   nextStep: () => void;
   skipOnboarding: () => void;
   completeOnboarding: () => void;
+  /** Settings → "Replay Onboarding Tour": shows the walkthrough again from step 0. */
+  resetOnboarding: () => void;
 };
 
 export const useOnboardingStore = create<OnboardingState>()(
@@ -35,14 +37,27 @@ export const useOnboardingStore = create<OnboardingState>()(
       completeOnboarding: () => {
         set({ hasSeenOnboarding: true });
       },
+      resetOnboarding: () => {
+        set({ hasSeenOnboarding: false, currentStep: 0 });
+      },
     }),
     {
       name: 'fixora.onboarding',
-      partialize: (s) => ({ hasSeenOnboarding: s.hasSeenOnboarding }),
-      merge: (persisted, current) => ({
-        ...current,
-        hasSeenOnboarding: (persisted as Partial<OnboardingState> | null)?.hasSeenOnboarding === true,
-      }),
+      partialize: (s) => ({ hasSeenOnboarding: s.hasSeenOnboarding, currentStep: s.currentStep }),
+      merge: (persisted, current) => {
+        const p = persisted as Partial<OnboardingState> | null;
+        return {
+          ...current,
+          hasSeenOnboarding: p?.hasSeenOnboarding === true,
+          currentStep:
+            typeof p?.currentStep === 'number' &&
+            Number.isFinite(p.currentStep) &&
+            p.currentStep >= 0 &&
+            p.currentStep <= LAST_STEP
+              ? p.currentStep
+              : 0,
+        };
+      },
     },
   ),
 );

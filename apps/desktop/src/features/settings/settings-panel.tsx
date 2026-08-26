@@ -15,6 +15,7 @@ import { invoke } from '../../lib/bridge.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useLicenseStore } from '../../stores/license-store.js';
 import { useMcpStore } from '../../stores/mcp-store.js';
+import { useOnboardingStore } from '../../stores/onboarding-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
@@ -575,6 +576,24 @@ function StartupSettings(): React.JSX.Element {
         checked={reopenLastProject}
         onCheckedChange={setReopenLastProject}
       />
+      <div className="flex items-start justify-between gap-8">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-sm font-medium text-fg">Replay Onboarding Tour</span>
+          <span className="text-xs leading-relaxed text-fg-muted">
+            Walk through the getting started steps again
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-0.5 shrink-0"
+          onClick={() => {
+            useOnboardingStore.getState().resetOnboarding();
+          }}
+        >
+          Replay
+        </Button>
+      </div>
     </Group>
   );
 }

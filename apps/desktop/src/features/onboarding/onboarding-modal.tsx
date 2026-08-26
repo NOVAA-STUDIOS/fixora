@@ -1,6 +1,10 @@
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, cn } from '@fixora/ui';
+import { useEffect, useRef, useState } from 'react';
 
 import { useOnboardingStore } from '../../stores/onboarding-store.js';
+
+/** How long the "press Escape again" confirmation stays up before resetting. */
+const CONFIRM_SKIP_TIMEOUT_MS = 3000;
 
 type Step = {
   emoji: string;
@@ -64,6 +68,36 @@ export function OnboardingModal(): React.JSX.Element | null {
   const skipOnboarding = useOnboardingStore((s) => s.skipOnboarding);
   const completeOnboarding = useOnboardingStore((s) => s.completeOnboarding);
 
+  // Escape is a real "close" gesture elsewhere in the app, so a single accidental press must not
+  // silently skip a tour the user meant to keep — the first press only arms a confirmation, which
+  // clears itself (on a timeout, or on any other key) rather than staying armed indefinitely.
+  const [confirmSkip, setConfirmSkip] = useState(false);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (confirmTimerRef.current !== null) clearTimeout(confirmTimerRef.current);
+    };
+  }, []);
+
+  const clearConfirm = (): void => {
+    if (confirmTimerRef.current !== null) {
+      clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = null;
+    }
+    setConfirmSkip(false);
+  };
+
+  const handleEscape = (): void => {
+    if (confirmSkip) {
+      clearConfirm();
+      skipOnboarding();
+      return;
+    }
+    setConfirmSkip(true);
+    confirmTimerRef.current = setTimeout(clearConfirm, CONFIRM_SKIP_TIMEOUT_MS);
+  };
+
   if (hasSeenOnboarding) return null;
 
   const step = STEPS[currentStep] ?? STEPS[0];
@@ -74,7 +108,13 @@ export function OnboardingModal(): React.JSX.Element | null {
     <Dialog open>
       <DialogContent
         className="flex h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col items-center justify-center gap-6 rounded-3xl bg-[#0a0a0a] text-center"
-        onEscapeKeyDown={skipOnboarding}
+        onEscapeKeyDown={(e) => {
+          e.preventDefault();
+          handleEscape();
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Escape' && confirmSkip) clearConfirm();
+        }}
         onPointerDownOutside={(e) => {
           e.preventDefault();
         }}
@@ -90,6 +130,12 @@ export function OnboardingModal(): React.JSX.Element | null {
             </DialogDescription>
           </div>
         </div>
+
+        {confirmSkip && (
+          <p role="status" className="text-xs text-fg-muted">
+            Press Escape again to skip the tour
+          </p>
+        )}
 
         <div className="flex items-center gap-2" role="tablist" aria-label="Onboarding progress">
           {STEPS.map((s, i) => (
