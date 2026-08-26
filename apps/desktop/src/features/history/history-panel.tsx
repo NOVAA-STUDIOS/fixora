@@ -11,22 +11,50 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
   CopyIcon,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   FileIcon,
+  Input,
   RefreshIcon,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   TrashIcon,
   cn,
 } from '@fixora/ui';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { copyToClipboard } from '../../lib/clipboard.js';
 import { basename } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
+import { toast } from '../../stores/toast-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { VerdictBadge } from '../ai/verdict-badge.js';
+import { refreshModelText } from '../editor/models.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { useHistoryStore } from './history-store.js';
+
+/** The status filter's options (FIX 2). 'all' is the default — no filtering. */
+type StatusFilter = 'all' | 'passed' | 'forced' | 'proceed';
+
+function matchesStatusFilter(entry: RepairHistoryEntry, filter: StatusFilter): boolean {
+  switch (filter) {
+    case 'all':
+      return true;
+    case 'passed':
+      return entry.verdict === 'verified' && !entry.wasForced;
+    case 'forced':
+      return entry.wasForced;
+    case 'proceed':
+      return entry.source === 'proceed';
+  }
+}
 
 /**
  * The repair history panel (Beta Phase E) — the local, private audit trail. Every repair the user
@@ -47,11 +75,59 @@ export function HistoryPanel(): React.JSX.Element {
 
   const [removing, setRemoving] = useState<string[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   // Reload whenever the panel is shown, so applying a repair elsewhere is reflected here.
   useEffect(() => {
     void refresh();
   }, [refresh, workspace]);
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return entries.filter((entry) => {
+      if (!matchesStatusFilter(entry, statusFilter)) return false;
+      if (query === '') return true;
+      return (
+        basename(entry.file).toLowerCase().includes(query) ||
+        entry.ruleId.toLowerCase().includes(query)
+      );
+    });
+  }, [entries, search, statusFilter]);
+
+  const exportHistory = useCallback(
+    async (format: 'json' | 'csv'): Promise<void> => {
+      const date = new Date().toISOString().slice(0, 10);
+      const filename = `fixora-history-${date}.${format}`;
+      const rows = filtered.map((e) => ({
+        file: e.file,
+        rule: e.ruleId,
+        verdict: e.verdict,
+        applied: e.applied,
+        model: e.model,
+        provider: e.provider,
+        createdAt: e.createdAt,
+      }));
+      const content =
+        format === 'json'
+          ? JSON.stringify(rows, null, 2)
+          : [
+              'file,rule,verdict,applied,model,provider,createdAt',
+              ...rows.map((r) =>
+                [r.file, r.rule, r.verdict, String(r.applied), r.model ?? '', r.provider ?? '', String(r.createdAt)]
+                  .map((v) => `"${v.replace(/"/g, '""')}"`)
+                  .join(','),
+              ),
+            ].join('\n');
+      const result = await invoke('fs:writeFile', { relPath: filename, content });
+      if (result.ok) {
+        toast.success(`History exported to ${filename}`);
+      } else {
+        toast.error("Couldn't export history.", result.error.message);
+      }
+    },
+    [filtered],
+  );
 
   /**
    * Delete with an exit animation: the row is marked first, plays a 160ms collapse, and only then
@@ -84,18 +160,67 @@ export function HistoryPanel(): React.JSX.Element {
         <h2 className="text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
           Repair history
         </h2>
-        {entries.length > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              setConfirmClear(true);
-            }}
-            className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-fg-muted transition-colors duration-(--fx-motion-duration-fast) hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
-          >
-            Clear
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {entries.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="shrink-0" disabled={filtered.length === 0}>
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => void exportHistory('json')}>
+                  Export as JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void exportHistory('csv')}>
+                  Export as CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {entries.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmClear(true);
+              }}
+              className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-fg-muted transition-colors duration-(--fx-motion-duration-fast) hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </header>
+
+      {entries.length > 0 && (
+        <div className="flex shrink-0 items-center gap-1.5 border-b border-border-subtle px-2 py-1.5">
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+            }}
+            placeholder="Search by filename or rule…"
+            aria-label="Search history"
+            className="h-7 min-w-0 flex-1 text-[11px]"
+          />
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              setStatusFilter(v as StatusFilter);
+            }}
+          >
+            <SelectTrigger aria-label="Filter by status" className="h-7 w-36 shrink-0 text-[11px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="passed">Passed verification</SelectItem>
+              <SelectItem value="forced">Forced</SelectItem>
+              <SelectItem value="proceed">Proceed edits</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {entries.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -133,9 +258,16 @@ export function HistoryPanel(): React.JSX.Element {
             </div>
           )}
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-1 p-6 text-center">
+          <p className="text-sm font-medium text-fg">No results</p>
+          <p className="max-w-xs text-xs text-fg-muted">
+            No history entries match your search and filter.
+          </p>
+        </div>
       ) : (
         <ul className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
-          {entries.map((entry) => (
+          {filtered.map((entry) => (
             <HistoryRow
               key={entry.id}
               entry={entry}
@@ -182,6 +314,36 @@ function HistoryRow({
   // always resolved that id to `null` and showed "That finding is no longer available.", which is
   // false: it was never a finding to begin with. Only a real Repair entry can be re-run.
   const isProceedEntry = entry.source === 'proceed';
+  // Revert is only meaningful for a change actually written to disk, and only when the pre-repair
+  // text was recorded to write back — both true for every applied entry today, but this stays an
+  // explicit check rather than assuming `applied` implies a non-empty `originalCode`.
+  const canRevert = entry.applied && entry.originalCode.length > 0;
+  const [confirmRevert, setConfirmRevert] = useState(false);
+  const [reverting, setReverting] = useState(false);
+
+  const revert = useCallback(async () => {
+    setReverting(true);
+    try {
+      const read = await invoke('fs:readFile', { relPath: entry.file });
+      if (!read.ok) {
+        toast.error("Couldn't revert repair.", read.error.message);
+        return;
+      }
+      const lines = read.value.file.content.split('\n');
+      // 1-based, inclusive range — same convention the repair itself was applied against.
+      lines.splice(entry.startLine - 1, entry.endLine - entry.startLine + 1, entry.originalCode);
+      const content = lines.join('\n');
+      const written = await invoke('fs:writeWorkspaceFile', { relPath: entry.file, content });
+      if (!written.ok) {
+        toast.error("Couldn't revert repair.", written.error.message);
+        return;
+      }
+      refreshModelText(entry.file, content);
+      toast.success(`Repair reverted in ${basename(entry.file)}`);
+    } finally {
+      setReverting(false);
+    }
+  }, [entry]);
 
   return (
     <ContextMenu>
@@ -313,6 +475,17 @@ function HistoryRow({
             Re-run repair
           </ContextMenuItem>
         )}
+        {canRevert && (
+          <ContextMenuItem
+            disabled={reverting}
+            onSelect={() => {
+              setConfirmRevert(true);
+            }}
+          >
+            <RefreshIcon className="size-4 text-fg-muted" />
+            Revert this repair
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem danger onSelect={onRemove}>
           <CloseIcon className="size-4" />
@@ -323,6 +496,15 @@ function HistoryRow({
           Clear history
         </ContextMenuItem>
       </ContextMenuContent>
+
+      <ConfirmDialog
+        open={confirmRevert}
+        onOpenChange={setConfirmRevert}
+        title="Revert this repair?"
+        description="This will replace the current file content at the repaired range with the original code. This cannot be undone."
+        confirmLabel="Revert"
+        onConfirm={() => void revert()}
+      />
     </ContextMenu>
   );
 }
