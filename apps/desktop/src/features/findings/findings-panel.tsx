@@ -342,114 +342,115 @@ export function FindingsPanel(): React.JSX.Element {
       aria-label="Problems"
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-border-subtle bg-canvas"
     >
-      <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-raised px-3">
-        <h2 className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
-          Problems
-        </h2>
-        {/*
-          File-type breakdown, on the heading's own line. `min-w-0` so a project spanning many
-          languages shrinks this list rather than pushing Re-run off the header — the button is the
-          control, and it stays reachable at any width. Scrollable, not clipped: each chip is
-          `shrink-0` already, so `overflow-hidden` here did not hide whole chips at the boundary —
-          it clipped mid-text whichever chip happened to straddle it. `overflow-x-auto` keeps every
-          chip intact; a narrow panel scrolls the row instead of truncating one.
-        */}
-        {extensionCounts.length > 0 && (
-          <ul
-            aria-label="Problems by file type"
-            className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
-          >
-            {extensionCounts.map(({ extension, count }) => (
-              <li
-                key={extension}
-                className="shrink-0 text-[11px] tabular-nums whitespace-nowrap text-fg-muted"
-              >
-                <span className="font-mono">{extension}</span>
-                {': '}
-                <span className="font-medium text-fg-secondary">{count}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {bulkStatus === 'running' ? (
-          <Button variant="ghost" size="sm" className="shrink-0" onClick={bulkCancel}>
-            Cancel
-          </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0"
-            onClick={() => {
-              console.error('[panel] onClick: Repair All Repairable');
-              void bulkStart(visible);
-            }}
-            disabled={
-              workspace === null ||
-              status === 'running' ||
-              // Bulk also attempts manual-only findings (via allowManual — see bulk-repair-store.ts),
-              // so the button stays enabled for those too, not just the strictly repairable ones.
-              !visible.some((f) => {
-                const state = repairStateFor(f);
-                return isRepairAttemptable(state) || state === 'manual-only';
-              })
-            }
-          >
-            Repair All Repairable
-          </Button>
-        )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="shrink-0" disabled={visible.length === 0}>
-              Export
+      <header className="flex flex-col shrink-0 border-b border-border-subtle bg-raised">
+        <div className="flex h-9 items-center justify-between gap-2 px-3">
+          <h2 className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+            Problems
+          </h2>
+          {/*
+            File-type breakdown, on the heading's own line. `min-w-0` so a project spanning many
+            languages shrinks this list rather than pushing Re-run off the header — the button is the
+            control, and it stays reachable at any width. Scrollable, not clipped: each chip is
+            `shrink-0` already, so `overflow-hidden` here did not hide whole chips at the boundary —
+            it clipped mid-text whichever chip happened to straddle it. `overflow-x-auto` keeps every
+            chip intact; a narrow panel scrolls the row instead of truncating one.
+          */}
+          {extensionCounts.length > 0 && (
+            <ul
+              aria-label="Problems by file type"
+              className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
+            >
+              {extensionCounts.map(({ extension, count }) => (
+                <li
+                  key={extension}
+                  className="shrink-0 text-[11px] tabular-nums whitespace-nowrap text-fg-muted"
+                >
+                  <span className="font-mono">{extension}</span>
+                  {': '}
+                  <span className="font-medium text-fg-secondary">{count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {status === 'running' ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                void cancel();
+              }}
+            >
+              Cancel
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => void exportFindings('json')}>
-              Export as JSON
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void exportFindings('csv')}>
-              Export as CSV
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          disabled={workspace === null || visible.length === 0}
-          onClick={() => {
-            console.error('[panel] onClick: Group Repair');
-            setGroupRepairOpen(true);
-          }}
-        >
-          Group Repair
-        </Button>
-        {status === 'running' ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0"
-            onClick={() => {
-              console.error('[panel] onClick: Cancel analysis');
-              void cancel();
-            }}
-          >
-            Cancel
-          </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0"
-            onClick={() => {
-              console.error('[panel] onClick: Analyze');
-              void run();
-            }}
-            disabled={workspace === null || bulkStatus === 'running'}
-          >
-            {summary === null ? 'Run analysis' : 'Re-run'}
-          </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                void run();
+              }}
+              disabled={workspace === null || bulkStatus === 'running'}
+            >
+              {summary === null ? 'Run analysis' : 'Re-run'}
+            </Button>
+          )}
+        </div>
+
+        {workspace !== null && visible.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 border-t border-border-subtle px-2 py-1">
+            {bulkStatus === 'running' ? (
+              <Button variant="ghost" size="sm" className="shrink-0 text-xs" onClick={bulkCancel}>
+                Cancel
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 text-xs"
+                onClick={() => {
+                  void bulkStart(visible);
+                }}
+                disabled={
+                  status === 'running' ||
+                  // Bulk also attempts manual-only findings (via allowManual — see bulk-repair-store.ts),
+                  // so the button stays enabled for those too, not just the strictly repairable ones.
+                  !visible.some((f) => {
+                    const state = repairStateFor(f);
+                    return isRepairAttemptable(state) || state === 'manual-only';
+                  })
+                }
+              >
+                Repair All Repairable
+              </Button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="shrink-0 text-xs">
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => void exportFindings('json')}>
+                  Export as JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void exportFindings('csv')}>
+                  Export as CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 text-xs"
+              onClick={() => {
+                setGroupRepairOpen(true);
+              }}
+            >
+              Group Repair
+            </Button>
+          </div>
         )}
       </header>
 
