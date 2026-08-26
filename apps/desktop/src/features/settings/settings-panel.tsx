@@ -543,6 +543,15 @@ function LicenseSettings(): React.JSX.Element {
           <span className="min-w-0 text-sm text-fg [overflow-wrap:anywhere]">
             Fixora {plan === 'pro' ? 'Pro' : 'Go'} — thank you for supporting Fixora.
           </span>
+          <button
+            type="button"
+            onClick={() => {
+              void invoke('system:openExternal', { url: 'https://app.gumroad.com/library' });
+            }}
+            className="shrink-0 text-xs text-accent-text hover:underline"
+          >
+            View purchase
+          </button>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
