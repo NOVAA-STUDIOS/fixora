@@ -8,6 +8,7 @@ import { useTerminalStore } from '../terminal/terminal-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { CodeEditor } from './code-editor.js';
+import { useEditorStatusStore } from './editor-status-store.js';
 import { useEditorStore } from './editor-store.js';
 import { disposeModel } from './models.js';
 
@@ -463,16 +464,17 @@ function ActiveFile({ relPath }: { relPath: string }): React.JSX.Element {
     setState({ status: 'loading' });
     void invoke('fs:readFile', { relPath }).then((result) => {
       if (cancelled) return;
-      setState(
-        result.ok
-          ? {
-              status: 'ready',
-              content: result.value.file.content,
-              language: result.value.file.language,
-              encoding: result.value.file.encoding,
-            }
-          : { status: 'error', message: result.error.message },
-      );
+      if (result.ok) {
+        setState({
+          status: 'ready',
+          content: result.value.file.content,
+          language: result.value.file.language,
+          encoding: result.value.file.encoding,
+        });
+        useEditorStatusStore.getState().setEncoding(ENCODING_LABEL[result.value.file.encoding]);
+      } else {
+        setState({ status: 'error', message: result.error.message });
+      }
     });
     return () => {
       cancelled = true;

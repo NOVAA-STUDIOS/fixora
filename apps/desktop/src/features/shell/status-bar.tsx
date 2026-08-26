@@ -2,6 +2,7 @@ import { Button, Dialog, DialogContent, DialogTitle, cn } from '@fixora/ui';
 import { useEffect, useState } from 'react';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
+import { copyToClipboard } from '../../lib/clipboard.js';
 import { useMcpStore } from '../../stores/mcp-store.js';
 import { useStatsStore } from '../../stores/stats-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
@@ -36,6 +37,8 @@ export function StatusBar(): React.JSX.Element {
   }, [workspace]);
   const summary = useFindingsStore((s) => s.summary);
   const status = useFindingsStore((s) => s.status);
+  const totalFiles = useFindingsStore((s) => s.totalFiles);
+  const setActiveView = useUiStore((s) => s.setActiveView);
 
   const watchModeEnabled = useUiStore((s) => s.watchModeEnabled);
   // 'idle': watching, nothing happening right now. 'pulsing': a change was just detected (a brief
@@ -97,6 +100,7 @@ export function StatusBar(): React.JSX.Element {
   const line = useEditorStatusStore((s) => s.line);
   const column = useEditorStatusStore((s) => s.column);
   const language = useEditorStatusStore((s) => s.language);
+  const encoding = useEditorStatusStore((s) => s.encoding);
 
   const mcpRunning = useMcpStore((s) => s.running);
   const loadMcp = useMcpStore((s) => s.load);
@@ -112,7 +116,9 @@ export function StatusBar(): React.JSX.Element {
 
   const analysis =
     status === 'running'
-      ? 'Analyzing…'
+      ? totalFiles !== null
+        ? `Analyzing… (${String(totalFiles)} files)`
+        : 'Analyzing…'
       : summary === null
         ? 'Not analyzed yet'
         : summary.total === 0
@@ -161,6 +167,23 @@ export function StatusBar(): React.JSX.Element {
         <span className="truncate" title={workspace?.rootPath ?? undefined}>
           {workspace === null ? 'No folder open' : workspace.name}
         </span>
+        {workspace !== null && summary !== null && (
+          <>
+            <span aria-hidden="true" className="text-border-strong">
+              ·
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveView('findings');
+              }}
+              title="Open Problems"
+              className="flex shrink-0 items-center gap-1.5 rounded px-1.5 py-0.5 tabular-nums transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover"
+            >
+              🔴 {summary.bySeverity.error} ⚠️ {summary.bySeverity.warning}
+            </button>
+          </>
+        )}
         {workspace !== null && (
           <>
             <span aria-hidden="true" className="text-border-strong">
@@ -230,7 +253,16 @@ export function StatusBar(): React.JSX.Element {
           <span className="flex h-full shrink-0 items-center px-2.5 capitalize">{language}</span>
         )}
         {line !== null && (
-          <span className="flex h-full shrink-0 items-center px-2.5">UTF-8</span>
+          <button
+            type="button"
+            onClick={() => {
+              void copyToClipboard(encoding ?? 'UTF-8', { label: 'Encoding copied' });
+            }}
+            title="Click to copy encoding"
+            className="flex h-full shrink-0 items-center px-2.5 transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover"
+          >
+            {encoding ?? 'UTF-8'}
+          </button>
         )}
         <StatusButton
           onClick={toggleDensity}

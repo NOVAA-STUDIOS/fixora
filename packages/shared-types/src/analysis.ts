@@ -270,6 +270,12 @@ export const AnalysisStateSchema = z.object({
    */
   findingsSoFar: z.number().int().nonnegative().optional(),
   /**
+   * How many files this run is analyzing — known as soon as the workspace walk finishes, well
+   * before the first finding streams back. Absent until then, so the status bar can fall back to a
+   * plain "Analyzing…" rather than showing a stale or invented count.
+   */
+  totalCount: z.number().int().nonnegative().optional(),
+  /**
    * Reliability warnings raised during the run (NOV7-01): an external tool was killed at its
    * timeout, so part of the analysis is missing. Present when the run was partial — the panel must
    * not present "no findings" as a clean bill of health.

@@ -50,6 +50,10 @@ export function createAnalysisService(deps: AnalysisServiceDeps) {
         // workspace's findings.
         if (deps.workspaces.getCurrent()?.id !== open.id) return;
 
+        // Known as soon as the walk finishes — long before the first finding streams back — so the
+        // status bar can show "Analyzing (N files)" rather than a bare, unchanging placeholder.
+        emit(window, { status: 'running', totalCount: targets.length });
+
         // Collected in memory, not written per batch: `appendFindings` is one real SQLite
         // transaction (commit + fsync) per call, and the worker can flush hundreds of times on a
         // large project — hundreds of synchronous main-thread transactions was the actual freeze,

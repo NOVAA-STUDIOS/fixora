@@ -20,6 +20,9 @@ type FindingsState = {
   status: AnalysisStatus;
   /** Findings streamed in so far during a running analysis — proof of life on a long run. */
   findingsSoFar: number | null;
+  /** How many files the current run is analyzing — known once the workspace walk finishes, well
+   *  before the first finding streams back. Null until then, and reset on every new run. */
+  totalFiles: number | null;
   /** Reliability warnings (NOV7-01): tools killed at their timeout, so the run was partial. */
   warnings: AnalysisWarning[] | null;
   /** Workspace-relative paths skipped for being too large to analyze, from the last completed run. */
@@ -61,6 +64,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
   summary: null,
   status: 'idle',
   findingsSoFar: null,
+  totalFiles: null,
   warnings: null,
   skippedFiles: null,
   filter: {},
@@ -87,6 +91,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
       status: 'running',
       error: null,
       findingsSoFar: null,
+      totalFiles: null,
       warnings: null,
       skippedFiles: null,
       findings: [],
@@ -137,6 +142,7 @@ export const useFindingsStore = create<FindingsState>((set, get) => ({
         status: state.status,
         ...(state.summary !== undefined ? { summary: state.summary } : {}),
         ...(state.findingsSoFar !== undefined ? { findingsSoFar: state.findingsSoFar } : {}),
+        ...(state.totalCount !== undefined ? { totalFiles: state.totalCount } : {}),
         ...(state.warnings !== undefined ? { warnings: state.warnings } : {}),
         ...(state.skippedFiles !== undefined ? { skippedFiles: state.skippedFiles } : {}),
       });
