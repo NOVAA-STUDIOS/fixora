@@ -67,6 +67,23 @@ export function AiPanel(): React.JSX.Element {
   // Narrowed once so the repair branch (badge + diff) is type-safe without redundant checks.
   const repair = status === 'done' && proposal?.profile === 'repair' ? proposal : null;
 
+  // A large file's verification pass can run long enough to read as a hang. This says so — after
+  // 15s, not immediately — rather than leaving the stage label as the only signal something is
+  // still happening.
+  const [showSlowVerifyMessage, setShowSlowVerifyMessage] = useState(false);
+  useEffect(() => {
+    if (stage !== 'validating') {
+      setShowSlowVerifyMessage(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setShowSlowVerifyMessage(true);
+    }, 15_000);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [stage]);
+
   return (
     <section
       aria-label="Assistant"
@@ -98,6 +115,12 @@ export function AiPanel(): React.JSX.Element {
           )
         )}
       </header>
+
+      {status === 'running' && stage === 'validating' && showSlowVerifyMessage && (
+        <p className="shrink-0 px-3 pt-1.5 text-[11px] text-fg-muted">
+          This is taking longer than usual — large files take more time to verify.
+        </p>
+      )}
 
       {status === 'idle' ? (
         selected !== null ? (

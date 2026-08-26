@@ -1,5 +1,5 @@
 import { Button, cn } from '@fixora/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useProceedStore } from '../../stores/proceed-store.js';
 
@@ -68,6 +68,44 @@ export function EditModeTabs({ active, onChange }: EditModeTabsProps): React.JSX
   );
 }
 
+/** Quick-select suggestions above the instruction textarea. Suggestions only — the user can still
+ *  type anything; clicking one just fills the textarea. */
+const TEMPLATES: readonly string[] = [
+  'Add error handling',
+  'Add TypeScript types',
+  'Add null checks',
+  'Add JSDoc comments',
+  'Convert to async/await',
+  'Simplify this code',
+];
+
+/** Local instruction history, most recent first, capped and deduplicated (FIX 4). Read/write helpers
+ *  are exported so `ProceedView` can record a successful run without this file owning store logic. */
+const HISTORY_KEY = 'fixora.proceed.history';
+const HISTORY_MAX = 10;
+
+export function readProceedHistory(): string[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (raw === null) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function pushProceedHistory(instruction: string): void {
+  const trimmed = instruction.trim();
+  if (trimmed === '') return;
+  try {
+    const deduped = [trimmed, ...readProceedHistory().filter((entry) => entry !== trimmed)];
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(deduped.slice(0, HISTORY_MAX)));
+  } catch {
+    // localStorage unavailable (private mode, quota) — history is a convenience, never worth failing over.
+  }
+}
+
 export interface ProceedPanelProps {
   /** Called with the trimmed instruction when the user submits a non-empty request. */
   onSubmit: (instruction: string) => void;
@@ -83,6 +121,10 @@ export function ProceedPanel({
   onCancel,
 }: ProceedPanelProps): React.JSX.Element {
   const [instruction, setInstruction] = useState('');
+  // -1 = the user's own current input; 0..n-1 indexes into history, newest first (FIX 4).
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  // What the user had typed before an ArrowUp dipped into history — restored on ArrowDown past index 0.
+  const [draft, setDraft] = useState('');
   const trimmed = instruction.trim();
   const canSubmit = trimmed.length > 0 && !busy;
 
@@ -90,10 +132,60 @@ export function ProceedPanel({
     e.preventDefault();
     if (!canSubmit) return;
     onSubmit(trimmed);
+    setHistoryIndex(-1);
+    setDraft('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    const el = e.currentTarget;
+    if (e.key === 'ArrowUp') {
+      // Only steal the key when the caret is at the very start (or the box is empty) — otherwise
+      // ArrowUp should move the caret within a multi-line instruction like it normally would.
+      if (el.selectionStart !== 0 || el.selectionEnd !== 0) return;
+      const history = readProceedHistory();
+      const nextIndex = historyIndex + 1;
+      if (nextIndex >= history.length) return;
+      e.preventDefault();
+      if (historyIndex === -1) setDraft(instruction);
+      setHistoryIndex(nextIndex);
+      setInstruction(history[nextIndex] ?? '');
+    } else if (e.key === 'ArrowDown') {
+      if (el.selectionStart !== instruction.length || el.selectionEnd !== instruction.length) return;
+      if (historyIndex === -1) return;
+      e.preventDefault();
+      const nextIndex = historyIndex - 1;
+      if (nextIndex === -1) {
+        setHistoryIndex(-1);
+        setInstruction(draft);
+        return;
+      }
+      const history = readProceedHistory();
+      setHistoryIndex(nextIndex);
+      setInstruction(history[nextIndex] ?? '');
+    }
   };
 
   return (
     <form onSubmit={submit} aria-label="Proceed" className="flex flex-col gap-2 p-3">
+      <div className="flex flex-col gap-1">
+        <span className="text-[11px] text-fg-muted">Quick actions:</span>
+        <div className="flex flex-wrap gap-1.5">
+          {TEMPLATES.map((template) => (
+            <button
+              key={template}
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setInstruction(template);
+                setHistoryIndex(-1);
+              }}
+              className="rounded-full border border-border-subtle px-2 py-0.5 text-[11px] text-fg-muted hover:bg-hover hover:text-fg disabled:opacity-60"
+            >
+              {template}
+            </button>
+          ))}
+        </div>
+      </div>
       <label htmlFor="proceed-instruction" className="text-xs font-medium text-fg-secondary">
         What would you like to change?
       </label>
@@ -102,7 +194,9 @@ export function ProceedPanel({
         value={instruction}
         onChange={(e) => {
           setInstruction(e.target.value);
+          setHistoryIndex(-1);
         }}
+        onKeyDown={handleKeyDown}
         placeholder="e.g. make this button green, rename this variable, add a loading state"
         rows={3}
         disabled={busy}
@@ -136,10 +230,18 @@ export function ProceedView(): React.JSX.Element {
   const message = useProceedStore((s) => s.message);
   const applying = useProceedStore((s) => s.applying);
   const retryable = useProceedStore((s) => s.retryable);
+  const lastRequest = useProceedStore((s) => s.lastRequest);
   const run = useProceedStore((s) => s.run);
   const retry = useProceedStore((s) => s.retry);
   const accept = useProceedStore((s) => s.accept);
   const cancel = useProceedStore((s) => s.cancel);
+
+  // A verified proposal is the definition of "successful" here — the run answered with a real,
+  // gated edit rather than a refusal. Recorded once per request, off `lastRequest` (not `instruction`
+  // state, which this component does not hold) so retries never write the same text twice.
+  useEffect(() => {
+    if (status === 'preview' && lastRequest !== null) pushProceedHistory(lastRequest.instruction);
+  }, [status, lastRequest]);
 
   if (status === 'preview' && proposal !== null) {
     return (
