@@ -276,7 +276,7 @@ export function ExplainText({ text }: { text: string }): React.JSX.Element {
   // streaming response) simply leaves a trailing plain segment rather than swallowing the rest.
   const segments = text.split('**');
   return (
-    <pre className="whitespace-pre-wrap font-sans [overflow-wrap:anywhere]">
+    <pre className="select-text cursor-text whitespace-pre-wrap font-sans [overflow-wrap:anywhere]">
       {segments.map((segment, index) =>
         index % 2 === 1 ? (
           <span key={index} className="font-semibold text-fg">
@@ -319,7 +319,7 @@ function FollowUpChat(): React.JSX.Element {
         <div
           key={index}
           className={cn(
-            'rounded-lg px-2.5 py-1.5 text-xs leading-relaxed [overflow-wrap:anywhere]',
+            'select-text cursor-text rounded-lg px-2.5 py-1.5 text-xs leading-relaxed [overflow-wrap:anywhere]',
             turn.role === 'user'
               ? 'self-end bg-accent-subtle text-accent-text'
               : 'bg-inset text-fg-secondary',
