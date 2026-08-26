@@ -1,6 +1,6 @@
 import type { FileEncodingName } from '@fixora/shared-types';
-import { ConfirmDialog, FileIcon, WinCloseIcon, cn } from '@fixora/ui';
-import { useEffect, useState } from 'react';
+import { ConfirmDialog, FileIcon, SearchIcon, WinCloseIcon, cn } from '@fixora/ui';
+import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
@@ -60,6 +60,10 @@ function TabFileIcon({ name }: { name: string }): React.JSX.Element {
   );
 }
 
+/** Above this many open tabs, a search button appears to jump straight to one by name instead of
+ *  scrolling the strip. */
+const TAB_SEARCH_THRESHOLD = 5;
+
 export function EditorArea(): React.JSX.Element {
   const tabs = useEditorStore((s) => s.tabs);
   const activeTab = useEditorStore((s) => s.activeTab);
@@ -74,6 +78,16 @@ export function EditorArea(): React.JSX.Element {
   const saving = useEditorStore((s) => s.saving);
   const save = useEditorStore((s) => s.save);
   const [tabMenu, setTabMenu] = useState<{ relPath: string; x: number; y: number } | null>(null);
+
+  const [tabSearchOpen, setTabSearchOpen] = useState(false);
+  const [tabSearchQuery, setTabSearchQuery] = useState('');
+  const tabSearchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (tabSearchOpen) tabSearchInputRef.current?.focus();
+  }, [tabSearchOpen]);
+  const filteredTabs = tabs.filter((t) =>
+    t.name.toLowerCase().includes(tabSearchQuery.trim().toLowerCase()),
+  );
 
   // A file selected in the tree opens a tab here. This is the one cross-slice link, made explicit.
   // The tab awaiting a close-without-saving decision, or null. Held here rather than resolved with
@@ -109,7 +123,14 @@ export function EditorArea(): React.JSX.Element {
   return (
     <section
       aria-label="Editor"
-      className="flex h-full flex-col overflow-hidden rounded-lg border border-border-subtle bg-canvas"
+      className="relative flex h-full flex-col overflow-hidden rounded-lg border border-border-subtle bg-canvas"
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
+          e.preventDefault();
+          if (activeTab === null) return;
+          setSplit(splitRelPath === null ? activeTab : null);
+        }
+      }}
     >
       {/* The strip is a scroller (the tabs) plus a pinned trailing island (Save). They used to be
           one flex row, which meant Save rode `ml-auto` *inside* the scrollable content: as soon as
@@ -183,6 +204,19 @@ export function EditorArea(): React.JSX.Element {
             others. Disabled when there is nothing to save, so it also reports the file's state.
             Outside the scroller, so it stays put however many files are open. */}
         <div className="flex shrink-0 items-center gap-2 border-l border-border-subtle pr-2 pl-3">
+          {tabs.length > TAB_SEARCH_THRESHOLD && (
+            <button
+              type="button"
+              aria-label="Search open tabs"
+              title="Search open tabs"
+              onClick={() => {
+                setTabSearchOpen(true);
+              }}
+              className="rounded p-1 text-fg-muted hover:bg-hover hover:text-fg"
+            >
+              <SearchIcon className="size-3.5" />
+            </button>
+          )}
           {saving !== null && <span className="text-[11px] text-fg-muted">Saving…</span>}
           <button
             type="button"
@@ -199,6 +233,52 @@ export function EditorArea(): React.JSX.Element {
           </button>
         </div>
       </div>
+
+      {tabSearchOpen && (
+        <div className="absolute inset-x-0 top-9 z-20 flex flex-col rounded-b-lg border border-t-0 border-border-subtle bg-canvas shadow-lg">
+          <input
+            ref={tabSearchInputRef}
+            type="text"
+            value={tabSearchQuery}
+            onChange={(e) => {
+              setTabSearchQuery(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                setTabSearchOpen(false);
+                setTabSearchQuery('');
+              }
+            }}
+            placeholder="Search open tabs…"
+            aria-label="Search open tabs"
+            className="border-b border-border-subtle bg-transparent px-3 py-2 text-xs text-fg outline-none placeholder:text-fg-muted"
+          />
+          <ul className="max-h-56 overflow-y-auto">
+            {filteredTabs.length === 0 ? (
+              <li className="px-3 py-2 text-xs text-fg-muted">No matching tabs</li>
+            ) : (
+              filteredTabs.map((t) => (
+                <li key={t.relPath}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActive(t.relPath);
+                      setTabSearchOpen(false);
+                      setTabSearchQuery('');
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-fg hover:bg-hover"
+                  >
+                    <TabFileIcon name={t.name} />
+                    <span className="min-w-0 truncate">{t.name}</span>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+
       {saveError !== null && (
         <p
           role="alert"

@@ -1,14 +1,12 @@
 import { create } from 'zustand';
 
 /**
- * The status bar's view of the active editor: caret position and the open file's language.
- * Separate from `editor-store.ts` (which owns tabs/dirty/save) because this is Monaco's own live
- * cursor state, updated on every caret move — folding it into the tab store would re-render every
- * tab-strip consumer on every keystroke's cursor movement, not just the status bar.
- *
- * Encoding is always UTF-8: `fs-service.ts` reads and writes every file as UTF-8 unconditionally
- * (`readTextFile`/`writeTextFile`), so there is nothing to detect — this is a fact about the app,
- * not a per-file property Monaco reports.
+ * Stores caret position and language for the status bar.
+ * Kept separate from editor-store.ts so a caret move on every keystroke
+ * does not re-render the tab strip.
+ * Note: actual file encoding is detected and shown in editor-area.tsx
+ * (UTF-8, UTF-16 LE/BE, Latin-1) — not tracked here since status bar
+ * currently shows a static 'UTF-8' label (known gap, see editor-area.tsx).
  */
 type EditorStatusState = {
   line: number | null;

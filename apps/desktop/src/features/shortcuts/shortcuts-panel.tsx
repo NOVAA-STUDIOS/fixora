@@ -28,6 +28,7 @@ const SECTIONS: readonly Section[] = [
       { keys: ['Ctrl', 'S'], label: 'Save File' },
       { keys: ['Ctrl', 'Z'], label: 'Undo' },
       { keys: ['Ctrl', 'Shift', 'Z'], label: 'Redo' },
+      { keys: ['Ctrl', '\\'], label: 'Toggle split editor' },
     ],
   },
   {
