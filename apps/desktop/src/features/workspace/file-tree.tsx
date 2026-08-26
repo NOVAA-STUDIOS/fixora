@@ -1,5 +1,17 @@
 import type { Severity } from '@fixora/shared-types';
-import { ChevronDownIcon, ChevronRightIcon, FileIcon, FolderIcon, RefreshIcon, VirtualList, cn } from '@fixora/ui';
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  FileIcon,
+  FolderIcon,
+  RefreshIcon,
+  SearchIcon,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  VirtualList,
+  cn,
+} from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { useRowHeight } from '../../hooks/use-density-metrics.js';
@@ -29,9 +41,11 @@ const FILE_SEVERITY_DEBOUNCE_MS = 1500;
  * active) — the same reasoning `code-editor.tsx`'s error squiggles already follow: the tree must
  * show every file with a problem regardless of what the panel is filtered to.
  */
-function useFileSeverity(): Map<string, Severity> {
+function useFileSeverity(): Map<string, { severity: Severity; count: number }> {
   const summary = useFindingsStore((s) => s.summary);
-  const [bySeverity, setBySeverity] = useState<Map<string, Severity>>(new Map());
+  const [bySeverity, setBySeverity] = useState<Map<string, { severity: Severity; count: number }>>(
+    new Map(),
+  );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -52,11 +66,19 @@ function useFileSeverity(): Map<string, Severity> {
         performance.mark('file-severity-fetch-end');
         performance.measure('file-severity-fetch', 'file-severity-fetch-start', 'file-severity-fetch-end');
         if (cancelled || !result.ok) return;
-        const map = new Map<string, Severity>();
+        const map = new Map<string, { severity: Severity; count: number }>();
         for (const f of result.value.findings) {
           const current = map.get(f.location.file);
-          if (current === undefined || SEVERITY_RANK[f.severity] > SEVERITY_RANK[current]) {
-            map.set(f.location.file, f.severity);
+          if (current === undefined) {
+            map.set(f.location.file, { severity: f.severity, count: 1 });
+          } else {
+            map.set(f.location.file, {
+              severity:
+                SEVERITY_RANK[f.severity] > SEVERITY_RANK[current.severity]
+                  ? f.severity
+                  : current.severity,
+              count: current.count + 1,
+            });
           }
         }
         setBySeverity(map);
@@ -97,6 +119,19 @@ export function FileTree(): React.JSX.Element {
   const { openMenu, menu } = useFileActions();
   const fileSeverity = useFileSeverity();
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const filteredNodes =
+    trimmedQuery === ''
+      ? nodes
+      : nodes.filter(
+          (n) =>
+            n.kind === 'file' &&
+            (n.name.toLowerCase().includes(trimmedQuery) ||
+              n.relPath.toLowerCase().includes(trimmedQuery)),
+        );
+
   // A successfully opened workspace with zero visible entries (an empty folder, or one where
   // everything is `.gitignore`d) previously rendered a blank pane indistinguishable from "still
   // loading" or "broken" (beta audit A2, Empty states finding).
@@ -132,30 +167,62 @@ export function FileTree(): React.JSX.Element {
   };
 
   return (
-    <>
-      <VirtualList
-        label="File tree"
-        items={nodes}
-        getKey={(node) => node.relPath}
-        estimateRowHeight={rowHeight}
-        onActivate={activate}
-        renderItem={(node) => (
-          <TreeRow
-            node={node}
-            height={rowHeight}
-            selected={node.relPath === (node.kind === 'dir' ? selectedDir : selected)}
-            severity={fileSeverity.get(node.relPath)}
-            onActivate={() => {
-              activate(node);
-            }}
-            onContextMenu={(x, y) => {
-              openMenu({ relPath: node.relPath, kind: node.kind }, x, y);
-            }}
-          />
-        )}
-      />
+    <div
+      className="flex h-full min-h-0 flex-col"
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+          e.preventDefault();
+          searchInputRef.current?.focus();
+        }
+      }}
+    >
+      <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border-subtle bg-raised px-2">
+        <SearchIcon className="size-3.5 shrink-0 text-fg-muted" />
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setSearchQuery('');
+            }
+          }}
+          placeholder="Search files…"
+          aria-label="Search files"
+          className="min-w-0 flex-1 bg-transparent text-xs text-fg outline-none placeholder:text-fg-muted"
+        />
+      </div>
+      {trimmedQuery !== '' && filteredNodes.length === 0 ? (
+        <p className="flex-1 px-6 py-8 text-center text-xs text-fg-muted">No files found</p>
+      ) : (
+        <VirtualList
+          label="File tree"
+          items={filteredNodes}
+          getKey={(node) => node.relPath}
+          estimateRowHeight={rowHeight}
+          onActivate={activate}
+          renderItem={(node) => (
+            <TreeRow
+              node={node}
+              height={rowHeight}
+              selected={node.relPath === (node.kind === 'dir' ? selectedDir : selected)}
+              severityInfo={fileSeverity.get(node.relPath)}
+              onActivate={() => {
+                activate(node);
+              }}
+              onContextMenu={(x, y) => {
+                openMenu({ relPath: node.relPath, kind: node.kind }, x, y);
+              }}
+            />
+          )}
+        />
+      )}
       {menu}
-    </>
+    </div>
   );
 }
 
@@ -163,14 +230,14 @@ function TreeRow({
   node,
   height,
   selected,
-  severity,
+  severityInfo,
   onActivate,
   onContextMenu,
 }: {
   node: TreeNode;
   height: number;
   selected: boolean;
-  severity?: Severity | undefined;
+  severityInfo?: { severity: Severity; count: number } | undefined;
   onActivate: () => void;
   onContextMenu: (x: number, y: number) => void;
 }): React.JSX.Element {
@@ -220,11 +287,20 @@ function TreeRow({
       {/* min-w-0: a flex child defaults to min-width:auto, which refuses to shrink below its text
           and makes `truncate` a no-op — a long filename would push the row into a sideways scroll. */}
       <span className="min-w-0 truncate">{node.name}</span>
-      {severity !== undefined && (
-        <span
-          aria-label={`Has ${severity}s`}
-          className={cn('size-1.5 shrink-0 rounded-full', SEVERITY_DOT[severity])}
-        />
+      {severityInfo !== undefined && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              aria-label={`Has ${String(severityInfo.count)} ${severityInfo.severity}s`}
+              className={cn('size-1.5 shrink-0 rounded-full', SEVERITY_DOT[severityInfo.severity])}
+            />
+          </TooltipTrigger>
+          <TooltipContent>
+            {severityInfo.severity === 'error'
+              ? `${String(severityInfo.count)} error${severityInfo.count !== 1 ? 's' : ''}`
+              : `${String(severityInfo.count)} warning${severityInfo.count !== 1 ? 's' : ''}`}
+          </TooltipContent>
+        </Tooltip>
       )}
     </button>
   );
