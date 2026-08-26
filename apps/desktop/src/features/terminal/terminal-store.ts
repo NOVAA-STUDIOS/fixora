@@ -29,6 +29,8 @@ type TerminalStoreState = {
   takePendingCommand: (id: string) => string | null;
   setProcessName: (id: string, processName: string) => void;
   setShellLabel: (id: string, shellLabel: string) => void;
+  /** User-renamed tab title (renderer-side metadata only, no IPC — the PTY itself is unaware). */
+  renameSession: (id: string, title: string) => void;
   /** Package Manager's entry point: a fresh terminal, running this command, with the Terminal tab
    * brought to front. */
   openWithCommand: (command: string) => void;
@@ -93,6 +95,12 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => ({
   setShellLabel: (id, shellLabel) => {
     set((s) => ({
       sessions: s.sessions.map((sess) => (sess.id === id ? { ...sess, shellLabel } : sess)),
+    }));
+  },
+
+  renameSession: (id, title) => {
+    set((s) => ({
+      sessions: s.sessions.map((sess) => (sess.id === id ? { ...sess, title } : sess)),
     }));
   },
 

@@ -3,6 +3,8 @@ import { ConfirmDialog, FileIcon, SearchIcon, WinCloseIcon, cn } from '@fixora/u
 import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
+import { dirname } from '../../lib/path.js';
+import { useTerminalStore } from '../terminal/terminal-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { CodeEditor } from './code-editor.js';
@@ -379,6 +381,14 @@ export function EditorArea(): React.JSX.Element {
               label="Copy Path"
               onClick={() => {
                 void invoke('system:copyToClipboard', { text: tabMenu.relPath });
+                setTabMenu(null);
+              }}
+            />
+            <TabMenuItem
+              label="Reveal in Terminal"
+              onClick={() => {
+                const dir = dirname(tabMenu.relPath);
+                useTerminalStore.getState().openWithCommand(`cd "${dir === '' ? '.' : dir}"`);
                 setTabMenu(null);
               }}
             />

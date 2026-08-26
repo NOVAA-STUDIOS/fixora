@@ -255,7 +255,17 @@ function TerminalTab({
   onClose: () => void;
   onSplit: () => void;
 }): React.JSX.Element {
+  const renameSession = useTerminalStore((s) => s.renameSession);
   const label = session.processName ?? session.title;
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(session.title);
+
+  const commitRename = (): void => {
+    const trimmed = draft.trim().slice(0, 30);
+    if (trimmed !== '') renameSession(session.id, trimmed);
+    setRenaming(false);
+  };
+
   return (
     <div
       className={cn(
@@ -263,20 +273,50 @@ function TerminalTab({
         active ? 'bg-canvas text-fg' : 'text-fg-muted hover:bg-hover hover:text-fg',
       )}
     >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={active}
-        onClick={onSelect}
-        title={session.shellLabel === '' ? label : `${label} — ${session.shellLabel}`}
-        className="flex items-center gap-1.5 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
-      >
-        <TerminalIcon className="size-3.5 shrink-0" />
-        <span className="whitespace-nowrap">{label}</span>
-        {session.shellLabel !== '' && (
-          <span className="whitespace-nowrap text-[10px] text-fg-muted">{session.shellLabel}</span>
-        )}
-      </button>
+      {renaming ? (
+        <input
+          autoFocus
+          value={draft}
+          maxLength={30}
+          onFocus={(e) => {
+            e.currentTarget.select();
+          }}
+          onChange={(e) => {
+            setDraft(e.target.value);
+          }}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitRename();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              setDraft(session.title);
+              setRenaming(false);
+            }
+          }}
+          className="w-24 min-w-0 bg-transparent py-1 text-xs text-fg outline-none"
+        />
+      ) : (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={active}
+          onClick={onSelect}
+          onDoubleClick={() => {
+            setDraft(session.title);
+            setRenaming(true);
+          }}
+          title={session.shellLabel === '' ? label : `${label} — ${session.shellLabel}`}
+          className="flex items-center gap-1.5 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
+        >
+          <TerminalIcon className="size-3.5 shrink-0" />
+          <span className="whitespace-nowrap">{label}</span>
+          {session.shellLabel !== '' && (
+            <span className="whitespace-nowrap text-[10px] text-fg-muted">{session.shellLabel}</span>
+          )}
+        </button>
+      )}
       <button
         type="button"
         aria-label={`Split with ${label}`}
