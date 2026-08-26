@@ -79,8 +79,7 @@ export function App(): React.JSX.Element {
   // real app mount, independent of the splash for the same reason `version` above is.
   const loadConfig = useAiStore((s) => s.loadConfig);
   useEffect(() => {
-    console.error('[app] effect running:', 'loadConfig');
-    void loadConfig();
+    void waitForAppReady().then(() => loadConfig());
   }, [loadConfig]);
 
   // Main emits this at startup when it holds no paid plan for this device; the renderer still has
