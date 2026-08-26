@@ -6,6 +6,44 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## [1.2.2] — 2026-08-26
+
+### ✨ New Features
+- **File Tree:** File search bar, severity dot shows finding count on hover
+- **Editor:** Ctrl+\ split view, tab search for 5+ tabs, Reveal in Terminal from context menu
+- **Terminal:** Tab rename on double-click
+- **History Panel:** Revert repair, search/filter, export as JSON/CSV
+- **Problems Panel:** Skipped files banner, export findings, issue count in group headers, Watch Mode pill
+- **Settings:** Test connection for providers, Reset to defaults, account section, settings search
+- **Proceed Mode:** Instruction templates, instruction history (↑ arrow)
+- **Status Bar:** Real encoding display, findings count pill, analysis file count
+- **Upgrade Dialog:** Plan comparison with direct upgrade links
+- **Onboarding:** Step progress saved, Replay Tour in Settings, Escape confirmation
+
+### 🐛 Bug Fixes
+- **Startup:** Fixed critical startup race — pull-based polling replaces push-based app:ready
+- **Startup:** Splash screen minimum 2s display time added
+- **Startup:** ai:getConfig no longer races handler registration
+- **Splash Screen:** 30s timeout + error state if backend genuinely hangs
+- **License:** Removed double repair counting
+- **Proceed Mode:** Repair limit enforced (paywall bypass fixed)
+- **Proceed Mode:** Removed debug diagnostic code from production
+- **Auth:** Sign out confirmation, user info in Settings
+- **Workspace:** Large project warning at 10,000+ files
+
+### 🔒 Security
+- **Proceed Mode:** Repair limit paywall enforced (critical fix)
+- **License:** Main process is now sole authority for repair counting
+
+### 🧪 Tests
+- **Code Shield:** 30 new tests added (1211 total)
+
+### ⚠️ Known Limitations
+- Windows binary unsigned (code signing pending)
+- OAuth session fixation gap (PKCE refactor deferred)
+- Azure model picker empty (fix pending)
+- repair-count.json race condition with MCP standalone (SQLite migration pending)
+
 ## [1.2.1] — 2026-08-25
 
 ### ✨ New Features
