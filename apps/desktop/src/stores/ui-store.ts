@@ -181,6 +181,10 @@ type UiState = {
   toggleTerminal: () => void;
   setReopenLastProject: (enabled: boolean) => void;
   setWatchModeEnabled: (enabled: boolean) => void;
+  /** Resets appearance, editor and analysis settings to their shipped defaults. Deliberately narrow:
+   *  providers, API keys, license and MCP settings live in their own stores and are never touched
+   *  by this — see `settings-panel.tsx`'s "Reset to Defaults". */
+  resetToDefaults: () => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -288,6 +292,17 @@ export const useUiStore = create<UiState>()(
       },
       setWatchModeEnabled: (watchModeEnabled) => {
         set({ watchModeEnabled });
+      },
+      resetToDefaults: () => {
+        set({
+          theme: 'dark',
+          density: 'comfortable',
+          editorTheme: 'fixora',
+          minimapEnabled: true,
+          autoSave: false,
+          formatOnSave: true,
+          watchModeEnabled: false,
+        });
       },
     }),
     {

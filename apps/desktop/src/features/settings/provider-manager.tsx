@@ -1,7 +1,7 @@
 import type { ProviderInfo } from '@fixora/shared-types';
 import { formatAgo, healthColour, statusLabel } from '@fixora/shared-types';
 import { Button, Input, Switch, cn } from '@fixora/ui';
-import { useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { useAiStore } from '../../stores/ai-store.js';
@@ -29,11 +29,31 @@ const DOT: Record<'green' | 'yellow' | 'red', string> = {
 };
 
 type KnownModels = { models: string[]; notice: string | null };
+type TestStatus = 'idle' | 'testing' | 'ok' | 'error';
 
 export function ProviderManager(): React.JSX.Element {
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [knownModels, setKnownModels] = useState<Record<string, KnownModels>>({});
+  const [testStatus, setTestStatus] = useState<Map<string, TestStatus>>(new Map());
+
+  /** "Test" reuses `providers:listModels` (Settings already does, on load): if it can list the
+   *  provider's models, the key and connectivity both check out. `ok` self-clears after 2s so a
+   *  passed test does not sit as permanent furniture; `error` stays until the next attempt. */
+  const testProvider = useCallback((id: string) => {
+    setTestStatus((m) => new Map(m).set(id, 'testing'));
+    void invoke('providers:listModels', { id, refresh: true }).then((result) => {
+      setTestStatus((m) => new Map(m).set(id, result.ok ? 'ok' : 'error'));
+      if (result.ok) {
+        setTimeout(() => {
+          setTestStatus((m) => {
+            if (m.get(id) !== 'ok') return m;
+            return new Map(m).set(id, 'idle');
+          });
+        }, 2000);
+      }
+    });
+  }, []);
 
   /** Every mutation returns the refreshed list, so this is the only place state is set. */
   async function apply(
@@ -172,6 +192,10 @@ export function ProviderManager(): React.JSX.Element {
                 provider={provider}
                 onSave={(key) => apply(invoke('providers:setKey', { id: provider.id, key }))}
                 onClear={() => apply(invoke('providers:clearKey', { id: provider.id }))}
+                testStatus={testStatus.get(provider.id) ?? 'idle'}
+                onTest={() => {
+                  testProvider(provider.id);
+                }}
               />
             )}
 
@@ -258,10 +282,14 @@ function ProviderKeyField({
   provider,
   onSave,
   onClear,
+  testStatus,
+  onTest,
 }: {
   provider: ProviderInfo;
   onSave: (key: string) => Promise<boolean>;
   onClear: () => Promise<unknown>;
+  testStatus: TestStatus;
+  onTest: () => void;
 }): React.JSX.Element {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -321,6 +349,29 @@ function ProviderKeyField({
         >
           Remove
         </Button>
+      )}
+      {provider.hasKey && (
+        <Button
+          size="sm"
+          variant="secondary"
+          className="shrink-0"
+          disabled={testStatus === 'testing'}
+          onClick={onTest}
+        >
+          {testStatus === 'testing' && (
+            <span
+              aria-hidden="true"
+              className="mr-1 inline-block size-2.5 animate-spin rounded-full border-2 border-fg-muted border-t-transparent align-middle"
+            />
+          )}
+          {testStatus === 'testing' ? 'Testing…' : 'Test'}
+        </Button>
+      )}
+      {testStatus === 'ok' && (
+        <span className="shrink-0 text-[10px] text-success-text">✅ Connected</span>
+      )}
+      {testStatus === 'error' && (
+        <span className="shrink-0 text-[10px] text-danger-text">❌ Failed — check your API key</span>
       )}
       {provider.keyUrl !== undefined && provider.keyHint === null && (
         <a

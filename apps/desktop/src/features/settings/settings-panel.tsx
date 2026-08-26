@@ -1,6 +1,7 @@
-import type { ShieldSensitivity } from '@fixora/shared-types';
+import type { AppInfo, ShieldSensitivity } from '@fixora/shared-types';
 import {
   Button,
+  ConfirmDialog,
   Input,
   Kbd,
   Select,
@@ -9,14 +10,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@fixora/ui';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
+import { copyToClipboard } from '../../lib/clipboard.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useLicenseStore } from '../../stores/license-store.js';
 import { useMcpStore } from '../../stores/mcp-store.js';
 import { useOnboardingStore } from '../../stores/onboarding-store.js';
+import { toast } from '../../stores/toast-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
+import { useUpdateStore } from '../../stores/update-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
 import { useShieldSettingsStore } from '../shield/shield-store.js';
@@ -36,7 +40,65 @@ const PURCHASE_URL = 'https://rohanstar558.gumroad.com/l/bqbxp';
  * **off by default** and the copy says plainly what it is (FR-5): the actual sentence, in the app,
  * where the decision is made — not a link to a policy.
  */
+/**
+ * Structural (Group-level) search metadata: each entry's `labels` are the field labels a user
+ * would recognise inside that section, so typing "minimap" finds Appearance without this doing a
+ * deep read of the rendered tree. Kept beside `SettingsPanel` rather than co-located per-component
+ * because it describes what is SHOWN, not what each component does.
+ */
+const SECTIONS: readonly {
+  title: string;
+  labels: readonly string[];
+  Component: () => React.JSX.Element | null;
+}[] = [
+  {
+    title: 'Appearance',
+    labels: ['Theme', 'Density', 'Editor theme', 'Minimap'],
+    Component: AppearanceSettings,
+  },
+  { title: 'Editor', labels: ['Auto save', 'Format on save'], Component: EditorSettings },
+  { title: 'Analysis', labels: ['Watch Mode'], Component: AnalysisSettings },
+  {
+    title: 'Code Shield',
+    labels: ['Enable Code Shield', 'Sensitivity'],
+    Component: ShieldSettings,
+  },
+  { title: 'GitHub Actions', labels: [], Component: GitHubActionsPanel },
+  {
+    title: 'Startup',
+    labels: ['Reopen last project on startup', 'Replay Onboarding Tour'],
+    Component: StartupSettings,
+  },
+  { title: 'Performance', labels: ['Disable GPU compositing'], Component: PerformanceSettings },
+  { title: 'AI (bring your own key)', labels: ['Model'], Component: AiSettings },
+  { title: 'AI providers & failover', labels: [], Component: ProviderSettings },
+  { title: 'License', labels: [], Component: LicenseSettings },
+  { title: 'Privacy', labels: ['Anonymous usage telemetry'], Component: PrivacySettings },
+  { title: 'MCP Server', labels: ['Allow external tools (MCP)'], Component: McpSettings },
+  { title: 'Keyboard shortcuts', labels: [], Component: Keybindings },
+  {
+    title: 'About',
+    labels: ['Build', 'Check for updates', 'Copy debug info'],
+    Component: AboutSettings,
+  },
+  { title: 'Reset', labels: ['Reset to Defaults'], Component: ResetSettings },
+];
+
 export function SettingsPanel(): React.JSX.Element {
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLowerCase();
+  const visible = useMemo(
+    () =>
+      query === ''
+        ? SECTIONS
+        : SECTIONS.filter(
+            (s) =>
+              s.title.toLowerCase().includes(query) ||
+              s.labels.some((label) => label.toLowerCase().includes(query)),
+          ),
+    [query],
+  );
+
   return (
     // flex-1 + min-w-0: this is now a top-level child of the shell's flex row, and a flex item sizes
     // to its content by default — without this the whole settings page shrank to its column width
@@ -58,20 +120,23 @@ export function SettingsPanel(): React.JSX.Element {
           shell's `overflow-hidden`, and gave the whole window 736px of blank scroll below the UI. */}
       <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-8">
-          <AppearanceSettings />
-          <EditorSettings />
-          <AnalysisSettings />
-          <ShieldSettings />
-          <GitHubActionsPanel />
-          <StartupSettings />
-          <PerformanceSettings />
-          <AiSettings />
-          <ProviderSettings />
-          <LicenseSettings />
-          <PrivacySettings />
-          <McpSettings />
-          <Keybindings />
-          <AboutSettings />
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setSearch('');
+            }}
+            placeholder="Search settings…"
+            aria-label="Search settings"
+            className="shrink-0"
+          />
+          {visible.length === 0 ? (
+            <p className="text-sm text-fg-muted">No settings found for &lsquo;{search.trim()}&rsquo;</p>
+          ) : (
+            visible.map(({ title, Component }) => <Component key={title} />)
+          )}
           <LegalLinks />
         </div>
       </div>
@@ -781,11 +846,87 @@ function ShieldSettings(): React.JSX.Element {
 /** Third-party attribution. Monaco and Electron are MIT-licensed, and MIT requires the notice to
  *  travel with the software — an About section is where a user can actually find it. */
 function AboutSettings(): React.JSX.Element {
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const update = useUpdateStore((s) => s.update);
+
+  useEffect(() => {
+    void invoke('system:getAppInfo', {}).then((r) => {
+      if (r.ok) setAppInfo(r.value);
+    });
+  }, []);
+
+  const copyDebugInfo = (): void => {
+    if (appInfo === null) return;
+    const text = [
+      `Version: ${appInfo.version}`,
+      `Commit: ${appInfo.commit}`,
+      `Platform: ${appInfo.platform} (${appInfo.arch})`,
+      `Electron: ${appInfo.electronVersion}`,
+    ].join('\n');
+    void copyToClipboard(text, { label: 'Debug info copied' });
+  };
+
   return (
     <Group title="About">
       <p className="text-xs leading-relaxed text-fg-muted">
         Built with Monaco Editor (MIT) and Electron (MIT)
       </p>
+      {appInfo !== null && (
+        <p className="text-xs text-fg-muted">
+          Version {appInfo.version} · Build: {appInfo.commit.slice(0, 7)}
+        </p>
+      )}
+      {/* There is no manual "check now" — main's auto-updater checks silently on launch and pushes
+       *  the result here. This reflects that result rather than pretending to trigger a new check. */}
+      <p className="text-xs text-fg-muted">
+        {update.status === 'idle'
+          ? appInfo !== null
+            ? `You're up to date — v${appInfo.version}`
+            : 'Checking version…'
+          : update.status === 'available'
+            ? `Update available: v${update.version}`
+            : `Update ready to install: v${update.version}`}
+      </p>
+      <Button variant="ghost" size="sm" className="self-start" onClick={copyDebugInfo} disabled={appInfo === null}>
+        Copy debug info
+      </Button>
+    </Group>
+  );
+}
+
+/** Resets appearance/editor/analysis preferences only — never providers, keys, license, or MCP,
+ *  which live in their own stores this never touches. */
+function ResetSettings(): React.JSX.Element {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  return (
+    <Group title="Reset">
+      <div className="flex items-center justify-between gap-4">
+        <p className="max-w-md text-xs leading-relaxed text-fg-muted">
+          Reset all appearance, editor, and analysis settings to defaults.
+        </p>
+        <Button
+          variant="danger"
+          size="sm"
+          className="shrink-0"
+          onClick={() => {
+            setConfirmOpen(true);
+          }}
+        >
+          Reset to Defaults
+        </Button>
+      </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Reset all settings to defaults?"
+        description="This cannot be undone. AI providers and license are not affected."
+        confirmLabel="Reset to Defaults"
+        onConfirm={() => {
+          useUiStore.getState().resetToDefaults();
+          toast.success('Settings reset to defaults');
+        }}
+      />
     </Group>
   );
 }
