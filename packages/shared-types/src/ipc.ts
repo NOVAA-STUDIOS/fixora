@@ -666,6 +666,15 @@ export const contracts = {
   'git:stage': { request: z.object({ relPath: z.string().min(1) }), response: z.void() },
   'git:unstage': { request: z.object({ relPath: z.string().min(1) }), response: z.void() },
   'git:commit': { request: z.object({ message: z.string().min(1) }), response: z.void() },
+  // Source Control's "view diff" (reuses the same `DiffEditor` the repair review flow does).
+  // `staged: true` diffs the index against HEAD; the default diffs the working tree against HEAD.
+  'git:diff': {
+    request: z.object({ relPath: z.string().min(1), staged: z.boolean().optional() }),
+    response: z.union([
+      z.object({ original: z.string(), modified: z.string(), language: z.string() }),
+      z.object({ error: z.string() }),
+    ]),
+  },
 
   'project:create': {
     request: z.object({

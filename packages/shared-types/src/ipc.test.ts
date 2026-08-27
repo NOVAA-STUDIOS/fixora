@@ -121,6 +121,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'git:stage',
       'git:unstage',
       'git:commit',
+      'git:diff',
       'project:create',
     ]);
   });

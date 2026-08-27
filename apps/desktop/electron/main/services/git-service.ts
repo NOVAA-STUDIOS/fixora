@@ -1,6 +1,10 @@
 import { execFile } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { UserFacingError } from '@fixora/shared-types';
+
+import { detectLanguage } from './fs/language.js';
 
 export type GitFileStatus = { path: string; status: string };
 export type GitStatus = {
@@ -171,6 +175,53 @@ export async function gitUnstage(root: string, relPath: string): Promise<void> {
       stage: 'workspace',
     });
   }
+}
+
+/**
+ * The two file contents Source Control's diff view needs — not a parsed unified diff, since
+ * `DiffEditor` (the same Monaco diff surface the repair review flow uses) already computes and
+ * renders the diff itself given original/modified text.
+ *
+ * `staged: false` (default): working tree vs HEAD — `modified` is what's on disk.
+ * `staged: true`: index vs HEAD — `modified` is what's staged (`git show :0:<relPath>`), so an
+ * edit made after staging does not leak into a diff that is supposed to describe the staged change.
+ */
+export async function gitDiff(
+  root: string,
+  relPath: string,
+  staged = false,
+): Promise<{ original: string; modified: string; language: string }> {
+  // A nonzero exit here means the file does not exist at HEAD yet — untracked or newly added —
+  // which is a real, expected state (not an error): `original` is simply empty.
+  const originalResult = await runGit(root, ['show', `HEAD:${relPath}`]);
+  const original = originalResult.code === 0 ? originalResult.stdout : '';
+
+  let modified: string;
+  if (staged) {
+    const indexResult = await runGit(root, ['show', `:0:${relPath}`]);
+    if (indexResult.code !== 0) {
+      throw new UserFacingError(
+        indexResult.stderr.trim() === ''
+          ? `Could not read the staged version of ${relPath}.`
+          : `Could not read the staged version of ${relPath}:\n\n${indexResult.stderr.trim()}`,
+        { code: 'contract_violation', action: { type: 'none', label: 'Dismiss' }, stage: 'workspace' },
+      );
+    }
+    modified = indexResult.stdout;
+  } else {
+    try {
+      modified = readFileSync(join(root, relPath), 'utf8');
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new UserFacingError(`Could not read ${relPath} from disk:\n\n${detail}`, {
+        code: 'contract_violation',
+        action: { type: 'none', label: 'Dismiss' },
+        stage: 'workspace',
+      });
+    }
+  }
+
+  return { original, modified, language: detectLanguage(relPath) ?? 'plaintext' };
 }
 
 export async function gitCommit(root: string, message: string): Promise<void> {
