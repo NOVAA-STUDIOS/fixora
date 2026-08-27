@@ -920,7 +920,7 @@ const FindingRow = memo(function FindingRow({
         // iOS Premium: a rounded card with its own subtle border, not a full-bleed row — mx-1.5
         // insets it from the panel edges the same way the sidebar's active pill does, so the two
         // read as the same design language.
-        'group/row mx-1.5 my-0.5 flex min-w-0 flex-col rounded-xl border border-white/[0.06] animate-ios-slide-up',
+        'group/row mx-1.5 my-0.5 flex min-w-0 flex-col rounded-xl border border-white/[0.06]',
         // Severity accent on the left edge, not a dot inside it — one signal instead of two.
         // Security overrides it to the danger token regardless of the finding's own severity — a
         // security *warning* still reads as more urgent than a correctness *warning* does.

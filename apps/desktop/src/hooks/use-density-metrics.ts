@@ -1,4 +1,5 @@
 import { densities } from '@fixora/tokens';
+import { useMemo } from 'react';
 
 import { useUiStore } from '../stores/ui-store.js';
 
@@ -35,10 +36,15 @@ export function useFindingRowEstimate(): number {
   const metrics = densities[density];
   const paddingY = remToPx(metrics.cardPaddingY) * 2;
   const gap = remToPx(metrics.cardGap);
-  const titleLine = 18; // text-[13.5px] leading-snug
-  const locationLine = 16; // text-[11px] row (badge + path)
   const actionsRow = remToPx(metrics.rowHeight) * 0.75; // px-2 py-0.5 text-[11px] buttons
-  return paddingY + gap + titleLine + locationLine + actionsRow;
+  return useMemo(() => {
+    // text-[13.5px] leading-snug / text-[11px] row (badge + path) — compact tightens both lines,
+    // not just the card's own padding/gap, or the estimate overshoots at compact and the
+    // virtualizer opens a gap below every row until its measurement pass corrects it.
+    const titleLine = density === 'compact' ? 15 : 18;
+    const locationLine = density === 'compact' ? 13 : 16;
+    return paddingY + gap + titleLine + locationLine + actionsRow;
+  }, [paddingY, gap, actionsRow, density]);
 }
 
 /**
