@@ -48,6 +48,11 @@ export {
   BookIcon,
   SparkleIcon,
   MoreIcon,
+  FetchIcon,
+  PullIcon,
+  PushIcon,
+  SidebarLeftIcon,
+  SidebarRightIcon,
 } from './components/icons.js';
 
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/tooltip.js';

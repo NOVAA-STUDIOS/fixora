@@ -293,6 +293,51 @@ export function MoreIcon(props: IconProps): React.JSX.Element {
   );
 }
 
+export function SidebarLeftIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+    </Icon>
+  );
+}
+
+export function SidebarRightIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M15 4v16" />
+    </Icon>
+  );
+}
+
+export function PushIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M12 19V5" />
+      <path d="m5 12 7-7 7 7" />
+    </Icon>
+  );
+}
+
+export function PullIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M12 5v14" />
+      <path d="m5 12 7 7 7-7" />
+    </Icon>
+  );
+}
+
+export function FetchIcon(props: IconProps): React.JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M3 12a9 9 0 0 1 15.36-6.36" />
+      <path d="M3 3v6h6" />
+    </Icon>
+  );
+}
+
 /**
  * The Fixora brand mark: a rounded badge holding code brackets around a check.
  *

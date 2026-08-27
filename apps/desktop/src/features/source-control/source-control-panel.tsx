@@ -2,10 +2,10 @@ import {
   Button,
   ChevronDownIcon,
   CloseIcon,
-  DownloadIcon,
+  FetchIcon,
   GitBranchIcon,
-  RefreshIcon,
-  SendIcon,
+  PullIcon,
+  PushIcon,
   Skeleton,
 } from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
@@ -232,7 +232,7 @@ export function SourceControlPanel(): React.JSX.Element {
           disabled={busy}
           className="shrink-0 rounded p-1 text-fg-muted hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <RefreshIcon className="size-3.5" />
+          <FetchIcon className="size-3.5" />
         </button>
         <button
           type="button"
@@ -242,7 +242,7 @@ export function SourceControlPanel(): React.JSX.Element {
           disabled={busy}
           className="shrink-0 rounded p-1 text-fg-muted hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <DownloadIcon className="size-3.5" />
+          <PullIcon className="size-3.5" />
         </button>
         <button
           type="button"
@@ -252,7 +252,7 @@ export function SourceControlPanel(): React.JSX.Element {
           disabled={busy}
           className="shrink-0 rounded p-1 text-fg-muted hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <SendIcon className="size-3.5" />
+          <PushIcon className="size-3.5" />
         </button>
 
         {showBranchPicker && (

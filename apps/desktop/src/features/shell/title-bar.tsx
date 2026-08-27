@@ -1,6 +1,8 @@
 import {
   Button,
   FileIcon,
+  SidebarLeftIcon,
+  SidebarRightIcon,
   SparkleIcon,
   WinCloseIcon,
   WinMaximizeIcon,
@@ -41,15 +43,13 @@ export function TitleBar(): React.JSX.Element {
         </div>
         <ModeSwitcher />
         <div className="no-drag-region ml-2 flex items-center gap-0.5">
-          {/* Reusing FileIcon/SparkleIcon as stand-ins — @fixora/ui has no dedicated
-              sidebar/panel-right icons yet; swap these once one is added. */}
           <TitleBarButton
             label={primaryPanelVisible ? 'Hide sidebar' : 'Show sidebar'}
             title="Toggle Sidebar (Ctrl+B)"
             onClick={togglePrimaryPanel}
             dimmed={!primaryPanelVisible}
           >
-            <FileIcon className="size-4" />
+            <SidebarLeftIcon className="size-4" />
           </TitleBarButton>
           <TitleBarButton
             label={aiPanelVisible ? 'Hide AI panel' : 'Show AI panel'}
@@ -57,7 +57,7 @@ export function TitleBar(): React.JSX.Element {
             onClick={toggleAiPanel}
             dimmed={!aiPanelVisible}
           >
-            <SparkleIcon className="size-4" />
+            <SidebarRightIcon className="size-4" />
           </TitleBarButton>
         </div>
       </div>
