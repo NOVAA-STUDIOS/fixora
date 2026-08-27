@@ -44,6 +44,15 @@ export function loadIgnoreRules(workspaceRoot: string): IgnoreMatcher {
     // no .gitignore, or unreadable — fine.
   }
 
+  // .fixoraignore extends .gitignore — same syntax, Fixora-only scope. Additive only: it can hide
+  // more from the tree/indexer/analyzers than git already does, never un-ignore what git tracks.
+  // Missing or unreadable is the same non-error as .gitignore above.
+  try {
+    ig.add(readFileSync(join(workspaceRoot, '.fixoraignore'), 'utf8'));
+  } catch {
+    // no .fixoraignore, or unreadable — fine.
+  }
+
   return {
     ignores: (relPath) => {
       const normalized = relPath.replace(/\\/g, '/');

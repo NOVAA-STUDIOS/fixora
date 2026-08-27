@@ -25,6 +25,7 @@ import { useUpdateStore } from '../../stores/update-store.js';
 import { useCommands } from '../commands/command-provider.js';
 import { formatBinding } from '../commands/keybinding.js';
 import { useShieldSettingsStore } from '../shield/shield-store.js';
+import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { detectProvider, normaliseKey } from './detect-provider.js';
 import { GitHubActionsPanel } from './github-actions-panel.js';
@@ -58,7 +59,7 @@ const SECTIONS: readonly {
     Component: AppearanceSettings,
   },
   { title: 'Editor', labels: ['Auto save', 'Format on save'], Component: EditorSettings },
-  { title: 'Analysis', labels: ['Watch Mode'], Component: AnalysisSettings },
+  { title: 'Analysis', labels: ['Watch Mode', '.fixoraignore'], Component: AnalysisSettings },
   {
     title: 'Code Shield',
     labels: ['Enable Code Shield', 'Sensitivity'],
@@ -709,6 +710,22 @@ function AnalysisSettings(): React.JSX.Element {
   const watchModeEnabled = useUiStore((s) => s.watchModeEnabled);
   const setWatchModeEnabled = useUiStore((s) => s.setWatchModeEnabled);
   const watchModeId = useId();
+  const workspace = useWorkspaceStore((s) => s.workspace);
+  const [fixoraIgnoreActive, setFixoraIgnoreActive] = useState(false);
+
+  useEffect(() => {
+    if (workspace === null) {
+      setFixoraIgnoreActive(false);
+      return;
+    }
+    let cancelled = false;
+    void invoke('fs:readFile', { relPath: '.fixoraignore' }).then((result) => {
+      if (!cancelled) setFixoraIgnoreActive(result.ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace]);
 
   return (
     <Group title="Analysis">
@@ -719,6 +736,22 @@ function AnalysisSettings(): React.JSX.Element {
         checked={watchModeEnabled}
         onCheckedChange={setWatchModeEnabled}
       />
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-sm font-medium text-fg">.fixoraignore</span>
+          <span className="text-xs leading-relaxed text-fg-muted">
+            Add a .fixoraignore file to your project root to exclude files from analysis. Uses the
+            same syntax as .gitignore.
+          </span>
+        </div>
+        {fixoraIgnoreActive ? (
+          <span className="shrink-0 rounded-full bg-success-subtle px-2 py-0.5 text-xs font-medium text-success-text">
+            ✅ Active
+          </span>
+        ) : (
+          <span className="shrink-0 text-xs text-fg-muted">Not found</span>
+        )}
+      </div>
     </Group>
   );
 }
