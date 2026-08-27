@@ -260,6 +260,9 @@ function AppearanceSettings(): React.JSX.Element {
             <SelectItem value="fixora">Fixora (follows app theme)</SelectItem>
             <SelectItem value="monokai">Monokai</SelectItem>
             <SelectItem value="solarized-dark">Solarized Dark</SelectItem>
+            <SelectItem value="dracula">Dracula</SelectItem>
+            <SelectItem value="github-dark">GitHub Dark</SelectItem>
+            <SelectItem value="one-dark">One Dark</SelectItem>
           </SelectContent>
         </Select>
       </Field>

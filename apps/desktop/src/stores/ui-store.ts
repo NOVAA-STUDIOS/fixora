@@ -45,7 +45,14 @@ export type PanelLayout = Record<string, PaneSizes>;
 
 const THEMES: readonly ThemeName[] = ['dark', 'light'];
 const WORKSPACE_MODES: readonly WorkspaceMode[] = ['fix', 'code'];
-const EDITOR_THEMES: readonly UiState['editorTheme'][] = ['fixora', 'monokai', 'solarized-dark'];
+const EDITOR_THEMES: readonly UiState['editorTheme'][] = [
+  'fixora',
+  'monokai',
+  'solarized-dark',
+  'dracula',
+  'github-dark',
+  'one-dark',
+];
 const DENSITIES: readonly DensityName[] = ['comfortable', 'compact'];
 // `diagnostics` is deliberately absent from the activity rail — it is reachable from the
 // command palette only. A debugging surface in the main navigation stops being one.
@@ -140,7 +147,7 @@ type UiState = {
    * light/dark), the same way VS Code's colour theme picker is independent of its OS-appearance
    * follow setting. 'fixora' is the token-derived theme (`monaco-theme.ts`) that already follows
    * `theme`; the other two are fixed regardless of it, same as any named VS Code theme. */
-  editorTheme: 'fixora' | 'monokai' | 'solarized-dark';
+  editorTheme: 'fixora' | 'monokai' | 'solarized-dark' | 'dracula' | 'github-dark' | 'one-dark';
   /** On by default. */
   minimapEnabled: boolean;
   terminalFontSize: number;

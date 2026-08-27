@@ -98,6 +98,82 @@ const SOLARIZED_DARK_THEME: monaco.editor.IStandaloneThemeData = {
   },
 };
 
+export const DRACULA = 'DRACULA';
+export const GITHUB_DARK = 'GITHUB_DARK';
+export const ONE_DARK = 'ONE_DARK';
+
+const DRACULA_THEME: monaco.editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: '6272a4' },
+    { token: 'keyword', foreground: 'ff79c6' },
+    { token: 'string', foreground: 'f1fa8c' },
+    { token: 'number', foreground: 'bd93f9' },
+    { token: 'type', foreground: '8be9fd' },
+    { token: 'function', foreground: '50fa7b' },
+    { token: 'variable', foreground: 'f8f8f2' },
+    { token: 'delimiter', foreground: 'ff79c6' },
+  ],
+  colors: {
+    'editor.background': '#282a36',
+    'editor.foreground': '#f8f8f2',
+    'editorLineNumber.foreground': '#6272a4',
+    'editorLineNumber.activeForeground': '#f8f8f2',
+    'editorCursor.foreground': '#f8f8f0',
+    'editor.selectionBackground': '#44475a',
+    'editor.lineHighlightBackground': '#44475a',
+  },
+};
+
+const GITHUB_DARK_THEME: monaco.editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: '8b949e' },
+    { token: 'keyword', foreground: 'ff7b72' },
+    { token: 'string', foreground: 'a5d6ff' },
+    { token: 'number', foreground: '79c0ff' },
+    { token: 'type', foreground: 'ffa657' },
+    { token: 'function', foreground: 'd2a8ff' },
+    { token: 'variable', foreground: 'c9d1d9' },
+    { token: 'delimiter', foreground: 'ff7b72' },
+  ],
+  colors: {
+    'editor.background': '#0d1117',
+    'editor.foreground': '#c9d1d9',
+    'editorLineNumber.foreground': '#8b949e',
+    'editorLineNumber.activeForeground': '#c9d1d9',
+    'editorCursor.foreground': '#c9d1d9',
+    'editor.selectionBackground': '#388bfd26',
+    'editor.lineHighlightBackground': '#388bfd26',
+  },
+};
+
+const ONE_DARK_THEME: monaco.editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: '5c6370' },
+    { token: 'keyword', foreground: 'c678dd' },
+    { token: 'string', foreground: '98c379' },
+    { token: 'number', foreground: 'd19a66' },
+    { token: 'type', foreground: 'e5c07b' },
+    { token: 'function', foreground: '61afef' },
+    { token: 'variable', foreground: 'e06c75' },
+    { token: 'delimiter', foreground: '56b6c2' },
+  ],
+  colors: {
+    'editor.background': '#282c34',
+    'editor.foreground': '#abb2bf',
+    'editorLineNumber.foreground': '#4b5263',
+    'editorLineNumber.activeForeground': '#abb2bf',
+    'editorCursor.foreground': '#528bff',
+    'editor.selectionBackground': '#3e4451',
+    'editor.lineHighlightBackground': '#3e4451',
+  },
+};
+
 let registered = false;
 
 /** Register every editor theme once. Idempotent — safe to call on every editor mount. */
@@ -107,6 +183,9 @@ export function ensureThemes(m: typeof monaco): void {
   m.editor.defineTheme(FIXORA_LIGHT, themeFrom('vs', light));
   m.editor.defineTheme(MONOKAI, MONOKAI_THEME);
   m.editor.defineTheme(SOLARIZED_DARK, SOLARIZED_DARK_THEME);
+  m.editor.defineTheme(DRACULA, DRACULA_THEME);
+  m.editor.defineTheme(GITHUB_DARK, GITHUB_DARK_THEME);
+  m.editor.defineTheme(ONE_DARK, ONE_DARK_THEME);
   registered = true;
 }
 
@@ -117,10 +196,13 @@ export function themeForAppearance(theme: 'dark' | 'light'): string {
 /** Resolves the Settings > Editor theme choice to the Monaco theme name to apply — 'fixora' still
  * follows the app's light/dark toggle; the named themes are fixed regardless of it. */
 export function resolveEditorTheme(
-  editorTheme: 'fixora' | 'monokai' | 'solarized-dark',
+  editorTheme: 'fixora' | 'monokai' | 'solarized-dark' | 'dracula' | 'github-dark' | 'one-dark',
   appearance: 'dark' | 'light',
 ): string {
   if (editorTheme === 'monokai') return MONOKAI;
   if (editorTheme === 'solarized-dark') return SOLARIZED_DARK;
+  if (editorTheme === 'dracula') return DRACULA;
+  if (editorTheme === 'github-dark') return GITHUB_DARK;
+  if (editorTheme === 'one-dark') return ONE_DARK;
   return themeForAppearance(appearance);
 }
