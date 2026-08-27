@@ -120,6 +120,9 @@ export function SearchPanel(): React.JSX.Element {
             setQuery(e.target.value);
           }}
           disabled={!hasWorkspace}
+          // Autofocus on mount: the panel remounts fresh each time the view switches to Search
+          // (e.g. via the command palette / mod+shift+f), so this is the "focus on activate" hook.
+          autoFocus
           placeholder={hasWorkspace ? 'Search project files…' : 'Open a folder to search'}
           aria-label="Search project files"
           className="min-w-0 flex-1 bg-transparent text-xs text-fg outline-none placeholder:text-fg-muted disabled:cursor-not-allowed"
