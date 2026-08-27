@@ -12,6 +12,8 @@ import type {
   Verdict,
 } from '@fixora/shared-types';
 
+import type { Stored } from '../lib/repair-limit.js';
+
 import type { Row, SqliteDriver } from './driver.js';
 
 /**
@@ -554,3 +556,51 @@ export function createRepairHistoryRepository(driver: SqliteDriver, now: () => n
 }
 
 export type RepairHistoryRepository = ReturnType<typeof createRepairHistoryRepository>;
+
+/** The single-row `repair_limit` table (migration v10) — replaces the plain `repair-count.json`
+ *  file `repair-limit.ts` used to own, which had no protection against a concurrent writer (a
+ *  `--mcp` standalone process sharing the same userData dir). */
+export function createRepairLimitRepository(driver: SqliteDriver) {
+  const upsert = driver.prepare(
+    `INSERT INTO repair_limit (id, window_start, repairs_today, plan, license_key, last_validated_at)
+     VALUES (1, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       window_start = excluded.window_start,
+       repairs_today = excluded.repairs_today,
+       plan = excluded.plan,
+       license_key = excluded.license_key,
+       last_validated_at = excluded.last_validated_at`,
+  );
+
+  const select = driver.prepare(
+    `SELECT window_start, repairs_today, plan, license_key, last_validated_at
+     FROM repair_limit WHERE id = 1`,
+  );
+
+  return {
+    load(): Stored | null {
+      const row = select.get() as Record<string, unknown> | undefined;
+      if (row === undefined) return null;
+      const licenseKey = row['license_key'] as string | null;
+      const lastValidatedAt = row['last_validated_at'] as number | null;
+      return {
+        windowStart: row['window_start'] as number,
+        repairsToday: row['repairs_today'] as number,
+        plan: row['plan'] as Stored['plan'],
+        ...(licenseKey !== null ? { licenseKey } : {}),
+        ...(lastValidatedAt !== null ? { lastValidatedAt } : {}),
+      };
+    },
+    save(state: Stored): void {
+      upsert.run(
+        state.windowStart,
+        state.repairsToday,
+        state.plan,
+        state.licenseKey ?? null,
+        state.lastValidatedAt ?? null,
+      );
+    },
+  };
+}
+
+export type RepairLimitRepository = ReturnType<typeof createRepairLimitRepository>;

@@ -1,3 +1,4 @@
+import type { SqliteDriver } from '../../db/driver.js';
 import {
   getRepairCount,
   getWindowResetsAt,
@@ -20,10 +21,10 @@ function scheduleWindowReset(): void {
   setInterval(resetIfWindowElapsed, 5 * 60 * 1000);
 }
 
-export function registerLicenseHandlers(deps: { dir: string }): void {
+export function registerLicenseHandlers(deps: { driver: SqliteDriver; dir: string }): void {
   // Counter AND plan both live in `repair-limit.ts` now — the one place `ai:run` and
   // `mcp:repairFinding` gate on, so there is exactly one allowance and one owner of it.
-  initRepairLimit(deps.dir);
+  initRepairLimit(deps.driver, deps.dir);
   scheduleWindowReset();
 
   registerHandler('license:validate', async ({ licenseKey, productId: productPermalink }) => {

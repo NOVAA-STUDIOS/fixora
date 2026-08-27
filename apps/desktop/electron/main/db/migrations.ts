@@ -206,4 +206,23 @@ export const migrations: readonly Migration[] = [
       d.exec(`ALTER TABLE repairs ADD COLUMN was_forced INTEGER NOT NULL DEFAULT 0`);
     },
   },
+  {
+    version: 10,
+    name: 'repair_limit',
+    up: (d) => {
+      // Single-row table (id is pinned to 1) — replaces the plain `repair-count.json` file, which
+      // had no protection against a concurrent writer (a `--mcp` standalone process sharing the
+      // same userData dir). SQLite's own locking makes that race the driver's problem, not ours.
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS repair_limit (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          window_start INTEGER NOT NULL,
+          repairs_today INTEGER NOT NULL DEFAULT 0,
+          plan TEXT NOT NULL DEFAULT 'free',
+          license_key TEXT,
+          last_validated_at INTEGER
+        )
+      `);
+    },
+  },
 ];

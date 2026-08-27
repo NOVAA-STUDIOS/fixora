@@ -456,7 +456,7 @@ function startBackend(window: BrowserWindow | null): void {
   // Polled by the renderer's splash instead of pushed — see `backendReady` above.
   registerHandler('app:getReadyState', () => ({ ready: backendReady }));
   registerSystemHandlers({ workspace: workspaceService, gpuPreference });
-  registerLicenseHandlers({ dir: app.getPath('userData') });
+  registerLicenseHandlers({ driver, dir: app.getPath('userData') });
   registerWindowHandlers();
   registerWorkspaceHandlers(workspaceService);
   registerEditorHandlers(workspaceService, analysisHost);
