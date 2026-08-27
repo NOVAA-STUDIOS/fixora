@@ -6,6 +6,32 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## [1.2.3] — 2026-08-27
+
+### ✨ New Features
+- **MCP:** Rate limiter added (matches IPC limits — prevents abuse)
+- **MCP:** "Restart required" badge when toggling MCP in settings
+
+### 🐛 Bug Fixes
+- **Problems Panel:** Toolbar buttons no longer cut off on narrow panels
+- **Problems Panel:** Banner stack height capped — findings list always visible
+- **Explain:** Text and follow-up responses now selectable/copyable
+- **Azure:** Deployment name placeholder + helper text in provider settings
+- **Startup:** Splash screen 2s minimum display time
+
+### 🔒 Security
+- **OAuth:** Replaced implicit flow with PKCE + loopback HTTP (RFC 8252) — session fixation gap closed
+- **Repair Limit:** Migrated from repair-count.json to SQLite — concurrent write race fixed
+- **Repair Limit:** SQLite WAL mode ensures safe concurrent access (GUI + MCP standalone)
+- **MCP:** Rate limiter prevents per-minute abuse (paywall already enforced)
+
+### 🧪 Tests
+- **MCP Server:** 17 new tests — JSON-RPC protocol, rate limiting, tool dispatch (1228 total)
+
+### ⚠️ Known Limitations
+- Windows binary unsigned (code signing pending)
+- fixora:// protocol hijackable without code signing
+
 ## [1.2.2] — 2026-08-26
 
 ### ✨ New Features
