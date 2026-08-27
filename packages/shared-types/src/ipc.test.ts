@@ -16,6 +16,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
     // If this list grows, someone widened the renderer's reach into the privileged process.
     // That should be a visible line in a diff, which is what this assertion makes it.
     expect(channels).toEqual([
+      'app:getReadyState',
       'system:getAppInfo',
       'system:getChangelog',
       'system:getGpuPreference',
@@ -23,6 +24,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'system:revealInFolder',
       'system:copyToClipboard',
       'system:openExternal',
+      'auth:startOAuth',
       'license:validate',
       'license:getRepairCount',
       'window:minimize',
@@ -81,6 +83,11 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'ai:history',
       'ai:historyRemove',
       'ai:historyClear',
+      'ai:historyByFile',
+      'ai:getStats',
+      'shield:analyze',
+      'shield:getSettings',
+      'shield:saveSettings',
       'ai:generateTests',
       'mcp:getFindings',
       'mcp:triggerAnalysis',

@@ -28,6 +28,7 @@ import { createGpuPreferenceStore } from './gpu-preference-store.js';
 import { emitToWindow } from './ipc/emit.js';
 import { registerAiHandlers } from './ipc/handlers/ai.handlers.js';
 import { registerAnalysisHandlers } from './ipc/handlers/analysis.handlers.js';
+import { registerAuthHandlers } from './ipc/handlers/auth.handlers.js';
 import { registerConsentHandlers } from './ipc/handlers/consent.handlers.js';
 import { registerEditorHandlers } from './ipc/handlers/editor.handlers.js';
 import { registerGitHandlers } from './ipc/handlers/git.handlers.js';
@@ -158,55 +159,15 @@ if (app.isPackaged) {
   app.setAsDefaultProtocolClient('fixora', process.execPath, [resolve(process.argv[1] ?? '')]);
 }
 
-/** Forwards an `fixora://auth/callback` URL to the renderer, which hands it to Supabase's
- * `getSessionFromUrl` equivalent (`auth-store.ts`'s `onAuthStateChange` picks up the resulting
- * session). No-ops for any other URL — this protocol has exactly one use today. */
-/** The last callback forwarded, and when. Windows can deliver one protocol activation through more
- *  than one path (a `second-instance` argv AND a cold-start argv, or a browser that retries the
- *  handoff), and each delivery would otherwise be exchanged for a session independently. */
-let lastForwarded: { url: string; at: number } | null = null;
-const FORWARD_DEDUPE_MS = 2000;
-
+/**
+ * Auth callbacks now handled via loopback HTTP (RFC 8252 PKCE) — `auth.handlers.ts`'s loopback
+ * server completes the whole OAuth exchange itself, so a `fixora://auth/callback` activation
+ * reaching this app has nothing left to do. Kept as a named no-op (not deleted) since `fixora://`
+ * stays registered below and this is still where any future use of it would be dispatched from.
+ */
 function forwardAuthCallback(url: string): void {
   if (!url.startsWith('fixora://auth/callback')) return;
-
-  const now = Date.now();
-  if (
-    lastForwarded !== null &&
-    lastForwarded.url === url &&
-    now - lastForwarded.at < FORWARD_DEDUPE_MS
-  ) {
-    console.error('[auth] duplicate callback suppressed', { withinMs: now - lastForwarded.at });
-    return;
-  }
-  lastForwarded = { url, at: now };
-  // DIAGNOSTIC (OAuth session-not-set investigation). Never logs the URL itself or any token — a
-  // callback URL IS the credential. Only the shape: did the fragment survive the protocol
-  // handoff, and does it carry the two values `setSession` needs?
-  const hashIndex = url.indexOf('#');
-  const fragment = hashIndex === -1 ? '' : url.slice(hashIndex + 1);
-  const fragmentParams = new URLSearchParams(fragment);
-  console.error('[auth] forwarding callback', {
-    urlLength: url.length,
-    hasFragment: hashIndex !== -1,
-    fragmentLength: fragment.length,
-    hasAccessToken: fragmentParams.has('access_token'),
-    hasRefreshToken: fragmentParams.has('refresh_token'),
-    fragmentKeys: [...fragmentParams.keys()],
-    hasQueryError: url.includes('error='),
-  });
-
-  const [existing] = BrowserWindow.getAllWindows();
-  if (existing === undefined) {
-    console.error('[auth] callback dropped — no window exists yet');
-    return;
-  }
-  emitToWindow(existing, 'auth:callback', { url });
-  // The user just came back from the system browser — bring the window forward so the completed
-  // sign-in is the first thing they see, not something they discover after switching back by hand.
-  if (existing.isMinimized()) existing.restore();
-  existing.focus();
-  existing.show();
+  console.error('[auth] fixora://auth/callback received but ignored — handled via loopback HTTP (RFC 8252 PKCE)');
 }
 
 // MCP-only mode is decided BEFORE the lock is even requested.
@@ -457,6 +418,7 @@ function startBackend(window: BrowserWindow | null): void {
   registerHandler('app:getReadyState', () => ({ ready: backendReady }));
   registerSystemHandlers({ workspace: workspaceService, gpuPreference });
   registerLicenseHandlers({ driver, dir: app.getPath('userData') });
+  registerAuthHandlers();
   registerWindowHandlers();
   registerWorkspaceHandlers(workspaceService);
   registerEditorHandlers(workspaceService, analysisHost);

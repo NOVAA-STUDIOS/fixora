@@ -1,4 +1,4 @@
-import type { Provider, Session, User } from '@supabase/supabase-js';
+import type { Session, User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
@@ -19,69 +19,29 @@ type AuthState = {
   getSession: () => Promise<void>;
 };
 
-// Supabase's default OAuth flow assumes it owns the current page and navigates the window to the
-// provider — inside this app's sandboxed renderer, that navigation is exactly what
-// navigation-guard.ts exists to block (Security §2), so the click did nothing and nothing was
-// logged anywhere the user could see. `skipBrowserRedirect` stops Supabase from navigating at
-// all; main opens the returned URL in the user's real browser instead, through the same
-// host-allowlisted `system:openExternal` every other external link in the app already uses.
 /**
- * KNOWN GAP — no CSRF/session-fixation defence on the callback.
+ * PKCE + loopback OAuth (RFC 8252) implemented per RFC 8252.
  *
- * A `state` nonce was implemented here and had to be reverted: Supabase's implicit flow does not
- * round-trip `options.queryParams.state`, so the value never came back and every sign-in was
- * refused. Validating a parameter the flow cannot deliver breaks login for everyone, which is
- * worse than the gap it closes.
- *
- * The consequence, stated plainly: anything able to reach `fixora://auth/callback#access_token=…`
- * — a web page, a local process, a crafted link — can complete a sign-in this app never started,
- * logging the user into someone else's account.
- *
- * The real fix is not a nonce bolted onto implicit flow; it is to stop using implicit flow. A
- * loopback HTTP listener on 127.0.0.1 (RFC 8252) plus PKCE gives a verifier that survives the
- * browser round trip, and removes the custom-scheme hijack surface at the same time. That is a
- * refactor, not a patch, and it is the correct next piece of work on this file.
+ * The whole exchange — starting the flow, running the loopback listener, verifying the state
+ * nonce, exchanging the code for a session — happens in main (`auth.handlers.ts`); this only
+ * asks main to start it and waits for `auth:oauthResult`. Nothing here ever sees an authorization
+ * code, a state nonce, or a code verifier, which is the point: none of that material can be
+ * trusted on the renderer side of the process boundary.
  */
-async function openOAuthUrl(set: (partial: Partial<AuthState>) => void, provider: Provider): Promise<void> {
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options: { skipBrowserRedirect: true, redirectTo: 'fixora://auth/callback' },
-  });
-  if (error) {
-    console.error('[auth] signInWithOAuth failed', { provider, message: error.message });
-    set({ error: error.message });
+async function openOAuthUrl(
+  set: (partial: Partial<AuthState>) => void,
+  provider: 'google' | 'github',
+): Promise<void> {
+  set({ error: null });
+  const result = await invoke('auth:startOAuth', { provider });
+  if (!result.ok) {
+    console.error('[auth] auth:startOAuth transport failure', { message: result.error.message });
+    set({ error: 'Could not start sign-in.' });
     return;
   }
-
-  // DIAGNOSTIC. Host only — the authorize URL carries client ids and redirect targets, so the URL
-  // itself is never logged. Both providers take this identical path: if one works and the other
-  // does not, the difference is in the provider's own configuration, not in this code.
-  let host = '<unparseable>';
-  try {
-    host = new URL(data.url).host;
-  } catch {
-    // Leave the placeholder — an unparseable URL is itself the finding.
-  }
-  console.error('[auth] OAuth URL generated', { provider, hasUrl: data.url !== '', host });
-
-  if (data.url === '') {
-    // Supabase returned no error and no URL — almost always a provider that is not enabled in the
-    // Supabase dashboard. Said plainly, because "nothing happened" is the worst possible report.
-    console.error('[auth] no OAuth URL returned — is the provider enabled in Supabase?', { provider });
-    set({ error: `${provider} sign-in is not available right now. Please try another method.` });
-    return;
-  }
-
-  const result = await invoke('system:openExternal', { url: data.url });
-  console.error('[auth] openExternal result', {
-    provider,
-    ok: result.ok,
-    opened: result.ok ? result.value.opened : false,
-    message: result.ok ? undefined : result.error.message,
-  });
-  if (!result.ok || !result.value.opened) {
-    set({ error: 'Could not open the sign-in page.' });
-  }
+  // The real outcome always arrives as `auth:oauthResult` — `ok: false` here just means the flow
+  // ran to completion one way or the other; a refusal already carries its own message via the
+  // event, so nothing further is set from this response.
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -124,16 +84,6 @@ supabase.auth.onAuthStateChange((_event, session) => {
   });
 });
 
-// The OAuth round trip finishes in the system browser, not this window, so Supabase's own
-// `detectSessionInUrl` (which watches `window.location`) never sees the callback — main forwards
-// the `fixora://auth/callback` URL here instead, and the session is completed by hand.
-// `onAuthStateChange` above then picks up the result.
-//
-// `flowType: 'implicit'` (supabase.ts): the callback carries `#access_token=...&refresh_token=...`
-// directly in the URL's hash fragment — nothing has to persist between `signInWithOAuth` starting
-// the flow and this handler completing it, unlike PKCE's code verifier, which has to survive a
-// round trip through the system browser and a separate protocol-handler dispatch to get back here.
-//
 // Guarded on the preload bridge existing: this runs as a MODULE-LOAD side effect, so any test that
 // imports this store (or anything that imports it, like `activity-rail.tsx`) without stubbing
 // `window.fixora` would otherwise crash on import alone, before the test body even runs.
@@ -164,90 +114,64 @@ const myGeneration = (globalState[GENERATION_KEY] ?? 0) + 1;
 globalState[GENERATION_KEY] = myGeneration;
 
 if (typeof window !== 'undefined' && (window.fixora as unknown) !== undefined) {
-  subscribe('auth:callback', ({ url }) => {
+  subscribe('auth:oauthResult', ({ session, error }) => {
     if (globalState[GENERATION_KEY] !== myGeneration) {
       // A newer evaluation of this module owns the live store; this listener's `useAuthStore` is
       // orphaned and writing to it would update nothing the UI reads.
       return;
     }
     if (isProcessingCallback) {
-      console.error('[auth] ignoring duplicate callback — one is already being processed');
+      console.error('[auth] ignoring duplicate oauth result — one is already being processed');
       return;
     }
-    const parsed = new URL(url);
-    const params = new URLSearchParams(parsed.hash.slice(1));
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
 
-    // DIAGNOSTIC (OAuth session-not-set investigation). Presence and shape only — a token is a
-    // credential and is never logged, nor is the URL that carries it.
-    console.error('[auth] callback received', {
-      urlLength: url.length,
-      hasFragment: url.includes('#'),
-      fragmentKeys: [...params.keys()],
-      hasAccessToken: accessToken !== null,
-      hasRefreshToken: refreshToken !== null,
-      providerError: params.get('error') ?? parsed.searchParams.get('error'),
+    // Presence only — never the token values themselves.
+    console.error('[auth] oauth result received', {
+      hasSession: session !== null,
+      hasError: error !== undefined,
     });
 
-    // No origin check is possible here — see the KNOWN GAP note above `openOAuthUrl`. Any callback
-    // carrying a well-formed token pair completes a sign-in.
-    if (accessToken === null || refreshToken === null) {
-      console.error('[auth] callback carried no usable token pair — session not set');
-      useAuthStore.setState({
-        error: 'Sign-in did not complete. Please try again.',
-      });
+    if (session === null) {
+      useAuthStore.setState({ error: error ?? 'Sign-in did not complete. Please try again.' });
       return;
     }
 
     isProcessingCallback = true;
-    supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(
-      ({ data, error }) => {
-        isProcessingCallback = false;
-        console.error('[auth] setSession result', {
-          ok: error === null,
-          hasSession: data.session !== null,
-          message: error?.message,
-        });
-        if (error) {
-          useAuthStore.setState({ error: error.message });
-          return;
-        }
-        // Re-read rather than trusting only the value `setSession` handed back: the client has
-        // just persisted the session, and `getSession()` is what every other part of the app
-        // (`getSession` action, next launch) reads. If those two ever disagree, the stored one is
-        // the one that matters — so make the store reflect that, not the in-flight response.
-        void supabase.auth.getSession().then(({ data: current }) => {
-          const session = current.session ?? data.session;
-          console.error('[auth] post-setSession getSession', { hasSession: session !== null });
-          if (session === null) return;
-          useAuthStore.setState({
-            session,
-            user: session.user,
-            loading: false,
-            showSignIn: false,
-            error: null,
+    supabase.auth
+      .setSession({ access_token: session.access_token, refresh_token: session.refresh_token })
+      .then(
+        ({ error: setSessionError }) => {
+          isProcessingCallback = false;
+          console.error('[auth] setSession result', { ok: setSessionError === null });
+          if (setSessionError) {
+            useAuthStore.setState({ error: setSessionError.message });
+            return;
+          }
+          // Re-read rather than trusting only the value `setSession` handed back: the client has
+          // just persisted the session, and `getSession()` is what every other part of the app
+          // (`getSession` action, next launch) reads. If those two ever disagree, the stored one is
+          // the one that matters — so make the store reflect that, not the in-flight response.
+          void supabase.auth.getSession().then(({ data: current }) => {
+            const currentSession = current.session;
+            console.error('[auth] post-setSession getSession', {
+              hasSession: currentSession !== null,
+            });
+            if (currentSession === null) return;
+            useAuthStore.setState({
+              session: currentSession,
+              user: currentSession.user,
+              loading: false,
+              showSignIn: false,
+              error: null,
+            });
           });
-        });
-
-        // `onAuthStateChange` normally drives this, but it does not always fire for a
-        // programmatic `setSession` — set it here too so a successful sign-in is never invisible.
-        if (data.session !== null) {
-          useAuthStore.setState({
-            session: data.session,
-            user: data.session.user,
-            loading: false,
-            showSignIn: false,
-            error: null,
-          });
-        }
-      },
-      (error: unknown) => {
-        // Cleared on the failure path too, or one thrown exchange would block every later attempt.
-        isProcessingCallback = false;
-        console.error('[auth] setSession threw', error);
-        useAuthStore.setState({ error: 'Sign-in could not be completed.' });
-      },
-    );
+        },
+        (thrown: unknown) => {
+          // Cleared on the failure path too, or one thrown exchange would block every later attempt.
+          isProcessingCallback = false;
+          console.error('[auth] setSession threw', thrown);
+          useAuthStore.setState({ error: 'Sign-in could not be completed.' });
+        },
+      );
   });
 }

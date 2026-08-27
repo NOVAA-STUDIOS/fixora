@@ -175,6 +175,18 @@ export const contracts = {
   },
 
   /**
+   * Starts a PKCE + loopback OAuth round trip (RFC 8252). The renderer fires this and then waits
+   * for `auth:oauthResult` — the whole exchange (loopback server, code verifier, state check,
+   * `exchangeCodeForSession`) runs in main, which is the only place any of that material can be
+   * trusted. `ok` only means the flow ran to completion one way or the other; the real outcome is
+   * always the follow-up event, never this response.
+   */
+  'auth:startOAuth': {
+    request: z.object({ provider: z.enum(['google', 'github']) }),
+    response: z.object({ ok: z.boolean() }),
+  },
+
+  /**
    * Both go through main, not a renderer `fetch`: the CSP's `connect-src` is `'self'` only
    * (Security §2 — the renderer that renders untrusted repo content has no business reaching the
    * network directly), and the Gumroad API key this validates against must never live in the

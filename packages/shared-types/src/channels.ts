@@ -31,6 +31,9 @@ export const channels = [
   'system:revealInFolder',
   'system:copyToClipboard',
   'system:openExternal',
+  // PKCE + loopback OAuth (RFC 8252) — starts the flow; the result arrives via the
+  // 'auth:oauthResult' event once the loopback server receives the provider's redirect.
+  'auth:startOAuth',
   'license:validate',
   'license:getRepairCount',
   'window:minimize',
@@ -213,7 +216,12 @@ export const eventChannels = [
   // file count isn't known until the walk finishes, so nothing here fabricates one.
   'workspace:indexProgress',
   // The `fixora://auth/callback` URL the OS hands back after the system-browser OAuth round trip.
+  // No longer emitted (PKCE + loopback replaced this path) — kept declared since nothing has
+  // removed the type-level contract for it yet.
   'auth:callback',
+  // PKCE + loopback OAuth result (RFC 8252): the exchanged session, or a refusal (state mismatch,
+  // exchange failure). Never carries the raw provider redirect URL or the code verifier.
+  'auth:oauthResult',
   // Watch Mode status pushes (analysis.handlers.ts) — a change was detected, a re-analysis started
   // for it, or that re-analysis finished.
   'analysis:watchEvent',

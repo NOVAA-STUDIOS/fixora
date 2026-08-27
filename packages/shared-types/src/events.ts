@@ -74,9 +74,28 @@ export const WorkspaceLargeProjectSchema = z.object({
 });
 export type WorkspaceLargeProject = z.infer<typeof WorkspaceLargeProjectSchema>;
 
-/** The raw `fixora://auth/callback#...` URL the OS handed back after system-browser OAuth. */
+/** The raw `fixora://auth/callback#...` URL the OS handed back after system-browser OAuth. Dead
+ *  since PKCE + loopback replaced this path — kept only as long as the channel itself is. */
 export const AuthCallbackSchema = z.object({ url: z.string() });
 export type AuthCallback = z.infer<typeof AuthCallbackSchema>;
+
+/**
+ * The outcome of a PKCE + loopback OAuth round trip (RFC 8252). `session` carries exactly what
+ * `supabase.auth.setSession` needs — never the authorization code, the state nonce, or the code
+ * verifier, none of which the renderer has any business seeing. `null` means refused (state
+ * mismatch, exchange failure), with `error` naming why.
+ */
+export const OAuthResultSchema = z.object({
+  session: z
+    .object({
+      access_token: z.string(),
+      refresh_token: z.string(),
+      expires_at: z.number().optional(),
+    })
+    .nullable(),
+  error: z.string().optional(),
+});
+export type OAuthResult = z.infer<typeof OAuthResultSchema>;
 
 /** Watch Mode's status pushes — a file changed on disk, its re-analysis started, or it finished. */
 export const AnalysisWatchEventSchema = z.object({
@@ -109,6 +128,7 @@ export const eventContracts = {
   'workspace:largeProject': WorkspaceLargeProjectSchema,
   'workspace:indexProgress': WorkspaceIndexProgressSchema,
   'auth:callback': AuthCallbackSchema,
+  'auth:oauthResult': OAuthResultSchema,
   'license:revalidateNeeded': z.object({}),
   'license:planRevoked': z.object({}),
 } as const satisfies Record<EventChannel, z.ZodType>;
