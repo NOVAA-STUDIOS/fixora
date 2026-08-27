@@ -1,12 +1,21 @@
 import { useMemo } from 'react';
 
+import { invoke } from '../../lib/bridge.js';
 import { useTestGenerationStore } from '../../stores/test-generation-store.js';
+import { toast } from '../../stores/toast-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import type { Command } from './registry.js';
+
+function runGitCommand(channel: 'git:push' | 'git:pull' | 'git:fetch', label: string): void {
+  void invoke(channel, {}).then((result) => {
+    if (result.ok && result.value.ok) return;
+    toast.error(result.ok ? (result.value.error ?? `${label} failed`) : result.error.message);
+  });
+}
 
 /**
  * The concrete commands the M1 shell exposes, derived from the UI store. As features land (M2+),
@@ -23,6 +32,7 @@ export function useAppCommands(): Command[] {
   const setActiveView = useUiStore((s) => s.setActiveView);
   const togglePalette = useUiStore((s) => s.togglePalette);
   const setPaletteOpen = useUiStore((s) => s.setPaletteOpen);
+  const setEditorTheme = useUiStore((s) => s.setEditorTheme);
   const pickAndOpen = useWorkspaceStore((s) => s.pickAndOpen);
   const runAnalysis = useFindingsStore((s) => s.run);
   const tabs = useEditorStore((s) => s.tabs);
@@ -199,6 +209,102 @@ export function useAppCommands(): Command[] {
           setPaletteOpen(false);
         },
       },
+      {
+        id: 'view.search',
+        title: 'Go to Search',
+        group: 'View',
+        keybinding: 'mod+shift+f',
+        keywords: ['search', 'find'],
+        run: () => {
+          setActiveView('search');
+          setPaletteOpen(false);
+        },
+      },
+      {
+        id: 'view.sourceControl',
+        title: 'Go to Source Control',
+        group: 'View',
+        keywords: ['git', 'source', 'control'],
+        run: () => {
+          setActiveView('sourceControl');
+          setPaletteOpen(false);
+        },
+      },
+      {
+        id: 'git.push',
+        title: 'Git: Push',
+        group: 'Git',
+        keywords: ['push', 'upload', 'sync'],
+        run: () => {
+          setPaletteOpen(false);
+          runGitCommand('git:push', 'Push');
+        },
+      },
+      {
+        id: 'git.pull',
+        title: 'Git: Pull',
+        group: 'Git',
+        keywords: ['pull', 'download', 'sync'],
+        run: () => {
+          setPaletteOpen(false);
+          runGitCommand('git:pull', 'Pull');
+        },
+      },
+      {
+        id: 'git.fetch',
+        title: 'Git: Fetch',
+        group: 'Git',
+        keywords: ['fetch', 'update'],
+        run: () => {
+          setPaletteOpen(false);
+          runGitCommand('git:fetch', 'Fetch');
+        },
+      },
+      {
+        id: 'theme.fixora',
+        title: 'Theme: Fixora',
+        group: 'Appearance',
+        run: () => {
+          setPaletteOpen(false);
+          setEditorTheme('fixora');
+        },
+      },
+      {
+        id: 'theme.dracula',
+        title: 'Theme: Dracula',
+        group: 'Appearance',
+        run: () => {
+          setPaletteOpen(false);
+          setEditorTheme('dracula');
+        },
+      },
+      {
+        id: 'theme.githubDark',
+        title: 'Theme: GitHub Dark',
+        group: 'Appearance',
+        run: () => {
+          setPaletteOpen(false);
+          setEditorTheme('github-dark');
+        },
+      },
+      {
+        id: 'theme.oneDark',
+        title: 'Theme: One Dark',
+        group: 'Appearance',
+        run: () => {
+          setPaletteOpen(false);
+          setEditorTheme('one-dark');
+        },
+      },
+      {
+        id: 'theme.monokai',
+        title: 'Theme: Monokai',
+        group: 'Appearance',
+        run: () => {
+          setPaletteOpen(false);
+          setEditorTheme('monokai');
+        },
+      },
     ],
     [
       toggleTheme,
@@ -209,6 +315,7 @@ export function useAppCommands(): Command[] {
       setActiveView,
       togglePalette,
       setPaletteOpen,
+      setEditorTheme,
       pickAndOpen,
       runAnalysis,
       tabs,
