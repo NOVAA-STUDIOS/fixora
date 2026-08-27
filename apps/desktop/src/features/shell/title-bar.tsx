@@ -24,6 +24,10 @@ import { useWindowControls } from './use-window-controls.js';
  */
 export function TitleBar(): React.JSX.Element {
   const { isMaximized, minimize, toggleMaximize, close } = useWindowControls();
+  const primaryPanelVisible = useUiStore((s) => s.primaryPanelVisible);
+  const aiPanelVisible = useUiStore((s) => s.aiPanelVisible);
+  const togglePrimaryPanel = useUiStore((s) => s.togglePrimaryPanel);
+  const toggleAiPanel = useUiStore((s) => s.toggleAiPanel);
 
   return (
     <header
@@ -36,6 +40,26 @@ export function TitleBar(): React.JSX.Element {
           Fixora
         </div>
         <ModeSwitcher />
+        <div className="no-drag-region ml-2 flex items-center gap-0.5">
+          {/* Reusing FileIcon/SparkleIcon as stand-ins — @fixora/ui has no dedicated
+              sidebar/panel-right icons yet; swap these once one is added. */}
+          <TitleBarButton
+            label={primaryPanelVisible ? 'Hide sidebar' : 'Show sidebar'}
+            title="Toggle Sidebar (Ctrl+B)"
+            onClick={togglePrimaryPanel}
+            dimmed={!primaryPanelVisible}
+          >
+            <FileIcon className="size-4" />
+          </TitleBarButton>
+          <TitleBarButton
+            label={aiPanelVisible ? 'Hide AI panel' : 'Show AI panel'}
+            title="Toggle AI Panel (Ctrl+J)"
+            onClick={toggleAiPanel}
+            dimmed={!aiPanelVisible}
+          >
+            <SparkleIcon className="size-4" />
+          </TitleBarButton>
+        </div>
       </div>
 
       <div className="no-drag-region flex items-center">
@@ -128,13 +152,19 @@ function ModeSwitcher(): React.JSX.Element {
 
 function TitleBarButton({
   label,
+  title,
   onClick,
   danger = false,
+  dimmed = false,
   children,
 }: {
   label: string;
+  /** Tooltip text; falls back to `label` when omitted. */
+  title?: string;
   onClick: () => void;
   danger?: boolean;
+  /** Muted styling for a toggle button in its "off" state — e.g. a hidden panel. */
+  dimmed?: boolean;
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
@@ -142,12 +172,14 @@ function TitleBarButton({
       variant="ghost"
       size="icon"
       aria-label={label}
+      title={title ?? label}
       onClick={onClick}
-      className={
+      className={cn(
         danger
           ? 'h-10 w-12 rounded-none text-fg-muted hover:bg-danger hover:text-on-danger'
-          : 'h-10 w-12 rounded-none text-fg-muted hover:bg-hover hover:text-fg'
-      }
+          : 'h-10 w-12 rounded-none text-fg-muted hover:bg-hover hover:text-fg',
+        dimmed && 'text-fg-muted',
+      )}
     >
       {children}
     </Button>
