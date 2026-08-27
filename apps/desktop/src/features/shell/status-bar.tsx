@@ -23,6 +23,10 @@ export function StatusBar(): React.JSX.Element {
   const theme = useUiStore((s) => s.theme);
   const toggleDensity = useUiStore((s) => s.toggleDensity);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
+  const primaryPanelVisible = useUiStore((s) => s.primaryPanelVisible);
+  const aiPanelVisible = useUiStore((s) => s.aiPanelVisible);
+  const togglePrimaryPanel = useUiStore((s) => s.togglePrimaryPanel);
+  const toggleAiPanel = useUiStore((s) => s.toggleAiPanel);
 
   const workspace = useWorkspaceStore((s) => s.workspace);
   const [branch, setBranch] = useState<string | null>(null);
@@ -264,6 +268,20 @@ export function StatusBar(): React.JSX.Element {
             {encoding ?? 'UTF-8'}
           </button>
         )}
+        <StatusButton
+          onClick={togglePrimaryPanel}
+          title={`${primaryPanelVisible ? 'Hide' : 'Show'} primary panel (Ctrl+B)`}
+          ariaLabel={`${primaryPanelVisible ? 'Hide' : 'Show'} primary panel`}
+        >
+          ⬛ Panel
+        </StatusButton>
+        <StatusButton
+          onClick={toggleAiPanel}
+          title={`${aiPanelVisible ? 'Hide' : 'Show'} AI panel (Ctrl+J)`}
+          ariaLabel={`${aiPanelVisible ? 'Hide' : 'Show'} AI panel`}
+        >
+          ⬛ AI
+        </StatusButton>
         <StatusButton
           onClick={toggleDensity}
           title={`Density: ${density}. Click to switch.`}

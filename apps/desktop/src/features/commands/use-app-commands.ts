@@ -18,6 +18,8 @@ export function useAppCommands(): Command[] {
   const toggleTheme = useUiStore((s) => s.toggleTheme);
   const toggleTerminal = useUiStore((s) => s.toggleTerminal);
   const toggleDensity = useUiStore((s) => s.toggleDensity);
+  const togglePrimaryPanel = useUiStore((s) => s.togglePrimaryPanel);
+  const toggleAiPanel = useUiStore((s) => s.toggleAiPanel);
   const setActiveView = useUiStore((s) => s.setActiveView);
   const togglePalette = useUiStore((s) => s.togglePalette);
   const setPaletteOpen = useUiStore((s) => s.setPaletteOpen);
@@ -109,6 +111,26 @@ export function useAppCommands(): Command[] {
         },
       },
       {
+        id: 'view.togglePrimaryPanel',
+        title: 'Toggle primary panel',
+        group: 'View',
+        keybinding: 'mod+b',
+        keywords: ['sidebar', 'left', 'hide', 'show'],
+        run: () => {
+          togglePrimaryPanel();
+        },
+      },
+      {
+        id: 'view.toggleAiPanel',
+        title: 'Toggle AI panel',
+        group: 'View',
+        keybinding: 'mod+j',
+        keywords: ['assistant', 'right', 'hide', 'show'],
+        run: () => {
+          toggleAiPanel();
+        },
+      },
+      {
         id: 'view.toggleTheme',
         title: 'Toggle light / dark theme',
         group: 'View',
@@ -182,6 +204,8 @@ export function useAppCommands(): Command[] {
       toggleTheme,
       toggleTerminal,
       toggleDensity,
+      togglePrimaryPanel,
+      toggleAiPanel,
       setActiveView,
       togglePalette,
       setPaletteOpen,

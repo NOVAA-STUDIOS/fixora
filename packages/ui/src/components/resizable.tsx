@@ -2,7 +2,9 @@ import {
   Group,
   Panel,
   Separator,
+  usePanelRef,
   type GroupProps,
+  type PanelImperativeHandle,
   type SeparatorProps,
 } from 'react-resizable-panels';
 
@@ -24,6 +26,7 @@ export function PanelGroupRoot({ className, ...props }: GroupProps): React.JSX.E
 }
 
 export const ResizablePanel = Panel;
+export { usePanelRef, type PanelImperativeHandle };
 
 export function ResizeHandle({ className, ...props }: SeparatorProps): React.JSX.Element {
   return (

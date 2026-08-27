@@ -159,6 +159,10 @@ type UiState = {
    * autoSave — this one runs analysis, not a write, but it's still unsolicited work on every
    * save until the user opts in. */
   watchModeEnabled: boolean;
+  /** Whether the left (primary) pane is shown. CSS-collapsed, not unmounted, when false. */
+  primaryPanelVisible: boolean;
+  /** Whether the right (assistant) pane is shown. CSS-collapsed, not unmounted, when false. */
+  aiPanelVisible: boolean;
 
   setTheme: (theme: ThemeName) => void;
   toggleTheme: () => void;
@@ -185,6 +189,8 @@ type UiState = {
    *  providers, API keys, license and MCP settings live in their own stores and are never touched
    *  by this — see `settings-panel.tsx`'s "Reset to Defaults". */
   resetToDefaults: () => void;
+  togglePrimaryPanel: () => void;
+  toggleAiPanel: () => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -206,6 +212,8 @@ export const useUiStore = create<UiState>()(
       terminalFontSize: 13,
       lastNonTerminalView: 'workspace',
       reopenLastProject: false,
+      primaryPanelVisible: true,
+      aiPanelVisible: true,
       watchModeEnabled: false,
       fullDiffOpen: false,
 
@@ -304,6 +312,12 @@ export const useUiStore = create<UiState>()(
           watchModeEnabled: false,
         });
       },
+      togglePrimaryPanel: () => {
+        set((s) => ({ primaryPanelVisible: !s.primaryPanelVisible }));
+      },
+      toggleAiPanel: () => {
+        set((s) => ({ aiPanelVisible: !s.aiPanelVisible }));
+      },
     }),
     {
       name: 'fixora.ui',
@@ -322,6 +336,8 @@ export const useUiStore = create<UiState>()(
         terminalFontSize: s.terminalFontSize,
         reopenLastProject: s.reopenLastProject,
         watchModeEnabled: s.watchModeEnabled,
+        primaryPanelVisible: s.primaryPanelVisible,
+        aiPanelVisible: s.aiPanelVisible,
       }),
       // Rehydration is the trust boundary for persisted state (see `oneOf` above). Every value
       // read back from localStorage is validated against the current known-good set before it
@@ -358,6 +374,10 @@ export const useUiStore = create<UiState>()(
             typeof p.terminalFontSize === 'number' && p.terminalFontSize >= 8 && p.terminalFontSize <= 32
               ? p.terminalFontSize
               : current.terminalFontSize,
+          // Defaults to true, same as formatOnSave/minimapEnabled: only an explicit persisted
+          // `false` hides a pane on the next launch.
+          primaryPanelVisible: p.primaryPanelVisible !== false,
+          aiPanelVisible: p.aiPanelVisible !== false,
         };
       },
     },

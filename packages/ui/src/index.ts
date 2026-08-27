@@ -88,7 +88,13 @@ export {
   ToastViewport,
 } from './components/toast.js';
 
-export { PanelGroupRoot, ResizablePanel, ResizeHandle } from './components/resizable.js';
+export {
+  PanelGroupRoot,
+  ResizablePanel,
+  ResizeHandle,
+  usePanelRef,
+  type PanelImperativeHandle,
+} from './components/resizable.js';
 export { VirtualList, type VirtualListProps } from './components/virtual-list.js';
 export {
   Command,

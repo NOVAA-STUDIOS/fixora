@@ -1,5 +1,5 @@
-import { PanelGroupRoot, ResizablePanel, ResizeHandle, Skeleton } from '@fixora/ui';
-import { lazy, Suspense, useCallback, useRef } from 'react';
+import { PanelGroupRoot, ResizablePanel, ResizeHandle, Skeleton, usePanelRef } from '@fixora/ui';
+import { lazy, Suspense, useCallback, useEffect, useRef } from 'react';
 
 import { ErrorBoundary } from '../../app/error-boundary.js';
 import { useUiStore, type PaneSizes } from '../../stores/ui-store.js';
@@ -185,6 +185,27 @@ function WorkbenchContent(): React.JSX.Element {
   const activeView = useUiStore((s) => s.activeView);
   const workspaceMode = useUiStore((s) => s.workspaceMode);
   const hasWorkspace = useWorkspaceStore((s) => s.workspace !== null);
+  const primaryPanelVisible = useUiStore((s) => s.primaryPanelVisible);
+  const aiPanelVisible = useUiStore((s) => s.aiPanelVisible);
+  const primaryPanelRef = usePanelRef();
+  const aiPanelRef = usePanelRef();
+
+  // Collapsed via the library's own imperative API, not unmounted — the same CSS-collapse
+  // discipline Terminal uses (see `Workbench` above), just driven by `react-resizable-panels`'
+  // own `collapse()`/`expand()` instead of a class toggle, since these panes still need real
+  // width when visible.
+  useEffect(() => {
+    const panel = primaryPanelRef.current;
+    if (panel === null) return;
+    if (primaryPanelVisible && panel.isCollapsed()) panel.expand();
+    else if (!primaryPanelVisible && !panel.isCollapsed()) panel.collapse();
+  }, [primaryPanelVisible, primaryPanelRef]);
+  useEffect(() => {
+    const panel = aiPanelRef.current;
+    if (panel === null) return;
+    if (aiPanelVisible && panel.isCollapsed()) panel.expand();
+    else if (!aiPanelVisible && !panel.isCollapsed()) panel.collapse();
+  }, [aiPanelVisible, aiPanelRef]);
 
   // Saved sizes are keyed by MODE and view together. Keying by view alone would make the two modes
   // fight over one stored number: drag the editor wide in Code mode and Fix mode would reopen with
@@ -265,21 +286,37 @@ function WorkbenchContent(): React.JSX.Element {
         select). The floors sum to 780px + the 64px rail, which still fits the window's 940px
         minWidth, so the layout can never become over-constrained.
       */}
-      <ResizablePanel id="primary" minSize={200} defaultSize="20" className="min-w-0">
+      <ResizablePanel
+        id="primary"
+        panelRef={primaryPanelRef}
+        collapsible
+        collapsedSize={0}
+        minSize={200}
+        defaultSize="20"
+        className="min-w-0"
+      >
         {/* Per-pane, so a malformed finding or an unreadable file costs the user one panel rather
             than the whole window. The root boundary in main.tsx is the backstop behind these. */}
         <ErrorBoundary label="The side panel">
           <PrimaryPanel view={activeView} />
         </ErrorBoundary>
       </ResizablePanel>
-      <ResizeHandle aria-label="Resize primary panel" />
+      {primaryPanelVisible && <ResizeHandle aria-label="Resize primary panel" />}
       <ResizablePanel id="editor" minSize={340} defaultSize="56" className="min-w-0">
         <ErrorBoundary label="The editor">
           <EditorArea />
         </ErrorBoundary>
       </ResizablePanel>
-      <ResizeHandle aria-label="Resize AI panel" />
-      <ResizablePanel id="ai" minSize={260} defaultSize="24" className="min-w-0">
+      {aiPanelVisible && <ResizeHandle aria-label="Resize AI panel" />}
+      <ResizablePanel
+        id="ai"
+        panelRef={aiPanelRef}
+        collapsible
+        collapsedSize={0}
+        minSize={260}
+        defaultSize="24"
+        className="min-w-0"
+      >
         <ErrorBoundary label="The assistant panel">
           <AssistantPanel />
         </ErrorBoundary>

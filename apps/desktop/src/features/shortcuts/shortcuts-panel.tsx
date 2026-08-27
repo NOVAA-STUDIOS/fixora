@@ -11,6 +11,7 @@ const SECTIONS: readonly Section[] = [
     shortcuts: [
       { keys: ['Ctrl', 'Shift', 'P'], label: 'Command Palette' },
       { keys: ['Ctrl', 'B'], label: 'Toggle Sidebar' },
+      { keys: ['Ctrl', 'J'], label: 'Toggle AI Panel' },
       { keys: ['Ctrl', '`'], label: 'Toggle Terminal' },
     ],
   },
