@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
-import type { SearchMatch } from '@fixora/shared-types';
+import { UserFacingError, type SearchMatch } from '@fixora/shared-types';
+import ignoreFactory from 'ignore';
 
 import { assertInsideWorkspace } from './fs/path-guard.js';
 import { isSecretPath } from './fs/secrets-denylist.js';
@@ -26,6 +27,19 @@ const MAX_MATCHES_PER_FILE = 20; // one huge generated file must not crowd out e
 const CONTEXT_LINES = 1;
 const YIELD_EVERY = 100;
 
+/**
+ * Soft, best-effort ceiling on regex time per file — checked between lines, not a preemptive
+ * abort. A truly catastrophic pattern can still block past this within ONE `exec()` call (JS is
+ * single-threaded; nothing short of a worker thread with `terminate()` can interrupt mid-call).
+ * What this does stop is the common case: a slow-but-not-infinite pattern accumulating time
+ * across many lines in one large file — it breaks out of that file once the budget is spent,
+ * rather than letting one file consume the whole search.
+ */
+const REGEX_TIMEOUT_MS = 100;
+/** Lines longer than this are skipped in regex mode — most real catastrophic-backtracking blowups
+ *  scale with input length, so bounding the line length bounds the worst single `exec()` call. */
+const MAX_REGEX_LINE_LENGTH = 2000;
+
 const yieldToEventLoop = (): Promise<void> =>
   new Promise((resolve) => {
     setImmediate(resolve);
@@ -36,11 +50,55 @@ function looksBinary(content: string): boolean {
   return content.slice(0, 8000).includes(String.fromCharCode(0));
 }
 
+export interface SearchOptions {
+  caseSensitive?: boolean;
+  useRegex?: boolean;
+  /** Gitignore-syntax include filter — a file must match to be scanned. Empty means scan
+   *  everything the ignore rules already allow. */
+  fileFilter?: string;
+}
+
 export async function searchWorkspace(
   open: OpenWorkspace,
   query: string,
+  options: SearchOptions = {},
 ): Promise<{ matches: SearchMatch[]; truncated: boolean }> {
-  const needle = query.toLowerCase();
+  const caseSensitive = options.caseSensitive ?? false;
+  const useRegex = options.useRegex ?? false;
+  const fileFilter = (options.fileFilter ?? '').trim();
+
+  // Built once, outside the walk — a pattern the user typed is untrusted input, and failing loud
+  // and immediately (before scanning a single file) is better than a silent zero-results search.
+  let regex: RegExp | null = null;
+  if (useRegex) {
+    try {
+      regex = new RegExp(query, caseSensitive ? 'g' : 'gi');
+    } catch {
+      throw new UserFacingError('Invalid regex pattern', {
+        code: 'invalid_regex',
+        action: { type: 'none', label: 'Dismiss' },
+        stage: 'workspace',
+      });
+    }
+  }
+
+  // Reuses the same gitignore-syntax matcher `.gitignore`/`.fixoraignore` already use — here as an
+  // INCLUDE filter: a file must match to be scanned, rather than being excluded when it matches.
+  const includeMatcher =
+    fileFilter === ''
+      ? null
+      : (() => {
+          const m = ignoreFactory();
+          m.add(
+            fileFilter
+              .split(',')
+              .map((p) => p.trim())
+              .filter((p) => p !== ''),
+          );
+          return m;
+        })();
+
+  const needle = caseSensitive ? query : query.toLowerCase();
   const matches: SearchMatch[] = [];
   let filesScanned = 0;
   let truncated = false;
@@ -69,6 +127,7 @@ export async function searchWorkspace(
       }
       if (!entry.isFile()) continue;
       if (open.ignore.ignores(relPath) || isSecretPath(relPath)) continue;
+      if (includeMatcher !== null && !includeMatcher.ignores(relPath)) continue;
 
       const absPath = join(open.rootPath, relPath);
       let stat;
@@ -92,17 +151,37 @@ export async function searchWorkspace(
 
       const lines = content.split('\n');
       let perFile = 0;
+      const fileStartedAt = Date.now();
       for (let i = 0; i < lines.length; i += 1) {
         if (perFile >= MAX_MATCHES_PER_FILE || matches.length >= MAX_MATCHES) break;
         const line = lines[i];
         if (line === undefined) continue;
-        const col = line.toLowerCase().indexOf(needle);
-        if (col === -1) continue;
+
+        let col: number;
+        let matchLength: number;
+        if (regex !== null) {
+          // Best-effort budget — see REGEX_TIMEOUT_MS's own comment for what this can and cannot
+          // stop. Checked once per line, not per character: cheap, and the file is abandoned (not
+          // the whole search) the moment it's spent.
+          if (Date.now() - fileStartedAt > REGEX_TIMEOUT_MS) break;
+          if (line.length > MAX_REGEX_LINE_LENGTH) continue;
+          regex.lastIndex = 0;
+          const found = regex.exec(line);
+          if (found === null) continue;
+          col = found.index;
+          matchLength = found[0].length;
+        } else {
+          const haystack = caseSensitive ? line : line.toLowerCase();
+          col = haystack.indexOf(needle);
+          if (col === -1) continue;
+          matchLength = query.length;
+        }
+
         matches.push({
           file: relPath,
           line: i + 1,
           column: col + 1,
-          matchLength: query.length,
+          matchLength,
           lineText: line,
           contextBefore: lines.slice(Math.max(0, i - CONTEXT_LINES), i),
           contextAfter: lines.slice(i + 1, i + 1 + CONTEXT_LINES),

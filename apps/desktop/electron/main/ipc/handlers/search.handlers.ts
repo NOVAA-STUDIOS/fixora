@@ -5,7 +5,7 @@ import type { WorkspaceService } from '../../services/workspace-service.js';
 import { registerHandler } from '../router.js';
 
 export function registerSearchHandlers(workspace: WorkspaceService): void {
-  registerHandler('search:query', async ({ query }) => {
+  registerHandler('search:query', async ({ query, caseSensitive, useRegex, fileFilter }) => {
     const open = workspace.getCurrent();
     if (open === null) {
       throw new UserFacingError('Open a folder before searching.', {
@@ -14,7 +14,11 @@ export function registerSearchHandlers(workspace: WorkspaceService): void {
         stage: 'workspace',
       });
     }
-    const { matches, truncated } = await searchWorkspace(open, query);
+    const { matches, truncated } = await searchWorkspace(open, query, {
+      caseSensitive: caseSensitive ?? false,
+      useRegex: useRegex ?? false,
+      fileFilter: fileFilter ?? '',
+    });
     return { matches, truncated };
   });
 }

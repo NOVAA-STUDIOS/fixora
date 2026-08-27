@@ -616,7 +616,14 @@ export const contracts = {
   // ignored by the renderer (a generation counter) when a newer one has already been sent — no
   // separate cancel channel needed, unlike analysis which is a long-lived streamed run.
   'search:query': {
-    request: z.object({ query: z.string().min(1) }),
+    request: z.object({
+      query: z.string().min(1),
+      caseSensitive: z.boolean().optional(),
+      useRegex: z.boolean().optional(),
+      /** Gitignore-syntax include filter (e.g. "*.ts", "src/**") — a file must match to be
+       *  scanned. Empty/omitted means scan everything the ignore rules already allow. */
+      fileFilter: z.string().optional(),
+    }),
     response: SearchResponseSchema,
   },
 
