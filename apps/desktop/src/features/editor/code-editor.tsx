@@ -119,8 +119,17 @@ export function CodeEditor({
       autoClosingQuotes: 'always',
       autoIndent: 'full',
       multiCursorModifier: 'alt',
-      quickSuggestions: true,
+      quickSuggestions: { other: 'on', comments: 'off', strings: 'on' },
       suggestOnTriggerCharacters: true,
+      parameterHints: { enabled: true, cycle: true },
+      // Parameter/property names inline for a call with no local binding to read them off of —
+      // real for TS/JS (the only language here with a semantic worker that can supply them).
+      inlayHints: { enabled: 'on' },
+      bracketPairColorization: { enabled: true },
+      // Lets a selection-less Ctrl+C/X still copy/cut the current line, the same convenience
+      // Emmet-style editors and VS Code itself default to.
+      emptySelectionClipboard: true,
+      lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.On },
       // Suggestions drawn from words already in the open files, not just the active language
       // service's own completions — real for every language Monaco tokenizes, including ones
       // with no semantic worker (CSS/HTML/JSON have real language-service IntelliSense already,
