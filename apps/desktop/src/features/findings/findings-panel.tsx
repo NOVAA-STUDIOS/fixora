@@ -454,6 +454,7 @@ export function FindingsPanel(): React.JSX.Element {
         )}
       </header>
 
+      <div className="flex flex-col shrink-0 overflow-y-auto" style={{ maxHeight: '40%' }}>
       {bulkStatus === 'running' && (
         <div
           role="status"
@@ -571,6 +572,7 @@ export function FindingsPanel(): React.JSX.Element {
           </button>
         </div>
       )}
+      </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border-subtle bg-raised px-2 py-1.5">
         <SeverityFilter
