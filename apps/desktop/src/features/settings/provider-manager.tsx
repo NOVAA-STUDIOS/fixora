@@ -451,7 +451,7 @@ function ProviderModelField({
         list={listId}
         spellCheck={false}
         className="h-6 min-w-0 flex-1 font-mono text-[11px]"
-        placeholder={provider.model}
+        placeholder={provider.id === 'azure-openai' ? 'Enter your deployment name' : provider.model}
         value={value}
         onChange={(e) => {
           setDraft(e.target.value);
@@ -485,8 +485,22 @@ function ProviderModelField({
           Model not in known list — it may not work.
         </p>
       )}
-      {known !== null && known.notice !== null && known.models.length === 0 && (
-        <p className="basis-full text-[10px] text-fg-muted">{known.notice}</p>
+      {provider.id === 'azure-openai' && (known === null || known.models.length === 0) ? (
+        <div className="flex basis-full flex-col gap-0.5">
+          <p className="text-[10px] text-fg-muted">
+            Azure uses your own deployment names. Type your deployment name directly (e.g.
+            &ldquo;gpt-4o-prod&rdquo;).
+          </p>
+          <p className="text-[10px] text-fg-muted">
+            Find your deployment name in Azure AI Studio → Deployments.
+          </p>
+        </div>
+      ) : (
+        known !== null &&
+        known.notice !== null &&
+        known.models.length === 0 && (
+          <p className="basis-full text-[10px] text-fg-muted">No models found — check your API key</p>
+        )
       )}
     </div>
   );
