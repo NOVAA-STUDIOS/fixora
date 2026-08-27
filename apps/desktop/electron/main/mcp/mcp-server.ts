@@ -51,7 +51,42 @@ function context(): { requestId: string; window: null } {
   return { requestId: `mcp-${String(Date.now())}`, window: null };
 }
 
+/**
+ * Per-tool rate limiting, mirroring the renderer-facing IPC limits (`ipc-rate-limiter.ts`) for the
+ * same reason: an external MCP client is untrusted input too, and `fixora_repair`/`fixora_analyze`
+ * cost real, unrecoverable resources (provider credits, a whole-repo walk) if called in a loop.
+ * In-memory only — resets on server restart, same posture as the IPC limiter.
+ */
+const toolCallCounts = new Map<string, { count: number; windowStart: number }>();
+const TOOL_RATE_LIMITS: Record<string, number> = {
+  fixora_analyze: 3, // matches the analysis:run IPC limit
+  fixora_repair: 10, // matches the ai:run IPC limit
+  fixora_findings: 30, // generous — read-only
+  fixora_status: 30, // generous — read-only
+};
+const RATE_WINDOW_MS = 60_000;
+
+function checkToolRateLimit(name: string): void {
+  const limit = TOOL_RATE_LIMITS[name];
+  if (limit === undefined) return;
+
+  const now = Date.now();
+  const existing = toolCallCounts.get(name);
+  if (existing === undefined || now - existing.windowStart >= RATE_WINDOW_MS) {
+    toolCallCounts.set(name, { count: 1, windowStart: now });
+    return;
+  }
+
+  if (existing.count >= limit) {
+    const retryAfter = Math.max(1, Math.ceil((RATE_WINDOW_MS - (now - existing.windowStart)) / 1000));
+    throw new Error(`Rate limit exceeded — try again in ${String(retryAfter)}s`);
+  }
+
+  existing.count += 1;
+}
+
 async function callTool(name: string, args: unknown): Promise<unknown> {
+  checkToolRateLimit(name);
   switch (name) {
     case 'fixora_analyze': {
       const file = (args as { file?: unknown } | null)?.file;

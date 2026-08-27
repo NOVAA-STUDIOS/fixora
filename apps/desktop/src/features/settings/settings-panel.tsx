@@ -852,6 +852,7 @@ function McpSettings(): React.JSX.Element {
   const setEnabled = useMcpStore((s) => s.setEnabled);
   const load = useMcpStore((s) => s.load);
   const id = useId();
+  const [restartNeeded, setRestartNeeded] = useState(false);
 
   useEffect(() => {
     void load();
@@ -866,8 +867,12 @@ function McpSettings(): React.JSX.Element {
         checked={enabled}
         onCheckedChange={(next) => {
           void setEnabled(next);
+          setRestartNeeded(true);
         }}
       />
+      {restartNeeded && (
+        <p className="text-xs text-warn-text">⚠️ Restart Fixora to apply this change</p>
+      )}
       {enabled && !running && (
         <p className="text-xs text-fg-muted">
           Enabled, but not serving in this session — start Fixora with <code>--mcp</code> to run
