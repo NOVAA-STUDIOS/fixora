@@ -3,7 +3,18 @@ import { join } from 'node:path';
 import { isUserFacingError } from '@fixora/shared-types';
 
 import { assertInsideWorkspace } from '../../services/fs/path-guard.js';
-import { gitCommit, gitDiff, gitStage, gitStatus, gitUnstage } from '../../services/git-service.js';
+import {
+  gitBranches,
+  gitCheckout,
+  gitCommit,
+  gitDiff,
+  gitFetch,
+  gitPull,
+  gitPush,
+  gitStage,
+  gitStatus,
+  gitUnstage,
+} from '../../services/git-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { registerHandler } from '../router.js';
 
@@ -38,6 +49,55 @@ export function registerGitHandlers(workspace: WorkspaceService): void {
     } catch (error) {
       if (!isUserFacingError(error)) throw error;
       return { error: error.message };
+    }
+  });
+
+  registerHandler('git:push', async () => {
+    const { rootPath } = workspace.requireRoot();
+    try {
+      await gitPush(rootPath);
+      return { ok: true };
+    } catch (error) {
+      if (!isUserFacingError(error)) throw error;
+      return { ok: false, error: error.message };
+    }
+  });
+
+  registerHandler('git:pull', async () => {
+    const { rootPath } = workspace.requireRoot();
+    try {
+      await gitPull(rootPath);
+      return { ok: true };
+    } catch (error) {
+      if (!isUserFacingError(error)) throw error;
+      return { ok: false, error: error.message };
+    }
+  });
+
+  registerHandler('git:fetch', async () => {
+    const { rootPath } = workspace.requireRoot();
+    try {
+      await gitFetch(rootPath);
+      return { ok: true };
+    } catch (error) {
+      if (!isUserFacingError(error)) throw error;
+      return { ok: false, error: error.message };
+    }
+  });
+
+  registerHandler('git:branches', async () => {
+    const { rootPath } = workspace.requireRoot();
+    return gitBranches(rootPath);
+  });
+
+  registerHandler('git:checkout', async ({ branch }) => {
+    const { rootPath } = workspace.requireRoot();
+    try {
+      await gitCheckout(rootPath, branch);
+      return { ok: true };
+    } catch (error) {
+      if (!isUserFacingError(error)) throw error;
+      return { ok: false, error: error.message };
     }
   });
 }

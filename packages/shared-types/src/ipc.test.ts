@@ -122,6 +122,11 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'git:unstage',
       'git:commit',
       'git:diff',
+      'git:push',
+      'git:pull',
+      'git:fetch',
+      'git:branches',
+      'git:checkout',
       'project:create',
     ]);
   });

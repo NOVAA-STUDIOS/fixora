@@ -233,3 +233,39 @@ export async function gitCommit(root: string, message: string): Promise<void> {
     );
   }
 }
+
+function throwOnFailure(result: { code: number; stderr: string }, fallback: string): void {
+  if (result.code !== 0) {
+    throw new UserFacingError(result.stderr.trim() === '' ? fallback : result.stderr.trim(), {
+      code: 'contract_violation',
+      action: { type: 'none', label: 'Dismiss' },
+      stage: 'workspace',
+    });
+  }
+}
+
+export async function gitPush(root: string): Promise<void> {
+  throwOnFailure(await runGit(root, ['push']), 'Push failed');
+}
+
+export async function gitPull(root: string): Promise<void> {
+  throwOnFailure(await runGit(root, ['pull']), 'Pull failed');
+}
+
+export async function gitFetch(root: string): Promise<void> {
+  throwOnFailure(await runGit(root, ['fetch']), 'Fetch failed');
+}
+
+export async function gitBranches(root: string): Promise<{ branches: string[]; current: string }> {
+  const list = await runGit(root, ['branch', '-a', '--format=%(refname:short)']);
+  const branches = list.stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+  const current = await runGit(root, ['branch', '--show-current']);
+  return { branches, current: current.stdout.trim() };
+}
+
+export async function gitCheckout(root: string, branch: string): Promise<void> {
+  throwOnFailure(await runGit(root, ['checkout', branch]), 'Checkout failed');
+}

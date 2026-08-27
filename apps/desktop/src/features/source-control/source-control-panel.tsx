@@ -1,9 +1,19 @@
-import { Button, CloseIcon, GitBranchIcon, RefreshIcon, Skeleton } from '@fixora/ui';
+import {
+  Button,
+  ChevronDownIcon,
+  CloseIcon,
+  DownloadIcon,
+  GitBranchIcon,
+  RefreshIcon,
+  SendIcon,
+  Skeleton,
+} from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { basename } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
+import { toast } from '../../stores/toast-store.js';
 import { DiffEditor } from '../editor/diff-editor.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
@@ -32,6 +42,9 @@ export function SourceControlPanel(): React.JSX.Element {
   const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
+  const [showBranchPicker, setShowBranchPicker] = useState(false);
+  const [branches, setBranches] = useState<string[] | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   // Throttled to at most one `git status` per 2s: stage/unstage each call refresh(), and clicking
   // through several files in quick succession must not fire one shell-out per click.
@@ -99,6 +112,77 @@ export function SourceControlPanel(): React.JSX.Element {
     setDiffError(null);
   };
 
+  const handleFetch = (): void => {
+    setBusy(true);
+    void invoke('git:fetch', {}).then((result) => {
+      setBusy(false);
+      if (result.ok && result.value.ok) {
+        toast.success('Fetched successfully');
+      } else {
+        toast.error(result.ok ? (result.value.error ?? 'Fetch failed') : result.error.message);
+      }
+      refresh();
+    });
+  };
+  const handlePull = (): void => {
+    setBusy(true);
+    void invoke('git:pull', {}).then((result) => {
+      setBusy(false);
+      if (result.ok && result.value.ok) {
+        toast.success('Pulled successfully');
+      } else {
+        toast.error(result.ok ? (result.value.error ?? 'Pull failed') : result.error.message);
+      }
+      refresh();
+    });
+  };
+  const handlePush = (): void => {
+    setBusy(true);
+    void invoke('git:push', {}).then((result) => {
+      setBusy(false);
+      if (result.ok && result.value.ok) {
+        toast.success('Pushed successfully');
+      } else {
+        toast.error(result.ok ? (result.value.error ?? 'Push failed') : result.error.message);
+      }
+      refresh();
+    });
+  };
+
+  const openBranchPicker = (): void => {
+    setShowBranchPicker(true);
+    void invoke('git:branches', {}).then((result) => {
+      if (result.ok) setBranches(result.value.branches);
+    });
+  };
+  const checkoutBranch = (branch: string): void => {
+    setShowBranchPicker(false);
+    setBusy(true);
+    void invoke('git:checkout', { branch }).then((result) => {
+      setBusy(false);
+      if (result.ok && result.value.ok) refresh();
+      else toast.error(result.ok ? (result.value.error ?? 'Checkout failed') : result.error.message);
+    });
+  };
+
+  useEffect(() => {
+    if (!showBranchPicker) return;
+    const onOutside = (e: MouseEvent): void => {
+      if (pickerRef.current !== null && !pickerRef.current.contains(e.target as Node)) {
+        setShowBranchPicker(false);
+      }
+    };
+    const onEscape = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setShowBranchPicker(false);
+    };
+    document.addEventListener('mousedown', onOutside);
+    document.addEventListener('keydown', onEscape);
+    return () => {
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('keydown', onEscape);
+    };
+  }, [showBranchPicker]);
+
   const commit = (): void => {
     if (message.trim() === '') return;
     setBusy(true);
@@ -129,20 +213,76 @@ export function SourceControlPanel(): React.JSX.Element {
       aria-label="Source Control"
       className="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
     >
-      <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border-subtle px-3">
-        <GitBranchIcon className="size-3.5 shrink-0 text-fg-muted" />
-        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
-          {status.branch}
-        </span>
+      <div className="relative flex h-9 shrink-0 items-center gap-1 border-b border-border-subtle px-2">
         <button
           type="button"
-          onClick={refresh}
-          title="Refresh"
-          aria-label="Refresh"
-          className="shrink-0 rounded p-1 text-fg-muted hover:bg-hover hover:text-fg"
+          onClick={openBranchPicker}
+          disabled={busy}
+          className="flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-fg-secondary hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <GitBranchIcon className="size-3 shrink-0" />
+          <span className="min-w-0 truncate">{status.branch ?? 'detached'}</span>
+          <ChevronDownIcon className="size-3 shrink-0" />
+        </button>
+        <button
+          type="button"
+          onClick={handleFetch}
+          title="Fetch"
+          aria-label="Fetch"
+          disabled={busy}
+          className="shrink-0 rounded p-1 text-fg-muted hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
         >
           <RefreshIcon className="size-3.5" />
         </button>
+        <button
+          type="button"
+          onClick={handlePull}
+          title="Pull"
+          aria-label="Pull"
+          disabled={busy}
+          className="shrink-0 rounded p-1 text-fg-muted hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <DownloadIcon className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={handlePush}
+          title="Push"
+          aria-label="Push"
+          disabled={busy}
+          className="shrink-0 rounded p-1 text-fg-muted hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <SendIcon className="size-3.5" />
+        </button>
+
+        {showBranchPicker && (
+          <div
+            ref={pickerRef}
+            role="menu"
+            aria-label="Branches"
+            className="absolute top-full left-2 z-10 mt-1 max-h-64 w-56 overflow-y-auto rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+          >
+            {branches === null ? (
+              <p className="px-2 py-1.5 text-xs text-fg-muted">Loading…</p>
+            ) : branches.length === 0 ? (
+              <p className="px-2 py-1.5 text-xs text-fg-muted">No branches found</p>
+            ) : (
+              branches.map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    checkoutBranch(b);
+                  }}
+                  className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-fg hover:bg-hover"
+                >
+                  {b}
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0 flex-col gap-1.5 border-b border-border-subtle p-2">

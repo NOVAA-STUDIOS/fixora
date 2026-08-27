@@ -682,6 +682,17 @@ export const contracts = {
       z.object({ error: z.string() }),
     ]),
   },
+  'git:push': { request: empty, response: z.object({ ok: z.boolean(), error: z.string().optional() }) },
+  'git:pull': { request: empty, response: z.object({ ok: z.boolean(), error: z.string().optional() }) },
+  'git:fetch': { request: empty, response: z.object({ ok: z.boolean(), error: z.string().optional() }) },
+  'git:branches': {
+    request: empty,
+    response: z.object({ branches: z.array(z.string()), current: z.string() }),
+  },
+  'git:checkout': {
+    request: z.object({ branch: z.string().min(1) }),
+    response: z.object({ ok: z.boolean(), error: z.string().optional() }),
+  },
 
   'project:create': {
     request: z.object({

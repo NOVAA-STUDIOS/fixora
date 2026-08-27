@@ -173,6 +173,11 @@ export const channels = [
   'git:unstage',
   'git:commit',
   'git:diff',
+  'git:push',
+  'git:pull',
+  'git:fetch',
+  'git:branches',
+  'git:checkout',
   // New Project: runs a template's scaffold command as a plain background child process (never a
   // visible terminal) rooted at a directory the user picked, gated by the same authorization rule
   // workspace:open uses.
