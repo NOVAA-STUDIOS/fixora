@@ -98,9 +98,9 @@ const SOLARIZED_DARK_THEME: monaco.editor.IStandaloneThemeData = {
   },
 };
 
-export const DRACULA = 'DRACULA';
-export const GITHUB_DARK = 'GITHUB_DARK';
-export const ONE_DARK = 'ONE_DARK';
+export const DRACULA = 'fixora-dracula';
+export const GITHUB_DARK = 'fixora-github-dark';
+export const ONE_DARK = 'fixora-one-dark';
 
 const DRACULA_THEME: monaco.editor.IStandaloneThemeData = {
   base: 'vs-dark',
