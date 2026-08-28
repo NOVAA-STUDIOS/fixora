@@ -5,6 +5,7 @@
 # via import.meta.url, which only resolves against real files on disk — never from inside app.asar. So the
 # worker and its WASM-bearing deps are unpacked to app.asar.unpacked/ (electron-vite bundles everything
 # else into the CJS main). This is the same constraint M2/M3 hit; packaging is where it is finally paid.
+icon: build/icon.ico
 appId: dev.fixora.app
 productName: Fixora
 copyright: © 2026 Fixora
