@@ -6,6 +6,25 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## [1.2.4] — 2026-08-28
+
+### ✨ New Features
+- **Git:** Push, Pull, Fetch buttons in Source Control panel
+- **Git:** Branch switcher — click branch name to switch branches
+- **Git Diff:** Click any file in Source Control to see Monaco-powered diff
+- **.fixoraignore:** Custom per-project analysis ignore rules (gitignore syntax)
+- **Panel Toggle:** Ctrl+B / Ctrl+J — hide/show sidebar and AI panel
+- **Title Bar:** Dedicated sidebar + AI panel toggle buttons with proper icons
+- **Search:** Case sensitive, regex mode, file filter, find and replace (Mod+Shift+F)
+- **Editor:** Inlay hints, bracket pair colorization, parameter hints
+- **Editor Themes:** Dracula, GitHub Dark, One Dark added (6 themes total)
+- **Command Palette:** Git commands, theme switching, recent commands history
+
+### 🐛 Bug Fixes
+- **Editor Themes:** Fixed "Illegal theme name" crash when switching themes
+- **Problems Panel:** Findings no longer overlap (entrance animation fix)
+- **Icons:** Proper sidebar, push, pull, fetch icons throughout
+
 ## [1.2.3] — 2026-08-27
 
 ### ✨ New Features
