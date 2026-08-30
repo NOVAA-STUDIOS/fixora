@@ -109,7 +109,7 @@ win:
 
 # Writes the icon and version resource into Fixora.exe.
 #
-# Kept even though `signAndEditExecutable` is now true, and deliberately so: rcedit and this hook
+# stamp-exe.cjs handles icon/version stamping via pure-JS resedit, and deliberately so: rcedit and this hook
 # write the same fields, so the hook is now a belt to rcedit's braces rather than a replacement for
 # it. If the toolchain extraction ever fails again — a machine without Developer Mode, a locked-down
 # CI runner — rcedit silently does nothing and this is what still stamps the binary. It runs AFTER

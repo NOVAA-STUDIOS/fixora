@@ -122,6 +122,14 @@ export function createMainWindow(
   window.on('maximize', pushMaximizedState);
   window.on('unmaximize', pushMaximizedState);
 
+  if (process.platform === 'win32') {
+    window.setAppDetails({
+      appId: 'dev.fixora.app',
+      appIconPath: ICON_PATH,
+      relaunchDisplayName: 'Fixora',
+    });
+  }
+
   if (devServerUrl !== undefined) {
     void window.loadURL(devServerUrl);
   } else {
