@@ -628,55 +628,172 @@ function LicenseSettings(): React.JSX.Element {
   };
 
   return (
-    <Group title="License">
-      {paid ? (
-        <div className="flex items-center justify-between gap-4">
-          <span className="min-w-0 text-sm text-fg [overflow-wrap:anywhere]">
-            Fixora {plan === 'pro' ? 'Pro' : 'Go'} — thank you for supporting Fixora.
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              void invoke('system:openExternal', { url: 'https://app.gumroad.com/library' });
-            }}
-            className="shrink-0 text-xs text-accent-text hover:underline"
-          >
-            View purchase
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs leading-relaxed text-fg-muted">
-            Fixora is free with your own key. A one-time{' '}
-            <span className="text-fg-secondary">Supporter</span> license funds development and locks
-            in early-supporter benefits. Purchase at{' '}
-            <span className="text-fg-secondary">{PURCHASE_URL}</span>, then paste your key here.
-          </p>
-          <label htmlFor={keyId} className="text-sm text-fg">
-            License key
-          </label>
-          <div className="flex items-center gap-2">
-            <Input
-              id={keyId}
-              value={draft}
-              placeholder="paste your license key"
-              onChange={(e) => {
-                setDraft(e.target.value);
+    <>
+      <Group title="License">
+        {paid ? (
+          <div className="flex items-center justify-between gap-4">
+            <span className="min-w-0 text-sm text-fg [overflow-wrap:anywhere]">
+              Fixora {plan === 'pro' ? 'Pro' : 'Go'} — thank you for supporting Fixora.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                void invoke('system:openExternal', { url: 'https://app.gumroad.com/library' });
               }}
-              className="min-w-0 flex-1"
-            />
+              className="shrink-0 text-xs text-accent-text hover:underline"
+            >
+              View purchase
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs leading-relaxed text-fg-muted">
+              Fixora is free with your own key. A one-time{' '}
+              <span className="text-fg-secondary">Supporter</span> license funds development and
+              locks in early-supporter benefits. Purchase at{' '}
+              <span className="text-fg-secondary">{PURCHASE_URL}</span>, then paste your key here.
+            </p>
+            <label htmlFor={keyId} className="text-sm text-fg">
+              License key
+            </label>
+            <div className="flex items-center gap-2">
+              <Input
+                id={keyId}
+                value={draft}
+                placeholder="paste your license key"
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                }}
+                className="min-w-0 flex-1"
+              />
+              <Button
+                size="sm"
+                className="shrink-0"
+                onClick={() => void activateNow()}
+                disabled={busy || draft.trim().length === 0}
+              >
+                Activate
+              </Button>
+            </div>
+            {error !== null && <span className="text-xs text-danger-text">{error}</span>}
+          </div>
+        )}
+      </Group>
+      <ReferralSettings />
+    </>
+  );
+}
+
+function ReferralSettings(): React.JSX.Element | null {
+  const [myCode, setMyCode] = useState<string | null>(null);
+  const [usedCode, setUsedCode] = useState<string | null>(null);
+  const [bonusRepairs, setBonusRepairs] = useState(0);
+  const [redeemInput, setRedeemInput] = useState('');
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const redeemId = useId();
+
+  useEffect(() => {
+    void invoke('referral:getStatus', {}).then((result) => {
+      if (!result.ok) return;
+      setMyCode(result.value.myCode);
+      setUsedCode(result.value.usedCode);
+      setBonusRepairs(result.value.bonusRepairs);
+    });
+  }, []);
+
+  const handleRedeem = async (): Promise<void> => {
+    const code = redeemInput.trim();
+    if (code.length !== 10) return;
+    setBusy(true);
+    setRedeemError(null);
+    const result = await invoke('referral:redeem', { code });
+    setBusy(false);
+    if (!result.ok) {
+      setRedeemError(result.error.message);
+      return;
+    }
+    if (!result.value.ok) {
+      setRedeemError(result.value.error ?? 'Could not redeem this code');
+      return;
+    }
+    setUsedCode(code);
+    setBonusRepairs(result.value.bonus);
+    toast.success(`+${String(result.value.bonus)} bonus repairs earned`);
+  };
+
+  if (myCode === null) return null;
+
+  return (
+    <Group title="Refer a Friend">
+      <div className="flex flex-col gap-3">
+        <p className="text-xs leading-relaxed text-fg-muted">
+          Share your code and both get 20 bonus repairs!
+        </p>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-sm text-fg">Your referral code</label>
+          <div className="flex items-center gap-2">
+            <code className="min-w-0 flex-1 rounded bg-inset px-2 py-1 text-sm text-fg">
+              {myCode}
+            </code>
             <Button
               size="sm"
+              variant="ghost"
               className="shrink-0"
-              onClick={() => void activateNow()}
-              disabled={busy || draft.trim().length === 0}
+              onClick={() => void copyToClipboard(myCode)}
             >
-              Activate
+              Copy
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="shrink-0"
+              onClick={() => {
+                void invoke('system:copyToClipboard', {
+                  text: `I'm using Fixora for AI code repair! Use my referral code ${myCode} to get 20 bonus repairs. Download at fixora-opal.vercel.app`,
+                });
+                toast.success('Copied — paste it anywhere to share');
+              }}
+            >
+              Share
             </Button>
           </div>
-          {error !== null && <span className="text-xs text-danger-text">{error}</span>}
         </div>
-      )}
+
+        {usedCode === null ? (
+          <div className="flex flex-col gap-1">
+            <label htmlFor={redeemId} className="text-sm text-fg">
+              Have a referral code?
+            </label>
+            <div className="flex items-center gap-2">
+              <Input
+                id={redeemId}
+                value={redeemInput}
+                placeholder="FIX-XXXXXX"
+                maxLength={10}
+                onChange={(e) => {
+                  setRedeemInput(e.target.value.toUpperCase());
+                }}
+                className="min-w-0 flex-1"
+              />
+              <Button
+                size="sm"
+                className="shrink-0"
+                onClick={() => void handleRedeem()}
+                disabled={busy || redeemInput.length !== 10}
+              >
+                Redeem
+              </Button>
+            </div>
+            {redeemError !== null && <span className="text-xs text-danger-text">{redeemError}</span>}
+          </div>
+        ) : (
+          <p className="text-xs text-fg-secondary">
+            ✅ Code redeemed! +{bonusRepairs} bonus repairs earned
+          </p>
+        )}
+      </div>
     </Group>
   );
 }

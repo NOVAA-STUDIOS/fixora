@@ -206,6 +206,25 @@ export const contracts = {
     }),
   },
 
+  /** Local-only referral system — no server, no other device's code is ever verified against
+   *  anything but this device's own single `referrals` row. */
+  'referral:getMyCode': {
+    request: empty,
+    response: z.object({ code: z.string() }),
+  },
+  'referral:redeem': {
+    request: z.object({ code: z.string() }),
+    response: z.object({ ok: z.boolean(), bonus: z.number().int().nonnegative(), error: z.string().optional() }),
+  },
+  'referral:getStatus': {
+    request: empty,
+    response: z.object({
+      myCode: z.string(),
+      usedCode: z.string().nullable(),
+      bonusRepairs: z.number().int().nonnegative(),
+    }),
+  },
+
   /**
    * Generate a unit-test file for `file` using the same BYOK provider chain as repair. Grounds on
    * the file's own content (and a nearby test file's style, if one exists) rather than a stored

@@ -40,6 +40,7 @@ import { registerPackageManagerHandlers } from './ipc/handlers/package-manager.h
 import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
 import { registerProjectHandlers } from './ipc/handlers/project.handlers.js';
 import { registerProviderHandlers } from './ipc/handlers/providers.handlers.js';
+import { registerReferralHandlers } from './ipc/handlers/referral.handlers.js';
 import { registerSearchHandlers } from './ipc/handlers/search.handlers.js';
 import { registerShieldHandlers } from './ipc/handlers/shield.handlers.js';
 import { registerSuggestionHandlers } from './ipc/handlers/suggestions.handlers.js';
@@ -418,6 +419,7 @@ function startBackend(window: BrowserWindow | null): void {
   registerHandler('app:getReadyState', () => ({ ready: backendReady }));
   registerSystemHandlers({ workspace: workspaceService, gpuPreference });
   registerLicenseHandlers({ driver, dir: app.getPath('userData') });
+  registerReferralHandlers({ driver });
   registerAuthHandlers();
   registerWindowHandlers();
   registerWorkspaceHandlers(workspaceService);

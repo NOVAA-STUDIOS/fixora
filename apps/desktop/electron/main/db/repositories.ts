@@ -604,3 +604,50 @@ export function createRepairLimitRepository(driver: SqliteDriver) {
 }
 
 export type RepairLimitRepository = ReturnType<typeof createRepairLimitRepository>;
+
+/** The single-row `referrals` table (migration v11) — one device, one code of its own, one
+ *  redemption ever. `bonus_repairs` is what `repair-limit.ts` adds on top of the plan ceiling. */
+export function createReferralRepository(driver: SqliteDriver) {
+  return {
+    getMyCode(): string | null {
+      const row = driver.prepare('SELECT my_code FROM referrals LIMIT 1').get() as
+        | { my_code: string }
+        | undefined;
+      return row?.my_code ?? null;
+    },
+
+    createMyCode(code: string): void {
+      driver.prepare('INSERT OR IGNORE INTO referrals (my_code) VALUES (?)').run(code);
+    },
+
+    getUsedCode(): string | null {
+      const row = driver.prepare('SELECT used_code FROM referrals LIMIT 1').get() as
+        | { used_code: string | null }
+        | undefined;
+      return row?.used_code ?? null;
+    },
+
+    redeemCode(usedCode: string, bonusRepairs: number): boolean {
+      const existing = driver.prepare('SELECT used_code FROM referrals LIMIT 1').get() as
+        | { used_code: string | null }
+        | undefined;
+      if (existing !== undefined && existing.used_code !== null) return false;
+      driver
+        .prepare(
+          `UPDATE referrals SET used_code = ?, bonus_repairs = ?,
+           redeemed_at = unixepoch() WHERE id = 1`,
+        )
+        .run(usedCode, bonusRepairs);
+      return true;
+    },
+
+    getBonusRepairs(): number {
+      const row = driver.prepare('SELECT bonus_repairs FROM referrals LIMIT 1').get() as
+        | { bonus_repairs: number }
+        | undefined;
+      return row?.bonus_repairs ?? 0;
+    },
+  };
+}
+
+export type ReferralRepository = ReturnType<typeof createReferralRepository>;

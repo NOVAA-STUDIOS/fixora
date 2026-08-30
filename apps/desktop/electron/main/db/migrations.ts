@@ -225,4 +225,22 @@ export const migrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 11,
+    name: 'referrals',
+    up: (d) => {
+      // Single row per install, same as repair_limit — this device has exactly one code of its own
+      // and can redeem exactly one other code, ever.
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS referrals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          my_code TEXT NOT NULL UNIQUE,
+          used_code TEXT,
+          bonus_repairs INTEGER NOT NULL DEFAULT 0,
+          redeemed_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `);
+    },
+  },
 ];

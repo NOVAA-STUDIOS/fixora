@@ -36,6 +36,11 @@ export const channels = [
   'auth:startOAuth',
   'license:validate',
   'license:getRepairCount',
+  // Local-only referral system (no external backend): a per-device code, one redemption ever,
+  // both surfaced from the same single-row `referrals` table.
+  'referral:getMyCode',
+  'referral:redeem',
+  'referral:getStatus',
   'window:minimize',
   'window:toggleMaximize',
   'window:close',

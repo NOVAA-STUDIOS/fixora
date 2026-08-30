@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { Plan } from '@fixora/shared-types';
 
 import type { SqliteDriver } from '../db/driver.js';
-import { createRepairLimitRepository } from '../db/repositories.js';
+import { createRepairLimitRepository, createReferralRepository } from '../db/repositories.js';
 
 /**
  * The repair limit, enforced in MAIN.
@@ -83,6 +83,7 @@ function sanitize(parsed: Partial<Stored>): Stored | null {
 }
 
 let _repo: ReturnType<typeof createRepairLimitRepository> | null = null;
+let _referralRepo: ReturnType<typeof createReferralRepository> | null = null;
 let state: Stored = freshFreeState();
 
 function windowElapsed(): boolean {
@@ -129,6 +130,8 @@ function migrateLegacyJsonFile(dir: string): Stored | null {
 /** Called once at startup, before any handler can gate on the limit. */
 export function initRepairLimit(driver: SqliteDriver, dir: string): void {
   _repo = createRepairLimitRepository(driver);
+  // Same driver, one extra read per gate check — see `checkAndIncrementRepairLimit`'s bonus lookup.
+  _referralRepo = createReferralRepository(driver);
 
   const existing = _repo.load();
   if (existing === null) {
@@ -300,7 +303,10 @@ export function checkAndIncrementRepairLimit(): RepairLimitCheck {
   rollWindowIfElapsed();
 
   const { plan } = state;
-  const limit = PLAN_LIMIT[plan];
+  // Referral bonus (migration v11) widens the plan ceiling — it never replaces it, so a revoked
+  // plan still falls back to the FREE limit plus whatever bonus this device earned.
+  const bonusRepairs = _referralRepo?.getBonusRepairs() ?? 0;
+  const limit = PLAN_LIMIT[plan] + bonusRepairs;
   const used = state.repairsToday;
 
   if (used >= limit) {
