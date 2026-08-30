@@ -56,24 +56,28 @@ export function PreviewPanel(): React.JSX.Element {
 
   return (
     <div className="flex h-full flex-col bg-canvas">
-      {/* Toolbar — frosted glass iOS style */}
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-subtle bg-raised px-3">
-        {/* URL bar — pill shape */}
-        <div className="flex flex-1 items-center gap-2 rounded-full bg-inset px-3 py-1 text-sm text-fg-secondary">
+      {/* Toolbar — compact iOS pill style */}
+      <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border-subtle bg-raised px-2">
+        {/* URL pill — takes most space */}
+        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg bg-inset px-2.5 py-1">
           <div
-            className={cn('size-2 rounded-full', isLoading ? 'animate-pulse bg-warn' : 'bg-success')}
+            className={cn(
+              'size-1.5 shrink-0 rounded-full transition-colors',
+              isLoading ? 'animate-pulse bg-warn' : 'bg-success',
+            )}
           />
-          <span className="truncate">{url ?? 'No preview open'}</span>
+          <span className="truncate font-mono text-xs text-fg-secondary">{url ?? 'No preview'}</span>
         </div>
 
+        {/* Compact action buttons */}
         <button
           type="button"
           onClick={() => void refresh()}
           disabled={!isOpen}
-          title="Refresh"
-          className="rounded-lg p-1.5 transition-colors hover:bg-hover disabled:opacity-40"
+          title="Refresh (Ctrl+R)"
+          className="rounded-md p-1.5 text-fg-secondary transition-colors hover:bg-hover hover:text-fg disabled:opacity-40"
         >
-          <RefreshIcon className="size-4" />
+          <RefreshIcon className="size-3.5" />
         </button>
 
         <button
@@ -83,9 +87,9 @@ export function PreviewPanel(): React.JSX.Element {
           }}
           disabled={!isOpen || url === null}
           title="Open in browser"
-          className="rounded-lg p-1.5 transition-colors hover:bg-hover disabled:opacity-40"
+          className="rounded-md p-1.5 text-fg-secondary transition-colors hover:bg-hover hover:text-fg disabled:opacity-40"
         >
-          <ExternalIcon className="size-4" />
+          <ExternalIcon className="size-3.5" />
         </button>
 
         <button
@@ -93,9 +97,9 @@ export function PreviewPanel(): React.JSX.Element {
           onClick={() => void close()}
           disabled={!isOpen}
           title="Close preview"
-          className="rounded-lg p-1.5 transition-colors hover:bg-hover disabled:opacity-40"
+          className="rounded-md p-1.5 text-fg-secondary transition-colors hover:bg-hover hover:text-fg disabled:opacity-40"
         >
-          <CloseIcon className="size-4" />
+          <CloseIcon className="size-3.5" />
         </button>
       </div>
 
@@ -123,17 +127,29 @@ function EmptyState({
   onOpen: (url: string) => Promise<void>;
 }): React.JSX.Element {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
-      <div className="flex size-16 animate-ios-enter items-center justify-center rounded-2xl bg-accent/10 shadow-lg shadow-accent/20">
-        <span className="text-3xl">🌐</span>
+    <div className="flex h-full select-none flex-col items-center justify-center gap-6 p-8">
+      {/* Animated icon */}
+      <div className="relative">
+        <div className="flex size-20 animate-ios-enter items-center justify-center rounded-3xl bg-gradient-to-br from-accent/20 to-accent/5 shadow-xl shadow-accent/10 ring-1 ring-accent/20">
+          <ExternalIcon className="size-8 text-accent" />
+        </div>
+        {detectedUrl !== null && (
+          <div className="absolute -top-1 -right-1 size-4 animate-pulse rounded-full bg-success ring-2 ring-canvas" />
+        )}
       </div>
 
-      <div className="text-center">
-        <h3 className="font-semibold text-fg">Live Preview</h3>
-        <p className="mt-1 text-sm text-fg-secondary">
-          Start your dev server and Fixora
-          <br />
-          will detect it automatically.
+      <div className="space-y-1.5 text-center">
+        <h3 className="text-base font-semibold text-fg">Live Preview</h3>
+        <p className="max-w-[200px] text-sm leading-relaxed text-fg-secondary">
+          {detectedUrl !== null ? (
+            `Dev server found at ${detectedUrl}`
+          ) : (
+            <>
+              Start your dev server and
+              <br />
+              Fixora will find it automatically.
+            </>
+          )}
         </p>
       </div>
 
@@ -141,14 +157,16 @@ function EmptyState({
         <button
           type="button"
           onClick={() => void onOpen(detectedUrl)}
-          className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent shadow-lg shadow-accent/30 transition-all hover:shadow-accent/50 active:scale-95"
+          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-on-accent shadow-lg shadow-accent/25 transition-all duration-200 hover:scale-105 hover:shadow-accent/40 active:scale-95"
         >
-          Open {detectedUrl}
+          Open Preview
         </button>
       ) : (
-        <div className="text-xs text-fg-muted">
-          Run{' '}
-          <code className="rounded bg-inset px-1.5 py-0.5">npm run dev</code> in the terminal
+        <div className="flex flex-col items-center gap-2">
+          <code className="rounded-lg bg-inset px-3 py-1.5 font-mono text-xs text-fg-secondary">
+            npm run dev
+          </code>
+          <span className="text-xs text-fg-muted">or pnpm dev, yarn dev</span>
         </div>
       )}
     </div>

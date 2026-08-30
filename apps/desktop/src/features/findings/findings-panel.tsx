@@ -35,6 +35,7 @@ import { useFindingRowEstimate } from '../../hooks/use-density-metrics.js';
 import { invoke } from '../../lib/bridge.js';
 import { basename } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
+import { usePreviewStore } from '../../stores/preview-store.js';
 import { toast } from '../../stores/toast-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useCapability } from '../ai/use-capability.js';
@@ -919,6 +920,7 @@ const FindingRow = memo(function FindingRow({
   const aiConfigured = useAiStore((s) => s.config?.configured ?? false);
   const aiBusy = useAiStore((s) => s.status === 'running');
   const setActiveView = useUiStore((s) => s.setActiveView);
+  const previewIsOpen = usePreviewStore((s) => s.isOpen);
   const capabilities = {
     explain: useCapability('explain'),
     repair: useCapability('repair', finding.repair),
@@ -1113,6 +1115,19 @@ const FindingRow = memo(function FindingRow({
             className="rounded border border-border-subtle px-2 py-0.5 text-[11px] text-accent-text hover:bg-hover"
           >
             Set up AI to repair
+          </button>
+        )}
+        {previewIsOpen && finding.severity === 'error' && (
+          <button
+            type="button"
+            title="See this issue in preview"
+            onClick={() => {
+              setActiveView('preview');
+              // Flash/highlight effect — future enhancement
+            }}
+            className="shrink-0 rounded-md bg-accent/10 px-2 py-0.5 text-[11px] text-accent-text transition-colors hover:bg-accent/20"
+          >
+            Preview
           </button>
         )}
         <button
