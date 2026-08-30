@@ -131,6 +131,12 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'git:branches',
       'git:checkout',
       'project:create',
+      'preview:detect',
+      'preview:open',
+      'preview:close',
+      'preview:refresh',
+      'preview:resize',
+      'preview:getState',
     ]);
   });
 });

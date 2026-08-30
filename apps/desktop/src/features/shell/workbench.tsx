@@ -43,6 +43,9 @@ const HistoryPanel = lazy(() =>
 const SettingsPanel = lazy(() =>
   import('../settings/settings-panel.js').then((m) => ({ default: m.SettingsPanel })),
 );
+const PreviewPanel = lazy(() =>
+  import('../preview/preview-panel.js').then((m) => ({ default: m.PreviewPanel })),
+);
 
 function PanelFallback(): React.JSX.Element {
   return (
@@ -228,7 +231,8 @@ function WorkbenchContent(): React.JSX.Element {
     !hasWorkspace &&
     activeView !== 'settings' &&
     activeView !== 'diagnostics' &&
-    activeView !== 'suggestions'
+    activeView !== 'suggestions' &&
+    activeView !== 'preview'
   ) {
     return (
       <ErrorBoundary label="The home screen">
@@ -255,6 +259,18 @@ function WorkbenchContent(): React.JSX.Element {
       <ErrorBoundary label="Settings">
         <Suspense fallback={<PanelFallback />}>
           <SettingsPanel />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  // Preview: no 3-pane split needed — same reasoning as Settings, and it needs the width the
+  // embedded dev server view gets sized to, not a fraction of it.
+  if (activeView === 'preview') {
+    return (
+      <ErrorBoundary label="Preview">
+        <Suspense fallback={<PanelFallback />}>
+          <PreviewPanel />
         </Suspense>
       </ErrorBoundary>
     );

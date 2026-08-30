@@ -24,7 +24,8 @@ export type ActivityView =
   | 'terminal'
   | 'search'
   | 'packages'
-  | 'sourceControl';
+  | 'sourceControl'
+  | 'preview';
 
 /**
  * Which job the workbench is laid out for.
@@ -81,6 +82,7 @@ const VIEWS: readonly ActivityView[] = [
   'search',
   'packages',
   'sourceControl',
+  'preview',
 ];
 
 /**

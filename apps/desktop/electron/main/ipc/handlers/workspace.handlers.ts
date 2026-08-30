@@ -24,6 +24,7 @@ import { emitToWindow } from '../emit.js';
 import { registerHandler } from '../router.js';
 
 import { stopAnalysisWatch } from './analysis.handlers.js';
+import { notifyPreviewFileSaved } from './preview.handlers.js';
 import { resetShieldThrottle } from './shield.handlers.js';
 
 /**
@@ -200,6 +201,9 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
   registerHandler('fs:writeFile', ({ relPath, content }) => {
     const { rootPath } = service.requireRoot();
     writeTextFile(rootPath, relPath, content);
+    // Fixora Preview auto-refresh: a no-op when the preview isn't open, so every save pays one
+    // in-memory check rather than an IPC round trip.
+    notifyPreviewFileSaved();
   });
 
   // Generated files (GitHub Actions panel): creates missing parent directories and overwrites an

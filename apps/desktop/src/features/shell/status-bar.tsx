@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { invoke, subscribe } from '../../lib/bridge.js';
 import { copyToClipboard } from '../../lib/clipboard.js';
 import { useMcpStore } from '../../stores/mcp-store.js';
+import { usePreviewStore } from '../../stores/preview-store.js';
 import { useStatsStore } from '../../stores/stats-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useUpdateStore } from '../../stores/update-store.js';
@@ -145,6 +146,7 @@ export function StatusBar(): React.JSX.Element {
     >
       <div className="flex min-w-0 items-center gap-2">
         <ShieldPill />
+        <PreviewPill />
         <UpdateReadyPill />
         <span aria-hidden="true" className="text-border-strong">
           ·
@@ -360,6 +362,44 @@ function ShieldPill(): React.JSX.Element {
       )}
     >
       🛡️ {label}
+    </button>
+  );
+}
+
+/**
+ * Fixora Preview, at a glance — a green dot once the view is actually open, an orange one once
+ * the port scanner has found a dev server but nobody has opened it yet. Renders nothing in the
+ * common case (nothing detected, nothing open), the same "absent, not a placeholder" rule
+ * `UpdateReadyPill` follows.
+ */
+function PreviewPill(): React.JSX.Element | null {
+  const isOpen = usePreviewStore((s) => s.isOpen);
+  const detectedUrl = usePreviewStore((s) => s.detectedUrl);
+  const port = usePreviewStore((s) => s.port);
+  const open = usePreviewStore((s) => s.open);
+  const setActiveView = useUiStore((s) => s.setActiveView);
+
+  if (!isOpen && detectedUrl === null) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setActiveView('preview');
+        if (!isOpen && detectedUrl !== null) void open(detectedUrl);
+      }}
+      title={
+        isOpen
+          ? `Preview open — localhost:${String(port)}`
+          : `Dev server detected on localhost:${String(port)} — click to open`
+      }
+      className="flex shrink-0 items-center gap-1.5 rounded px-1.5 py-0.5 transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover"
+    >
+      <span
+        aria-hidden="true"
+        className={cn('size-1.5 rounded-full', isOpen ? 'bg-success' : 'bg-warn')}
+      />
+      🌐 :{port}
     </button>
   );
 }

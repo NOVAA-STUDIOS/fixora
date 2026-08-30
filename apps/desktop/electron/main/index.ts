@@ -37,6 +37,7 @@ import { registerLicenseHandlers } from './ipc/handlers/license.handlers.js';
 import { registerMcpHandlers } from './ipc/handlers/mcp.handlers.js';
 import { registerNotificationHandlers } from './ipc/handlers/notifications.handlers.js';
 import { registerPackageManagerHandlers } from './ipc/handlers/package-manager.handlers.js';
+import { registerPreviewHandlers } from './ipc/handlers/preview.handlers.js';
 import { registerProceedHandlers } from './ipc/handlers/proceed.handlers.js';
 import { registerProjectHandlers } from './ipc/handlers/project.handlers.js';
 import { registerProviderHandlers } from './ipc/handlers/providers.handlers.js';
@@ -58,6 +59,7 @@ import { initShieldSettings } from './lib/shield-settings.js';
 import { isMcpOnlyLaunch, startMcpOnly } from './mcp-standalone.js';
 import { createMailService } from './services/mail/mail-service.js';
 import { migrateLegacyUserData } from './services/migrate-user-data.js';
+import { createPreviewService } from './services/preview-service.js';
 import { createShieldService } from './services/shield/shield-service.js';
 import { createWorkspaceService } from './services/workspace-service.js';
 import { createSuggestionRepository } from './suggestions/suggestion-repository.js';
@@ -425,6 +427,13 @@ function startBackend(window: BrowserWindow | null): void {
   registerWorkspaceHandlers(workspaceService);
   registerEditorHandlers(workspaceService, analysisHost);
   registerGitHandlers(workspaceService);
+  // Started unconditionally — the "Fixora will detect it automatically" promise (the empty-state
+  // copy in preview-panel.tsx) means the scan has to already be running before the user ever opens
+  // Preview, not begin only once they do. A background `GET /` every 3s to a handful of localhost
+  // ports is cheap enough to run for the life of the session.
+  const previewService = createPreviewService(window);
+  registerPreviewHandlers(previewService);
+  previewService.startScanning();
   registerHookHandlers(workspaceService);
   registerAnalysisHandlers(analysisService, workspaceService);
   registerProviderHandlers({

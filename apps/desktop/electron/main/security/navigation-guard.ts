@@ -50,12 +50,24 @@ function isAllowedExternalHost(host: string): boolean {
   return ALLOWED_EXTERNAL_HOSTS.has(host) || host.endsWith('.fixora.dev');
 }
 
+/** `http://localhost:*`/`127.0.0.1:*` — Fixora Preview's own dev server, opened in the user's
+ *  real browser from its toolbar. Not a remote host, so the https-only rule below (aimed at an
+ *  attacker-controlled scheme/host) does not apply to it. */
+function isLocalPreviewUrl(url: URL): boolean {
+  return url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+}
+
 export async function openExternal(rawUrl: string): Promise<void> {
   let url: URL;
   try {
     url = new URL(rawUrl);
   } catch {
     throw new Error(`Refusing to open a URL that does not parse: ${rawUrl}`);
+  }
+
+  if (isLocalPreviewUrl(url)) {
+    await shell.openExternal(url.toString());
+    return;
   }
 
   if (url.protocol !== 'https:') {

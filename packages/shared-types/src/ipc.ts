@@ -724,6 +724,46 @@ export const contracts = {
     }),
     response: z.object({ path: z.string() }),
   },
+
+  /**
+   * Fixora Preview: an embedded WebContentsView showing the user's own localhost dev server.
+   * Every request here is scoped to that one view — `preview:open`'s `url` is still validated
+   * localhost-only in main (preview-service.ts), never trusted on the strength of this schema
+   * alone, the same "the router is not the security boundary" posture every other channel here has.
+   */
+  'preview:detect': {
+    request: empty,
+    response: z.object({ port: z.number().int().nullable(), url: z.string().nullable() }),
+  },
+  'preview:open': {
+    request: z.object({ url: z.string().min(1) }),
+    response: z.object({ ok: z.boolean() }),
+  },
+  'preview:close': {
+    request: empty,
+    response: z.object({ ok: z.boolean() }),
+  },
+  'preview:refresh': {
+    request: empty,
+    response: z.object({ ok: z.boolean() }),
+  },
+  'preview:resize': {
+    request: z.object({
+      x: z.number(),
+      y: z.number(),
+      width: z.number().nonnegative(),
+      height: z.number().nonnegative(),
+    }),
+    response: z.void(),
+  },
+  'preview:getState': {
+    request: empty,
+    response: z.object({
+      url: z.string().nullable(),
+      isOpen: z.boolean(),
+      port: z.number().int().nullable(),
+    }),
+  },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

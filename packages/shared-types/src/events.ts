@@ -52,6 +52,22 @@ export const AppJustUpdatedSchema = z.object({
 });
 export type AppJustUpdated = z.infer<typeof AppJustUpdatedSchema>;
 
+/** The port scanner (preview-service.ts) found a listening localhost dev server. */
+export const PreviewServerDetectedSchema = z.object({
+  port: z.number().int(),
+  url: z.string(),
+  framework: z.string(),
+});
+export type PreviewServerDetected = z.infer<typeof PreviewServerDetectedSchema>;
+
+/** The embedded preview's page title changed (`page-title-updated`). */
+export const PreviewTitleChangedSchema = z.object({ title: z.string() });
+export type PreviewTitleChanged = z.infer<typeof PreviewTitleChangedSchema>;
+
+/** The embedded preview started or finished loading (`did-start-loading`/`did-stop-loading`). */
+export const PreviewLoadingChangedSchema = z.object({ loading: z.boolean() });
+export type PreviewLoadingChanged = z.infer<typeof PreviewLoadingChangedSchema>;
+
 /** A chunk of PTY output, keyed by the session id `terminal:create` was called with. */
 export const TerminalDataSchema = z.object({ id: z.string().min(1), data: z.string() });
 export type TerminalData = z.infer<typeof TerminalDataSchema>;
@@ -131,6 +147,9 @@ export const eventContracts = {
   'auth:oauthResult': OAuthResultSchema,
   'license:revalidateNeeded': z.object({}),
   'license:planRevoked': z.object({}),
+  'preview:serverDetected': PreviewServerDetectedSchema,
+  'preview:titleChanged': PreviewTitleChangedSchema,
+  'preview:loadingChanged': PreviewLoadingChangedSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

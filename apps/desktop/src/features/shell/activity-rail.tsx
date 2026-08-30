@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  ExternalIcon,
   FolderIcon,
   GitBranchIcon,
   LightbulbIcon,
@@ -52,6 +53,7 @@ const items: RailItem[] = [
   { view: 'history', label: 'History', Icon: ClockIcon },
   { view: 'packages', label: 'Packages', Icon: PackageIcon },
   { view: 'terminal', label: 'Terminal', Icon: TerminalIcon },
+  { view: 'preview', label: 'Preview', Icon: ExternalIcon },
   { view: 'suggestions', label: 'Suggest', Icon: LightbulbIcon },
 ];
 const SETTINGS_ITEM: RailItem = { view: 'settings', label: 'Settings', Icon: SettingsIcon };

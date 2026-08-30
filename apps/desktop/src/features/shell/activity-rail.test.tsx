@@ -28,6 +28,7 @@ describe('ActivityRail', () => {
       'History',
       'Packages',
       'Terminal',
+      'Preview',
       'Suggest',
       'Fixora Upgrade',
       'Settings',

@@ -187,6 +187,14 @@ export const channels = [
   // visible terminal) rooted at a directory the user picked, gated by the same authorization rule
   // workspace:open uses.
   'project:create',
+  // Fixora Preview: an embedded WebContentsView showing the user's own localhost dev server —
+  // never anything else (Security §2's localhost-only navigation guard, preview-service.ts).
+  'preview:detect',
+  'preview:open',
+  'preview:close',
+  'preview:refresh',
+  'preview:resize',
+  'preview:getState',
 ] as const;
 
 export type Channel = (typeof channels)[number];
@@ -243,6 +251,11 @@ export const eventChannels = [
   // A stored licence failed its periodic Gumroad check — the plan has already been reverted in
   // main, and the renderer must stop showing the paid tier.
   'license:planRevoked',
+  // Fixora Preview: a localhost dev server was found by the port scanner, or the embedded view's
+  // title/loading state changed.
+  'preview:serverDetected',
+  'preview:titleChanged',
+  'preview:loadingChanged',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];
