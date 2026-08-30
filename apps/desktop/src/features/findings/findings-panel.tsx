@@ -750,6 +750,7 @@ export function FindingsPanel(): React.JSX.Element {
         />
       ) : groupMode !== 'flat' ? (
         <VirtualList
+          key={`${groupMode}-${String(searched.length)}-${String(findings.length)}`}
           items={virtualItems}
           label="Problems"
           estimateRowHeight={rowEstimate}
@@ -803,6 +804,7 @@ export function FindingsPanel(): React.JSX.Element {
         />
       ) : (
         <VirtualList
+          key={`${groupMode}-${String(searched.length)}-${String(findings.length)}`}
           items={searched}
           label="Problems"
           // Measured, not assumed. A finding row wraps text and carries a row of action buttons, so
