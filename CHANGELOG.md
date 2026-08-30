@@ -6,6 +6,17 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.8 (August 30, 2026)
+
+### Features
+- Referral program: share your personal code and both parties receive bonus repairs.
+- Bonus repairs from referrals now persist across sessions.
+
+### Fixes
+- Problems panel rows no longer overlap or misalign with large finding lists.
+- App now starts faster after installing an update.
+- Fixora icon now appears correctly in the Windows taskbar and Task Manager.
+
 ## [1.2.4] — 2026-08-28
 
 ### ✨ New Features
