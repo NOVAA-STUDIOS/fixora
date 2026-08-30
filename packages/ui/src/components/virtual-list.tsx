@@ -82,11 +82,12 @@ export function VirtualList<T>({
     overscan,
   });
 
-  // Re-measure when the estimate changes (a density switch): the cached measurements describe the
-  // old metrics, so keeping them would leave gaps or overlaps until every row happened to re-render.
+  // Re-measure when the estimate changes (a density switch) or the list itself changes size: the
+  // cached measurements describe the old metrics/old items, so keeping them would leave gaps or
+  // overlaps until every row happened to re-render on its own.
   useEffect(() => {
     virtualizer.measure();
-  }, [virtualizer, estimateRowHeight]);
+  }, [virtualizer, estimateRowHeight, items.length]);
 
   const moveActive = (next: number): void => {
     if (items.length === 0) return;

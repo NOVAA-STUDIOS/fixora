@@ -36,14 +36,16 @@ export function useFindingRowEstimate(): number {
   const metrics = densities[density];
   const paddingY = remToPx(metrics.cardPaddingY) * 2;
   const gap = remToPx(metrics.cardGap);
-  const actionsRow = remToPx(metrics.rowHeight) * 0.75; // px-2 py-0.5 text-[11px] buttons
+  const actionsRow = remToPx(metrics.rowHeight); // Explain/Repair/Test buttons, full row height
   return useMemo(() => {
     // text-[13.5px] leading-snug / text-[11px] row (badge + path) — compact tightens both lines,
     // not just the card's own padding/gap, or the estimate overshoots at compact and the
     // virtualizer opens a gap below every row until its measurement pass corrects it.
     const titleLine = density === 'compact' ? 15 : 18;
+    const wrapAllowance = 18; // long rule messages often wrap to a second title line
     const locationLine = density === 'compact' ? 13 : 16;
-    return paddingY + gap + titleLine + locationLine + actionsRow;
+    const separator = 1; // border between cards
+    return paddingY + gap + titleLine + wrapAllowance + locationLine + actionsRow + separator;
   }, [paddingY, gap, actionsRow, density]);
 }
 
