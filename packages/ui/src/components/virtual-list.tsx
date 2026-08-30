@@ -84,9 +84,17 @@ export function VirtualList<T>({
 
   // Re-measure when the estimate changes (a density switch) or the list itself changes size: the
   // cached measurements describe the old metrics/old items, so keeping them would leave gaps or
-  // overlaps until every row happened to re-render on its own.
+  // overlaps until every row happened to re-render on its own. `measure()` can shift the scroll
+  // container's own `scrollTop` as a side effect (its content height just changed), so it is
+  // captured first and restored one frame later — a remount (a `key` change on the consumer's
+  // side) unmounts this ref entirely and is unaffected, only an in-place items update is.
   useEffect(() => {
+    const scrollEl = scrollRef.current;
+    const prevScrollTop = scrollEl?.scrollTop ?? 0;
     virtualizer.measure();
+    requestAnimationFrame(() => {
+      if (scrollEl) scrollEl.scrollTop = prevScrollTop;
+    });
   }, [virtualizer, estimateRowHeight, items.length]);
 
   const moveActive = (next: number): void => {
