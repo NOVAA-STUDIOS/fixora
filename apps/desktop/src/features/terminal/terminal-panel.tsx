@@ -404,19 +404,30 @@ const TerminalInstance = memo(function TerminalInstance({
     term.loadAddon(search);
     // Wait until the container has actual dimensions before opening into it — mounting into a
     // zero-size element (a pane not yet laid out) is where a blank-until-resized terminal came from.
-    const mountTerminal = (mountEl: HTMLDivElement): void => {
-      if (mountEl.offsetWidth === 0 || mountEl.offsetHeight === 0) {
-        requestAnimationFrame(() => {
-          mountTerminal(mountEl);
-        });
-        return;
-      }
+    // The wait is an IntersectionObserver, not a rAF poll: `Workbench` hides a background terminal
+    // with `display: none` (workbench.tsx), which never gains dimensions on its own, so a poll would
+    // spin every frame until the user happened to switch back. The observer simply fires then.
+    let mountObserver: IntersectionObserver | null = null;
+    const openInto = (mountEl: HTMLDivElement): void => {
       term.open(mountEl);
       fit.fit();
       const { cols, rows } = term;
       void invoke('terminal:resize', { id: sessionId, cols, rows });
     };
-    mountTerminal(el);
+    if (el.offsetWidth > 0 && el.offsetHeight > 0) {
+      openInto(el);
+    } else {
+      mountObserver = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting !== true) return;
+          mountObserver?.disconnect();
+          mountObserver = null;
+          openInto(el);
+        },
+        { threshold: 0.01 },
+      );
+      mountObserver.observe(el);
+    }
 
     // WebGL rendering is dramatically cheaper than the DOM renderer for a terminal's own workload
     // (a grid of monospace cells redrawn on every line of output) — falls back to the Canvas
@@ -534,6 +545,7 @@ const TerminalInstance = memo(function TerminalInstance({
       disposed = true;
       termRef.current = null;
       liveTerminals.delete(sessionId);
+      mountObserver?.disconnect();
       resizeObserver.disconnect();
       onData.dispose();
       selectionListener.dispose();
