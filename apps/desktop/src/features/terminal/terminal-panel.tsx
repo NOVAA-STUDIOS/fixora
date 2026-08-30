@@ -402,32 +402,8 @@ const TerminalInstance = memo(function TerminalInstance({
     const search = new SearchAddon();
     searchRef.current = search;
     term.loadAddon(search);
-    // Wait until the container has actual dimensions before opening into it — mounting into a
-    // zero-size element (a pane not yet laid out) is where a blank-until-resized terminal came from.
-    // The wait is an IntersectionObserver, not a rAF poll: `Workbench` hides a background terminal
-    // with `display: none` (workbench.tsx), which never gains dimensions on its own, so a poll would
-    // spin every frame until the user happened to switch back. The observer simply fires then.
-    let mountObserver: IntersectionObserver | null = null;
-    const openInto = (mountEl: HTMLDivElement): void => {
-      term.open(mountEl);
-      fit.fit();
-      const { cols, rows } = term;
-      void invoke('terminal:resize', { id: sessionId, cols, rows });
-    };
-    if (el.offsetWidth > 0 && el.offsetHeight > 0) {
-      openInto(el);
-    } else {
-      mountObserver = new IntersectionObserver(
-        (entries) => {
-          if (entries[0]?.isIntersecting !== true) return;
-          mountObserver?.disconnect();
-          mountObserver = null;
-          openInto(el);
-        },
-        { threshold: 0.01 },
-      );
-      mountObserver.observe(el);
-    }
+    term.open(el);
+    fit.fit();
 
     // WebGL rendering is dramatically cheaper than the DOM renderer for a terminal's own workload
     // (a grid of monospace cells redrawn on every line of output) — falls back to the Canvas
@@ -545,7 +521,6 @@ const TerminalInstance = memo(function TerminalInstance({
       disposed = true;
       termRef.current = null;
       liveTerminals.delete(sessionId);
-      mountObserver?.disconnect();
       resizeObserver.disconnect();
       onData.dispose();
       selectionListener.dispose();
@@ -563,8 +538,21 @@ const TerminalInstance = memo(function TerminalInstance({
   // Re-fit on becoming visible — a resize that happened while hidden was skipped (see above), so
   // the pane can be showing a stale column count until the user actually resizes the window again.
   useEffect(() => {
-    if (visible) fitRef.current?.fit();
-  }, [visible]);
+    if (!visible) return;
+    // Small delay to let the CSS display:none → flex transition complete — the pane has no
+    // dimensions to fit to until it does, and `Workbench` hides a background terminal that way.
+    const t = setTimeout(() => {
+      const term = termRef.current;
+      fitRef.current?.fit();
+      if (term !== null) {
+        void invoke('terminal:resize', { id: sessionId, cols: term.cols, rows: term.rows });
+        term.focus();
+      }
+    }, 50);
+    return () => {
+      clearTimeout(t);
+    };
+  }, [visible, sessionId]);
 
   useEffect(() => {
     const term = termRef.current;
