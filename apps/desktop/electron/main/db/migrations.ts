@@ -243,4 +243,15 @@ export const migrations: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 12,
+    name: 'referrals_count',
+    up: (d) => {
+      // How many times THIS device's own code has been redeemed — by someone else, on their own
+      // device. There is no server, so nothing here can ever increment it: no channel exists for
+      // another install to report a redemption back. Column exists so a future server-backed
+      // version has somewhere to write; until then it reads 0, honestly (see referral.handlers.ts).
+      d.exec(`ALTER TABLE referrals ADD COLUMN times_used INTEGER NOT NULL DEFAULT 0`);
+    },
+  },
 ];

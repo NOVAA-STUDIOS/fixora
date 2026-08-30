@@ -268,7 +268,8 @@ export interface RepairLimitCheck {
 export function peekRepairLimit(): RepairLimitCheck {
   rollWindowIfElapsed();
   const { plan } = state;
-  const limit = PLAN_LIMIT[plan];
+  const bonusRepairs = _referralRepo?.getBonusRepairs() ?? 0;
+  const limit = PLAN_LIMIT[plan] + bonusRepairs;
   const used = state.repairsToday;
   if (used >= limit) {
     return { allowed: false, plan, used, limit, message: limitMessage(plan, limit) };

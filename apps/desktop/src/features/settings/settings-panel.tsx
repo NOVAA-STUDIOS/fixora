@@ -1,6 +1,7 @@
 import type { AppInfo, ShieldSensitivity } from '@fixora/shared-types';
 import {
   Button,
+  cn,
   ConfirmDialog,
   Input,
   Kbd,
@@ -684,6 +685,27 @@ function LicenseSettings(): React.JSX.Element {
   );
 }
 
+const REFERRAL_CODE_LENGTH = 10;
+const REFERRAL_SUFFIX_LENGTH = 6;
+
+/** "FIXA3K9PQ" → "FIX-A3K9PQ": inserts the hyphen after the fixed "FIX" prefix once there is
+ *  anything past it, and never drops a character the user typed — it only ever adds the "-". */
+function formatReferralInput(raw: string): string {
+  const upper = raw.toUpperCase();
+  const stripped = upper.startsWith('FIX-') ? upper.slice(0, 3) + upper.slice(4) : upper;
+  const cleaned = stripped.slice(0, 3 + REFERRAL_SUFFIX_LENGTH);
+  if (cleaned.length <= 3) return cleaned;
+  return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+}
+
+function shareMessage(myCode: string): string {
+  return (
+    `🚀 Try Fixora — AI code repair that verifies fixes before writing to disk!\n` +
+    `Use my referral code ${myCode} to get 20 bonus repairs free.\n` +
+    `Download: fixora-opal.vercel.app`
+  );
+}
+
 function ReferralSettings(): React.JSX.Element | null {
   const [myCode, setMyCode] = useState<string | null>(null);
   const [usedCode, setUsedCode] = useState<string | null>(null);
@@ -704,7 +726,7 @@ function ReferralSettings(): React.JSX.Element | null {
 
   const handleRedeem = async (): Promise<void> => {
     const code = redeemInput.trim();
-    if (code.length !== 10) return;
+    if (code.length !== REFERRAL_CODE_LENGTH) return;
     setBusy(true);
     setRedeemError(null);
     const result = await invoke('referral:redeem', { code });
@@ -724,16 +746,19 @@ function ReferralSettings(): React.JSX.Element | null {
 
   if (myCode === null) return null;
 
+  const suffixLength = Math.max(0, redeemInput.replace('-', '').length - 3);
+  const validFormat = /^FIX-[A-Z0-9]{6}$/.test(redeemInput);
+
   return (
     <Group title="Refer a Friend">
       <div className="flex flex-col gap-3">
         <p className="text-xs leading-relaxed text-fg-muted">
-          Share your code and both get 20 bonus repairs!
+          Share your code — you&apos;ll both get 20 bonus repairs when they redeem it!
         </p>
 
         <div className="flex flex-col gap-1">
           <label className="text-sm text-fg">Your referral code</label>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <code className="min-w-0 flex-1 rounded bg-inset px-2 py-1 text-sm text-fg">
               {myCode}
             </code>
@@ -750,13 +775,23 @@ function ReferralSettings(): React.JSX.Element | null {
               variant="ghost"
               className="shrink-0"
               onClick={() => {
-                void invoke('system:copyToClipboard', {
-                  text: `I'm using Fixora for AI code repair! Use my referral code ${myCode} to get 20 bonus repairs. Download at fixora-opal.vercel.app`,
-                });
+                void copyToClipboard(shareMessage(myCode));
                 toast.success('Copied — paste it anywhere to share');
               }}
             >
-              Share
+              Copy Message
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="shrink-0"
+              onClick={() => {
+                void invoke('system:openExternal', {
+                  url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage(myCode))}`,
+                });
+              }}
+            >
+              Share on Twitter
             </Button>
           </div>
         </div>
@@ -771,17 +806,18 @@ function ReferralSettings(): React.JSX.Element | null {
                 id={redeemId}
                 value={redeemInput}
                 placeholder="FIX-XXXXXX"
-                maxLength={10}
+                maxLength={REFERRAL_CODE_LENGTH}
                 onChange={(e) => {
-                  setRedeemInput(e.target.value.toUpperCase());
+                  setRedeemInput(formatReferralInput(e.target.value));
                 }}
-                className="min-w-0 flex-1"
+                className={cn('min-w-0 flex-1', validFormat && 'border-success-text')}
               />
+              <span className="shrink-0 text-xs text-fg-muted">{suffixLength}/6</span>
               <Button
                 size="sm"
                 className="shrink-0"
                 onClick={() => void handleRedeem()}
-                disabled={busy || redeemInput.length !== 10}
+                disabled={busy || !validFormat}
               >
                 Redeem
               </Button>

@@ -647,6 +647,15 @@ export function createReferralRepository(driver: SqliteDriver) {
         | undefined;
       return row?.bonus_repairs ?? 0;
     },
+
+    /** Migration v12's `times_used` — nothing writes it yet (no server to report a redemption
+     *  back), so this always reads 0 until a future server-backed version exists to increment it. */
+    getTimesUsed(): number {
+      const row = driver.prepare('SELECT times_used FROM referrals LIMIT 1').get() as
+        | { times_used: number }
+        | undefined;
+      return row?.times_used ?? 0;
+    },
   };
 }
 
