@@ -59,6 +59,10 @@ asarUnpack:
 extraResources:
   - from: build/icon.png
     to: icon.png
+  # For `win.setAppDetails`'s `appIconPath` (main-window.ts) — same "excluded from the asar" reason
+  # as icon.png above, needed as a real .ico rather than .png.
+  - from: build/icon.ico
+    to: icon.ico
 
 # GitHub Releases. `releaseType: release` — a `--publish always` run goes stright to a published
 # release the moment it uploads, with no draft review step. The build is still UNSIGNED (see

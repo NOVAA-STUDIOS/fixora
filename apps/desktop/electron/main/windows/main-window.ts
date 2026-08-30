@@ -37,6 +37,13 @@ const ICON_PATH = app.isPackaged
   ? join(process.resourcesPath, 'icon.png')
   : join(__dirname, '../../build/icon.png');
 
+// `setAppDetails`'s `appIconPath` wants a real .ico (multi-size PE icon resource) rather than the
+// .png above — same packaged/dev resolution as ICON_PATH, just the other extension and its own
+// `extraResources` entry (electron-builder.yml).
+const ICO_PATH = app.isPackaged
+  ? join(process.resourcesPath, 'icon.ico')
+  : join(__dirname, '../../build/icon.ico');
+
 export function createMainWindow(
   devServerUrl: string | undefined,
   onFirstPaint?: () => void,
@@ -125,7 +132,7 @@ export function createMainWindow(
   if (process.platform === 'win32') {
     window.setAppDetails({
       appId: 'dev.fixora.app',
-      appIconPath: ICON_PATH,
+      appIconPath: ICO_PATH,
       relaunchDisplayName: 'Fixora',
     });
   }
