@@ -126,6 +126,9 @@ nsis:
   artifactName: Fixora-Setup.exe
   createDesktopShortcut: always
   shortcutName: Fixora
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
   # The Start Menu folder the shortcut is filed under. Without it the installer groups the entry by
   # the exe's own metadata, which is where "Electron" was coming from.
   menuCategory: Fixora
