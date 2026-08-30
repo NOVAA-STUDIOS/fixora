@@ -26,9 +26,6 @@ import { registerHandler } from './ipc/router.js';
 let downloaded = false;
 
 export function initAutoUpdater(): void {
-  // TEMPORARY debug logging — remove once it's confirmed this runs in a packaged build.
-  console.log('AUTO-UPDATER STARTED', { isPackaged: app.isPackaged, version: app.getVersion() });
-
   // Every build in dev and CI is unsigned and unpublished; checking there only produces a support
   // request out of a state nobody can act on. Packaged is the only environment with something to
   // check FOR.

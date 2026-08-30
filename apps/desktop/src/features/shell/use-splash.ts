@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { invoke } from '../../lib/bridge.js';
+
 import type { SplashPhase } from './splash-screen.js';
 
 /**
@@ -10,6 +12,29 @@ import type { SplashPhase } from './splash-screen.js';
  */
 export const SPLASH_MIN_VISIBLE_MS = 300;
 export const SPLASH_FADE_MS = 300;
+/** The splash shows for at least this long regardless of how fast `initialize` resolves — long
+ *  enough to read as an intentional beat, not a flash, on a backend that is ready instantly. */
+const MIN_SPLASH_MS = 2000;
+/** Shorter beat right after an update install — the user already waited through the restart. */
+const POST_UPDATE_MIN_SPLASH_MS = 500;
+const LAST_SPLASH_VERSION_KEY = 'fixora.lastSplashVersion';
+
+/** Whichever version last finished a splash, from `localStorage` — `null` on a fresh profile or
+ *  a read failure, both treated as "not a post-update launch" by the caller. */
+function resolveSplashTiming(): Promise<{ ms: number; version: string | null }> {
+  return invoke('app:getReadyState', {})
+    .then((ready) =>
+      ready.ok ? invoke('system:getAppInfo', {}) : Promise.reject(new Error(ready.error.message)),
+    )
+    .then((info) => {
+      if (!info.ok) return { ms: MIN_SPLASH_MS, version: null };
+      const currentVersion = info.value.version;
+      const lastVersion = localStorage.getItem(LAST_SPLASH_VERSION_KEY);
+      const isPostUpdate = lastVersion !== null && lastVersion !== currentVersion;
+      return { ms: isPostUpdate ? POST_UPDATE_MIN_SPLASH_MS : MIN_SPLASH_MS, version: currentVersion };
+    })
+    .catch(() => ({ ms: MIN_SPLASH_MS, version: null }));
+}
 
 export type SplashState =
   | { visible: true; phase: SplashPhase; errorMessage?: string }
@@ -43,10 +68,27 @@ export function useSplash(initialize: () => Promise<unknown>): SplashState {
       }, remaining);
     };
 
+    let resolvedVersion: string | null = null;
+    const minSplashDelay = resolveSplashTiming().then(({ ms, version }) => {
+      resolvedVersion = version;
+      return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+      });
+    });
+
     // `initialize` now carries its own timeout (`waitForAppReady`'s 30s race) — a rejection means
     // `app:ready` genuinely never arrived, so this shows the error state instead of blindly
     // dismissing into a half-started app.
-    initializeRef.current().then(dismiss, (error: unknown) => {
+    Promise.all([initializeRef.current(), minSplashDelay]).then(() => {
+      if (resolvedVersion !== null) {
+        try {
+          localStorage.setItem(LAST_SPLASH_VERSION_KEY, resolvedVersion);
+        } catch {
+          // Best-effort — a failed write just means the next launch falls back to MIN_SPLASH_MS.
+        }
+      }
+      dismiss();
+    }, (error: unknown) => {
       if (cancelled.current) return;
       setErrorMessage(error instanceof Error ? error.message : String(error));
       setPhase('error');
