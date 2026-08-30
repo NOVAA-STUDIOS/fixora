@@ -105,7 +105,7 @@ win:
   # Verify after packaging:
   #   (Get-Item 'release\win-unpacked\Fixora.exe').VersionInfo
   # which must report ProductName "Fixora" and ProductVersion matching package.json.
-  signAndEditExecutable: false
+  signAndEditExecutable: true
 
 # Writes the icon and version resource into Fixora.exe.
 #
