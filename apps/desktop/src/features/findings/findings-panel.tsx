@@ -29,7 +29,7 @@ import {
   VirtualList,
   cn,
 } from '@fixora/ui';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useFindingRowEstimate } from '../../hooks/use-density-metrics.js';
 import { invoke } from '../../lib/bridge.js';
@@ -181,6 +181,16 @@ export function FindingsPanel(): React.JSX.Element {
     if (status === 'running') setSkippedBannerDismissed(false);
   }, [status]);
 
+  // `VirtualList`'s remount key (below) — bumped only on the events that actually change what a
+  // row's measured height should be (a finished run, a finished bulk repair, a group-mode switch),
+  // never on every finding streamed in mid-run. Booleans, not `status`/`bulkStatus` themselves, so
+  // this doesn't also fire on every OTHER status transition (e.g. idle → running).
+  const [listKey, setListKey] = useState(0);
+  useEffect(() => {
+    setListKey((k) => k + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately boolean, not status/bulkStatus
+  }, [status === 'done', bulkStatus === 'done', groupMode]);
+
   // Clustered by category — actionable first — so the list reads as groups without changing which
   // findings are shown, and without interleaving header rows into `VirtualList`, whose roving-focus
   // and selection contract assumes every row is a selectable finding. A stable sort keeps the
@@ -260,6 +270,15 @@ export function FindingsPanel(): React.JSX.Element {
     [visible, trimmedQuery],
   );
 
+  // While a run is streaming, `searched` changes on every flush (findings-store.ts's FLUSH_MS) —
+  // feeding that straight into `VirtualList` would remeasure/reflow the list every 500ms for
+  // nothing the user asked to see mid-run. Freeze what the list renders at whatever `searched` was
+  // the moment `status` last left 'running'; the header's own counts still read live state.
+  const isRunning = status === 'running';
+  const stableFindings = useRef(searched);
+  if (!isRunning) stableFindings.current = searched;
+  const displayFindings = isRunning ? stableFindings.current : searched;
+
   // Grouping is local display state, applied last — on top of severity (server) and search
   // (above), so all three compose. Flat keeps the existing `VirtualList` path untouched below;
   // File/Severity render as plain collapsible sections instead, because `VirtualList`'s roving-
@@ -273,10 +292,10 @@ export function FindingsPanel(): React.JSX.Element {
           ? SEVERITY_ORDER.map((sev) => ({
               key: sev,
               label: sev,
-              findings: searched.filter((f) => f.severity === sev),
+              findings: displayFindings.filter((f) => f.severity === sev),
             })).filter((g) => g.findings.length > 0)
           : Object.entries(
-              searched.reduce<Record<string, Finding[]>>((acc, f) => {
+              displayFindings.reduce<Record<string, Finding[]>>((acc, f) => {
                 const key = basename(f.location.file);
                 (acc[key] ??= []).push(f);
                 return acc;
@@ -284,7 +303,7 @@ export function FindingsPanel(): React.JSX.Element {
             )
               .sort(([a], [b]) => a.localeCompare(b))
               .map(([key, groupFindings]) => ({ key, label: key, findings: groupFindings })),
-    [groupMode, searched],
+    [groupMode, displayFindings],
   );
 
   // Grouped mode now renders through `VirtualList` too (below), which owns the roving
@@ -750,7 +769,7 @@ export function FindingsPanel(): React.JSX.Element {
         />
       ) : groupMode !== 'flat' ? (
         <VirtualList
-          key={`${groupMode}-${String(searched.length)}-${String(findings.length)}`}
+          key={`${groupMode}-${String(listKey)}`}
           items={virtualItems}
           label="Problems"
           estimateRowHeight={rowEstimate}
@@ -804,8 +823,8 @@ export function FindingsPanel(): React.JSX.Element {
         />
       ) : (
         <VirtualList
-          key={`${groupMode}-${String(searched.length)}-${String(findings.length)}`}
-          items={searched}
+          key={`${groupMode}-${String(listKey)}`}
+          items={displayFindings}
           label="Problems"
           // Measured, not assumed. A finding row wraps text and carries a row of action buttons, so
           // its real height moves with density and with OS text scaling — a fixed 96px stride was a
@@ -908,6 +927,11 @@ const FindingRow = memo(function FindingRow({
   // The four-state model (Issue 2/5). `finding.repair` alone could not distinguish "no fix for this
   // rule" from "no support for this file type"; both rendered as the same dead control.
   const repairState = repairStateFor(finding);
+  // Belt to `aiBusy`'s braces: `aiBusy` only reflects the store *after* React re-renders this row
+  // with the new `disabled` prop, so two clicks landing inside that window (a fast double-click,
+  // or the app busy on a heavy list) could both fire `runAi`. This closes that window directly,
+  // without waiting on a render — AI action buttons only, never Ignore or the filter controls.
+  const lastAiClick = useRef(0);
 
   return (
     <div
@@ -1066,6 +1090,9 @@ const FindingRow = memo(function FindingRow({
                       : capability.reason
                 }
                 onClick={() => {
+                  const now = Date.now();
+                  if (now - lastAiClick.current < 500) return;
+                  lastAiClick.current = now;
                   // Explain renders in the assistant pane's Explain tab, so take the user there —
                   // otherwise the answer streams in behind whichever tab they were already on.
                   if (action.profile === 'explain') setEditMode('explain');
