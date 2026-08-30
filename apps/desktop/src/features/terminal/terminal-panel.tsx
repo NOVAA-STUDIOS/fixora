@@ -402,8 +402,21 @@ const TerminalInstance = memo(function TerminalInstance({
     const search = new SearchAddon();
     searchRef.current = search;
     term.loadAddon(search);
-    term.open(el);
-    fit.fit();
+    // Wait until the container has actual dimensions before opening into it — mounting into a
+    // zero-size element (a pane not yet laid out) is where a blank-until-resized terminal came from.
+    const mountTerminal = (mountEl: HTMLDivElement): void => {
+      if (mountEl.offsetWidth === 0 || mountEl.offsetHeight === 0) {
+        requestAnimationFrame(() => {
+          mountTerminal(mountEl);
+        });
+        return;
+      }
+      term.open(mountEl);
+      fit.fit();
+      const { cols, rows } = term;
+      void invoke('terminal:resize', { id: sessionId, cols, rows });
+    };
+    mountTerminal(el);
 
     // WebGL rendering is dramatically cheaper than the DOM renderer for a terminal's own workload
     // (a grid of monospace cells redrawn on every line of output) — falls back to the Canvas
