@@ -92,15 +92,11 @@ win:
   # shipped Fixora.exe reported itself as "Electron 43.1.0 — GitHub, Inc." in Task Manager and in
   # its Properties dialog.
   #
-  # BUILD REQUIREMENT — this build now FAILS without one of the following:
+  # BUILD REQUIREMENT — local builds require one of:
   #   - Windows Developer Mode enabled (Settings → System → For developers), or
-  #   - the packaging command run from an elevated shell.
-  #
-  # Why: electron-builder extracts the winCodeSign toolchain first, and that archive contains macOS
-  # symlinks (darwin/**/lib*.dylib). Creating a symlink on Windows needs
-  # SeCreateSymbolicLinkPrivilege, so without it the extraction dies with "A required privilege is
-  # not held by the client" and takes the whole build with it. Pre-seeding the cache does not help —
-  # the archive goes to a freshly randomised directory every run.
+  #   - an elevated shell (Run as Administrator)
+  # GitHub Actions windows-latest runners have sufficient privileges automatically.
+  # Without this, winCodeSign toolchain extraction fails with privilege error.
   #
   # Verify after packaging:
   #   (Get-Item 'release\win-unpacked\Fixora.exe').VersionInfo
@@ -109,9 +105,9 @@ win:
 
 # Writes the icon and version resource into Fixora.exe.
 #
-# stamp-exe.cjs handles icon/version stamping via pure-JS resedit, and deliberately so: rcedit and this hook
-# write the same fields, so the hook is now a belt to rcedit's braces rather than a replacement for
-# it. If the toolchain extraction ever fails again — a machine without Developer Mode, a locked-down
+# stamp-exe.cjs adds icon + version resource as a belt-and-braces pass;
+# signAndEditExecutable handles the primary taskbar icon embedding via rcedit.
+# If the toolchain extraction ever fails — a machine without Developer Mode, a locked-down
 # CI runner — rcedit silently does nothing and this is what still stamps the binary. It runs AFTER
 # rcedit and before NSIS packs the installer, so its values win and the installed copy carries them.
 # See the script header.
