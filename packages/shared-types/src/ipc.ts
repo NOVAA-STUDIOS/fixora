@@ -764,6 +764,14 @@ export const contracts = {
       port: z.number().int().nullable(),
     }),
   },
+  'preview:checkDevScript': {
+    request: empty,
+    response: z.object({ hasScript: z.boolean(), command: z.string().nullable() }),
+  },
+  'preview:launchDevServer': {
+    request: empty,
+    response: z.object({ ok: z.boolean(), error: z.string().optional() }),
+  },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

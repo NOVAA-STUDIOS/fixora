@@ -17,17 +17,21 @@ export function PreviewPanel(): React.JSX.Element {
   const url = usePreviewStore((s) => s.url);
   const isLoading = usePreviewStore((s) => s.isLoading);
   const detectedUrl = usePreviewStore((s) => s.detectedUrl);
+  const hasDevScript = usePreviewStore((s) => s.hasDevScript);
   const open = usePreviewStore((s) => s.open);
   const close = usePreviewStore((s) => s.close);
   const refresh = usePreviewStore((s) => s.refresh);
   const detect = usePreviewStore((s) => s.detect);
+  const checkDevScript = usePreviewStore((s) => s.checkDevScript);
+  const launchDevServer = usePreviewStore((s) => s.launchDevServer);
   const listen = usePreviewStore((s) => s.listen);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => listen(), [listen]);
   useEffect(() => {
     void detect();
-  }, [detect]);
+    void checkDevScript();
+  }, [detect, checkDevScript]);
 
   // The native view has no DOM node this component can size with CSS — main positions it in
   // screen coordinates, so this container's own rect (converted from viewport to screen space via
@@ -113,7 +117,14 @@ export function PreviewPanel(): React.JSX.Element {
             </div>
           </div>
         )}
-        {!isOpen && <EmptyState detectedUrl={detectedUrl} onOpen={open} />}
+        {!isOpen && (
+          <EmptyState
+            detectedUrl={detectedUrl}
+            hasDevScript={hasDevScript}
+            onOpen={open}
+            onLaunch={launchDevServer}
+          />
+        )}
       </div>
     </div>
   );
@@ -121,10 +132,14 @@ export function PreviewPanel(): React.JSX.Element {
 
 function EmptyState({
   detectedUrl,
+  hasDevScript,
   onOpen,
+  onLaunch,
 }: {
   detectedUrl: string | null;
+  hasDevScript: boolean;
   onOpen: (url: string) => Promise<void>;
+  onLaunch: () => Promise<void>;
 }): React.JSX.Element {
   return (
     <div className="flex h-full select-none flex-col items-center justify-center gap-6 p-8">
@@ -160,6 +175,14 @@ function EmptyState({
           className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-on-accent shadow-lg shadow-accent/25 transition-all duration-200 hover:scale-105 hover:shadow-accent/40 active:scale-95"
         >
           Open Preview
+        </button>
+      ) : hasDevScript ? (
+        <button
+          type="button"
+          onClick={() => void onLaunch()}
+          className="rounded-full border border-border-subtle bg-inset px-5 py-2 text-sm font-medium text-fg transition-all duration-200 hover:border-accent hover:text-accent active:scale-95"
+        >
+          ▶ Start Dev Server
         </button>
       ) : (
         <div className="flex flex-col items-center gap-2">

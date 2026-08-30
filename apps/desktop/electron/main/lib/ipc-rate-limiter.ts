@@ -22,7 +22,7 @@ export interface RateLimit {
 /** Only the channels that cost something real. Everything else is unmetered by design. */
 export const RATE_LIMITS: Record<string, RateLimit> = {
   'ai:run': { max: 10, windowMs: 60_000 },
-  'terminal:create': { max: 20, windowMs: 60_000 },
+  'terminal:create': { max: 50, windowMs: 30_000 },
   'analysis:run': { max: 3, windowMs: 60_000 },
 };
 

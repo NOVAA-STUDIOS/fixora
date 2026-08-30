@@ -42,6 +42,10 @@ export function registerPreviewHandlers(service: PreviewService): void {
   });
 
   registerHandler('preview:getState', () => service.getState());
+
+  registerHandler('preview:checkDevScript', () => service.checkDevScript());
+
+  registerHandler('preview:launchDevServer', () => service.launchDevServer());
 }
 
 /** Called from `workspace.handlers.ts`'s `fs:writeFile` after a successful save — refreshes the

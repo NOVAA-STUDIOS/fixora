@@ -1117,12 +1117,25 @@ const FindingRow = memo(function FindingRow({
             Set up AI to repair
           </button>
         )}
-        {previewIsOpen && finding.severity === 'error' && (
+        {finding.severity === 'error' && (
           <button
             type="button"
             title="See this issue in preview"
             onClick={() => {
-              setActiveView('preview');
+              if (!previewIsOpen) {
+                // Launch dev server first, then switch — the terminal session it starts keeps
+                // running in the background regardless of which view ends up active (Terminal is
+                // a permanent sibling, workbench.tsx), so switching to Preview immediately after
+                // does not interrupt it.
+                void usePreviewStore
+                  .getState()
+                  .launchDevServer()
+                  .then(() => {
+                    setActiveView('preview');
+                  });
+              } else {
+                setActiveView('preview');
+              }
               // Flash/highlight effect — future enhancement
             }}
             className="shrink-0 rounded-md bg-accent/10 px-2 py-0.5 text-[11px] text-accent-text transition-colors hover:bg-accent/20"

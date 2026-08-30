@@ -1,8 +1,13 @@
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { get as httpGet } from 'node:http';
+import { join } from 'node:path';
 
 import { session, WebContentsView, type BrowserWindow, type Rectangle } from 'electron';
 
 import { emitToWindow } from '../ipc/emit.js';
+
+import type { WorkspaceService } from './workspace-service.js';
 
 /**
  * Fixora Preview: an embedded `WebContentsView` showing the user's own localhost dev server,
@@ -43,6 +48,29 @@ export interface PreviewService {
   /** Called by `workspace.handlers.ts` after a successful `fs:writeFile` — refreshes the preview
    *  if one is currently open, a no-op otherwise. */
   notifyFileSaved(): void;
+  /** Does the open workspace's package.json declare a `dev` script? `command` is the one to run
+   *  it — the package manager the project actually uses, not always npm. */
+  checkDevScript(): Promise<{ hasScript: boolean; command: string | null }>;
+  /**
+   * Confirms there is a real `dev` script to run. The command itself is handed back to the
+   * renderer, not spawned here: main has no renderer-side terminal state to drive directly, and
+   * the one place a foreground shell command is actually created is `useTerminalStore`'s
+   * `openWithCommand` (the same path Package Manager's install/uninstall already uses) — this
+   * only confirms there is something real for that call to run.
+   */
+  launchDevServer(): Promise<{ ok: boolean; error?: string }>;
+}
+
+type PackageManager = 'pnpm' | 'yarn' | 'npm';
+
+function detectPackageManager(root: string): PackageManager {
+  if (existsSync(join(root, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (existsSync(join(root, 'yarn.lock'))) return 'yarn';
+  return 'npm';
+}
+
+function devCommandFor(pm: PackageManager): string {
+  return pm === 'npm' ? 'npm run dev' : `${pm} dev`;
 }
 
 /** One GET, resolved `true`/`false` — never rejects, so a dead port is just "not up", not an
@@ -81,7 +109,10 @@ async function scanPorts(): Promise<DetectedServer | null> {
  *  which still calls `startBackend` — see index.ts). Every window-touching operation becomes a
  *  no-op rather than a crash; the channels still need handlers either way (router.ts's
  *  `assertEveryChannelIsHandled`). */
-export function createPreviewService(window: BrowserWindow | null): PreviewService {
+export function createPreviewService(
+  window: BrowserWindow | null,
+  workspace: WorkspaceService,
+): PreviewService {
   let view: WebContentsView | null = null;
   let currentUrl: string | null = null;
   let currentPort: number | null = null;
@@ -207,6 +238,36 @@ export function createPreviewService(window: BrowserWindow | null): PreviewServi
     if (view !== null) refresh();
   }
 
+  async function checkDevScript(): Promise<{ hasScript: boolean; command: string | null }> {
+    const open = workspace.getCurrent();
+    if (open === null) return { hasScript: false, command: null };
+    let pkg: unknown;
+    try {
+      pkg = JSON.parse(await readFile(join(open.rootPath, 'package.json'), 'utf8'));
+    } catch {
+      // Missing or unparsable package.json — no dev script to offer, not an error to surface.
+      return { hasScript: false, command: null };
+    }
+    const scripts =
+      typeof pkg === 'object' && pkg !== null
+        ? (pkg as { scripts?: unknown }).scripts
+        : undefined;
+    const hasScript =
+      typeof scripts === 'object' &&
+      scripts !== null &&
+      typeof (scripts as Record<string, unknown>)['dev'] === 'string';
+    if (!hasScript) return { hasScript: false, command: null };
+    return { hasScript: true, command: devCommandFor(detectPackageManager(open.rootPath)) };
+  }
+
+  async function launchDevServer(): Promise<{ ok: boolean; error?: string }> {
+    const detected = await checkDevScript();
+    if (!detected.hasScript) {
+      return { ok: false, error: 'No "dev" script found in package.json' };
+    }
+    return { ok: true };
+  }
+
   return {
     scanForDevServer,
     startScanning,
@@ -218,5 +279,7 @@ export function createPreviewService(window: BrowserWindow | null): PreviewServi
     refresh,
     getState,
     notifyFileSaved,
+    checkDevScript,
+    launchDevServer,
   };
 }

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { useTerminalStore } from '../features/terminal/terminal-store.js';
 import { invoke, subscribe } from '../lib/bridge.js';
 
 import { toast } from './toast-store.js';
@@ -18,16 +19,24 @@ type PreviewState = {
   title: string;
   /** A localhost dev server the port scanner found, offered but not yet opened. */
   detectedUrl: string | null;
+  /** Whether the open workspace's package.json declares a `dev` script. */
+  hasDevScript: boolean;
+  /** The command to run it — `pnpm dev`/`yarn dev`/`npm run dev`, whichever the project uses. */
+  devCommand: string | null;
 
   open: (url: string) => Promise<void>;
   close: () => Promise<void>;
   refresh: () => Promise<void>;
   detect: () => Promise<void>;
+  checkDevScript: () => Promise<void>;
+  /** Confirms a real dev script exists, then opens it in a real terminal (`useTerminalStore`'s
+   *  `openWithCommand` — the one place a foreground shell command is actually spawned). */
+  launchDevServer: () => Promise<void>;
   /** Subscribes to all push events; returns the unsubscribe. Call once per consumer. */
   listen: () => () => void;
 };
 
-export const usePreviewStore = create<PreviewState>((set) => ({
+export const usePreviewStore = create<PreviewState>((set, get) => ({
   isOpen: false,
   url: null,
   port: null,
@@ -35,6 +44,8 @@ export const usePreviewStore = create<PreviewState>((set) => ({
   isLoading: false,
   title: '',
   detectedUrl: null,
+  hasDevScript: false,
+  devCommand: null,
 
   open: async (url) => {
     const result = await invoke('preview:open', { url });
@@ -54,6 +65,21 @@ export const usePreviewStore = create<PreviewState>((set) => ({
     const result = await invoke('preview:detect', {});
     if (result.ok && result.value.port !== null) {
       set({ detectedUrl: result.value.url, port: result.value.port });
+    }
+  },
+
+  checkDevScript: async () => {
+    const result = await invoke('preview:checkDevScript', {});
+    if (result.ok) {
+      set({ hasDevScript: result.value.hasScript, devCommand: result.value.command });
+    }
+  },
+
+  launchDevServer: async () => {
+    const result = await invoke('preview:launchDevServer', {});
+    const { devCommand } = get();
+    if (result.ok && result.value.ok && devCommand !== null) {
+      useTerminalStore.getState().openWithCommand(devCommand);
     }
   },
 
