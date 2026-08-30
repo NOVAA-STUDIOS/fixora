@@ -34,17 +34,17 @@ export function registerReferralHandlers(deps: { driver: SqliteDriver }): void {
   registerHandler('referral:redeem', ({ code }) => {
     const myCode = getOrCreateMyCode();
     if (code.length !== 10 || !code.startsWith(CODE_PREFIX)) {
-      return { ok: false, bonus: 0, error: 'Invalid referral code format' };
+      return { ok: false, bonus: 0, error: 'Invalid code format — must be FIX-XXXXXX' };
     }
     if (code === myCode) {
-      return { ok: false, bonus: 0, error: "You can't use your own code" };
+      return { ok: false, bonus: 0, error: "That's your own code!" };
     }
     if (referrals.getUsedCode() !== null) {
-      return { ok: false, bonus: 0, error: "You've already used a referral code" };
+      return { ok: false, bonus: 0, error: 'Code already redeemed ✓' };
     }
     const redeemed = referrals.redeemCode(code, REFERRAL_BONUS);
     if (!redeemed) {
-      return { ok: false, bonus: 0, error: "You've already used a referral code" };
+      return { ok: false, bonus: 0, error: 'Code already redeemed ✓' };
     }
     return { ok: true, bonus: REFERRAL_BONUS };
   });
@@ -53,5 +53,6 @@ export function registerReferralHandlers(deps: { driver: SqliteDriver }): void {
     myCode: getOrCreateMyCode(),
     usedCode: referrals.getUsedCode(),
     bonusRepairs: referrals.getBonusRepairs(),
+    timesUsed: referrals.getTimesUsed(),
   }));
 }

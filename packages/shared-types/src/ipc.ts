@@ -222,6 +222,9 @@ export const contracts = {
       myCode: z.string(),
       usedCode: z.string().nullable(),
       bonusRepairs: z.number().int().nonnegative(),
+      // Always 0 today — no server exists for another device to report a redemption of THIS
+      // code back to. Reserved for a future server-backed version (see repositories.ts).
+      timesUsed: z.number().int().nonnegative(),
     }),
   },
 
