@@ -32,6 +32,9 @@ const FRAMEWORK_HINTS: Record<number, string> = {
 
 const SCAN_INTERVAL_MS = 3000;
 const PROBE_TIMEOUT_MS = 500;
+/** Delay before the first scan — well after terminal handlers are registered, so startup (DB,
+ *  handler registration, terminal availability) finishes before network probing begins. */
+const SCAN_START_DELAY_MS = 5000;
 
 export type DetectedServer = { port: number; url: string; framework: string };
 
@@ -95,14 +98,16 @@ function probePort(port: number): Promise<boolean> {
 }
 
 /** First `COMMON_PORTS` entry that answers, in the array's own priority order — not necessarily
- *  the fastest to respond, so two dev servers running at once resolve deterministically. */
+ *  the fastest to respond, so two dev servers running at once resolve deterministically. Probed
+ *  in parallel (each still bounded by `PROBE_TIMEOUT_MS`), so a full scan costs one timeout's
+ *  worth of wall-clock time, not one per port. */
 async function scanPorts(): Promise<DetectedServer | null> {
-  for (const port of COMMON_PORTS) {
-    if (await probePort(port)) {
-      return { port, url: `http://localhost:${String(port)}`, framework: FRAMEWORK_HINTS[port] ?? 'Generic' };
-    }
-  }
-  return null;
+  const results = await Promise.all(
+    COMMON_PORTS.map((port) => probePort(port).then((ok) => (ok ? port : null))),
+  );
+  const found = results.find((port) => port !== null);
+  if (found === undefined) return null;
+  return { port: found, url: `http://localhost:${String(found)}`, framework: FRAMEWORK_HINTS[found] ?? 'Generic' };
 }
 
 /** `null` when there is no real window to attach a view to (the `--mcp` standalone launch,
@@ -117,6 +122,7 @@ export function createPreviewService(
   let currentUrl: string | null = null;
   let currentPort: number | null = null;
   let scanTimer: ReturnType<typeof setInterval> | null = null;
+  let scanStartTimer: ReturnType<typeof setTimeout> | null = null;
 
   function isLocalhostUrl(rawUrl: string): boolean {
     let url: URL;
@@ -140,16 +146,26 @@ export function createPreviewService(
   }
 
   function startScanning(): void {
-    if (scanTimer !== null) return;
-    // Fired once immediately, then on the interval — otherwise the first detection waits a full
-    // SCAN_INTERVAL_MS even when a dev server was already running before Preview was opened.
-    void scanForDevServer();
-    scanTimer = setInterval(() => {
+    if (scanTimer !== null || scanStartTimer !== null) return;
+    // Delay scan start so app startup (DB, handlers, terminal) completes first before network
+    // probing begins.
+    scanStartTimer = setTimeout(() => {
+      scanStartTimer = null;
+      if (scanTimer !== null) return; // already started
+      // Fired once immediately, then on the interval — otherwise the first detection waits a
+      // full SCAN_INTERVAL_MS even when a dev server was already running before Preview was opened.
       void scanForDevServer();
-    }, SCAN_INTERVAL_MS);
+      scanTimer = setInterval(() => {
+        void scanForDevServer();
+      }, SCAN_INTERVAL_MS);
+    }, SCAN_START_DELAY_MS);
   }
 
   function stopScanning(): void {
+    if (scanStartTimer !== null) {
+      clearTimeout(scanStartTimer);
+      scanStartTimer = null;
+    }
     if (scanTimer === null) return;
     clearInterval(scanTimer);
     scanTimer = null;

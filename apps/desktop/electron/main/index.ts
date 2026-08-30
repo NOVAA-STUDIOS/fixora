@@ -554,6 +554,7 @@ function startBackend(window: BrowserWindow | null): void {
   // readline listener to the same stdin and answer every JSON-RPC request twice.
 
   app.on('will-quit', () => {
+    previewService.stopScanning();
     analysisHost.dispose();
     verification.dispose();
     driver.close();
