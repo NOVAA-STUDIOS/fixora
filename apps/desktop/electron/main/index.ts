@@ -431,7 +431,7 @@ function startBackend(window: BrowserWindow | null): void {
   // copy in preview-panel.tsx) means the scan has to already be running before the user ever opens
   // Preview, not begin only once they do. A background `GET /` every 3s to a handful of localhost
   // ports is cheap enough to run for the life of the session.
-  const previewService = createPreviewService(window);
+  const previewService = createPreviewService(window, workspaceService);
   registerPreviewHandlers(previewService);
   previewService.startScanning();
   registerHookHandlers(workspaceService);
