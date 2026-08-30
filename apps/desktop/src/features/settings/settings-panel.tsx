@@ -32,7 +32,7 @@ import { detectProvider, normaliseKey } from './detect-provider.js';
 import { GitHubActionsPanel } from './github-actions-panel.js';
 import { ModelPicker } from './model-picker.js';
 import { ProviderManager } from './provider-manager.js';
-import { Group, ToggleField } from './settings-fields.js';
+import { Group, SelectField, SliderField, ToggleField } from './settings-fields.js';
 
 const PURCHASE_URL = 'https://rohanstar558.gumroad.com/l/bqbxp';
 
@@ -59,7 +59,23 @@ const SECTIONS: readonly {
     labels: ['Theme', 'Density', 'Editor theme', 'Minimap'],
     Component: AppearanceSettings,
   },
-  { title: 'Editor', labels: ['Auto save', 'Format on save'], Component: EditorSettings },
+  {
+    title: 'Editor',
+    labels: [
+      'Auto save',
+      'Format on save',
+      'Word wrap',
+      'Indent guides',
+      'Glyph margin',
+      'Smooth scrolling',
+      'Render whitespace',
+      'Cursor style',
+      'Cursor blinking',
+      'Font size',
+      'Tab size',
+    ],
+    Component: EditorSettings,
+  },
   { title: 'Analysis', labels: ['Watch Mode', '.fixoraignore'], Component: AnalysisSettings },
   {
     title: 'Code Shield',
@@ -839,8 +855,35 @@ function EditorSettings(): React.JSX.Element {
   const setAutoSave = useUiStore((s) => s.setAutoSave);
   const formatOnSave = useUiStore((s) => s.formatOnSave);
   const setFormatOnSave = useUiStore((s) => s.setFormatOnSave);
+  const wordWrap = useUiStore((s) => s.wordWrap);
+  const setWordWrap = useUiStore((s) => s.setWordWrap);
+  const showIndentGuides = useUiStore((s) => s.showIndentGuides);
+  const setShowIndentGuides = useUiStore((s) => s.setShowIndentGuides);
+  const glyphMargin = useUiStore((s) => s.glyphMargin);
+  const setGlyphMargin = useUiStore((s) => s.setGlyphMargin);
+  const smoothScrolling = useUiStore((s) => s.smoothScrolling);
+  const setSmoothScrolling = useUiStore((s) => s.setSmoothScrolling);
+  const renderWhitespace = useUiStore((s) => s.renderWhitespace);
+  const setRenderWhitespace = useUiStore((s) => s.setRenderWhitespace);
+  const cursorStyle = useUiStore((s) => s.cursorStyle);
+  const setCursorStyle = useUiStore((s) => s.setCursorStyle);
+  const cursorBlinking = useUiStore((s) => s.cursorBlinking);
+  const setCursorBlinking = useUiStore((s) => s.setCursorBlinking);
+  const fontSize = useUiStore((s) => s.fontSize);
+  const setFontSize = useUiStore((s) => s.setFontSize);
+  const tabSize = useUiStore((s) => s.tabSize);
+  const setTabSize = useUiStore((s) => s.setTabSize);
   const autoSaveId = useId();
   const formatOnSaveId = useId();
+  const wordWrapId = useId();
+  const indentGuidesId = useId();
+  const glyphMarginId = useId();
+  const smoothScrollingId = useId();
+  const renderWhitespaceId = useId();
+  const cursorStyleId = useId();
+  const cursorBlinkingId = useId();
+  const fontSizeId = useId();
+  const tabSizeId = useId();
 
   return (
     <Group title="Editor">
@@ -857,6 +900,70 @@ function EditorSettings(): React.JSX.Element {
         description="On by default. Runs the project's own formatter (Prettier for JS/TS/CSS/etc., Ruff for Python) on a file after you save it — only when one is available; a project with no formatter configured is left exactly as you wrote it."
         checked={formatOnSave}
         onCheckedChange={setFormatOnSave}
+      />
+      <ToggleField
+        label="Word wrap"
+        htmlFor={wordWrapId}
+        description="Wrap long lines instead of scrolling horizontally."
+        checked={wordWrap}
+        onCheckedChange={setWordWrap}
+      />
+      <ToggleField
+        label="Indent guides"
+        htmlFor={indentGuidesId}
+        description="Show indentation and bracket-pair guide lines."
+        checked={showIndentGuides}
+        onCheckedChange={setShowIndentGuides}
+      />
+      <ToggleField
+        label="Glyph margin"
+        htmlFor={glyphMarginId}
+        description="Show the left margin for breakpoints and decorations."
+        checked={glyphMargin}
+        onCheckedChange={setGlyphMargin}
+      />
+      <ToggleField
+        label="Smooth scrolling"
+        htmlFor={smoothScrollingId}
+        description="Animate scrolling in the editor."
+        checked={smoothScrolling}
+        onCheckedChange={setSmoothScrolling}
+      />
+      <SelectField
+        label="Render whitespace"
+        htmlFor={renderWhitespaceId}
+        options={['none', 'selection', 'all'] as const}
+        value={renderWhitespace}
+        onChange={setRenderWhitespace}
+      />
+      <SelectField
+        label="Cursor style"
+        htmlFor={cursorStyleId}
+        options={['line', 'block', 'underline'] as const}
+        value={cursorStyle}
+        onChange={setCursorStyle}
+      />
+      <SelectField
+        label="Cursor blinking"
+        htmlFor={cursorBlinkingId}
+        options={['blink', 'smooth', 'phase', 'expand', 'solid'] as const}
+        value={cursorBlinking}
+        onChange={setCursorBlinking}
+      />
+      <SliderField
+        label="Font size"
+        htmlFor={fontSizeId}
+        min={10}
+        max={20}
+        value={fontSize}
+        onChange={setFontSize}
+      />
+      <SelectField
+        label="Tab size"
+        htmlFor={tabSizeId}
+        options={[2, 4, 8] as const}
+        value={tabSize}
+        onChange={setTabSize}
       />
     </Group>
   );

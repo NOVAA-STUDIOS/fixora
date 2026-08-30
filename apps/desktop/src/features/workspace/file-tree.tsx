@@ -2,13 +2,21 @@ import type { Severity } from '@fixora/shared-types';
 import {
   ChevronDownIcon,
   ChevronRightIcon,
+  CssFileIcon,
   FileIcon,
   FolderIcon,
+  GitFileIcon,
+  HtmlFileIcon,
+  JsFileIcon,
+  JsonFileIcon,
+  MdFileIcon,
+  PyFileIcon,
   RefreshIcon,
   SearchIcon,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  TsFileIcon,
   VirtualList,
   cn,
 } from '@fixora/ui';
@@ -21,6 +29,25 @@ import { useFindingsStore } from '../findings/findings-store.js';
 
 import { useFileActions } from './file-context-menu.js';
 import { useWorkspaceStore, type TreeNode } from './workspace-store.js';
+
+/** File-tree language badge, by extension (lowercased) — falls back to the generic `FileIcon` for
+ *  anything not listed, so an unrecognised extension is a blank icon, never a wrong one. */
+const FILE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  ts: TsFileIcon,
+  tsx: TsFileIcon,
+  js: JsFileIcon,
+  jsx: JsFileIcon,
+  mjs: JsFileIcon,
+  py: PyFileIcon,
+  css: CssFileIcon,
+  scss: CssFileIcon,
+  html: HtmlFileIcon,
+  json: JsonFileIcon,
+  md: MdFileIcon,
+  mdx: MdFileIcon,
+  gitignore: GitFileIcon,
+  gitattributes: GitFileIcon,
+};
 
 const SEVERITY_RANK: Record<Severity, number> = { error: 2, warning: 1, info: 0 };
 const SEVERITY_DOT: Record<Severity, string> = {
@@ -241,6 +268,9 @@ function TreeRow({
   onActivate: () => void;
   onContextMenu: (x: number, y: number) => void;
 }): React.JSX.Element {
+  const ext = node.name.split('.').pop()?.toLowerCase() ?? '';
+  const FileTypeIcon = FILE_ICONS[ext] ?? FileIcon;
+
   return (
     <button
       type="button"
@@ -281,7 +311,7 @@ function TreeRow({
             <ChevronRightIcon className="size-3.5" />
           )
         ) : (
-          <FileIcon className="size-3.5" />
+          <FileTypeIcon className="size-3.5" />
         )}
       </span>
       {/* min-w-0: a flex child defaults to min-width:auto, which refuses to shrink below its text

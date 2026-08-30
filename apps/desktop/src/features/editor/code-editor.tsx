@@ -63,6 +63,15 @@ export function CodeEditor({
   const theme = useUiStore((s) => s.theme);
   const editorTheme = useUiStore((s) => s.editorTheme);
   const minimapEnabled = useUiStore((s) => s.minimapEnabled);
+  const wordWrap = useUiStore((s) => s.wordWrap);
+  const showIndentGuides = useUiStore((s) => s.showIndentGuides);
+  const renderWhitespaceSetting = useUiStore((s) => s.renderWhitespace);
+  const glyphMargin = useUiStore((s) => s.glyphMargin);
+  const smoothScrolling = useUiStore((s) => s.smoothScrolling);
+  const cursorBlinking = useUiStore((s) => s.cursorBlinking);
+  const cursorStyle = useUiStore((s) => s.cursorStyle);
+  const fontSize = useUiStore((s) => s.fontSize);
+  const tabSize = useUiStore((s) => s.tabSize);
   const revealTarget = useWorkspaceStore((s) => s.revealTarget);
   const proposal = useAiStore((s) => s.proposal);
   // Changes on every analysis progress tick and on completion — the trigger to re-fetch this
@@ -99,11 +108,20 @@ export function CodeEditor({
       folding: el.clientWidth >= MINIMAP_MIN_WIDTH,
       scrollBeyondLastLine: false,
       fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--fx-font-mono'),
-      fontSize: 14,
+      fontSize: useUiStore.getState().fontSize,
       // VS Code's own editor gives the text room above/below the first and last line rather than
       // butting them against the pane edge.
       padding: { top: 8, bottom: 8 },
-      renderWhitespace: 'selection',
+      renderWhitespace: useUiStore.getState().renderWhitespace,
+      wordWrap: useUiStore.getState().wordWrap ? 'on' : 'off',
+      glyphMargin: useUiStore.getState().glyphMargin,
+      smoothScrolling: useUiStore.getState().smoothScrolling,
+      cursorBlinking: useUiStore.getState().cursorBlinking,
+      cursorStyle: useUiStore.getState().cursorStyle,
+      guides: {
+        indentation: useUiStore.getState().showIndentGuides,
+        bracketPairs: useUiStore.getState().showIndentGuides,
+      },
       // 'none': the current-line background/border was visually reading as an error indicator.
       // Error lines stay marked via `setModelMarkers` (gutter dot + squiggle) below, a separate
       // mechanism unaffected by this.
@@ -202,6 +220,9 @@ export function CodeEditor({
     const monaco = setupMonaco();
     const model = modelFor(monaco, relPath, content, language);
     editor.setModel(model);
+    // Tab size is a model option, not an editor option — set on every model swap so a freshly
+    // opened file picks up the current setting rather than whatever Monaco's own default is.
+    model.updateOptions({ tabSize: useUiStore.getState().tabSize });
     // Past this size, Monaco's usual per-line contributions (minimap thumbnails, folding-range
     // computation, whitespace glyphs, occurrence highlighting on every cursor move) cost more than
     // they're worth — each one is a full-document pass, and a slow CPU pays for it on every
@@ -257,6 +278,37 @@ export function CodeEditor({
     if (editor === null || el === null) return;
     editor.updateOptions({ minimap: { enabled: minimapEnabled && el.clientWidth >= MINIMAP_MIN_WIDTH } });
   }, [minimapEnabled]);
+
+  // The rest of Settings > Editor, live — same "no restart required" contract as the minimap
+  // toggle above, just batched into one `updateOptions` call instead of one effect per setting.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (editor === null) return;
+    editor.updateOptions({
+      wordWrap: wordWrap ? 'on' : 'off',
+      renderWhitespace: renderWhitespaceSetting,
+      glyphMargin,
+      smoothScrolling,
+      cursorBlinking,
+      cursorStyle,
+      fontSize,
+      guides: { indentation: showIndentGuides, bracketPairs: showIndentGuides },
+    });
+  }, [
+    wordWrap,
+    renderWhitespaceSetting,
+    glyphMargin,
+    smoothScrolling,
+    cursorBlinking,
+    cursorStyle,
+    fontSize,
+    showIndentGuides,
+  ]);
+
+  // Tab size lives on the model, not the editor — applied to whichever model is active right now.
+  useEffect(() => {
+    editorRef.current?.getModel()?.updateOptions({ tabSize });
+  }, [tabSize]);
 
   // Jump to + highlight a finding's range when this file is the reveal target (clicking a finding).
   // `token` is in the deps so re-clicking the same finding re-reveals it.

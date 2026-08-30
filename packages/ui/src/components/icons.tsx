@@ -389,3 +389,61 @@ export function FixoraMark({
     </svg>
   );
 }
+
+/**
+ * File-tree language badges — a coloured rounded tab with a two-letter abbreviation, VS Code's
+ * file-icon-theme shorthand rather than a full per-language glyph set (that is the "thousands of
+ * icons for eight" cost the module doc above already ruled out; a badge needs only a colour + two
+ * characters per language). `currentColor` is deliberately NOT used here — the badge's colour IS
+ * the language identity (TypeScript blue, Python blue/yellow, …), the one place in this file a
+ * fixed hex is correct rather than a theming bug.
+ */
+type FileIconProps = SVGProps<SVGSVGElement>;
+
+function FileBadgeIcon({
+  color,
+  label,
+  ...props
+}: FileIconProps & { color: string; label: string }): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" {...props}>
+      <rect x="2" y="1" width="12" height="14" rx="1" fill={color} opacity="0.15" />
+      <rect x="2" y="1" width="12" height="5" rx="1" fill={color} opacity="0.4" />
+      <text x="8" y="10" textAnchor="middle" fontSize="5" fill={color} fontWeight="bold">
+        {label}
+      </text>
+    </svg>
+  );
+}
+
+export function TsFileIcon(props: FileIconProps): React.JSX.Element {
+  return <FileBadgeIcon {...props} color="#3178c6" label="TS" />;
+}
+
+export function JsFileIcon(props: FileIconProps): React.JSX.Element {
+  return <FileBadgeIcon {...props} color="#f7df1e" label="JS" />;
+}
+
+export function PyFileIcon(props: FileIconProps): React.JSX.Element {
+  return <FileBadgeIcon {...props} color="#3572A5" label="PY" />;
+}
+
+export function CssFileIcon(props: FileIconProps): React.JSX.Element {
+  return <FileBadgeIcon {...props} color="#264de4" label="CSS" />;
+}
+
+export function HtmlFileIcon(props: FileIconProps): React.JSX.Element {
+  return <FileBadgeIcon {...props} color="#e34c26" label="HTML" />;
+}
+
+export function JsonFileIcon(props: FileIconProps): React.JSX.Element {
+  return <FileBadgeIcon {...props} color="#8b8b8b" label="{}" />;
+}
+
+export function MdFileIcon(props: FileIconProps): React.JSX.Element {
+  return <FileBadgeIcon {...props} color="#8b8b8b" label="MD" />;
+}
+
+export function GitFileIcon(props: FileIconProps): React.JSX.Element {
+  return <FileBadgeIcon {...props} color="#f14e32" label="GIT" />;
+}

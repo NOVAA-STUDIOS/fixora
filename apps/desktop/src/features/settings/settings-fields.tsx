@@ -55,3 +55,85 @@ export function ToggleField({
     </div>
   );
 }
+
+/**
+ * A setting picked from a small fixed set — a native `<select>`, not a custom listbox: there is no
+ * `Select`/`SelectContent` primitive plumbed through this file (see the header comment on why this
+ * module exists), and a handful of options is exactly what the native control is for.
+ */
+export function SelectField<T extends string | number>({
+  label,
+  htmlFor,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  htmlFor: string;
+  options: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center justify-between gap-8">
+      <label htmlFor={htmlFor} className="text-sm font-medium text-fg">
+        {label}
+      </label>
+      <select
+        id={htmlFor}
+        value={String(value)}
+        onChange={(e) => {
+          const raw = e.target.value;
+          const matched = options.find((o) => String(o) === raw);
+          if (matched !== undefined) onChange(matched);
+        }}
+        className="rounded-md border border-border-strong bg-raised px-2 py-1 text-xs text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+      >
+        {options.map((o) => (
+          <option key={String(o)} value={String(o)}>
+            {String(o)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** A bounded numeric setting — a native `<input type="range">`, same reasoning as `SelectField`. */
+export function SliderField({
+  label,
+  htmlFor,
+  min,
+  max,
+  value,
+  onChange,
+}: {
+  label: string;
+  htmlFor: string;
+  min: number;
+  max: number;
+  value: number;
+  onChange: (v: number) => void;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center justify-between gap-8">
+      <label htmlFor={htmlFor} className="text-sm font-medium text-fg">
+        {label}
+      </label>
+      <div className="flex shrink-0 items-center gap-2">
+        <input
+          id={htmlFor}
+          type="range"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => {
+            onChange(Number(e.target.value));
+          }}
+          className="w-32"
+        />
+        <span className="w-6 text-right text-xs tabular-nums text-fg-muted">{value}</span>
+      </div>
+    </div>
+  );
+}

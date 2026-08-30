@@ -54,6 +54,20 @@ const EDITOR_THEMES: readonly UiState['editorTheme'][] = [
   'one-dark',
 ];
 const DENSITIES: readonly DensityName[] = ['comfortable', 'compact'];
+const RENDER_WHITESPACE_VALUES: readonly UiState['renderWhitespace'][] = [
+  'none',
+  'selection',
+  'all',
+];
+const CURSOR_BLINKING_VALUES: readonly UiState['cursorBlinking'][] = [
+  'blink',
+  'smooth',
+  'phase',
+  'expand',
+  'solid',
+];
+const CURSOR_STYLE_VALUES: readonly UiState['cursorStyle'][] = ['line', 'block', 'underline'];
+const TAB_SIZES: readonly number[] = [2, 4, 8];
 // `diagnostics` is deliberately absent from the activity rail — it is reachable from the
 // command palette only. A debugging surface in the main navigation stops being one.
 const VIEWS: readonly ActivityView[] = [
@@ -150,6 +164,18 @@ type UiState = {
   editorTheme: 'fixora' | 'monokai' | 'solarized-dark' | 'dracula' | 'github-dark' | 'one-dark';
   /** On by default. */
   minimapEnabled: boolean;
+  /** Off by default — matches Monaco's own default; long lines scroll rather than wrap. */
+  wordWrap: boolean;
+  /** On by default. Indentation + bracket-pair guide lines, both driven by this one toggle. */
+  showIndentGuides: boolean;
+  renderWhitespace: 'none' | 'selection' | 'all';
+  /** On by default. The gutter column Monaco decorations (breakpoints, if ever added) live in. */
+  glyphMargin: boolean;
+  smoothScrolling: boolean;
+  cursorBlinking: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid';
+  cursorStyle: 'line' | 'block' | 'underline';
+  fontSize: number;
+  tabSize: number;
   terminalFontSize: number;
   /** The view active before the last Ctrl+` switched to Terminal — what Ctrl+` switches BACK to.
    * Not persisted: a restart starting mid-toggle makes no sense. */
@@ -186,6 +212,15 @@ type UiState = {
   setFormatOnSave: (enabled: boolean) => void;
   setEditorTheme: (theme: UiState['editorTheme']) => void;
   setMinimapEnabled: (enabled: boolean) => void;
+  setWordWrap: (enabled: boolean) => void;
+  setShowIndentGuides: (enabled: boolean) => void;
+  setRenderWhitespace: (value: UiState['renderWhitespace']) => void;
+  setGlyphMargin: (enabled: boolean) => void;
+  setSmoothScrolling: (enabled: boolean) => void;
+  setCursorBlinking: (value: UiState['cursorBlinking']) => void;
+  setCursorStyle: (value: UiState['cursorStyle']) => void;
+  setFontSize: (size: number) => void;
+  setTabSize: (size: number) => void;
   setTerminalFontSize: (size: number) => void;
   /** Ctrl+`, callable from anywhere: shows Terminal if it wasn't active, or switches back to
    * whatever was active before if it already was. */
@@ -216,6 +251,15 @@ export const useUiStore = create<UiState>()(
       formatOnSave: true,
       editorTheme: 'fixora',
       minimapEnabled: true,
+      wordWrap: false,
+      showIndentGuides: true,
+      renderWhitespace: 'selection',
+      glyphMargin: true,
+      smoothScrolling: true,
+      cursorBlinking: 'smooth',
+      cursorStyle: 'line',
+      fontSize: 13,
+      tabSize: 2,
       terminalFontSize: 13,
       lastNonTerminalView: 'workspace',
       reopenLastProject: false,
@@ -289,6 +333,33 @@ export const useUiStore = create<UiState>()(
       setMinimapEnabled: (minimapEnabled) => {
         set({ minimapEnabled });
       },
+      setWordWrap: (wordWrap) => {
+        set({ wordWrap });
+      },
+      setShowIndentGuides: (showIndentGuides) => {
+        set({ showIndentGuides });
+      },
+      setRenderWhitespace: (renderWhitespace) => {
+        set({ renderWhitespace });
+      },
+      setGlyphMargin: (glyphMargin) => {
+        set({ glyphMargin });
+      },
+      setSmoothScrolling: (smoothScrolling) => {
+        set({ smoothScrolling });
+      },
+      setCursorBlinking: (cursorBlinking) => {
+        set({ cursorBlinking });
+      },
+      setCursorStyle: (cursorStyle) => {
+        set({ cursorStyle });
+      },
+      setFontSize: (fontSize) => {
+        set({ fontSize: Math.max(10, Math.min(20, fontSize)) });
+      },
+      setTabSize: (tabSize) => {
+        set({ tabSize });
+      },
       setTerminalFontSize: (terminalFontSize) => {
         // Clamped: unbounded growth via a stuck key repeat, or a corrupt persisted value, must not
         // scale the terminal past what the pane can render usefully.
@@ -314,6 +385,15 @@ export const useUiStore = create<UiState>()(
           density: 'comfortable',
           editorTheme: 'fixora',
           minimapEnabled: true,
+          wordWrap: false,
+          showIndentGuides: true,
+          renderWhitespace: 'selection',
+          glyphMargin: true,
+          smoothScrolling: true,
+          cursorBlinking: 'smooth',
+          cursorStyle: 'line',
+          fontSize: 13,
+          tabSize: 2,
           autoSave: false,
           formatOnSave: true,
           watchModeEnabled: false,
@@ -340,6 +420,15 @@ export const useUiStore = create<UiState>()(
         formatOnSave: s.formatOnSave,
         editorTheme: s.editorTheme,
         minimapEnabled: s.minimapEnabled,
+        wordWrap: s.wordWrap,
+        showIndentGuides: s.showIndentGuides,
+        renderWhitespace: s.renderWhitespace,
+        glyphMargin: s.glyphMargin,
+        smoothScrolling: s.smoothScrolling,
+        cursorBlinking: s.cursorBlinking,
+        cursorStyle: s.cursorStyle,
+        fontSize: s.fontSize,
+        tabSize: s.tabSize,
         terminalFontSize: s.terminalFontSize,
         reopenLastProject: s.reopenLastProject,
         watchModeEnabled: s.watchModeEnabled,
@@ -377,6 +466,21 @@ export const useUiStore = create<UiState>()(
           formatOnSave: p.formatOnSave !== false,
           editorTheme: oneOf(p.editorTheme, EDITOR_THEMES, current.editorTheme),
           minimapEnabled: p.minimapEnabled !== false,
+          wordWrap: p.wordWrap === true,
+          showIndentGuides: p.showIndentGuides !== false,
+          renderWhitespace: oneOf(p.renderWhitespace, RENDER_WHITESPACE_VALUES, current.renderWhitespace),
+          glyphMargin: p.glyphMargin !== false,
+          smoothScrolling: p.smoothScrolling !== false,
+          cursorBlinking: oneOf(p.cursorBlinking, CURSOR_BLINKING_VALUES, current.cursorBlinking),
+          cursorStyle: oneOf(p.cursorStyle, CURSOR_STYLE_VALUES, current.cursorStyle),
+          fontSize:
+            typeof p.fontSize === 'number' && p.fontSize >= 10 && p.fontSize <= 20
+              ? p.fontSize
+              : current.fontSize,
+          tabSize:
+            typeof p.tabSize === 'number' && TAB_SIZES.includes(p.tabSize)
+              ? p.tabSize
+              : current.tabSize,
           terminalFontSize:
             typeof p.terminalFontSize === 'number' && p.terminalFontSize >= 8 && p.terminalFontSize <= 32
               ? p.terminalFontSize

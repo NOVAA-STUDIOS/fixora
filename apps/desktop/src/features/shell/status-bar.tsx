@@ -27,6 +27,13 @@ export function StatusBar(): React.JSX.Element {
   const aiPanelVisible = useUiStore((s) => s.aiPanelVisible);
   const togglePrimaryPanel = useUiStore((s) => s.togglePrimaryPanel);
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel);
+  const wordWrap = useUiStore((s) => s.wordWrap);
+  const setWordWrap = useUiStore((s) => s.setWordWrap);
+  const tabSize = useUiStore((s) => s.tabSize);
+  const setTabSize = useUiStore((s) => s.setTabSize);
+  const cycleTabSize = (): void => {
+    setTabSize(tabSize === 2 ? 4 : tabSize === 4 ? 8 : 2);
+  };
 
   const workspace = useWorkspaceStore((s) => s.workspace);
   const [branch, setBranch] = useState<string | null>(null);
@@ -288,6 +295,22 @@ export function StatusBar(): React.JSX.Element {
           ariaLabel={`Density: ${density}. Switch density.`}
         >
           {density}
+        </StatusButton>
+        <StatusButton
+          onClick={() => {
+            setWordWrap(!wordWrap);
+          }}
+          title={`Word wrap: ${wordWrap ? 'on' : 'off'}. Click to switch.`}
+          ariaLabel={`Word wrap: ${wordWrap ? 'on' : 'off'}. Toggle word wrap.`}
+        >
+          ↵
+        </StatusButton>
+        <StatusButton
+          onClick={cycleTabSize}
+          title={`Tab size: ${String(tabSize)}. Click to cycle.`}
+          ariaLabel={`Tab size: ${String(tabSize)}. Cycle tab size.`}
+        >
+          Spaces: {tabSize}
         </StatusButton>
         <StatusButton
           onClick={toggleTheme}

@@ -53,6 +53,14 @@ export {
   PushIcon,
   SidebarLeftIcon,
   SidebarRightIcon,
+  TsFileIcon,
+  JsFileIcon,
+  PyFileIcon,
+  CssFileIcon,
+  HtmlFileIcon,
+  JsonFileIcon,
+  MdFileIcon,
+  GitFileIcon,
 } from './components/icons.js';
 
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/tooltip.js';
