@@ -404,14 +404,6 @@ const TerminalInstance = memo(function TerminalInstance({
     term.loadAddon(search);
     term.open(el);
     fit.fit();
-    // The DOM node's real layout isn't settled until the next frame — fitting again once it is
-    // catches a first-paint size xterm's own synchronous fit() above could have missed, and the
-    // PTY is resynced to match either way.
-    requestAnimationFrame(() => {
-      fit.fit();
-      const { cols, rows } = term;
-      void invoke('terminal:resize', { id: sessionId, cols, rows });
-    });
 
     // WebGL rendering is dramatically cheaper than the DOM renderer for a terminal's own workload
     // (a grid of monospace cells redrawn on every line of output) — falls back to the Canvas
@@ -546,14 +538,8 @@ const TerminalInstance = memo(function TerminalInstance({
   // Re-fit on becoming visible — a resize that happened while hidden was skipped (see above), so
   // the pane can be showing a stale column count until the user actually resizes the window again.
   useEffect(() => {
-    if (!visible) return;
-    fitRef.current?.fit();
-    const term = termRef.current;
-    if (term !== null) {
-      const { cols, rows } = term;
-      void invoke('terminal:resize', { id: sessionId, cols, rows });
-    }
-  }, [visible, sessionId]);
+    if (visible) fitRef.current?.fit();
+  }, [visible]);
 
   useEffect(() => {
     const term = termRef.current;
