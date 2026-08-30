@@ -403,15 +403,20 @@ const TerminalInstance = memo(function TerminalInstance({
     searchRef.current = search;
     term.loadAddon(search);
     term.open(el);
+    term.focus();
     fit.fit();
     // The DOM node's real layout isn't settled until the next frame — fitting again once it is
     // catches a first-paint size xterm's own synchronous fit() above could have missed, and the
     // PTY is resynced to match either way.
-    requestAnimationFrame(() => {
-      fit.fit();
-      const { cols, rows } = term;
-      void invoke('terminal:resize', { id: sessionId, cols, rows });
-    });
+    setTimeout(() => {
+      if (!disposed) {
+        fit.fit();
+        const { cols, rows } = term;
+        void invoke('terminal:resize', { id: sessionId, cols, rows });
+        // Force xterm to re-render
+        term.refresh(0, term.rows - 1);
+      }
+    }, 100);
 
     // WebGL rendering is dramatically cheaper than the DOM renderer for a terminal's own workload
     // (a grid of monospace cells redrawn on every line of output) — falls back to the Canvas
