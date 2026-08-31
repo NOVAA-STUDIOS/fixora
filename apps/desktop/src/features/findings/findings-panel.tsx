@@ -183,14 +183,16 @@ export function FindingsPanel(): React.JSX.Element {
   }, [status]);
 
   // `VirtualList`'s remount key (below) — bumped only on the events that actually change what a
-  // row's measured height should be (a finished run, a finished bulk repair, a group-mode switch),
-  // never on every finding streamed in mid-run. Booleans, not `status`/`bulkStatus` themselves, so
-  // this doesn't also fire on every OTHER status transition (e.g. idle → running).
+  // row's measured height should be (a finished run, a finished bulk repair, a group-mode switch,
+  // a repair applied to one finding — findings.length changes either way a repair resolves: the
+  // finding is removed once fixed, or stays with an updated state), never on every finding
+  // streamed in mid-run. Booleans, not `status`/`bulkStatus` themselves, so this doesn't also fire
+  // on every OTHER status transition (e.g. idle → running).
   const [listKey, setListKey] = useState(0);
   useEffect(() => {
     setListKey((k) => k + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately boolean, not status/bulkStatus
-  }, [status === 'done', bulkStatus === 'done', groupMode]);
+  }, [status === 'done', bulkStatus === 'done', groupMode, findings.length]);
 
   // Clustered by category — actionable first — so the list reads as groups without changing which
   // findings are shown, and without interleaving header rows into `VirtualList`, whose roving-focus

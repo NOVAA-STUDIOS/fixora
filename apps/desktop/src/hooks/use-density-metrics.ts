@@ -45,7 +45,10 @@ export function useFindingRowEstimate(): number {
     const wrapAllowance = 18; // long rule messages often wrap to a second title line
     const locationLine = density === 'compact' ? 13 : 16;
     const separator = 1; // border between cards
-    return paddingY + gap + titleLine + wrapAllowance + locationLine + actionsRow + separator;
+    const estimate = paddingY + gap + titleLine + wrapAllowance + locationLine + actionsRow + separator;
+    // A floor, not just a sum of parts — a first-paint estimate that comes in too low is a row the
+    // virtualizer positions on top of the one below it, until its own measurement pass corrects it.
+    return Math.max(estimate, density === 'compact' ? 80 : 96);
   }, [paddingY, gap, actionsRow, density]);
 }
 
