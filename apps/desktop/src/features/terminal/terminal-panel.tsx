@@ -538,21 +538,8 @@ const TerminalInstance = memo(function TerminalInstance({
   // Re-fit on becoming visible — a resize that happened while hidden was skipped (see above), so
   // the pane can be showing a stale column count until the user actually resizes the window again.
   useEffect(() => {
-    if (!visible) return;
-    // Small delay to let the CSS display:none → flex transition complete — the pane has no
-    // dimensions to fit to until it does, and `Workbench` hides a background terminal that way.
-    const t = setTimeout(() => {
-      const term = termRef.current;
-      fitRef.current?.fit();
-      if (term !== null) {
-        void invoke('terminal:resize', { id: sessionId, cols: term.cols, rows: term.rows });
-        term.focus();
-      }
-    }, 50);
-    return () => {
-      clearTimeout(t);
-    };
-  }, [visible, sessionId]);
+    if (visible) fitRef.current?.fit();
+  }, [visible]);
 
   useEffect(() => {
     const term = termRef.current;
