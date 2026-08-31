@@ -6,6 +6,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.10 (August 31, 2026)
+
+### Fixes
+- Git Bash now appears in the terminal shell picker on Windows.
+- Problems panel rows no longer collapse or overlap after a repair is applied.
+
 ## 1.2.9 (August 31, 2026)
 
 ### Features
