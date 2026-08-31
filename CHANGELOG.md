@@ -6,6 +6,20 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.9 (August 31, 2026)
+
+### Features
+- Live Preview: detects your running dev server automatically and opens it in an integrated browser panel.
+- Live Preview: auto-refreshes when you save a file.
+- Live Preview: start your dev server directly from the Preview panel or Problems panel without opening a terminal.
+- Editor: word wrap, indent guides, whitespace rendering, smooth scrolling, cursor style, cursor blinking, font size, and tab size are now configurable in Settings.
+- File tree: language-specific file icons for TypeScript, JavaScript, Python, CSS, HTML, JSON, Markdown, and Git files.
+- Status bar: word wrap toggle and tab size indicator.
+
+### Fixes
+- Problems panel rows remain stable during analysis and after repairs.
+- Scroll position is preserved when findings update.
+
 ## 1.2.8 (August 30, 2026)
 
 ### Features
