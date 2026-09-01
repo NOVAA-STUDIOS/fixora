@@ -23,11 +23,11 @@ export function detectShells(): ShellOption[] {
   // Checked in several common install locations — Git for Windows can land in Program Files,
   // Program Files (x86), or a per-user LOCALAPPDATA install depending on how it was installed.
   const gitBashPaths = [
+    'C:\\Program Files\\Git\\bin\\bash.exe',
+    'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
     join(process.env['ProgramFiles'] ?? 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
     join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
     join(process.env['LOCALAPPDATA'] ?? '', 'Programs', 'Git', 'bin', 'bash.exe'),
-    'C:\\Program Files\\Git\\bin\\bash.exe',
-    'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
   ];
   for (const gitBashPath of gitBashPaths) {
     if (existsSync(gitBashPath)) {
