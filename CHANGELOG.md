@@ -6,6 +6,22 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.13 (September 1, 2026)
+
+### Features
+- Packages panel now has a Scripts tab — run any package.json script with one click, using the right package manager automatically.
+- The TypeScript language service now reads your project's tsconfig.json, giving you accurate completions, errors, and go-to-definition for your actual codebase.
+- Code snippets: type rfc, useState, useEffect, fn, afn, trycatch, cl, interface, or type to expand common patterns instantly.
+- Go to Definition, Find References, and Code Lens are enabled in the editor.
+- Inlay hints show parameter names, variable types, and return types inline as you write code.
+- Git blame for the current line now shows the author, relative time, and commit summary. Use the status bar to toggle it on or off.
+- Update downloads show as an animated progress bar under the title bar.
+
+### Fixes
+- Preview detects your dev server port faster by reading its output directly.
+- Preview stops the running dev server when you open a different project.
+- The problems list no longer remounts while analysis results are streaming in.
+
 ## 1.2.12 (September 1, 2026)
 
 ### Fixes
