@@ -38,7 +38,7 @@ const PROBE_TIMEOUT_MS = 500;
 const SCAN_START_DELAY_MS = 5000;
 /** How long `launchAndPreview` waits for the spawned dev server to start listening before giving up. */
 const LAUNCH_TIMEOUT_MS = 30_000;
-const LAUNCH_POLL_INTERVAL_MS = 1000;
+const LAUNCH_POLL_INTERVAL_MS = 500;
 const DEFAULT_BOUNDS: Rectangle = { x: 0, y: 0, width: 800, height: 600 };
 
 export type DetectedServer = { port: number; url: string; framework: string };
@@ -321,10 +321,39 @@ export function createPreviewService(
     const open = workspace.getCurrent();
     if (open === null) return { ok: false, error: 'No project is open.' };
 
-    const [command, ...args] = devCommand.trim().split(/\s+/);
-    if (command === undefined) return { ok: false, error: 'No dev command to run.' };
+    const trimmed = devCommand.trim();
+    const parts = trimmed.split(/\s+/);
+    const command = parts[0];
+    if (command === undefined || command === '') {
+      return { ok: false, error: 'No dev command to run.' };
+    }
+    const args = parts.slice(1);
+    const isWindows = process.platform === 'win32';
+    // Windows: run through cmd.exe explicitly rather than shell:true's own quoting, so a package
+    // manager on PATH without a registered file association (pnpm/npm's .cmd shims) still resolves.
+    const spawnCommand = isWindows ? 'cmd' : command;
+    const spawnArgs = isWindows ? ['/c', trimmed] : args;
+
     killDevProcess(); // a stale process from a previous attempt, if any
-    devProcess = spawn(command, args, { cwd: open.rootPath, shell: true, stdio: 'ignore' });
+    const proc = spawn(spawnCommand, spawnArgs, {
+      cwd: open.rootPath,
+      shell: !isWindows, // cmd.exe already handles quoting/resolution on Windows
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    proc.stderr.on('data', (data: Buffer) => {
+      console.error('[preview] dev server stderr:', data.toString().slice(0, 200));
+    });
+    // Also scan stdout for port hints (Vite/Next print "localhost:PORT") — logged only; the port
+    // scanner above is still the source of truth for when to actually open the view.
+    proc.stdout.on('data', (data: Buffer) => {
+      const portMatch = /localhost:(\d+)/i.exec(data.toString());
+      if (portMatch !== null) {
+        const port = Number.parseInt(portMatch[1] ?? '0', 10);
+        if (port > 0) console.error('[preview] detected port from stdout:', port);
+      }
+    });
+    devProcess = proc;
     devProcess.on('exit', () => {
       devProcess = null;
     });
