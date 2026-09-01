@@ -1131,7 +1131,7 @@ const FindingRow = memo(function FindingRow({
                 // does not interrupt it.
                 void usePreviewStore
                   .getState()
-                  .launchDevServer()
+                  .launchAndPreview()
                   .then(() => {
                     setActiveView('preview');
                   });

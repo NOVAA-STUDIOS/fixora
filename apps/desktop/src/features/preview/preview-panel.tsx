@@ -23,7 +23,7 @@ export function PreviewPanel(): React.JSX.Element {
   const refresh = usePreviewStore((s) => s.refresh);
   const detect = usePreviewStore((s) => s.detect);
   const checkDevScript = usePreviewStore((s) => s.checkDevScript);
-  const launchDevServer = usePreviewStore((s) => s.launchDevServer);
+  const launchAndPreview = usePreviewStore((s) => s.launchAndPreview);
   const listen = usePreviewStore((s) => s.listen);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -122,7 +122,7 @@ export function PreviewPanel(): React.JSX.Element {
             detectedUrl={detectedUrl}
             hasDevScript={hasDevScript}
             onOpen={open}
-            onLaunch={launchDevServer}
+            onLaunch={launchAndPreview}
           />
         )}
       </div>
@@ -180,16 +180,14 @@ function EmptyState({
         <button
           type="button"
           onClick={() => void onLaunch()}
-          className="rounded-full border border-border-subtle bg-inset px-5 py-2 text-sm font-medium text-fg transition-all duration-200 hover:border-accent hover:text-accent active:scale-95"
+          className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-on-accent shadow-lg shadow-accent/25 transition-all duration-200 hover:scale-105 hover:shadow-accent/40 active:scale-95"
         >
-          ▶ Start Dev Server
+          ▶ Open Preview
         </button>
       ) : (
-        <div className="flex flex-col items-center gap-2">
-          <code className="rounded-lg bg-inset px-3 py-1.5 font-mono text-xs text-fg-secondary">
-            npm run dev
-          </code>
-          <span className="text-xs text-fg-muted">or pnpm dev, yarn dev</span>
+        <div className="flex flex-col items-center gap-2 text-center">
+          <span className="text-xs text-fg-muted">No dev script found in package.json</span>
+          <span className="text-xs text-fg-muted">Add a &lsquo;dev&rsquo; script to get started</span>
         </div>
       )}
     </div>

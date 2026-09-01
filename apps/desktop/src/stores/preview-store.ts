@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 
-import { useTerminalStore } from '../features/terminal/terminal-store.js';
 import { invoke, subscribe } from '../lib/bridge.js';
 
 import { toast } from './toast-store.js';
@@ -29,9 +28,9 @@ type PreviewState = {
   refresh: () => Promise<void>;
   detect: () => Promise<void>;
   checkDevScript: () => Promise<void>;
-  /** Confirms a real dev script exists, then opens it in a real terminal (`useTerminalStore`'s
-   *  `openWithCommand` — the one place a foreground shell command is actually spawned). */
-  launchDevServer: () => Promise<void>;
+  /** Runs the dev script as a hidden background process (main-side — no terminal involved) and
+   *  opens it in the embedded view once it starts listening. */
+  launchAndPreview: () => Promise<void>;
   /** Subscribes to all push events; returns the unsubscribe. Call once per consumer. */
   listen: () => () => void;
 };
@@ -75,11 +74,19 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     }
   },
 
-  launchDevServer: async () => {
-    const result = await invoke('preview:launchDevServer', {});
-    const { devCommand } = get();
-    if (result.ok && result.value.ok && devCommand !== null) {
-      useTerminalStore.getState().openWithCommand(devCommand);
+  launchAndPreview: async () => {
+    if (get().devCommand === null) await get().checkDevScript();
+    const cmd = get().devCommand;
+    if (cmd === null) return;
+    set({ isLoading: true });
+    const result = await invoke('preview:launchAndPreview', { devCommand: cmd });
+    if (result.ok && result.value.ok) {
+      // `preview:serverDetected` fires from within the same main-side call, before this
+      // response arrives — `detectedUrl` is already the URL that's now actually loaded.
+      set({ isOpen: true, url: get().detectedUrl, isLoading: false });
+    } else {
+      set({ isLoading: false });
+      toast.error(result.ok ? (result.value.error ?? 'Could not start the dev server') : result.error.message);
     }
   },
 

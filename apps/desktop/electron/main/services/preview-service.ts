@@ -1,9 +1,10 @@
+import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { get as httpGet } from 'node:http';
 import { join } from 'node:path';
 
-import { session, WebContentsView, type BrowserWindow, type Rectangle } from 'electron';
+import { app, session, WebContentsView, type BrowserWindow, type Rectangle } from 'electron';
 
 import { emitToWindow } from '../ipc/emit.js';
 
@@ -35,6 +36,10 @@ const PROBE_TIMEOUT_MS = 500;
 /** Delay before the first scan — well after terminal handlers are registered, so startup (DB,
  *  handler registration, terminal availability) finishes before network probing begins. */
 const SCAN_START_DELAY_MS = 5000;
+/** How long `launchAndPreview` waits for the spawned dev server to start listening before giving up. */
+const LAUNCH_TIMEOUT_MS = 30_000;
+const LAUNCH_POLL_INTERVAL_MS = 1000;
+const DEFAULT_BOUNDS: Rectangle = { x: 0, y: 0, width: 800, height: 600 };
 
 export type DetectedServer = { port: number; url: string; framework: string };
 
@@ -62,6 +67,15 @@ export interface PreviewService {
    * only confirms there is something real for that call to run.
    */
   launchDevServer(): Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Spawns the workspace's `dev` script as a hidden background process (no terminal), then polls
+   * for it to start listening and opens it in the embedded view once it does. Already-running is
+   * handled the same as a cold start — the poll's first pass finds it immediately, no process
+   * spawned redundantly.
+   */
+  launchAndPreview(devCommand: string): Promise<{ ok: boolean; error?: string }>;
+  /** App-quit cleanup: kills the spawned dev server (if any), stops scanning, tears down the view. */
+  dispose(): void;
 }
 
 type PackageManager = 'pnpm' | 'yarn' | 'npm';
@@ -123,6 +137,13 @@ export function createPreviewService(
   let currentPort: number | null = null;
   let scanTimer: ReturnType<typeof setInterval> | null = null;
   let scanStartTimer: ReturnType<typeof setTimeout> | null = null;
+  let devProcess: ChildProcess | null = null;
+
+  function killDevProcess(): void {
+    if (devProcess === null) return;
+    devProcess.kill();
+    devProcess = null;
+  }
 
   function isLocalhostUrl(rawUrl: string): boolean {
     let url: URL;
@@ -216,6 +237,7 @@ export function createPreviewService(
   }
 
   function destroyView(): void {
+    killDevProcess();
     if (view === null) return;
     window?.contentView.removeChildView(view);
     view.webContents.close();
@@ -284,6 +306,58 @@ export function createPreviewService(
     return { ok: true };
   }
 
+  async function launchAndPreview(devCommand: string): Promise<{ ok: boolean; error?: string }> {
+    // Already running — open it directly, no process spawned.
+    const already = await scanPorts();
+    if (already !== null) {
+      if (window !== null && !window.isDestroyed()) {
+        emitToWindow(window, 'preview:serverDetected', already);
+      }
+      createView(DEFAULT_BOUNDS);
+      loadUrl(already.url);
+      return { ok: true };
+    }
+
+    const open = workspace.getCurrent();
+    if (open === null) return { ok: false, error: 'No project is open.' };
+
+    const [command, ...args] = devCommand.trim().split(/\s+/);
+    if (command === undefined) return { ok: false, error: 'No dev command to run.' };
+    killDevProcess(); // a stale process from a previous attempt, if any
+    devProcess = spawn(command, args, { cwd: open.rootPath, shell: true, stdio: 'ignore' });
+    devProcess.on('exit', () => {
+      devProcess = null;
+    });
+
+    const deadline = Date.now() + LAUNCH_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const found = await scanPorts();
+      if (found !== null) {
+        if (window !== null && !window.isDestroyed()) {
+          emitToWindow(window, 'preview:serverDetected', found);
+        }
+        createView(DEFAULT_BOUNDS);
+        loadUrl(found.url);
+        return { ok: true };
+      }
+      await new Promise((resolve) => {
+        setTimeout(resolve, LAUNCH_POLL_INTERVAL_MS);
+      });
+    }
+    killDevProcess();
+    return { ok: false, error: 'Dev server did not start within 30 seconds.' };
+  }
+
+  function dispose(): void {
+    killDevProcess();
+    stopScanning();
+    destroyView();
+  }
+  // Belt to `index.ts`'s own `will-quit` cleanup: self-registered so a spawned dev server can
+  // never outlive the app even if a future call site forgets to wire this in explicitly — the
+  // same reasoning terminal.handlers.ts's own `app.on('will-quit')` documents for PTY sessions.
+  app.once('will-quit', dispose);
+
   return {
     scanForDevServer,
     startScanning,
@@ -297,5 +371,7 @@ export function createPreviewService(
     notifyFileSaved,
     checkDevScript,
     launchDevServer,
+    launchAndPreview,
+    dispose,
   };
 }

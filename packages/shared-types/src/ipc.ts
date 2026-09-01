@@ -772,6 +772,10 @@ export const contracts = {
     request: empty,
     response: z.object({ ok: z.boolean(), error: z.string().optional() }),
   },
+  'preview:launchAndPreview': {
+    request: z.object({ devCommand: z.string().min(1) }),
+    response: z.object({ ok: z.boolean(), error: z.string().optional() }),
+  },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;
