@@ -6,6 +6,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.12 (September 1, 2026)
+
+### Fixes
+- Preview: dev server now launches correctly on Windows.
+- Preview: port detection is faster after server starts.
+- Tooltips across the app now share consistent hover-delay behavior.
+
 ## 1.2.11 (September 1, 2026)
 
 ### Features
