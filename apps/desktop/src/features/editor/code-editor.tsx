@@ -14,7 +14,7 @@ import { useEditorStore } from './editor-store.js';
 import { InlineRepairBar } from './inline-repair-bar.js';
 import { mountInlineRepair, type InlineRepairView } from './inline-repair.js';
 import { modelFor } from './models.js';
-import { setupMonaco } from './monaco-setup.js';
+import { setupMonaco, typescriptLanguageApi } from './monaco-setup.js';
 import { resolveEditorTheme } from './monaco-theme.js';
 
 /**
@@ -166,6 +166,39 @@ export function CodeEditor({
     });
     editorRef.current = editor;
     setActiveEditor(editor);
+
+    // Project-aware TypeScript IntelliSense: pulls the open workspace's own tsconfig.json into
+    // Monaco's TS service, so `strict` and friends reflect the real project rather than only
+    // monaco-setup.ts's generic defaults. Missing/unparsable tsconfig is not an error — plain
+    // JS/TS projects and ones with no tsconfig at all just keep the defaults.
+    if (useWorkspaceStore.getState().workspace !== null) {
+      const loadProjectTsConfig = async (): Promise<void> => {
+        try {
+          const result = await invoke('fs:readFile', { relPath: 'tsconfig.json' });
+          if (!result.ok) return;
+          const tsconfig = JSON.parse(result.value.file.content) as {
+            compilerOptions?: Record<string, unknown>;
+          };
+          if (tsconfig.compilerOptions) {
+            const ts = typescriptLanguageApi(monaco);
+            ts.typescriptDefaults.setCompilerOptions({
+              ...ts.typescriptDefaults.getCompilerOptions(),
+              strict: tsconfig.compilerOptions['strict'] ?? false,
+              target: ts.ScriptTarget['ESNext'],
+              moduleResolution: ts.ModuleResolutionKind['Bundler'],
+              jsx: ts.JsxEmit['ReactJSX'],
+              allowImportingTsExtensions: true,
+              allowJs: true,
+              checkJs: false,
+              noEmit: true,
+            });
+          }
+        } catch {
+          // No tsconfig, or it doesn't parse — use monaco-setup.ts's defaults.
+        }
+      };
+      void loadProjectTsConfig();
+    }
 
     const cursorSub = editor.onDidChangeCursorPosition((e) => {
       useEditorStatusStore.getState().setPosition(e.position.lineNumber, e.position.column);
