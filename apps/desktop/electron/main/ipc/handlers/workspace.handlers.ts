@@ -19,6 +19,7 @@ import {
   writeWorkspaceFile,
 } from '../../services/fs/fs-service.js';
 import { createWorkspaceWatcher, type WorkspaceWatcher } from '../../services/fs/watcher.js';
+import type { PreviewService } from '../../services/preview-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { emitToWindow } from '../emit.js';
 import { registerHandler } from '../router.js';
@@ -68,7 +69,10 @@ function ensureWatching(service: WorkspaceService, window: BrowserWindow | null)
  * Indexing the whole tree (for M3) runs after `open` returns, so the first paint is not blocked on
  * walking a 10k-file repo — the tree renders from lazy `fs:listDir` calls.
  */
-export function registerWorkspaceHandlers(service: WorkspaceService): void {
+export function registerWorkspaceHandlers(
+  service: WorkspaceService,
+  previewService: PreviewService | null,
+): void {
   registerHandler('workspace:pickFolder', async (_req, { window }) => {
     const owner = window ?? BrowserWindow.getFocusedWindow() ?? undefined;
     const result = await dialog.showOpenDialog(owner as BrowserWindow, {
@@ -180,6 +184,8 @@ export function registerWorkspaceHandlers(service: WorkspaceService): void {
     // stop for the same reason: re-analyzing files in a folder that is no longer open.
     stopAnalysisWatch();
     resetShieldThrottle();
+    previewService?.destroyView();
+    previewService?.stopDevProcess();
     service.close();
   });
 

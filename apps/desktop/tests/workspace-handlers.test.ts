@@ -42,7 +42,7 @@ async function freshHandlers() {
     workspaces: createWorkspaceRepository(driver),
     files: createFileIndexRepository(driver),
   });
-  registerWorkspaceHandlers(service);
+  registerWorkspaceHandlers(service, null);
   return { getHandler, service };
 }
 

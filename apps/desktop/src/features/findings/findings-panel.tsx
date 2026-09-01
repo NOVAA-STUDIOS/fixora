@@ -190,9 +190,10 @@ export function FindingsPanel(): React.JSX.Element {
   // on every OTHER status transition (e.g. idle → running).
   const [listKey, setListKey] = useState(0);
   useEffect(() => {
+    if (status === 'running') return; // Don't remount during streaming
     setListKey((k) => k + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately boolean, not status/bulkStatus
-  }, [status === 'done', bulkStatus === 'done', groupMode, findings.length]);
+  }, [status === 'done', bulkStatus === 'done', groupMode, findings.length, status]);
 
   // Clustered by category — actionable first — so the list reads as groups without changing which
   // findings are shown, and without interleaving header rows into `VirtualList`, whose roving-focus
@@ -356,8 +357,6 @@ export function FindingsPanel(): React.JSX.Element {
   const totalForFilter =
     filter.severity !== undefined ? summary?.bySeverity[filter.severity] : summary?.total;
   const isTruncated = totalForFilter !== undefined && findings.length < totalForFilter;
-
-  console.error('[panel] rendering, count:', findings.length);
 
   return (
     <section

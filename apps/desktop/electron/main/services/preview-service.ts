@@ -78,6 +78,8 @@ export interface PreviewService {
   launchAndPreview(devCommand: string): Promise<{ ok: boolean; error?: string }>;
   /** App-quit cleanup: kills the spawned dev server (if any), stops scanning, tears down the view. */
   dispose(): void;
+  /** Kills the spawned dev server (if any), without touching the view. */
+  stopDevProcess(): void;
 }
 
 type PackageManager = 'pnpm' | 'yarn' | 'npm';
@@ -354,7 +356,8 @@ export function createPreviewService(
     // tools that print just ":PORT" with no host.
     proc.stdout.on('data', (data: Buffer) => {
       const text = data.toString();
-      const portMatch = /localhost:(\d+)/i.exec(text) ?? /:(\d+)/.exec(text);
+      const portMatch =
+        /(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)/i.exec(text) ?? /➜.*?:(\d+)/.exec(text);
       const portStr = portMatch?.[1];
       if (portStr === undefined) return;
       const port = Number.parseInt(portStr, 10);
@@ -408,6 +411,10 @@ export function createPreviewService(
     stopScanning();
     destroyView();
   }
+
+  function stopDevProcess(): void {
+    killDevProcess();
+  }
   // Belt to `index.ts`'s own `will-quit` cleanup: self-registered so a spawned dev server can
   // never outlive the app even if a future call site forgets to wire this in explicitly — the
   // same reasoning terminal.handlers.ts's own `app.on('will-quit')` documents for PTY sessions.
@@ -428,5 +435,6 @@ export function createPreviewService(
     launchDevServer,
     launchAndPreview,
     dispose,
+    stopDevProcess,
   };
 }

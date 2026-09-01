@@ -433,16 +433,17 @@ function startBackend(window: BrowserWindow | null): void {
   registerReferralHandlers({ driver });
   registerAuthHandlers();
   registerWindowHandlers();
-  registerWorkspaceHandlers(workspaceService);
-  registerEditorHandlers(workspaceService, analysisHost);
-  registerGitHandlers(workspaceService);
   // Started unconditionally — the "Fixora will detect it automatically" promise (the empty-state
   // copy in preview-panel.tsx) means the scan has to already be running before the user ever opens
   // Preview, not begin only once they do. A background `GET /` every 3s to a handful of localhost
-  // ports is cheap enough to run for the life of the session.
+  // ports is cheap enough to run for the life of the session. Constructed before
+  // registerWorkspaceHandlers so a workspace close/switch can tear down its view/process too.
   const previewService = createPreviewService(window, workspaceService);
   registerPreviewHandlers(previewService);
   previewService.startScanning();
+  registerWorkspaceHandlers(workspaceService, previewService);
+  registerEditorHandlers(workspaceService, analysisHost);
+  registerGitHandlers(workspaceService);
   registerHookHandlers(workspaceService);
   registerAnalysisHandlers(analysisService, workspaceService);
   registerProviderHandlers({
