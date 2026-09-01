@@ -50,6 +50,7 @@ export function AppShell(): React.JSX.Element {
       */}
       <div className="flex h-screen flex-col overflow-hidden bg-inset text-fg">
         <TitleBar />
+        <UpdateBanner />
         {/* `relative` is the positioning context Code Shield's slide-in panel resolves against —
             without it the panel escapes to the viewport and covers the title and status bars. */}
         <div className="relative flex min-h-0 flex-1 gap-1.5 px-1.5 pb-1.5">
@@ -62,7 +63,6 @@ export function AppShell(): React.JSX.Element {
       {/* Opened on demand from the inline review; renders nothing until then. */}
       <FullDiffOverlay />
       <Toaster />
-      <UpdateBanner />
         <PostUpdateWhatsNew />
         <NewProjectModal />
         <WorkspaceSwitchGuard />
