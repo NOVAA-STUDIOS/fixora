@@ -22,7 +22,9 @@ import type { WorkspaceService } from './workspace-service.js';
  * and it must never be able to reach anything the main window's session can.
  */
 
-const COMMON_PORTS = [3000, 5173, 8080, 4200, 8000, 3001, 4000, 8888];
+const COMMON_PORTS = [
+  3000, 5173, 8080, 4200, 8000, 3001, 4000, 8888, 5174, 5175, 3002, 3003, 8081, 8082, 4321,
+];
 const FRAMEWORK_HINTS: Record<number, string> = {
   5173: 'Vite',
   3000: 'Next.js / React',
@@ -98,7 +100,9 @@ function probePort(port: number): Promise<boolean> {
       { host: '127.0.0.1', port, path: '/', timeout: PROBE_TIMEOUT_MS },
       (res) => {
         res.resume(); // drain, so the socket can close instead of leaking
-        resolve(true);
+        // Accept any response (200, 301, 302, 404 all mean a server is up); only a 5xx or no
+        // status at all means nothing real answered.
+        resolve(res.statusCode !== undefined && res.statusCode < 500);
       },
     );
     req.on('timeout', () => {
@@ -138,6 +142,9 @@ export function createPreviewService(
   let scanTimer: ReturnType<typeof setInterval> | null = null;
   let scanStartTimer: ReturnType<typeof setTimeout> | null = null;
   let devProcess: ChildProcess | null = null;
+  // Set by createView/destroyView — the race guard for FIX 1's delayed stdout-triggered open
+  // below (the port poll and the stdout hint can both fire; only the first should act).
+  let viewOpen = false;
 
   function killDevProcess(): void {
     if (devProcess === null) return;
@@ -234,10 +241,12 @@ export function createPreviewService(
     created.setBounds(bounds);
     window.contentView.addChildView(created);
     view = created;
+    viewOpen = true;
   }
 
   function destroyView(): void {
     killDevProcess();
+    viewOpen = false;
     if (view === null) return;
     window?.contentView.removeChildView(view);
     view.webContents.close();
@@ -328,30 +337,47 @@ export function createPreviewService(
       return { ok: false, error: 'No dev command to run.' };
     }
     const args = parts.slice(1);
-    const isWindows = process.platform === 'win32';
-    // Windows: run through cmd.exe explicitly rather than shell:true's own quoting, so a package
-    // manager on PATH without a registered file association (pnpm/npm's .cmd shims) still resolves.
-    const spawnCommand = isWindows ? 'cmd' : command;
-    const spawnArgs = isWindows ? ['/c', trimmed] : args;
 
     killDevProcess(); // a stale process from a previous attempt, if any
-    const proc = spawn(spawnCommand, spawnArgs, {
+    const proc = spawn(command, args, {
       cwd: open.rootPath,
-      shell: !isWindows, // cmd.exe already handles quoting/resolution on Windows
+      shell: true, // Let OS shell resolve PATH (pnpm/npm/yarn)
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      env: { ...process.env }, // Inherit full environment including PATH
     });
     proc.stderr.on('data', (data: Buffer) => {
       console.error('[preview] dev server stderr:', data.toString().slice(0, 200));
     });
-    // Also scan stdout for port hints (Vite/Next print "localhost:PORT") — logged only; the port
-    // scanner above is still the source of truth for when to actually open the view.
+    // Also scan stdout for a port announcement (Vite/Next print "localhost:PORT") — opens the
+    // view straight away rather than waiting for the next poll tick, with a fallback pattern for
+    // tools that print just ":PORT" with no host.
     proc.stdout.on('data', (data: Buffer) => {
-      const portMatch = /localhost:(\d+)/i.exec(data.toString());
-      if (portMatch !== null) {
-        const port = Number.parseInt(portMatch[1] ?? '0', 10);
-        if (port > 0) console.error('[preview] detected port from stdout:', port);
-      }
+      const text = data.toString();
+      const portMatch = /localhost:(\d+)/i.exec(text) ?? /:(\d+)/.exec(text);
+      const portStr = portMatch?.[1];
+      if (portStr === undefined) return;
+      const port = Number.parseInt(portStr, 10);
+      if (!(port > 0 && port < 65536)) return;
+      const url = `http://localhost:${String(port)}`;
+      console.error('[preview] port from stdout:', port);
+      // Opened after a short delay, not immediately — the port is often bound before the server
+      // is actually ready to answer requests. Only if the poll loop hasn't already opened it.
+      void (async () => {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 1000);
+        });
+        if (viewOpen) return;
+        if (window !== null && !window.isDestroyed()) {
+          emitToWindow(window, 'preview:serverDetected', {
+            port,
+            url,
+            framework: FRAMEWORK_HINTS[port] ?? 'Dev Server',
+          });
+        }
+        createView(DEFAULT_BOUNDS);
+        loadUrl(url);
+      })();
     });
     devProcess = proc;
     devProcess.on('exit', () => {
