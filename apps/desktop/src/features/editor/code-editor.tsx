@@ -139,6 +139,18 @@ export function CodeEditor({
       multiCursorModifier: 'alt',
       quickSuggestions: { other: 'on', comments: 'off', strings: 'on' },
       suggestOnTriggerCharacters: true,
+      suggest: {
+        showKeywords: true,
+        showSnippets: true,
+        showClasses: true,
+        showFunctions: true,
+        showVariables: true,
+        showModules: true,
+        showProperties: true,
+        filterGraceful: true,
+        localityBonus: true, // Prefer nearby symbols
+        shareSuggestSelections: true,
+      },
       parameterHints: { enabled: true, cycle: true },
       // Parameter/property names inline for a call with no local binding to read them off of —
       // real for TS/JS (the only language here with a semantic worker that can supply them).

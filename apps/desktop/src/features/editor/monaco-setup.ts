@@ -33,6 +33,102 @@ export function typescriptLanguageApi(m: typeof monaco): TsLanguageApi {
   return m.languages.typescript as unknown as TsLanguageApi;
 }
 
+type SnippetSpec = { label: string; detail: string; insertText: string };
+
+/** A handful of common TS/JS/React snippets — Monaco has no built-in snippet library of its own
+ *  (that's a VS Code extension-layer feature), so these fill the gap for the shapes typed often
+ *  enough to be worth a shortcut. `${1:placeholder}`/`$0` is Monaco's own TextMate-style tab-stop
+ *  syntax, the same one `insertTextRules: InsertAsSnippet` below expects. */
+const TS_SNIPPETS: SnippetSpec[] = [
+  {
+    label: 'rfc',
+    detail: 'React Functional Component',
+    insertText: [
+      "import React from 'react'",
+      '',
+      'interface ${1:Props} {}',
+      '',
+      'export const ${2:ComponentName}: React.FC<${1:Props}> = (${3:props}) => {',
+      '  return (',
+      '    <div>',
+      '      $0',
+      '    </div>',
+      '  )',
+      '}',
+    ].join('\n'),
+  },
+  {
+    label: 'useState',
+    detail: 'React useState hook',
+    insertText:
+      'const [${1:state}, set${1/(.*)/${1:/capitalize}/}] = useState<${2:type}>(${3:initialValue})',
+  },
+  {
+    label: 'useEffect',
+    detail: 'React useEffect hook',
+    insertText:
+      'useEffect(() => {\n  ${1:// effect}\n  return () => {\n    ${2:// cleanup}\n  }\n}, [${3:deps}])',
+  },
+  {
+    label: 'fn',
+    detail: 'Arrow function',
+    insertText: 'const ${1:name} = (${2:params}): ${3:void} => {\n  $0\n}',
+  },
+  {
+    label: 'afn',
+    detail: 'Async arrow function',
+    insertText: 'const ${1:name} = async (${2:params}): Promise<${3:void}> => {\n  $0\n}',
+  },
+  {
+    label: 'trycatch',
+    detail: 'Try/catch block',
+    insertText: 'try {\n  ${1:// code}\n} catch (${2:error}) {\n  console.error(${2:error})\n}',
+  },
+  {
+    label: 'cl',
+    detail: 'console.log',
+    insertText: 'console.log(${1:value})',
+  },
+  {
+    label: 'interface',
+    detail: 'TypeScript interface',
+    insertText: 'interface ${1:Name} {\n  ${2:property}: ${3:type}\n}',
+  },
+  {
+    label: 'type',
+    detail: 'TypeScript type alias',
+    insertText: 'type ${1:Name} = ${2:type}',
+  },
+];
+
+const SNIPPET_LANGUAGES = ['typescript', 'typescriptreact', 'javascript', 'javascriptreact'];
+
+function registerSnippets(m: typeof monaco): void {
+  for (const lang of SNIPPET_LANGUAGES) {
+    m.languages.registerCompletionItemProvider(lang, {
+      provideCompletionItems: (model, position) => {
+        const word = model.getWordUntilPosition(position);
+        const range = {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn,
+        };
+        return {
+          suggestions: TS_SNIPPETS.map((snippet) => ({
+            label: snippet.label,
+            kind: m.languages.CompletionItemKind.Snippet,
+            detail: snippet.detail,
+            insertText: snippet.insertText,
+            insertTextRules: m.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+          })),
+        };
+      },
+    });
+  }
+}
+
 /**
  * Monaco, configured to run under our strict CSP — **no `unsafe-eval`, no CDN** (ADR-006, TDD §3.2).
  * Two things make that work:
@@ -101,6 +197,8 @@ declare module '*.png' { const content: string; export default content; }
 declare module '*.css' { const content: Record<string, string>; export default content; }`,
       'file:///node_modules/@types/assets/index.d.ts',
     );
+
+    registerSnippets(monaco);
 
     done = true;
   }
