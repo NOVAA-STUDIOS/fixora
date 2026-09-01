@@ -171,7 +171,7 @@ export function CodeEditor({
       parameterHints: { enabled: true, cycle: true },
       // Parameter/property names inline for a call with no local binding to read them off of —
       // real for TS/JS (the only language here with a semantic worker that can supply them).
-      inlayHints: { enabled: 'on' },
+      inlayHints: { enabled: 'on', padding: true },
       bracketPairColorization: { enabled: true },
       // Lets a selection-less Ctrl+C/X still copy/cut the current line, the same convenience
       // Emmet-style editors and VS Code itself default to.

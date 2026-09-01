@@ -19,6 +19,7 @@ export type TsLanguageDefaults = {
   setCompilerOptions: (options: Record<string, unknown>) => void;
   getCompilerOptions: () => Record<string, unknown>;
   setDiagnosticsOptions: (options: Record<string, unknown>) => void;
+  setInlayHintsOptions: (options: Record<string, unknown>) => void;
   addExtraLib: (content: string, filePath?: string) => void;
 };
 export type TsLanguageApi = {
@@ -171,6 +172,9 @@ export function setupMonaco(): typeof monaco {
       checkJs: false,
       noEmit: true,
       strict: false, // Will be overridden by project tsconfig
+      // Auto-import requires module resolution — moduleResolution is already Bundler above.
+      allowImportingTsExtensions: true,
+      resolveJsonModule: true,
     });
 
     // Better diagnostics
@@ -178,6 +182,24 @@ export function setupMonaco(): typeof monaco {
       noSemanticValidation: false,
       noSyntaxValidation: false,
       noSuggestionDiagnostics: false,
+    });
+
+    // Inlay hints — parameter names, inferred types, return types.
+    ts.typescriptDefaults.setInlayHintsOptions({
+      includeInlayParameterNameHints: 'literals',
+      includeInlayParameterNameHintsWhenArgumentMatchesName: false,
+      includeInlayFunctionParameterTypeHints: true,
+      includeInlayVariableTypeHints: true,
+      includeInlayVariableTypeHintsWhenTypeMatchesName: false,
+      includeInlayPropertyDeclarationTypeHints: true,
+      includeInlayFunctionLikeReturnTypeHints: true,
+      includeInlayEnumMemberValueHints: true,
+    });
+    ts.javascriptDefaults.setInlayHintsOptions({
+      includeInlayParameterNameHints: 'literals',
+      includeInlayFunctionParameterTypeHints: true,
+      includeInlayVariableTypeHints: true,
+      includeInlayFunctionLikeReturnTypeHints: true,
     });
 
     // JS defaults too
