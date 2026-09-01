@@ -1,3 +1,5 @@
+import { TooltipProvider } from '@fixora/ui';
+
 import { FullDiffOverlay } from '../ai/full-diff-overlay.js';
 import { CommandPalette } from '../commands/command-palette.js';
 import { CommandProvider } from '../commands/command-provider.js';
@@ -34,6 +36,7 @@ export function AppShell(): React.JSX.Element {
     */
     <ConsentGate>
       <CommandProvider commands={commands}>
+      <TooltipProvider delayDuration={500}>
       {/*
         The shell is the *chrome*, and it sits on the darkest surface in the palette. The panes
         inside it are raised surfaces floating on that base with a gutter between them.
@@ -63,6 +66,7 @@ export function AppShell(): React.JSX.Element {
         <PostUpdateWhatsNew />
         <NewProjectModal />
         <WorkspaceSwitchGuard />
+      </TooltipProvider>
       </CommandProvider>
     </ConsentGate>
   );
