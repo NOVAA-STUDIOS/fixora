@@ -194,6 +194,8 @@ type UiState = {
    * autoSave — this one runs analysis, not a write, but it's still unsolicited work on every
    * save until the user opts in. */
   watchModeEnabled: boolean;
+  /** On by default. The current-line git blame annotation in the editor. */
+  showGitBlame: boolean;
   /** Whether the left (primary) pane is shown. CSS-collapsed, not unmounted, when false. */
   primaryPanelVisible: boolean;
   /** Whether the right (assistant) pane is shown. CSS-collapsed, not unmounted, when false. */
@@ -229,6 +231,7 @@ type UiState = {
   toggleTerminal: () => void;
   setReopenLastProject: (enabled: boolean) => void;
   setWatchModeEnabled: (enabled: boolean) => void;
+  toggleGitBlame: () => void;
   /** Resets appearance, editor and analysis settings to their shipped defaults. Deliberately narrow:
    *  providers, API keys, license and MCP settings live in their own stores and are never touched
    *  by this — see `settings-panel.tsx`'s "Reset to Defaults". */
@@ -268,6 +271,7 @@ export const useUiStore = create<UiState>()(
       primaryPanelVisible: true,
       aiPanelVisible: true,
       watchModeEnabled: false,
+      showGitBlame: true,
       fullDiffOpen: false,
 
       openFullDiff: () => {
@@ -381,6 +385,9 @@ export const useUiStore = create<UiState>()(
       setWatchModeEnabled: (watchModeEnabled) => {
         set({ watchModeEnabled });
       },
+      toggleGitBlame: () => {
+        set((s) => ({ showGitBlame: !s.showGitBlame }));
+      },
       resetToDefaults: () => {
         set({
           theme: 'dark',
@@ -434,6 +441,7 @@ export const useUiStore = create<UiState>()(
         terminalFontSize: s.terminalFontSize,
         reopenLastProject: s.reopenLastProject,
         watchModeEnabled: s.watchModeEnabled,
+        showGitBlame: s.showGitBlame,
         primaryPanelVisible: s.primaryPanelVisible,
         aiPanelVisible: s.aiPanelVisible,
       }),
@@ -463,6 +471,9 @@ export const useUiStore = create<UiState>()(
           // Same fail-closed rule as autoSave/reopenLastProject: unsolicited analysis on every save
           // only happens if the persisted value is explicitly `true`.
           watchModeEnabled: p.watchModeEnabled === true,
+          // Defaults to true, same as formatOnSave/minimapEnabled: only an explicit persisted
+          // `false` turns the blame annotation off.
+          showGitBlame: p.showGitBlame !== false,
           // Defaults to true (unlike the two above): only an explicit persisted `false` opts out,
           // so a missing/corrupt value falls back to the feature's own default rather than off.
           formatOnSave: p.formatOnSave !== false,

@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogContent, DialogTitle, cn } from '@fixora/ui';
+import { Button, Dialog, DialogContent, DialogTitle, GitBranchIcon, cn } from '@fixora/ui';
 import { useEffect, useState } from 'react';
 
 import { invoke, subscribe } from '../../lib/bridge.js';
@@ -32,6 +32,8 @@ export function StatusBar(): React.JSX.Element {
   const setWordWrap = useUiStore((s) => s.setWordWrap);
   const tabSize = useUiStore((s) => s.tabSize);
   const setTabSize = useUiStore((s) => s.setTabSize);
+  const showGitBlame = useUiStore((s) => s.showGitBlame);
+  const toggleGitBlame = useUiStore((s) => s.toggleGitBlame);
   const cycleTabSize = (): void => {
     setTabSize(tabSize === 2 ? 4 : tabSize === 4 ? 8 : 2);
   };
@@ -313,6 +315,16 @@ export function StatusBar(): React.JSX.Element {
           ariaLabel={`Tab size: ${String(tabSize)}. Cycle tab size.`}
         >
           Spaces: {tabSize}
+        </StatusButton>
+        <StatusButton
+          onClick={toggleGitBlame}
+          title={`Git blame: ${showGitBlame ? 'on' : 'off'}. Click to switch.`}
+          ariaLabel={`Git blame: ${showGitBlame ? 'on' : 'off'}. Toggle git blame.`}
+        >
+          <span className={cn('flex items-center gap-1', !showGitBlame && 'opacity-50')}>
+            <GitBranchIcon className="size-3.5" />
+            Blame
+          </span>
         </StatusButton>
         <StatusButton
           onClick={toggleTheme}

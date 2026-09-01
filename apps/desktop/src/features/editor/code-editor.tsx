@@ -48,6 +48,19 @@ const SEVERITY_OVERVIEW_COLOR: Record<Severity, string> = {
   info: '#3b82f6',
 };
 
+/** "2 days ago" instead of the blame decoration's previous locale date string — coarse buckets,
+ *  same trade-off the rest of the app's relative-time copy makes (readable at a glance, not a
+ *  precise timestamp). */
+function relativeTime(unixTs: number): string {
+  const diff = Math.floor(Date.now() / 1000 - unixTs);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${String(Math.floor(diff / 60))}m ago`;
+  if (diff < 86400) return `${String(Math.floor(diff / 3600))}h ago`;
+  if (diff < 2592000) return `${String(Math.floor(diff / 86400))}d ago`;
+  if (diff < 31536000) return `${String(Math.floor(diff / 2592000))}mo ago`;
+  return `${String(Math.floor(diff / 31536000))}y ago`;
+}
+
 export function CodeEditor({
   relPath,
   content,
@@ -72,6 +85,7 @@ export function CodeEditor({
   const cursorStyle = useUiStore((s) => s.cursorStyle);
   const fontSize = useUiStore((s) => s.fontSize);
   const tabSize = useUiStore((s) => s.tabSize);
+  const showGitBlame = useUiStore((s) => s.showGitBlame);
   const revealTarget = useWorkspaceStore((s) => s.revealTarget);
   const proposal = useAiStore((s) => s.proposal);
   // Changes on every analysis progress tick and on completion — the trigger to re-fetch this
@@ -476,6 +490,9 @@ export function CodeEditor({
   useEffect(() => {
     const editor = editorRef.current;
     if (editor === null) return;
+    // The previous run's own cleanup (below) already cleared its decorations before this run
+    // started — nothing further to clear here when blame is off.
+    if (!showGitBlame) return;
     let cancelled = false;
     let blameByLine = new Map<number, { author: string; authorTimeUnix: number; summary: string }>();
     let blameDecorations: monaco.editor.IEditorDecorationsCollection | null = null;
@@ -484,19 +501,21 @@ export function CodeEditor({
       const model = editor.getModel();
       if (model === null) return;
       const line = editor.getPosition()?.lineNumber;
-      const blame = line === undefined ? undefined : blameByLine.get(line);
+      const entry = line === undefined ? undefined : blameByLine.get(line);
       blameDecorations ??= editor.createDecorationsCollection();
-      if (blame === undefined) {
+      if (entry === undefined) {
         blameDecorations.set([]);
         return;
       }
-      const when = new Date(blame.authorTimeUnix * 1000).toLocaleDateString();
+      const author = entry.author.slice(0, 15);
+      const time = relativeTime(entry.authorTimeUnix);
+      const summary = entry.summary.slice(0, 30);
       blameDecorations.set([
         {
           range: new (setupMonaco().Range)(line ?? 1, Number.MAX_SAFE_INTEGER, line ?? 1, Number.MAX_SAFE_INTEGER),
           options: {
             after: {
-              content: `  ${blame.author}, ${when} — ${blame.summary}`,
+              content: `  ${author} · ${time} · ${summary}`,
               inlineClassName: 'fx-blame-inline',
             },
           },
@@ -516,7 +535,7 @@ export function CodeEditor({
       sub.dispose();
       blameDecorations?.clear();
     };
-  }, [relPath]);
+  }, [relPath, showGitBlame]);
 
   /**
    * The inline repair review (editor-first workflow).
