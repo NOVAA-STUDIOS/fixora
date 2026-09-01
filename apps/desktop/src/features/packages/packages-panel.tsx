@@ -20,9 +20,17 @@ function uninstallCommand(kind: 'npm' | 'pip', name: string): string {
   return `pip uninstall -y ${name}`;
 }
 
+/** The install/uninstall commands above always say `npm`/`pip` explicitly (the manifest kind
+ *  those already gate on); a task can be any script name, so its run command needs the actual
+ *  package manager the project uses — `tasks:list`'s own `packageManager` field. */
+function runScriptCommand(pm: 'npm' | 'pnpm' | 'yarn', name: string): string {
+  return `${pm} run ${name}`;
+}
+
 export function PackagesPanel(): React.JSX.Element {
   const hasWorkspace = useWorkspaceStore((s) => s.workspace !== null);
   const openWithCommand = useTerminalStore((s) => s.openWithCommand);
+  const [tab, setTab] = useState<'packages' | 'scripts'>('packages');
 
   const [list, setList] = useState<
     | { status: 'loading' }
@@ -41,9 +49,32 @@ export function PackagesPanel(): React.JSX.Element {
     });
   };
 
+  const [scripts, setScripts] = useState<
+    | { status: 'loading' }
+    | { status: 'ready'; scripts: Record<string, string>; packageManager: 'npm' | 'pnpm' | 'yarn' }
+  >({ status: 'loading' });
+
+  const refreshScripts = (): void => {
+    setScripts({ status: 'loading' });
+    void invoke('tasks:list', {}).then((result) => {
+      if (result.ok) {
+        setScripts({
+          status: 'ready',
+          scripts: result.value.scripts,
+          packageManager: result.value.packageManager,
+        });
+      }
+    });
+  };
+
   useEffect(() => {
-    if (hasWorkspace) refresh();
-    else setList({ status: 'loading' });
+    if (hasWorkspace) {
+      refresh();
+      refreshScripts();
+    } else {
+      setList({ status: 'loading' });
+      setScripts({ status: 'loading' });
+    }
     // Re-fetch whenever the user comes back from the Terminal tab, so an install/uninstall they
     // just ran is reflected without a manual refresh being the only way to see it.
   }, [hasWorkspace]);
@@ -92,6 +123,61 @@ export function PackagesPanel(): React.JSX.Element {
       aria-label="Packages"
       className="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
     >
+      <div role="tablist" aria-label="Packages or Scripts" className="flex h-9 shrink-0 items-center gap-1 border-b border-border-subtle px-2">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'packages'}
+          onClick={() => {
+            setTab('packages');
+          }}
+          className={`rounded px-2 py-1 text-xs font-medium ${tab === 'packages' ? 'bg-hover text-fg' : 'text-fg-muted hover:text-fg'}`}
+        >
+          Packages
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'scripts'}
+          onClick={() => {
+            setTab('scripts');
+          }}
+          className={`rounded px-2 py-1 text-xs font-medium ${tab === 'scripts' ? 'bg-hover text-fg' : 'text-fg-muted hover:text-fg'}`}
+        >
+          Scripts
+        </button>
+      </div>
+
+      {tab === 'scripts' ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {scripts.status === 'loading' && <Centered text="Loading scripts…" />}
+          {scripts.status === 'ready' && Object.keys(scripts.scripts).length === 0 && (
+            <Centered text="No scripts found in package.json" />
+          )}
+          {scripts.status === 'ready' &&
+            Object.entries(scripts.scripts).map(([name, command]) => (
+              <div
+                key={name}
+                className="flex items-center justify-between rounded-lg px-3 py-2 hover:bg-hover"
+              >
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-fg">{name}</span>
+                  <span className="ml-2 truncate text-xs text-fg-muted">{command}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openWithCommand(runScriptCommand(scripts.packageManager, name));
+                  }}
+                  className="shrink-0 rounded-md bg-accent/10 px-3 py-1 text-xs text-accent-text transition-colors hover:bg-accent/20"
+                >
+                  ▶ Run
+                </button>
+              </div>
+            ))}
+        </div>
+      ) : (
+        <>
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle px-3">
         <SearchIcon className="size-3.5 shrink-0 text-fg-muted" />
         <input
@@ -185,6 +271,8 @@ export function PackagesPanel(): React.JSX.Element {
           />
         )}
       </div>
+        </>
+      )}
     </section>
   );
 }

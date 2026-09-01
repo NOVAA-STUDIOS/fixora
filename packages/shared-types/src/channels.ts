@@ -165,6 +165,10 @@ export const channels = [
   // of it being a real shell rather than something this app has to interpret the outcome of.
   'packages:list',
   'packages:search',
+  // Tasks Runner: every script in the open workspace's package.json, run in the real Terminal
+  // tab (openWithCommand) — same "never executed by main" posture as Package Manager's own
+  // install/uninstall above.
+  'tasks:list',
   // Format-on-save: run the workspace's own formatter (Prettier/Ruff) against a file already
   // written to disk, and return its content afterward so the editor model can be refreshed.
   'editor:formatFile',

@@ -118,6 +118,7 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'search:query',
       'packages:list',
       'packages:search',
+      'tasks:list',
       'editor:formatFile',
       'editor:gitBlame',
       'git:status',

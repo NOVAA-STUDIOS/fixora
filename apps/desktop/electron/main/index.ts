@@ -1,7 +1,7 @@
 import { join, resolve } from 'node:path';
 
 import { providerDescriptor } from '@fixora/core-ai';
-import { app, BrowserWindow, Menu } from 'electron';
+import { app, BrowserWindow, globalShortcut, Menu } from 'electron';
 import log from 'electron-log';
 
 console.error('[main] process started, pid:', process.pid);
@@ -46,6 +46,7 @@ import { registerSearchHandlers } from './ipc/handlers/search.handlers.js';
 import { registerShieldHandlers } from './ipc/handlers/shield.handlers.js';
 import { registerSuggestionHandlers } from './ipc/handlers/suggestions.handlers.js';
 import { registerSystemHandlers } from './ipc/handlers/system.handlers.js';
+import { registerTasksHandlers } from './ipc/handlers/tasks.handlers.js';
 import { registerTerminalHandlers } from './ipc/handlers/terminal.handlers.js';
 import { registerTestGenerationHandlers } from './ipc/handlers/test-generation.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
@@ -236,6 +237,14 @@ if (isMcpOnlyLaunch()) {
         // own heavy synchronous setup. The renderer's splash covers this wait and closes once
         // `app:ready` fires below.
         const window = createMainWindow(devServerUrl, () => gpuPreference?.markLaunchConfirmed());
+
+        // TEMPORARY DEBUG — remove after debugging. F12 toggles DevTools; dev only.
+        if (!app.isPackaged) {
+          globalShortcut.register('F12', () => {
+            const win = BrowserWindow.getAllWindows()[0];
+            if (win !== undefined) win.webContents.toggleDevTools();
+          });
+        }
 
         app.on('activate', () => {
           if (BrowserWindow.getAllWindows().length === 0) {
@@ -499,6 +508,7 @@ function startBackend(window: BrowserWindow | null): void {
   registerTerminalHandlers(workspaceService);
   registerSearchHandlers(workspaceService);
   registerPackageManagerHandlers(workspaceService);
+  registerTasksHandlers(workspaceService);
   registerProjectHandlers(workspaceService);
 
   // Suggestion System (Sprint F1, F1.1). Not workspace-scoped — feedback about Fixora itself, so

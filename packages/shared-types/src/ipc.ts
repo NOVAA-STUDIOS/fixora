@@ -659,6 +659,17 @@ export const contracts = {
     response: PackageSearchResponseSchema,
   },
 
+  /** Every script in the open workspace's package.json — `packageManager` is included so the
+   *  renderer can build the right run command (`pnpm run x`/`yarn run x`/`npm run x`) without its
+   *  own lockfile detection, mirroring what `preview-service.ts` does for the `dev` script alone. */
+  'tasks:list': {
+    request: empty,
+    response: z.object({
+      scripts: z.record(z.string(), z.string()),
+      packageManager: z.enum(['npm', 'pnpm', 'yarn']),
+    }),
+  },
+
   'editor:formatFile': {
     request: z.object({ relPath: z.string().min(1) }),
     response: z.object({
