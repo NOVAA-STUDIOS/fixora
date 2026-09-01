@@ -6,6 +6,14 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.11 (September 1, 2026)
+
+### Features
+- Preview: clicking "Open Preview" now launches your dev server in the background and opens your project directly inside Fixora — no terminal required.
+
+### Fixes
+- Git Bash now appears in the terminal shell picker when installed in Program Files.
+
 ## 1.2.10 (August 31, 2026)
 
 ### Fixes
