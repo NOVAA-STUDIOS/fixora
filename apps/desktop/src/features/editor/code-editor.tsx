@@ -150,6 +150,9 @@ export function CodeEditor({
         filterGraceful: true,
         localityBonus: true, // Prefer nearby symbols
         shareSuggestSelections: true,
+        showReferences: true,
+        preview: true, // Preview selected suggestion inline
+        previewMode: 'subword',
       },
       parameterHints: { enabled: true, cycle: true },
       // Parameter/property names inline for a call with no local binding to read them off of —
@@ -174,7 +177,22 @@ export function CodeEditor({
       // info, cross-file navigation) for TS/JS/JSON/CSS/HTML, which have an actual language-service
       // worker (monaco-setup.ts); a language with none — Python included — has nothing for these to
       // query, the same ceiling `wordBasedSuggestions` documents above.
-      hover: { enabled: true },
+      hover: { enabled: true, delay: 300, sticky: true },
+      // Multiple results (Go to Definition/References/Implementations/Declarations/Type
+      // Definitions) open in an inline peek window rather than jumping straight to the first one.
+      gotoLocation: {
+        multiple: 'peek',
+        multipleDefinitions: 'peek',
+        multipleTypeDefinitions: 'peek',
+        multipleDeclarations: 'peek',
+        multipleImplementations: 'peek',
+        multipleReferences: 'peek',
+      },
+      links: true,
+      contextmenu: true,
+      // Reference counts above functions/classes — Monaco's own contribution, real wherever
+      // Go to References is (TS/JS/JSON/CSS/HTML, per the comment above).
+      codeLens: true,
     });
     editorRef.current = editor;
     setActiveEditor(editor);
