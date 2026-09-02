@@ -269,13 +269,26 @@ export function createPreviewService(
 
   function destroyView(): void {
     killDevProcess();
-    viewOpen = false;
-    if (view === null) return;
-    window?.contentView.removeChildView(view);
-    view.webContents.close();
-    view = null;
-    currentUrl = null;
-    currentPort = null;
+    if (view === null) {
+      viewOpen = false;
+      return;
+    }
+    try {
+      if (window !== null && !window.isDestroyed()) {
+        window.contentView.removeChildView(view);
+      }
+      // Guard: webContents may already be destroyed
+      if (!view.webContents.isDestroyed()) {
+        view.webContents.close();
+      }
+    } catch (error) {
+      console.error('[preview] destroyView error (ignored):', error);
+    } finally {
+      view = null;
+      viewOpen = false;
+      currentUrl = null;
+      currentPort = null;
+    }
   }
 
   function resizeView(bounds: Rectangle): void {
