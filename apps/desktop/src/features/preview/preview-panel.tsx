@@ -108,7 +108,7 @@ export function PreviewPanel(): React.JSX.Element {
       </div>
 
       {/* WebContentsView placeholder — the native view renders here, positioned by the effect above */}
-      <div ref={containerRef} className="relative min-h-0 flex-1 bg-white">
+      <div ref={containerRef} className="relative h-full min-h-0 w-full min-w-0 flex-1 bg-white">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-canvas/80 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-3">

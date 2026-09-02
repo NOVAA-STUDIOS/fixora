@@ -216,9 +216,15 @@ function WorkbenchContent(): React.JSX.Element {
   useEffect(() => {
     if (activeView === 'preview') {
       void invoke('preview:show', {});
-    } else {
-      void invoke('preview:hide', {});
+      // Delay resize to let CSS layout complete
+      const timer = setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+      return () => {
+        clearTimeout(timer);
+      };
     }
+    void invoke('preview:hide', {});
   }, [activeView]);
 
   // Saved sizes are keyed by MODE and view together. Keying by view alone would make the two modes
