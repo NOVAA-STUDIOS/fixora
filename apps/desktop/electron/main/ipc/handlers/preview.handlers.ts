@@ -22,9 +22,14 @@ export function registerPreviewHandlers(service: PreviewService): void {
   });
 
   registerHandler('preview:open', ({ url }) => {
-    service.createView(DEFAULT_BOUNDS);
-    service.loadUrl(url);
-    return { ok: true };
+    try {
+      service.createView(DEFAULT_BOUNDS);
+      service.loadUrl(url);
+      return { ok: true };
+    } catch (error) {
+      console.error('[preview] open failed:', error);
+      return { ok: false };
+    }
   });
 
   registerHandler('preview:close', () => {

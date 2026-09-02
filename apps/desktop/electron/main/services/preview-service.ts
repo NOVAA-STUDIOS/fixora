@@ -202,7 +202,14 @@ export function createPreviewService(
   }
 
   function createView(bounds: Rectangle): void {
-    if (window === null || view !== null) return;
+    if (window === null) return;
+    // If a view already exists, destroy it first — createView must never leak the old one.
+    if (view !== null) {
+      window.contentView.removeChildView(view);
+      view.webContents.close();
+      view = null;
+      viewOpen = false;
+    }
     const created = new WebContentsView({
       webPreferences: {
         sandbox: true,
