@@ -109,25 +109,26 @@ export function PreviewPanel(): React.JSX.Element {
       </div>
 
       {/* WebContentsView placeholder — the native view renders here, positioned by the effect above */}
-      <div ref={containerRef} className="relative h-full min-h-0 w-full min-w-0 flex-1 bg-white">
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-canvas/80 backdrop-blur-sm">
-            <div className="flex flex-col items-center gap-3">
-              <div className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-              <span className="text-sm text-fg-secondary">Loading…</span>
-            </div>
+      <div
+        ref={containerRef}
+        className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-canvas"
+      >
+        {isLoading ? (
+          // Loading state — full screen, centered
+          <div className="flex h-full flex-col items-center justify-center gap-4">
+            <div className="size-10 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+            <p className="max-w-[240px] animate-pulse text-center text-sm text-fg-secondary">
+              {statusMessage ?? 'Preparing your project...'}
+            </p>
           </div>
-        )}
-        {!isOpen && (
+        ) : !isOpen ? (
           <EmptyState
             detectedUrl={detectedUrl}
             hasDevScript={hasDevScript}
-            isLoading={isLoading}
-            statusMessage={statusMessage}
             onOpen={open}
             onLaunch={launchAndPreview}
           />
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -136,31 +137,14 @@ export function PreviewPanel(): React.JSX.Element {
 function EmptyState({
   detectedUrl,
   hasDevScript,
-  isLoading,
-  statusMessage,
   onOpen,
   onLaunch,
 }: {
   detectedUrl: string | null;
   hasDevScript: boolean;
-  isLoading: boolean;
-  statusMessage: string | null;
   onOpen: (url: string) => Promise<void>;
   onLaunch: () => Promise<void>;
 }): React.JSX.Element {
-  if (isLoading) {
-    return (
-      <div className="flex h-full w-full select-none flex-col items-center justify-center gap-6 p-8">
-        <div className="flex flex-col items-center gap-3">
-          <div className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-          <p className="max-w-[200px] animate-pulse text-center text-sm text-fg-secondary">
-            {statusMessage ?? 'Preparing your project...'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full w-full select-none flex-col items-center justify-center gap-6 p-8">
       {/* Animated icon */}
