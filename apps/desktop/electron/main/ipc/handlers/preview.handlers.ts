@@ -15,6 +15,8 @@ const DEFAULT_BOUNDS = { x: 0, y: 0, width: 800, height: 600 };
 
 /** Activity rail width — the preview view starts just past it, never under it. */
 const RAIL_WIDTH = 64;
+/** Small gap between the activity rail and the preview view. */
+const GAP = 8;
 /** h-10 */
 const TITLE_BAR_HEIGHT = 40;
 /** Preview panel's own toolbar (h-9). */
@@ -30,9 +32,9 @@ const TOTAL_BOTTOM = STATUS_BAR_HEIGHT;
 function fullWindowBounds(win: BrowserWindow): Rectangle {
   const winContent = win.getContentBounds();
   return {
-    x: RAIL_WIDTH,
+    x: RAIL_WIDTH + GAP,
     y: TOTAL_TOP,
-    width: winContent.width - RAIL_WIDTH,
+    width: winContent.width - RAIL_WIDTH - GAP,
     height: winContent.height - TOTAL_TOP - TOTAL_BOTTOM,
   };
 }
