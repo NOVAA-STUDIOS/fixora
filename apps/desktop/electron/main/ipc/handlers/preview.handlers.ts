@@ -1,4 +1,4 @@
-import type { BrowserWindow, Rectangle } from 'electron';
+import type { BrowserWindow } from 'electron';
 
 import type { PreviewService } from '../../services/preview-service.js';
 import { registerHandler } from '../router.js';
@@ -15,24 +15,6 @@ const DEFAULT_BOUNDS = { x: 0, y: 0, width: 800, height: 600 };
 
 /** Activity rail width (64px) + gap (8px) — the preview view starts just past both. */
 const RAIL_WIDTH = 72;
-/** h-10 */
-const TITLE_BAR_HEIGHT = 40;
-/** Preview panel's own toolbar (h-10). */
-const TOOLBAR_HEIGHT = 40;
-/** Bottom status bar. */
-const STATUS_BAR_HEIGHT = 36;
-
-/** Full-window preview bounds, computed from the actual `BrowserWindow` content area — not the
- *  renderer's own DOM coords, which are unreliable on Windows (DPI scaling, window chrome offset). */
-function fullWindowBounds(win: BrowserWindow): Rectangle {
-  const winContent = win.getContentBounds();
-  return {
-    x: RAIL_WIDTH,
-    y: TITLE_BAR_HEIGHT + TOOLBAR_HEIGHT,
-    width: winContent.width - RAIL_WIDTH,
-    height: winContent.height - TITLE_BAR_HEIGHT - TOOLBAR_HEIGHT - STATUS_BAR_HEIGHT,
-  };
-}
 
 let activeService: PreviewService | null = null;
 
@@ -46,11 +28,9 @@ export function registerPreviewHandlers(service: PreviewService, win: BrowserWin
 
   registerHandler('preview:open', ({ url }) => {
     try {
+      // DEFAULT_BOUNDS is just a placeholder — the renderer's own ResizeObserver
+      // (preview-panel.tsx) is the single source of truth for real bounds, via preview:resize.
       service.createView(DEFAULT_BOUNDS);
-      // Immediately resize to correct bounds — DEFAULT_BOUNDS is just a placeholder.
-      if (win !== null && !win.isDestroyed()) {
-        service.resizeView(fullWindowBounds(win));
-      }
       service.loadUrl(url);
       return { ok: true };
     } catch (error) {
@@ -102,10 +82,8 @@ export function registerPreviewHandlers(service: PreviewService, win: BrowserWin
 
   registerHandler('preview:show', () => {
     service.showView();
-    // Resize to full window after showing.
-    if (win !== null && !win.isDestroyed()) {
-      service.resizeView(fullWindowBounds(win));
-    }
+    // No resize here — the renderer's own ResizeObserver re-fires and resends bounds via
+    // preview:resize whenever the container becomes visible again.
   });
 }
 
