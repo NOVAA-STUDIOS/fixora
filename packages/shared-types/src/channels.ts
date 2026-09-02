@@ -265,6 +265,7 @@ export const eventChannels = [
   'preview:serverDetected',
   'preview:titleChanged',
   'preview:loadingChanged',
+  'preview:statusUpdate',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

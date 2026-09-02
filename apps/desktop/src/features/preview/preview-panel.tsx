@@ -16,6 +16,7 @@ export function PreviewPanel(): React.JSX.Element {
   const isOpen = usePreviewStore((s) => s.isOpen);
   const url = usePreviewStore((s) => s.url);
   const isLoading = usePreviewStore((s) => s.isLoading);
+  const statusMessage = usePreviewStore((s) => s.statusMessage);
   const detectedUrl = usePreviewStore((s) => s.detectedUrl);
   const hasDevScript = usePreviewStore((s) => s.hasDevScript);
   const open = usePreviewStore((s) => s.open);
@@ -121,6 +122,8 @@ export function PreviewPanel(): React.JSX.Element {
           <EmptyState
             detectedUrl={detectedUrl}
             hasDevScript={hasDevScript}
+            isLoading={isLoading}
+            statusMessage={statusMessage}
             onOpen={open}
             onLaunch={launchAndPreview}
           />
@@ -133,14 +136,31 @@ export function PreviewPanel(): React.JSX.Element {
 function EmptyState({
   detectedUrl,
   hasDevScript,
+  isLoading,
+  statusMessage,
   onOpen,
   onLaunch,
 }: {
   detectedUrl: string | null;
   hasDevScript: boolean;
+  isLoading: boolean;
+  statusMessage: string | null;
   onOpen: (url: string) => Promise<void>;
   onLaunch: () => Promise<void>;
 }): React.JSX.Element {
+  if (isLoading) {
+    return (
+      <div className="flex h-full w-full select-none flex-col items-center justify-center gap-6 p-8">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          <p className="max-w-[200px] animate-pulse text-center text-sm text-fg-secondary">
+            {statusMessage ?? 'Preparing your project...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full w-full select-none flex-col items-center justify-center gap-6 p-8">
       {/* Animated icon */}

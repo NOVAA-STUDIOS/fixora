@@ -68,6 +68,13 @@ export type PreviewTitleChanged = z.infer<typeof PreviewTitleChangedSchema>;
 export const PreviewLoadingChangedSchema = z.object({ loading: z.boolean() });
 export type PreviewLoadingChanged = z.infer<typeof PreviewLoadingChangedSchema>;
 
+/** Progress narration for `launchAndPreview` — dependency install and dev-server startup. */
+export const PreviewStatusUpdateSchema = z.object({
+  message: z.string(),
+  stage: z.enum(['installing', 'starting', 'ready', 'error']),
+});
+export type PreviewStatusUpdate = z.infer<typeof PreviewStatusUpdateSchema>;
+
 /** A chunk of PTY output, keyed by the session id `terminal:create` was called with. */
 export const TerminalDataSchema = z.object({ id: z.string().min(1), data: z.string() });
 export type TerminalData = z.infer<typeof TerminalDataSchema>;
@@ -150,6 +157,7 @@ export const eventContracts = {
   'preview:serverDetected': PreviewServerDetectedSchema,
   'preview:titleChanged': PreviewTitleChangedSchema,
   'preview:loadingChanged': PreviewLoadingChangedSchema,
+  'preview:statusUpdate': PreviewStatusUpdateSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

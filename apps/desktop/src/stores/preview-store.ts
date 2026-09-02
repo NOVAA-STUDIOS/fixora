@@ -22,6 +22,8 @@ type PreviewState = {
   hasDevScript: boolean;
   /** The command to run it — `pnpm dev`/`yarn dev`/`npm run dev`, whichever the project uses. */
   devCommand: string | null;
+  /** Progress narration from `launchAndPreview` — install/startup status shown in the empty state. */
+  statusMessage: string | null;
 
   open: (url: string) => Promise<void>;
   close: () => Promise<void>;
@@ -45,10 +47,11 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   detectedUrl: null,
   hasDevScript: false,
   devCommand: null,
+  statusMessage: null,
 
   open: async (url) => {
     const result = await invoke('preview:open', { url });
-    if (result.ok && result.value.ok) set({ isOpen: true, url });
+    if (result.ok && result.value.ok) set({ isOpen: true, url, statusMessage: null });
   },
 
   close: async () => {
@@ -91,7 +94,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     if (detected !== null) {
       const opened = await invoke('preview:open', { url: detected.url });
       if (opened.ok) {
-        set({ isOpen: true, url: detected.url, isLoading: true });
+        set({ isOpen: true, url: detected.url, isLoading: true, statusMessage: null });
         return;
       }
     }
@@ -107,7 +110,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     if (result.ok && result.value.ok) {
       // `preview:serverDetected` fires from within the same main-side call, before this
       // response arrives — `detectedUrl` is already the URL that's now actually loaded.
-      set({ isOpen: true, url: get().detectedUrl, isLoading: false });
+      set({ isOpen: true, url: get().detectedUrl, isLoading: false, statusMessage: null });
     } else {
       set({ isLoading: false });
       toast.error(result.ok ? (result.value.error ?? 'Could not start the dev server') : result.error.message);
@@ -125,10 +128,14 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     const offLoading = subscribe('preview:loadingChanged', ({ loading }) => {
       set({ isLoading: loading });
     });
+    const offStatus = subscribe('preview:statusUpdate', ({ message }) => {
+      set({ statusMessage: message });
+    });
     return () => {
       offDetected();
       offTitle();
       offLoading();
+      offStatus();
     };
   },
 }));
