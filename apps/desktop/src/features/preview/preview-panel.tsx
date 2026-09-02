@@ -46,13 +46,14 @@ export function PreviewPanel(): React.JSX.Element {
     if (toolbar === null || container === null) return;
 
     const sync = (): void => {
-      const toolbarRect = toolbar.getBoundingClientRect();
+      // containerRef already starts below the toolbar in DOM order — its own top is the correct
+      // y, and its own height is already the full available height, not the toolbar's.
       const containerRect = container.getBoundingClientRect();
       void invoke('preview:resize', {
         x: Math.round(containerRect.left + window.screenX),
-        y: Math.round(toolbarRect.bottom + window.screenY), // Below toolbar!
+        y: Math.round(containerRect.top + window.screenY),
         width: Math.round(containerRect.width),
-        height: Math.round(containerRect.height - toolbarRect.height),
+        height: Math.round(containerRect.height),
       });
     };
     sync();
