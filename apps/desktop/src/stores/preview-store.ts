@@ -76,11 +76,22 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
 
   launchAndPreview: async () => {
     // First: try to detect an already-running server — skip spawning a redundant process.
-    const detected = await invoke('preview:detect', {});
-    if (detected.ok && detected.value.url !== null) {
-      const opened = await invoke('preview:open', { url: detected.value.url });
+    // Retried a few times with a gap — a server can be up but not answer the very first probe.
+    let detected: { url: string; port: number | null } | null = null;
+    for (let i = 0; i < 3; i++) {
+      const result = await invoke('preview:detect', {});
+      if (result.ok && result.value.url !== null) {
+        detected = { url: result.value.url, port: result.value.port };
+        break;
+      }
+      await new Promise((resolve) => {
+        setTimeout(resolve, 500);
+      });
+    }
+    if (detected !== null) {
+      const opened = await invoke('preview:open', { url: detected.url });
       if (opened.ok) {
-        set({ isOpen: true, url: detected.value.url, isLoading: true });
+        set({ isOpen: true, url: detected.url, isLoading: true });
         return;
       }
     }

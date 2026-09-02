@@ -95,26 +95,27 @@ function devCommandFor(pm: PackageManager): string {
 }
 
 /** One GET, resolved `true`/`false` — never rejects, so a dead port is just "not up", not an
- *  unhandled promise. */
+ *  unhandled promise. Tries both `127.0.0.1` and `localhost` — Windows sometimes only answers on
+ *  one of the two. */
 function probePort(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const req = httpGet(
-      { host: '127.0.0.1', port, path: '/', timeout: PROBE_TIMEOUT_MS },
-      (res) => {
+  const tryHost = (host: string): Promise<boolean> =>
+    new Promise((resolve) => {
+      const req = httpGet({ host, port, path: '/', timeout: PROBE_TIMEOUT_MS }, (res) => {
         res.resume(); // drain, so the socket can close instead of leaking
         // Accept any response (200, 301, 302, 404 all mean a server is up); only a 5xx or no
         // status at all means nothing real answered.
         resolve(res.statusCode !== undefined && res.statusCode < 500);
-      },
-    );
-    req.on('timeout', () => {
-      req.destroy();
-      resolve(false);
+      });
+      req.on('timeout', () => {
+        req.destroy();
+        resolve(false);
+      });
+      req.on('error', () => {
+        resolve(false);
+      });
     });
-    req.on('error', () => {
-      resolve(false);
-    });
-  });
+
+  return Promise.any([tryHost('127.0.0.1'), tryHost('localhost')]).catch(() => false);
 }
 
 /** First `COMMON_PORTS` entry that answers, in the array's own priority order — not necessarily
