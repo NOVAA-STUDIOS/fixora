@@ -20,7 +20,7 @@ const TITLE_BAR_HEIGHT = 40;
 /** Preview panel's own toolbar (h-10). */
 const TOOLBAR_HEIGHT = 40;
 /** Bottom status bar. */
-const STATUS_BAR_HEIGHT = 32;
+const STATUS_BAR_HEIGHT = 36;
 
 /** Full-window preview bounds, computed from the actual `BrowserWindow` content area — not the
  *  renderer's own DOM coords, which are unreliable on Windows (DPI scaling, window chrome offset). */
