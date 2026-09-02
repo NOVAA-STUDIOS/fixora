@@ -45,6 +45,13 @@ const DEFAULT_BOUNDS: Rectangle = { x: 0, y: 0, width: 800, height: 600 };
 
 export type DetectedServer = { port: number; url: string; framework: string };
 
+// Fixora's own Vite dev server port — never treat as a user's dev server.
+let fixoraDevPort: number | null = null;
+
+export function setFixoraDevPort(port: number): void {
+  fixoraDevPort = port;
+}
+
 export interface PreviewService {
   scanForDevServer(): Promise<DetectedServer | null>;
   startScanning(): void;
@@ -124,7 +131,9 @@ function probePort(port: number): Promise<boolean> {
  *  worth of wall-clock time, not one per port. */
 async function scanPorts(): Promise<DetectedServer | null> {
   const results = await Promise.all(
-    COMMON_PORTS.map((port) => probePort(port).then((ok) => (ok ? port : null))),
+    COMMON_PORTS.filter((port) => port !== fixoraDevPort).map((port) =>
+      probePort(port).then((ok) => (ok ? port : null)),
+    ),
   );
   const found = results.find((port) => port !== null);
   if (found === undefined) return null;

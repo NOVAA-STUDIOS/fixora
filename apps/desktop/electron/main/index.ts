@@ -60,7 +60,7 @@ import { initShieldSettings } from './lib/shield-settings.js';
 import { isMcpOnlyLaunch, startMcpOnly } from './mcp-standalone.js';
 import { createMailService } from './services/mail/mail-service.js';
 import { migrateLegacyUserData } from './services/migrate-user-data.js';
-import { createPreviewService } from './services/preview-service.js';
+import { createPreviewService, setFixoraDevPort } from './services/preview-service.js';
 import { createShieldService } from './services/shield/shield-service.js';
 import { createWorkspaceService } from './services/workspace-service.js';
 import { createSuggestionRepository } from './suggestions/suggestion-repository.js';
@@ -440,6 +440,13 @@ function startBackend(window: BrowserWindow | null): void {
   // registerWorkspaceHandlers so a workspace close/switch can tear down its view/process too.
   const previewService = createPreviewService(window, workspaceService);
   registerPreviewHandlers(previewService);
+  // Fixora's own Vite renderer runs on localhost too in dev — exclude its port so the scanner
+  // never mistakes Fixora itself for the user's dev server. Production has no dev server URL.
+  const rendererDevUrl = process.env['ELECTRON_RENDERER_URL'];
+  if (!app.isPackaged && rendererDevUrl !== undefined) {
+    const rendererPort = Number.parseInt(new URL(rendererDevUrl).port, 10);
+    if (!Number.isNaN(rendererPort)) setFixoraDevPort(rendererPort);
+  }
   previewService.startScanning();
   registerWorkspaceHandlers(workspaceService, previewService);
   registerEditorHandlers(workspaceService, analysisHost);
