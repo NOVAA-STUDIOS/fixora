@@ -33,8 +33,26 @@ const FRAMEWORK_HINTS: Record<number, string> = {
   8000: 'Python',
 };
 
+/** Framework default dev-server ports, guessed from the dev command's own text — probed first
+ *  during the poll loop, before a full `COMMON_PORTS` scan. */
+const FRAMEWORK_DEFAULT_PORTS: Record<string, number> = {
+  vite: 5173,
+  next: 3000,
+  'react-scripts': 3000,
+  angular: 4200,
+  nuxt: 3000,
+};
+
+function guessPortFromCommand(cmd: string): number | null {
+  for (const [key, port] of Object.entries(FRAMEWORK_DEFAULT_PORTS)) {
+    if (cmd.toLowerCase().includes(key)) return port;
+  }
+  return null;
+}
+
 const SCAN_INTERVAL_MS = 3000;
-const PROBE_TIMEOUT_MS = 500;
+// Some servers are slow to respond to the very first request.
+const PROBE_TIMEOUT_MS = 1000;
 /** Delay before the first scan — well after terminal handlers are registered, so startup (DB,
  *  handler registration, terminal availability) finishes before network probing begins. */
 const SCAN_START_DELAY_MS = 5000;
@@ -376,8 +394,18 @@ export function createPreviewService(
     if (launching) return { ok: true }; // Already in progress
     launching = true;
     try {
-      // Already running — open it directly, no process spawned.
-      const already = await scanPorts();
+      // Already running — open it directly, no process spawned. Retried a few times with a gap —
+      // a server can be up but not answer the very first probe.
+      let already: DetectedServer | null = null;
+      for (let i = 0; i < 3; i++) {
+        already = await scanPorts();
+        if (already !== null) break;
+        if (i < 2) {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 500);
+          });
+        }
+      }
       if (already !== null) {
         if (window !== null && !window.isDestroyed()) {
           emitToWindow(window, 'preview:serverDetected', already);
@@ -491,8 +519,25 @@ export function createPreviewService(
         devProcess = null;
       });
 
+      const guessedPort = guessPortFromCommand(devCommand);
       const deadline = Date.now() + LAUNCH_TIMEOUT_MS;
       while (Date.now() < deadline) {
+        // Try the framework's default port directly first — cheaper than a full scan, and it's
+        // usually right.
+        if (guessedPort !== null && (await probePort(guessedPort))) {
+          const found: DetectedServer = {
+            port: guessedPort,
+            url: `http://localhost:${String(guessedPort)}`,
+            framework: FRAMEWORK_HINTS[guessedPort] ?? 'Dev Server',
+          };
+          if (window !== null && !window.isDestroyed()) {
+            emitToWindow(window, 'preview:serverDetected', found);
+          }
+          createView(DEFAULT_BOUNDS);
+          loadUrl(found.url);
+          emitStatus('Preview ready', 'ready');
+          return { ok: true };
+        }
         const found = await scanPorts();
         if (found !== null) {
           if (window !== null && !window.isDestroyed()) {
