@@ -6,6 +6,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.14 (September 2, 2026)
+
+### Fixes
+- Preview now opens your running dev server correctly when switching to the Preview panel.
+- Preview panel is hidden when switching to another panel and restored when you come back.
+- Preview no longer times out when the dev server is already running on a common port.
+
 ## 1.2.13 (September 1, 2026)
 
 ### Features
