@@ -25,6 +25,16 @@ function killTree(pid: number | undefined): void {
   });
 }
 
+/** Every scaffold command shells out to `npx` — checked upfront so a missing Node.js install
+ *  reports itself plainly instead of surfacing as an opaque spawn/exit-code failure. */
+async function checkNodeAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile('npx', ['--version'], { timeout: 5000, windowsHide: true }, (err) => {
+      resolve(err === null);
+    });
+  });
+}
+
 /**
  * Runs a template's scaffold command as a plain background child process — never a terminal, never
  * a PTY, nothing attached to its stdin. That is what makes this genuinely silent (no window, no
@@ -48,6 +58,14 @@ export async function createProject(
       action: { type: 'none', label: 'Dismiss' },
       stage: 'workspace',
     });
+  }
+
+  const nodeAvailable = await checkNodeAvailable();
+  if (!nodeAvailable) {
+    throw new UserFacingError(
+      'Node.js is required to create new projects. Download it from nodejs.org and restart Fixora.',
+      { code: 'contract_violation', action: { type: 'none', label: 'Dismiss' }, stage: 'workspace' },
+    );
   }
 
   const projectPath = join(parentDir, name);
