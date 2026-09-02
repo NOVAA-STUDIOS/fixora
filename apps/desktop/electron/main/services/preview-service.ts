@@ -357,7 +357,13 @@ export function createPreviewService(
   }
 
   function notifyFileSaved(): void {
-    if (view !== null) refresh();
+    if (view === null || !viewOpen) return;
+    // Delayed, not immediate — gives the dev server's HMR a chance to process the change itself
+    // first. Vite/webpack HMR updates in place without this; this reload is the fallback for
+    // projects where HMR isn't picking the change up.
+    setTimeout(() => {
+      view?.webContents.reload();
+    }, 1000);
   }
 
   async function checkDevScript(): Promise<{ hasScript: boolean; command: string | null }> {
