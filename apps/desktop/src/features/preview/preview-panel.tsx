@@ -59,7 +59,7 @@ export function PreviewPanel(): React.JSX.Element {
   }, [isOpen]);
 
   return (
-    <div className="flex h-full flex-col bg-canvas">
+    <div className="flex h-full w-full min-h-0 min-w-0 flex-col bg-canvas">
       {/* Toolbar — compact iOS pill style */}
       <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border-subtle bg-raised px-2">
         {/* URL pill — takes most space */}
@@ -142,7 +142,7 @@ function EmptyState({
   onLaunch: () => Promise<void>;
 }): React.JSX.Element {
   return (
-    <div className="flex h-full select-none flex-col items-center justify-center gap-6 p-8">
+    <div className="flex h-full w-full select-none flex-col items-center justify-center gap-6 p-8">
       {/* Animated icon */}
       <div className="relative">
         <div className="flex size-20 animate-ios-enter items-center justify-center rounded-3xl bg-gradient-to-br from-accent/20 to-accent/5 shadow-xl shadow-accent/10 ring-1 ring-accent/20">
