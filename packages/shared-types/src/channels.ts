@@ -202,6 +202,8 @@ export const channels = [
   'preview:checkDevScript',
   'preview:launchDevServer',
   'preview:launchAndPreview',
+  'preview:hide',
+  'preview:show',
 ] as const;
 
 export type Channel = (typeof channels)[number];

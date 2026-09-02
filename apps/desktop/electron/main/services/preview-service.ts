@@ -59,6 +59,10 @@ export interface PreviewService {
   createView(bounds: Rectangle): void;
   destroyView(): void;
   resizeView(bounds: Rectangle): void;
+  /** Hides the view without destroying it — switching away from the Preview tab. */
+  hideView(): void;
+  /** Reverses `hideView()` — switching back to the Preview tab. */
+  showView(): void;
   loadUrl(url: string): void;
   refresh(): void;
   getState(): { url: string | null; isOpen: boolean; port: number | null };
@@ -278,6 +282,14 @@ export function createPreviewService(
     view?.setBounds(bounds);
   }
 
+  function hideView(): void {
+    view?.setVisible(false);
+  }
+
+  function showView(): void {
+    view?.setVisible(true);
+  }
+
   function loadUrl(url: string): void {
     if (!isLocalhostUrl(url)) {
       console.error('[preview] refused to load a non-localhost URL');
@@ -444,6 +456,8 @@ export function createPreviewService(
     createView,
     destroyView,
     resizeView,
+    hideView,
+    showView,
     loadUrl,
     refresh,
     getState,

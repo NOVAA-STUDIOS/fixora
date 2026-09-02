@@ -2,6 +2,7 @@ import { PanelGroupRoot, ResizablePanel, ResizeHandle, Skeleton, usePanelRef } f
 import { lazy, Suspense, useCallback, useEffect, useRef } from 'react';
 
 import { ErrorBoundary } from '../../app/error-boundary.js';
+import { invoke } from '../../lib/bridge.js';
 import { useUiStore, type PaneSizes } from '../../stores/ui-store.js';
 import { AiPanel } from '../ai/ai-panel.js';
 import { EditModeTabs, ProceedView } from '../ai/proceed-panel.js';
@@ -209,6 +210,16 @@ function WorkbenchContent(): React.JSX.Element {
     if (aiPanelVisible && panel.isCollapsed()) panel.expand();
     else if (!aiPanelVisible && !panel.isCollapsed()) panel.collapse();
   }, [aiPanelVisible, aiPanelRef]);
+
+  // Hide the embedded WebContentsView when switching away from Preview — it's a native sibling of
+  // this DOM, not inside it, so it stays visible over other views unless told otherwise.
+  useEffect(() => {
+    if (activeView === 'preview') {
+      void invoke('preview:show', {});
+    } else {
+      void invoke('preview:hide', {});
+    }
+  }, [activeView]);
 
   // Saved sizes are keyed by MODE and view together. Keying by view alone would make the two modes
   // fight over one stored number: drag the editor wide in Code mode and Fix mode would reopen with

@@ -55,6 +55,14 @@ export function registerPreviewHandlers(service: PreviewService): void {
   registerHandler('preview:launchAndPreview', ({ devCommand }) =>
     service.launchAndPreview(devCommand),
   );
+
+  registerHandler('preview:hide', () => {
+    service.hideView();
+  });
+
+  registerHandler('preview:show', () => {
+    service.showView();
+  });
 }
 
 /** Called from `workspace.handlers.ts`'s `fs:writeFile` after a successful save — refreshes the
