@@ -27,6 +27,7 @@ export function PreviewPanel(): React.JSX.Element {
   const launchAndPreview = usePreviewStore((s) => s.launchAndPreview);
   const listen = usePreviewStore((s) => s.listen);
   const containerRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => listen(), [listen]);
   useEffect(() => {
@@ -35,23 +36,29 @@ export function PreviewPanel(): React.JSX.Element {
   }, [detect, checkDevScript]);
 
   // The native view has no DOM node this component can size with CSS — main positions it in
-  // screen coordinates, so this container's own rect (converted from viewport to screen space via
-  // `window.screenX/Y`) is resent on every resize this container undergoes.
+  // screen coordinates, so the toolbar's and container's own rects (converted from viewport to
+  // screen space via `window.screenX/Y`) are resent on every resize either one undergoes.
   useEffect(() => {
-    const el = containerRef.current;
-    if (el === null || !isOpen) return;
+    if (!isOpen) return;
+
+    const toolbar = toolbarRef.current;
+    const container = containerRef.current;
+    if (toolbar === null || container === null) return;
+
     const sync = (): void => {
-      const rect = el.getBoundingClientRect();
+      const toolbarRect = toolbar.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
       void invoke('preview:resize', {
-        x: Math.round(window.screenX + rect.left),
-        y: Math.round(window.screenY + rect.top),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
+        x: Math.round(containerRect.left + window.screenX),
+        y: Math.round(toolbarRect.bottom + window.screenY), // Below toolbar!
+        width: Math.round(containerRect.width),
+        height: Math.round(containerRect.height - toolbarRect.height),
       });
     };
     sync();
     const observer = new ResizeObserver(sync);
-    observer.observe(el);
+    observer.observe(toolbar);
+    observer.observe(container);
     window.addEventListener('resize', sync);
     return () => {
       observer.disconnect();
@@ -62,7 +69,10 @@ export function PreviewPanel(): React.JSX.Element {
   return (
     <div className="flex h-full w-full min-h-0 min-w-0 flex-col bg-canvas">
       {/* Toolbar — compact iOS pill style */}
-      <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border-subtle bg-raised px-2">
+      <div
+        ref={toolbarRef}
+        className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border-subtle bg-raised px-2"
+      >
         {/* URL pill — takes most space */}
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg bg-inset px-2.5 py-1">
           <div
