@@ -1,3 +1,5 @@
+import type { BrowserWindow } from 'electron';
+
 import type { PreviewService } from '../../services/preview-service.js';
 import { registerHandler } from '../router.js';
 
@@ -11,9 +13,12 @@ import { registerHandler } from '../router.js';
  *  (preview-panel.tsx's `ResizeObserver`) — this only avoids a zero-size flash before that. */
 const DEFAULT_BOUNDS = { x: 0, y: 0, width: 800, height: 600 };
 
+/** Activity rail width — the preview view starts just past it, never under it. */
+const RAIL_WIDTH = 64;
+
 let activeService: PreviewService | null = null;
 
-export function registerPreviewHandlers(service: PreviewService): void {
+export function registerPreviewHandlers(service: PreviewService, win: BrowserWindow | null): void {
   activeService = service;
 
   registerHandler('preview:detect', async () => {
@@ -42,8 +47,18 @@ export function registerPreviewHandlers(service: PreviewService): void {
     return { ok: true };
   });
 
-  registerHandler('preview:resize', ({ x, y, width, height }) => {
-    service.resizeView({ x, y, width, height });
+  registerHandler('preview:resize', ({ y }) => {
+    // Renderer DOM coords + window.screenX/Y are unreliable on Windows (DPI scaling, window chrome
+    // offset) — computed here from the actual window bounds instead.
+    if (win === null || win.isDestroyed()) return;
+    const winContent = win.getContentBounds();
+    const previewBounds = {
+      x: RAIL_WIDTH,
+      y: Math.max(0, y),
+      width: Math.max(100, winContent.width - RAIL_WIDTH),
+      height: Math.max(100, winContent.height - Math.max(0, y)),
+    };
+    service.resizeView(previewBounds);
   });
 
   registerHandler('preview:getState', () => service.getState());
