@@ -6,6 +6,19 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.15 (September 2, 2026)
+
+### Features
+- Preview automatically installs dependencies if node_modules is missing before starting your dev server.
+- Preview shows live status messages while preparing your project.
+- Preview detects your dev server faster using framework-specific port hints.
+
+### Fixes
+- Preview panel now displays correctly within the window — toolbar and content are no longer hidden or misaligned.
+- Preview is hidden when switching to another panel and restored when you return.
+- Preview loading screen no longer overlaps the empty state.
+- Update download progress bar removed — only the restart prompt remains when an update is ready.
+
 ## 1.2.14 (September 2, 2026)
 
 ### Fixes
