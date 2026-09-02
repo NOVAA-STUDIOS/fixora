@@ -78,12 +78,19 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     // First: try to detect an already-running server — skip spawning a redundant process.
     const detected = await invoke('preview:detect', {});
     if (detected.ok && detected.value.url !== null) {
-      await get().open(detected.value.url);
-      return;
+      const opened = await invoke('preview:open', { url: detected.value.url });
+      if (opened.ok) {
+        set({ isOpen: true, url: detected.value.url, isLoading: true });
+        return;
+      }
     }
+
     if (get().devCommand === null) await get().checkDevScript();
     const cmd = get().devCommand;
-    if (cmd === null) return;
+    if (cmd === null) {
+      set({ isLoading: false });
+      return;
+    }
     set({ isLoading: true });
     const result = await invoke('preview:launchAndPreview', { devCommand: cmd });
     if (result.ok && result.value.ok) {
