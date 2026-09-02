@@ -13,29 +13,24 @@ import { registerHandler } from '../router.js';
  *  (preview-panel.tsx's `ResizeObserver`) — this only avoids a zero-size flash before that. */
 const DEFAULT_BOUNDS = { x: 0, y: 0, width: 800, height: 600 };
 
-/** Activity rail width — the preview view starts just past it, never under it. */
-const RAIL_WIDTH = 64;
-/** Small gap between the activity rail and the preview view. */
-const GAP = 8;
+/** Activity rail width (64px) + gap (8px) — the preview view starts just past both. */
+const RAIL_WIDTH = 72;
 /** h-10 */
 const TITLE_BAR_HEIGHT = 40;
-/** Preview panel's own toolbar (h-9). */
-const TOOLBAR_HEIGHT = 36;
-/** h-7 */
-const STATUS_BAR_HEIGHT = 28;
-
-const TOTAL_TOP = TITLE_BAR_HEIGHT + TOOLBAR_HEIGHT;
-const TOTAL_BOTTOM = STATUS_BAR_HEIGHT;
+/** Preview panel's own toolbar (h-10). */
+const TOOLBAR_HEIGHT = 40;
+/** Bottom status bar. */
+const STATUS_BAR_HEIGHT = 32;
 
 /** Full-window preview bounds, computed from the actual `BrowserWindow` content area — not the
  *  renderer's own DOM coords, which are unreliable on Windows (DPI scaling, window chrome offset). */
 function fullWindowBounds(win: BrowserWindow): Rectangle {
   const winContent = win.getContentBounds();
   return {
-    x: RAIL_WIDTH + GAP,
-    y: TOTAL_TOP,
-    width: winContent.width - RAIL_WIDTH - GAP,
-    height: winContent.height - TOTAL_TOP - TOTAL_BOTTOM,
+    x: RAIL_WIDTH,
+    y: TITLE_BAR_HEIGHT + TOOLBAR_HEIGHT,
+    width: winContent.width - RAIL_WIDTH,
+    height: winContent.height - TITLE_BAR_HEIGHT - TOOLBAR_HEIGHT - STATUS_BAR_HEIGHT,
   };
 }
 
