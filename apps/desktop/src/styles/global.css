@@ -238,16 +238,16 @@
 
 /* Selection tint matches Fixora's own accent, not Monaco's default blue — `--fx-color-accent-subtle`
    isn't a token this app defines, so this uses the same color-mix-over-accent pattern the rest of
-   this file already uses for accent-tinted backgrounds. */
-.monaco-editor .selected-text {
+   this file already uses for accent-tinted backgrounds. Monaco only paints `.selected-text` and
+   `.selectionHighlight` under `.focused` (bundled editor.main.css) — the un-prefixed selectors
+   below never actually matched anything live, so they're corrected here rather than left as dead
+   CSS. `monaco-theme.ts` already sets the same purple via `editor.selectionBackground` etc., so
+   these !important rules are belt-and-suspenders, not the only thing making this work. */
+.monaco-editor .focused .selected-text {
   background-color: color-mix(in srgb, var(--fx-color-accent) 30%, transparent) !important;
 }
 
-.monaco-editor .view-overlays .selected-text {
-  background-color: color-mix(in srgb, var(--fx-color-accent) 30%, transparent) !important;
-}
-
-.monaco-editor .selectionHighlight {
+.monaco-editor .focused .selectionHighlight {
   background-color: color-mix(in srgb, var(--fx-color-accent) 20%, transparent) !important;
   border: 1px solid color-mix(in srgb, var(--fx-color-accent) 40%, transparent) !important;
 }
