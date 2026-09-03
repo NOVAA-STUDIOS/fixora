@@ -24,6 +24,7 @@ export const channels = [
   // service and registering every handler — a pull, not a push, so it can never race a listener
   // that hasn't subscribed yet the way the old `app:ready` event could.
   'app:getReadyState',
+  'app:relaunch',
   'system:getAppInfo',
   'system:getChangelog',
   'system:getGpuPreference',

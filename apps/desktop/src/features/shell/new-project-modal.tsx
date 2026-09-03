@@ -201,6 +201,11 @@ export function NewProjectModal(): React.JSX.Element {
               >
                 Close
               </Button>
+              {error !== null && error.includes('nodejs.org') && (
+                <Button variant="primary" size="sm" onClick={() => void invoke('app:relaunch', {})}>
+                  Restart Fixora
+                </Button>
+              )}
             </div>
           </div>
         )}

@@ -63,7 +63,7 @@ export async function createProject(
   const nodeAvailable = await checkNodeAvailable();
   if (!nodeAvailable) {
     throw new UserFacingError(
-      'Node.js is required to create new projects. Download it from nodejs.org and restart Fixora.',
+      'Node.js is required to create new projects. Download it from nodejs.org, then restart Fixora to apply the changes.',
       { code: 'contract_violation', action: { type: 'none', label: 'Dismiss' }, stage: 'workspace' },
     );
   }

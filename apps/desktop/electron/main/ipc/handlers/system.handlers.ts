@@ -68,6 +68,11 @@ export function registerSystemHandlers(deps: {
   workspace: WorkspaceService;
   gpuPreference: GpuPreferenceStore | null;
 }): void {
+  registerHandler('app:relaunch', () => {
+    app.relaunch();
+    app.exit(0);
+  });
+
   registerHandler('system:getAppInfo', (): AppInfo => {
     return {
       name: app.getName(),

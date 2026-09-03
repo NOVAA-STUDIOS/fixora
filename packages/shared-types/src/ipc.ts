@@ -102,6 +102,11 @@ export const contracts = {
     request: empty,
     response: z.object({ ready: z.boolean() }),
   },
+  /** Restarts the app — e.g. after the user installs Node.js so a scaffold command can find it. */
+  'app:relaunch': {
+    request: empty,
+    response: z.void(),
+  },
   'system:getAppInfo': {
     request: empty,
     response: AppInfoSchema,
