@@ -23,14 +23,18 @@ describe('UpdateBanner', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('renders nothing while available — no download progress UI', () => {
-    useUpdateStore.setState({ update: { status: 'available', version: '1.2.0' } });
-    render(<UpdateBanner />);
-    expect(screen.queryByRole('status')).toBeNull();
+  it('shows a thin progress line while available', () => {
+    useUpdateStore.setState({ update: { status: 'available', version: '1.2.0' }, downloadProgress: 42 });
+    const { container } = render(<UpdateBanner />);
+    const bar = container.querySelector<HTMLDivElement>('div > div');
+    expect(bar?.style.width).toBe('42%');
   });
 
-  it('renders nothing while available with progress in flight', () => {
-    useUpdateStore.setState({ update: { status: 'available', version: '1.2.0' }, downloadProgress: 42 });
+  it('renders nothing once the download completes', () => {
+    useUpdateStore.setState({
+      update: { status: 'available', version: '1.2.0' },
+      downloadProgress: 100,
+    });
     render(<UpdateBanner />);
     expect(screen.queryByRole('status')).toBeNull();
   });

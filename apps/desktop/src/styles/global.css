@@ -236,6 +236,17 @@
   );
 }
 
+/* Selection tint matches Fixora's own accent, not Monaco's default blue — `--fx-color-accent-subtle`
+   isn't a token this app defines, so this uses the same color-mix-over-accent pattern the rest of
+   this file already uses for accent-tinted backgrounds. */
+.monaco-editor .selected-text {
+  background-color: color-mix(in srgb, var(--fx-color-accent) 20%, transparent) !important;
+}
+
+.monaco-editor .selectionHighlight {
+  background-color: color-mix(in srgb, var(--fx-color-accent) 12%, transparent) !important;
+}
+
 /*
  * Splash screen motion. Both are applied through Tailwind's `motion-safe:` variant, so a user with
  * "reduce motion" set sees the composed screen without any of it.
