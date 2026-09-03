@@ -87,19 +87,19 @@ export function PreviewPanel(): React.JSX.Element {
           type="button"
           onClick={() => void goBack()}
           disabled={!canGoBack}
-          title="Back"
-          className="rounded-md p-1.5 text-fg-secondary transition-colors hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-30"
+          title="Go back"
+          className="rounded-md p-2 text-fg-secondary transition-colors hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-30"
         >
-          ←
+          <span className="text-base leading-none">←</span>
         </button>
         <button
           type="button"
           onClick={() => void goForward()}
           disabled={!canGoForward}
-          title="Forward"
-          className="rounded-md p-1.5 text-fg-secondary transition-colors hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-30"
+          title="Go forward"
+          className="rounded-md p-2 text-fg-secondary transition-colors hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-30"
         >
-          →
+          <span className="text-base leading-none">→</span>
         </button>
 
         {/* URL pill — takes most space */}
