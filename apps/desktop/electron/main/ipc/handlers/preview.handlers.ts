@@ -1,5 +1,3 @@
-import type { BrowserWindow } from 'electron';
-
 import type { PreviewService } from '../../services/preview-service.js';
 import { registerHandler } from '../router.js';
 
@@ -13,12 +11,9 @@ import { registerHandler } from '../router.js';
  *  (preview-panel.tsx's `ResizeObserver`) — this only avoids a zero-size flash before that. */
 const DEFAULT_BOUNDS = { x: 0, y: 0, width: 800, height: 600 };
 
-/** Activity rail width (64px) + gap (8px) — the preview view starts just past both. */
-const RAIL_WIDTH = 72;
-
 let activeService: PreviewService | null = null;
 
-export function registerPreviewHandlers(service: PreviewService, win: BrowserWindow | null): void {
+export function registerPreviewHandlers(service: PreviewService): void {
   activeService = service;
 
   registerHandler('preview:detect', async () => {
@@ -50,20 +45,14 @@ export function registerPreviewHandlers(service: PreviewService, win: BrowserWin
   });
 
   registerHandler('preview:resize', ({ x, y, width, height }) => {
-    // Renderer DOM coords + window.screenX/Y are unreliable on Windows (DPI scaling, window chrome
-    // offset) — computed here from the actual window bounds instead.
-    console.error('[preview:resize] renderer bounds:', { x, y, width, height });
-    if (win === null || win.isDestroyed()) return;
-    const winContent = win.getContentBounds();
-    console.error('[preview:resize] window content bounds:', winContent);
-    const previewBounds = {
-      x: RAIL_WIDTH,
-      y: Math.max(0, y),
-      width: Math.max(100, winContent.width - RAIL_WIDTH),
-      height: Math.max(100, winContent.height - Math.max(0, y)),
-    };
-    console.error('[preview:resize] final bounds:', previewBounds);
-    service.resizeView(previewBounds);
+    // Trust the renderer completely — its own ResizeObserver (preview-panel.tsx) already accounts
+    // for the toolbar and status bar, and converts to screen space via window.screenX/Y.
+    service.resizeView({
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.round(width),
+      height: Math.round(height),
+    });
   });
 
   registerHandler('preview:getState', () => service.getState());

@@ -439,7 +439,7 @@ function startBackend(window: BrowserWindow | null): void {
   // ports is cheap enough to run for the life of the session. Constructed before
   // registerWorkspaceHandlers so a workspace close/switch can tear down its view/process too.
   const previewService = createPreviewService(window, workspaceService);
-  registerPreviewHandlers(previewService, window);
+  registerPreviewHandlers(previewService);
   // Fixora's own Vite renderer runs on localhost too in dev — exclude its port so the scanner
   // never mistakes Fixora itself for the user's dev server. Production has no dev server URL.
   const rendererDevUrl = process.env['ELECTRON_RENDERER_URL'];
