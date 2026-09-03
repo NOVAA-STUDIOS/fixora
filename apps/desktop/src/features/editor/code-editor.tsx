@@ -221,6 +221,11 @@ export function CodeEditor({
     editorRef.current = editor;
     setActiveEditor(editor);
 
+    // Force theme re-apply to ensure selection colors load
+    setTimeout(() => {
+      monaco.editor.setTheme(resolveEditorTheme(editorTheme, theme));
+    }, 100);
+
     // Project-aware TypeScript IntelliSense: pulls the open workspace's own tsconfig.json into
     // Monaco's TS service, so `strict` and friends reflect the real project rather than only
     // monaco-setup.ts's generic defaults. Missing/unparsable tsconfig is not an error — plain
@@ -303,6 +308,9 @@ export function CodeEditor({
       editorRef.current = null;
       setActiveEditor(null);
     };
+    // Mount-once: editorTheme/theme are read for the one-time re-apply workaround above, not
+    // meant to re-run this whole effect (which would re-create the editor) on every theme change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Point the editor at the active file's model whenever the active file or its content changes,
