@@ -183,6 +183,9 @@ export function CodeEditor({
       // via monaco-setup.ts's workers; Python and everything else get this word-based layer,
       // which is genuinely all Monaco itself can offer without an actual language server).
       wordBasedSuggestions: 'allDocuments',
+      // Token-accurate highlighting from the language service, not just grammar-based coloring —
+      // real for TS/JS, which has a semantic worker (monaco-setup.ts) to supply it.
+      'semanticHighlighting.enabled': true,
       // The enclosing scope (function/class) pinned at the top while scrolling past it — Monaco's
       // own built-in contribution, driven by the same folding-range/outline data folding uses.
       stickyScroll: { enabled: true },
