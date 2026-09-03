@@ -26,7 +26,7 @@ function themeFrom(base: 'vs' | 'vs-dark', c: SemanticColors): monaco.editor.ISt
       'editorCursor.foreground': c.accent.solid,
       'editor.selectionBackground': '#7c3aed99', // Purple with 60% opacity
       'editor.selectionHighlightBackground': '#7c3aed55', // Purple with 33% opacity
-      'editor.inactiveSelectionBackground': '#7c3aed55', // When window not focused
+      'editor.inactiveSelectionBackground': '#7c3aed99', // When window not focused
       // `renderLineHighlight: 'none'` (code-editor.tsx) means Monaco no longer paints this at
       // all — transparent regardless, kept explicit so a future flip back to 'all'/'line' doesn't
       // silently resurrect the red-looking highlight this pair was set to fix.
@@ -73,7 +73,7 @@ const MONOKAI_THEME: monaco.editor.IStandaloneThemeData = {
     'editorCursor.foreground': '#f8f8f0',
     'editor.selectionBackground': '#7c3aed99',
     'editor.selectionHighlightBackground': '#7c3aed55',
-    'editor.inactiveSelectionBackground': '#7c3aed55',
+    'editor.inactiveSelectionBackground': '#7c3aed99',
     'editor.lineHighlightBackground': '#3e3d32',
   },
 };
@@ -99,7 +99,7 @@ const SOLARIZED_DARK_THEME: monaco.editor.IStandaloneThemeData = {
     'editorCursor.foreground': '#839496',
     'editor.selectionBackground': '#7c3aed99',
     'editor.selectionHighlightBackground': '#7c3aed55',
-    'editor.inactiveSelectionBackground': '#7c3aed55',
+    'editor.inactiveSelectionBackground': '#7c3aed99',
     'editor.lineHighlightBackground': '#073642',
   },
 };
@@ -129,7 +129,7 @@ const DRACULA_THEME: monaco.editor.IStandaloneThemeData = {
     'editorCursor.foreground': '#f8f8f0',
     'editor.selectionBackground': '#7c3aed99',
     'editor.selectionHighlightBackground': '#7c3aed55',
-    'editor.inactiveSelectionBackground': '#7c3aed55',
+    'editor.inactiveSelectionBackground': '#7c3aed99',
     'editor.lineHighlightBackground': '#44475a',
   },
 };
@@ -155,7 +155,7 @@ const GITHUB_DARK_THEME: monaco.editor.IStandaloneThemeData = {
     'editorCursor.foreground': '#c9d1d9',
     'editor.selectionBackground': '#7c3aed99',
     'editor.selectionHighlightBackground': '#7c3aed55',
-    'editor.inactiveSelectionBackground': '#7c3aed55',
+    'editor.inactiveSelectionBackground': '#7c3aed99',
     'editor.lineHighlightBackground': '#388bfd26',
   },
 };
@@ -181,7 +181,7 @@ const ONE_DARK_THEME: monaco.editor.IStandaloneThemeData = {
     'editorCursor.foreground': '#528bff',
     'editor.selectionBackground': '#7c3aed99',
     'editor.selectionHighlightBackground': '#7c3aed55',
-    'editor.inactiveSelectionBackground': '#7c3aed55',
+    'editor.inactiveSelectionBackground': '#7c3aed99',
     'editor.lineHighlightBackground': '#3e4451',
   },
 };
