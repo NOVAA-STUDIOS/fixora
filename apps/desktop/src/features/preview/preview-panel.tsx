@@ -4,6 +4,10 @@ import { useEffect, useRef } from 'react';
 import { invoke } from '../../lib/bridge.js';
 import { usePreviewStore } from '../../stores/preview-store.js';
 
+/** h-7 status bar — containerRect's own height still includes it, since the status bar sits below
+ *  this component in the layout, not inside it. */
+const STATUS_BAR_HEIGHT = 28;
+
 /**
  * Fixora Preview: an embedded WebContentsView showing the user's own localhost dev server,
  * positioned under this component's own placeholder `<div>` — the native view is a sibling of
@@ -61,7 +65,7 @@ export function PreviewPanel(): React.JSX.Element {
         x: Math.round(containerRect.left + window.screenX),
         y: Math.round(containerRect.top + window.screenY),
         width: Math.round(containerRect.width),
-        height: Math.round(containerRect.height),
+        height: Math.round(containerRect.height - STATUS_BAR_HEIGHT),
       });
     };
     sync();
