@@ -6,6 +6,18 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.17 (September 3, 2026)
+
+### Features
+- Keyboard shortcuts for all panels: Ctrl+Shift+E (Files), Ctrl+Shift+M (Problems), Ctrl+Shift+G (Source Control), Ctrl+Shift+H (History), Ctrl+Shift+V (Preview), Ctrl+Shift+R (Refresh Preview).
+- Editor text selection now uses Fixora's purple accent color.
+- Update downloads show as a thin progress line under the title bar.
+- Semantic highlighting enabled in the editor.
+
+### Fixes
+- Preview back and forward buttons now work correctly after a page loads.
+- New Project shows a Restart Fixora button when Node.js is not installed.
+
 ## 1.2.16 (September 2, 2026)
 
 ### Features
