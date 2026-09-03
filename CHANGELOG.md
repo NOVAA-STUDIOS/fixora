@@ -6,6 +6,17 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.16 (September 2, 2026)
+
+### Features
+- Preview: back and forward navigation buttons in the preview toolbar.
+- Editor: Ctrl+F opens the find widget, pre-filled with any selected text.
+
+### Fixes
+- Preview panel now fits correctly within the window without overlapping the status bar or activity rail.
+- Preview refreshes automatically after saving a file.
+- New Project shows a helpful message if Node.js is not installed.
+
 ## 1.2.15 (September 2, 2026)
 
 ### Features
