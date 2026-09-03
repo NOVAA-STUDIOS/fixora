@@ -221,10 +221,10 @@ export function CodeEditor({
     editorRef.current = editor;
     setActiveEditor(editor);
 
-    // Force theme re-apply to ensure selection colors load
-    setTimeout(() => {
+    // Re-apply theme after editor is ready — ensures selection colors load
+    requestAnimationFrame(() => {
       monaco.editor.setTheme(resolveEditorTheme(editorTheme, theme));
-    }, 100);
+    });
 
     // Project-aware TypeScript IntelliSense: pulls the open workspace's own tsconfig.json into
     // Monaco's TS service, so `strict` and friends reflect the real project rather than only
