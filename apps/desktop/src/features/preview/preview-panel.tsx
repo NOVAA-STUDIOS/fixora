@@ -62,9 +62,9 @@ export function PreviewPanel(): React.JSX.Element {
       console.error('[preview] container rect:', JSON.stringify(containerRect.toJSON()));
       console.error('[preview] screen offset:', { screenX: window.screenX, screenY: window.screenY });
       void invoke('preview:resize', {
-        x: Math.round(containerRect.left + window.screenX),
+        x: Math.round(containerRect.left + window.screenX + 8),
         y: Math.round(containerRect.top + window.screenY),
-        width: Math.round(containerRect.width),
+        width: Math.round(containerRect.width - 8),
         height: Math.round(containerRect.height - STATUS_BAR_HEIGHT),
       });
     };
