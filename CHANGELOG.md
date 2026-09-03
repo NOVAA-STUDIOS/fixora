@@ -6,6 +6,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
+## 1.2.18 (September 3, 2026)
+
+### Fixes
+- New Project no longer incorrectly reports that Node.js is missing when it is installed.
+- Text selection highlight in the editor is restored to its default behavior.
+- Update download progress bar restored with percentage indicator.
+
 ## 1.2.17 (September 3, 2026)
 
 ### Features
