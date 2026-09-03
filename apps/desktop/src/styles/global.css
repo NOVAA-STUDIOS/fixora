@@ -240,11 +240,16 @@
    isn't a token this app defines, so this uses the same color-mix-over-accent pattern the rest of
    this file already uses for accent-tinted backgrounds. */
 .monaco-editor .selected-text {
-  background-color: color-mix(in srgb, var(--fx-color-accent) 20%, transparent) !important;
+  background-color: color-mix(in srgb, var(--fx-color-accent) 30%, transparent) !important;
+}
+
+.monaco-editor .view-overlays .selected-text {
+  background-color: color-mix(in srgb, var(--fx-color-accent) 30%, transparent) !important;
 }
 
 .monaco-editor .selectionHighlight {
-  background-color: color-mix(in srgb, var(--fx-color-accent) 12%, transparent) !important;
+  background-color: color-mix(in srgb, var(--fx-color-accent) 20%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--fx-color-accent) 40%, transparent) !important;
 }
 
 /*
