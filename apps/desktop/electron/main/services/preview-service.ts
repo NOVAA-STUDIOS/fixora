@@ -358,6 +358,17 @@ export function createPreviewService(
       currentPort = null;
     }
     void view?.webContents.loadURL(url);
+    // Initial navigation state — the did-navigate listener (createView) covers every navigation
+    // after this one, but the very first load needs its own emit. Delayed so the page has actually
+    // settled before canGoBack/canGoForward are read.
+    setTimeout(() => {
+      if (view && !view.webContents.isDestroyed() && window && !window.isDestroyed()) {
+        emitToWindow(window, 'preview:navigationChanged', {
+          canGoBack: view.webContents.navigationHistory.canGoBack(),
+          canGoForward: view.webContents.navigationHistory.canGoForward(),
+        });
+      }
+    }, 1000);
   }
 
   function refresh(): void {
