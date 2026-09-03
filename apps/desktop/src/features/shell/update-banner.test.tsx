@@ -23,11 +23,12 @@ describe('UpdateBanner', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('shows a thin progress line while available', () => {
+  it('shows a progress bar and percentage while available', () => {
     useUpdateStore.setState({ update: { status: 'available', version: '1.2.0' }, downloadProgress: 42 });
     const { container } = render(<UpdateBanner />);
-    const bar = container.querySelector<HTMLDivElement>('div > div');
+    const bar = container.querySelector<HTMLDivElement>('div > div > div');
     expect(bar?.style.width).toBe('42%');
+    expect(screen.getByText('42%')).toBeTruthy();
   });
 
   it('renders nothing once the download completes', () => {
