@@ -22,6 +22,10 @@ export function PreviewPanel(): React.JSX.Element {
   const open = usePreviewStore((s) => s.open);
   const close = usePreviewStore((s) => s.close);
   const refresh = usePreviewStore((s) => s.refresh);
+  const goBack = usePreviewStore((s) => s.goBack);
+  const goForward = usePreviewStore((s) => s.goForward);
+  const canGoBack = usePreviewStore((s) => s.canGoBack);
+  const canGoForward = usePreviewStore((s) => s.canGoForward);
   const detect = usePreviewStore((s) => s.detect);
   const checkDevScript = usePreviewStore((s) => s.checkDevScript);
   const launchAndPreview = usePreviewStore((s) => s.launchAndPreview);
@@ -78,6 +82,26 @@ export function PreviewPanel(): React.JSX.Element {
         ref={toolbarRef}
         className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border-subtle bg-raised px-2"
       >
+        {/* Back/Forward */}
+        <button
+          type="button"
+          onClick={() => void goBack()}
+          disabled={!canGoBack}
+          title="Back"
+          className="rounded-md p-1.5 text-fg-secondary transition-colors hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          ←
+        </button>
+        <button
+          type="button"
+          onClick={() => void goForward()}
+          disabled={!canGoForward}
+          title="Forward"
+          className="rounded-md p-1.5 text-fg-secondary transition-colors hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          →
+        </button>
+
         {/* URL pill — takes most space */}
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg bg-inset px-2.5 py-1">
           <div

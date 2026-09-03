@@ -85,6 +85,8 @@ export interface PreviewService {
   showView(): void;
   loadUrl(url: string): void;
   refresh(): void;
+  goBack(): void;
+  goForward(): void;
   getState(): { url: string | null; isOpen: boolean; port: number | null };
   /** Called by `workspace.handlers.ts` after a successful `fs:writeFile` — refreshes the preview
    *  if one is currently open, a no-op otherwise. */
@@ -291,6 +293,16 @@ export function createPreviewService(
         emitToWindow(window, 'preview:loadingChanged', { loading: false });
       }
     });
+    const emitNavigationChanged = (): void => {
+      if (!window.isDestroyed()) {
+        emitToWindow(window, 'preview:navigationChanged', {
+          canGoBack: created.webContents.navigationHistory.canGoBack(),
+          canGoForward: created.webContents.navigationHistory.canGoForward(),
+        });
+      }
+    };
+    created.webContents.on('did-navigate', emitNavigationChanged);
+    created.webContents.on('did-navigate-in-page', emitNavigationChanged);
 
     created.setBounds(bounds);
     window.contentView.addChildView(created);
@@ -350,6 +362,14 @@ export function createPreviewService(
 
   function refresh(): void {
     view?.webContents.reload();
+  }
+
+  function goBack(): void {
+    view?.webContents.navigationHistory.goBack();
+  }
+
+  function goForward(): void {
+    view?.webContents.navigationHistory.goForward();
   }
 
   function getState(): { url: string | null; isOpen: boolean; port: number | null } {
@@ -591,6 +611,8 @@ export function createPreviewService(
     showView,
     loadUrl,
     refresh,
+    goBack,
+    goForward,
     getState,
     notifyFileSaved,
     checkDevScript,

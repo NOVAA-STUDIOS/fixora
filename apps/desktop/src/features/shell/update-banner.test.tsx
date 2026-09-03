@@ -23,17 +23,16 @@ describe('UpdateBanner', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('shows "downloading" while available, with no action to take yet', () => {
+  it('renders nothing while available — no download progress UI', () => {
     useUpdateStore.setState({ update: { status: 'available', version: '1.2.0' } });
     render(<UpdateBanner />);
-    expect(screen.getByRole('status').textContent).toMatch(/1\.2\.0.*downloading/i);
-    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('shows download percent once progress arrives', () => {
+  it('renders nothing while available with progress in flight', () => {
     useUpdateStore.setState({ update: { status: 'available', version: '1.2.0' }, downloadProgress: 42 });
     render(<UpdateBanner />);
-    expect(screen.getByRole('status').textContent).toMatch(/42%/);
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('renders nothing once downloaded — the status bar pill takes over', () => {

@@ -24,10 +24,14 @@ type PreviewState = {
   devCommand: string | null;
   /** Progress narration from `launchAndPreview` — install/startup status shown in the empty state. */
   statusMessage: string | null;
+  canGoBack: boolean;
+  canGoForward: boolean;
 
   open: (url: string) => Promise<void>;
   close: () => Promise<void>;
   refresh: () => Promise<void>;
+  goBack: () => Promise<void>;
+  goForward: () => Promise<void>;
   detect: () => Promise<void>;
   checkDevScript: () => Promise<void>;
   /** Runs the dev script as a hidden background process (main-side — no terminal involved) and
@@ -48,6 +52,8 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   hasDevScript: false,
   devCommand: null,
   statusMessage: null,
+  canGoBack: false,
+  canGoForward: false,
 
   open: async (url) => {
     const result = await invoke('preview:open', { url });
@@ -56,11 +62,21 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
 
   close: async () => {
     const result = await invoke('preview:close', {});
-    if (result.ok && result.value.ok) set({ isOpen: false, url: null, title: '' });
+    if (result.ok && result.value.ok) {
+      set({ isOpen: false, url: null, title: '', canGoBack: false, canGoForward: false });
+    }
   },
 
   refresh: async () => {
     await invoke('preview:refresh', {});
+  },
+
+  goBack: async () => {
+    await invoke('preview:goBack', {});
+  },
+
+  goForward: async () => {
+    await invoke('preview:goForward', {});
   },
 
   detect: async () => {
@@ -131,11 +147,15 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     const offStatus = subscribe('preview:statusUpdate', ({ message }) => {
       set({ statusMessage: message });
     });
+    const offNavigation = subscribe('preview:navigationChanged', ({ canGoBack, canGoForward }) => {
+      set({ canGoBack, canGoForward });
+    });
     return () => {
       offDetected();
       offTitle();
       offLoading();
       offStatus();
+      offNavigation();
     };
   },
 }));

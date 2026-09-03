@@ -85,6 +85,14 @@ export function registerPreviewHandlers(service: PreviewService, win: BrowserWin
     // No resize here — the renderer's own ResizeObserver re-fires and resends bounds via
     // preview:resize whenever the container becomes visible again.
   });
+
+  registerHandler('preview:goBack', () => {
+    service.goBack();
+  });
+
+  registerHandler('preview:goForward', () => {
+    service.goForward();
+  });
 }
 
 /** Called from `workspace.handlers.ts`'s `fs:writeFile` after a successful save — refreshes the

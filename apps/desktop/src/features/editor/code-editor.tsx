@@ -192,6 +192,13 @@ export function CodeEditor({
       // worker (monaco-setup.ts); a language with none — Python included — has nothing for these to
       // query, the same ceiling `wordBasedSuggestions` documents above.
       hover: { enabled: true, delay: 300, sticky: true },
+      // Ctrl+F's built-in Find widget — pre-fills the search box from the current selection, the
+      // same "search for what I just highlighted" convenience VS Code's own Find gives you.
+      find: {
+        addExtraSpaceOnTop: false,
+        autoFindInSelection: 'never',
+        seedSearchStringFromSelection: 'always',
+      },
       // Multiple results (Go to Definition/References/Implementations/Declarations/Type
       // Definitions) open in an inline peek window rather than jumping straight to the first one.
       gotoLocation: {
@@ -254,6 +261,12 @@ export function CodeEditor({
       if (model === null) return;
       const path = decodeURI(model.uri.path).replace(/^\//, '');
       void useEditorStore.getState().save(path);
+    });
+
+    // Ctrl/Cmd+F opens Monaco's own built-in Find widget — explicit rather than left to Monaco's
+    // default binding, so it is never shadowed by a future global shortcut of the same chord.
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
+      void editor.getAction('actions.find')?.run();
     });
 
     // Re-evaluate the minimap as the pane is dragged. `automaticLayout` re-lays-out the editor but

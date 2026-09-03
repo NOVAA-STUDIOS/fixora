@@ -795,6 +795,14 @@ export const contracts = {
     request: empty,
     response: z.void(),
   },
+  'preview:goBack': {
+    request: empty,
+    response: z.void(),
+  },
+  'preview:goForward': {
+    request: empty,
+    response: z.void(),
+  },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

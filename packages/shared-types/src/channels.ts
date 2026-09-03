@@ -204,6 +204,8 @@ export const channels = [
   'preview:launchAndPreview',
   'preview:hide',
   'preview:show',
+  'preview:goBack',
+  'preview:goForward',
 ] as const;
 
 export type Channel = (typeof channels)[number];
@@ -266,6 +268,7 @@ export const eventChannels = [
   'preview:titleChanged',
   'preview:loadingChanged',
   'preview:statusUpdate',
+  'preview:navigationChanged',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

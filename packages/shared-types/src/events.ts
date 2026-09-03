@@ -75,6 +75,13 @@ export const PreviewStatusUpdateSchema = z.object({
 });
 export type PreviewStatusUpdate = z.infer<typeof PreviewStatusUpdateSchema>;
 
+/** The embedded preview's back/forward history state changed (`did-navigate`). */
+export const PreviewNavigationChangedSchema = z.object({
+  canGoBack: z.boolean(),
+  canGoForward: z.boolean(),
+});
+export type PreviewNavigationChanged = z.infer<typeof PreviewNavigationChangedSchema>;
+
 /** A chunk of PTY output, keyed by the session id `terminal:create` was called with. */
 export const TerminalDataSchema = z.object({ id: z.string().min(1), data: z.string() });
 export type TerminalData = z.infer<typeof TerminalDataSchema>;
@@ -158,6 +165,7 @@ export const eventContracts = {
   'preview:titleChanged': PreviewTitleChangedSchema,
   'preview:loadingChanged': PreviewLoadingChangedSchema,
   'preview:statusUpdate': PreviewStatusUpdateSchema,
+  'preview:navigationChanged': PreviewNavigationChangedSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;
