@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
+import { usePreviewStore } from '../../stores/preview-store.js';
 import { useTestGenerationStore } from '../../stores/test-generation-store.js';
 import { toast } from '../../stores/toast-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
@@ -41,6 +42,7 @@ export function useAppCommands(): Command[] {
   const setSplit = useEditorStore((s) => s.setSplit);
   const generateTests = useTestGenerationStore((s) => s.generate);
   const generatingFor = useTestGenerationStore((s) => s.generatingFor);
+  const previewIsOpen = usePreviewStore((s) => s.isOpen);
 
   return useMemo(
     () => [
@@ -176,6 +178,7 @@ export function useAppCommands(): Command[] {
         id: 'view.workspace',
         title: 'Go to Files',
         group: 'Go to',
+        keybinding: 'mod+shift+e',
         run: () => {
           setActiveView('workspace');
           setPaletteOpen(false);
@@ -185,6 +188,7 @@ export function useAppCommands(): Command[] {
         id: 'view.findings',
         title: 'Go to Problems',
         group: 'Go to',
+        keybinding: 'mod+shift+m',
         run: () => {
           setActiveView('findings');
           setPaletteOpen(false);
@@ -194,6 +198,7 @@ export function useAppCommands(): Command[] {
         id: 'view.history',
         title: 'Go to History',
         group: 'Go to',
+        keybinding: 'mod+shift+h',
         run: () => {
           setActiveView('history');
           setPaletteOpen(false);
@@ -224,10 +229,34 @@ export function useAppCommands(): Command[] {
         id: 'view.sourceControl',
         title: 'Go to Source Control',
         group: 'View',
+        keybinding: 'mod+shift+g',
         keywords: ['git', 'source', 'control'],
         run: () => {
           setActiveView('sourceControl');
           setPaletteOpen(false);
+        },
+      },
+      {
+        id: 'view.preview',
+        title: 'Go to Preview',
+        keybinding: 'mod+shift+v',
+        keywords: ['preview', 'browser', 'live'],
+        group: 'View',
+        run: () => {
+          setPaletteOpen(false);
+          setActiveView('preview');
+        },
+      },
+      {
+        id: 'preview.refresh',
+        title: 'Refresh Preview',
+        keybinding: 'mod+shift+r',
+        keywords: ['preview', 'refresh', 'reload'],
+        group: 'View',
+        enabled: () => previewIsOpen,
+        run: () => {
+          setPaletteOpen(false);
+          void usePreviewStore.getState().refresh();
         },
       },
       {
@@ -324,6 +353,7 @@ export function useAppCommands(): Command[] {
       setSplit,
       generateTests,
       generatingFor,
+      previewIsOpen,
     ],
   );
 }

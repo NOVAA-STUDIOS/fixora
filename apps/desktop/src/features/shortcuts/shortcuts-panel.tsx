@@ -13,6 +13,12 @@ const SECTIONS: readonly Section[] = [
       { keys: ['Ctrl', 'B'], label: 'Toggle Sidebar' },
       { keys: ['Ctrl', 'J'], label: 'Toggle AI Panel' },
       { keys: ['Ctrl', '`'], label: 'Toggle Terminal' },
+      { keys: ['Ctrl', 'Shift', 'E'], label: 'Go to Files' },
+      { keys: ['Ctrl', 'Shift', 'M'], label: 'Go to Problems' },
+      { keys: ['Ctrl', 'Shift', 'H'], label: 'Go to History' },
+      { keys: ['Ctrl', 'Shift', 'G'], label: 'Go to Source Control' },
+      { keys: ['Ctrl', 'Shift', 'V'], label: 'Go to Preview' },
+      { keys: ['Ctrl', 'Shift', 'R'], label: 'Refresh Preview' },
     ],
   },
   {
