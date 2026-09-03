@@ -28,11 +28,25 @@ function killTree(pid: number | undefined): void {
 /** Every scaffold command shells out to `npx` — checked upfront so a missing Node.js install
  *  reports itself plainly instead of surfacing as an opaque spawn/exit-code failure. */
 async function checkNodeAvailable(): Promise<boolean> {
-  return new Promise((resolve) => {
-    execFile('npx', ['--version'], { timeout: 5000, windowsHide: true }, (err) => {
-      resolve(err === null);
+  const commands = ['npx', 'node', 'npm'];
+  for (const cmd of commands) {
+    const found = await new Promise<boolean>((resolve) => {
+      execFile(
+        cmd,
+        ['--version'],
+        {
+          timeout: 5000,
+          windowsHide: true,
+          shell: true, // Use shell to resolve PATH like VS Code does
+        },
+        (err) => {
+          resolve(err === null);
+        },
+      );
     });
-  });
+    if (found) return true;
+  }
+  return false;
 }
 
 /**
