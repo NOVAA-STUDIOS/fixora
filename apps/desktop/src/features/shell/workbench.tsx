@@ -214,17 +214,19 @@ function WorkbenchContent(): React.JSX.Element {
   // Hide the embedded WebContentsView when switching away from Preview — it's a native sibling of
   // this DOM, not inside it, so it stays visible over other views unless told otherwise.
   useEffect(() => {
+    // Always hide first
+    void invoke('preview:hide', {});
+
     if (activeView === 'preview') {
-      void invoke('preview:show', {});
-      // Delay resize to let CSS layout complete
+      // Small delay then show
       const timer = setTimeout(() => {
+        void invoke('preview:show', {});
         window.dispatchEvent(new Event('resize'));
-      }, 100);
+      }, 50);
       return () => {
         clearTimeout(timer);
       };
     }
-    void invoke('preview:hide', {});
   }, [activeView]);
 
   // Saved sizes are keyed by MODE and view together. Keying by view alone would make the two modes
