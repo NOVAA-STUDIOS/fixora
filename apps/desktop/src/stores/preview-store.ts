@@ -116,7 +116,9 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       }
     }
 
-    if (get().devCommand === null) await get().checkDevScript();
+    // Always re-fetch devCommand for current workspace — a stale command from a previous
+    // workspace must never be run against this one.
+    await get().checkDevScript();
     const cmd = get().devCommand;
     if (cmd === null) {
       set({ isLoading: false });
