@@ -95,43 +95,16 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   },
 
   launchAndPreview: async () => {
-    // Always close existing preview first
-    set({ isOpen: false, url: null, statusMessage: null });
+    // Reset everything
+    set({ isOpen: false, url: null, statusMessage: null, isLoading: false });
     await invoke('preview:forceReset', {});
-    // Wait for full reset
-    await new Promise((resolve) => {
-      setTimeout(resolve, 2000);
-    });
 
-    // First: try to detect an already-running server — skip spawning a redundant process.
-    // Retried a few times with a gap — a server can be up but not answer the very first probe.
-    let detected: { url: string; port: number | null } | null = null;
-    for (let i = 0; i < 3; i++) {
-      const result = await invoke('preview:detect', {});
-      if (result.ok && result.value.url !== null) {
-        detected = { url: result.value.url, port: result.value.port };
-        break;
-      }
-      await new Promise((resolve) => {
-        setTimeout(resolve, 500);
-      });
-    }
-    if (detected !== null) {
-      const opened = await invoke('preview:open', { url: detected.url });
-      if (opened.ok) {
-        set({ isOpen: true, url: detected.url, isLoading: true, statusMessage: null });
-        return;
-      }
-    }
-
-    // Always re-fetch devCommand for current workspace — a stale command from a previous
-    // workspace must never be run against this one.
+    // Get fresh devCommand — a stale command from a previous workspace must never be run
+    // against this one.
     await get().checkDevScript();
     const cmd = get().devCommand;
-    if (cmd === null) {
-      set({ isLoading: false });
-      return;
-    }
+    if (cmd === null) return;
+
     set({ isLoading: true });
     const result = await invoke('preview:launchAndPreview', { devCommand: cmd });
     if (result.ok && result.value.ok) {
