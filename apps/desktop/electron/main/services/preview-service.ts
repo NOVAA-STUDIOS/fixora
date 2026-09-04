@@ -372,6 +372,14 @@ export function createPreviewService(
       currentPort = null;
     }
     void view?.webContents.loadURL(url);
+    view?.webContents.once('did-finish-load', () => {
+      // Force resize after page loads — briefly changing bounds forces a GPU repaint.
+      if (window !== null && !window.isDestroyed() && view !== null) {
+        const bounds = view.getBounds();
+        view.setBounds({ ...bounds, width: bounds.width + 1 });
+        view.setBounds(bounds);
+      }
+    });
     // Initial navigation state — the did-navigate listener (createView) covers every navigation
     // after this one, but the very first load needs its own emit. Delayed so the page has actually
     // settled before canGoBack/canGoForward are read.
