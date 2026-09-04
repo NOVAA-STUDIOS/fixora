@@ -230,27 +230,22 @@ function EmptyState({
         </p>
       </div>
 
-      {detectedUrl !== null ? (
-        <button
-          type="button"
-          onClick={() => void onOpen(detectedUrl)}
-          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-on-accent shadow-lg shadow-accent/25 transition-all duration-200 hover:scale-105 hover:shadow-accent/40 active:scale-95"
-        >
-          Open Preview
-        </button>
-      ) : hasDevScript ? (
-        <button
-          type="button"
-          onClick={() => void onLaunch()}
-          className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-on-accent shadow-lg shadow-accent/25 transition-all duration-200 hover:scale-105 hover:shadow-accent/40 active:scale-95"
-        >
-          ▶ Open Preview
-        </button>
-      ) : (
-        <div className="flex flex-col items-center gap-2 text-center">
-          <span className="text-xs text-fg-muted">No dev script found in package.json</span>
-          <span className="text-xs text-fg-muted">Add a &lsquo;dev&rsquo; script to get started</span>
-        </div>
+      {/* Always show Open Preview button — detected first, launched otherwise */}
+      <button
+        type="button"
+        onClick={() => void (detectedUrl !== null ? onOpen(detectedUrl) : onLaunch())}
+        className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-on-accent shadow-lg shadow-accent/25 transition-all duration-200 hover:scale-105 hover:shadow-accent/40 active:scale-95"
+      >
+        ▶ Open Preview
+      </button>
+
+      {/* Show hint based on dev script availability */}
+      {detectedUrl === null && !hasDevScript && (
+        <p className="text-center text-xs text-fg-muted">
+          No dev script found in package.json.
+          <br />
+          Add a &lsquo;dev&rsquo; script to get started.
+        </p>
       )}
     </div>
   );
