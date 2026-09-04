@@ -159,7 +159,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       const nextId = state.workspace?.id ?? null;
       if (nextId === lastWorkspaceId) return;
       lastWorkspaceId = nextId;
-      void invoke('preview:close', {});
+      // Optimistic: reflect the reset immediately, don't wait for the IPC round trip.
       set({
         isOpen: false,
         url: null,
@@ -171,6 +171,8 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         canGoBack: false,
         canGoForward: false,
       });
+      void invoke('preview:hide', {}); // Hide immediately
+      void invoke('preview:close', {}); // Then destroy
     });
     return () => {
       offDetected();
