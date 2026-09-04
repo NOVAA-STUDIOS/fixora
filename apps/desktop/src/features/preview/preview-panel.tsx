@@ -43,18 +43,6 @@ export function PreviewPanel(): React.JSX.Element {
     void checkDevScript();
   }, [detect, checkDevScript]);
 
-  useEffect(() => {
-    if (!isOpen && containerRef.current) {
-      // Force re-render of empty state
-      containerRef.current.style.display = 'none';
-      requestAnimationFrame(() => {
-        if (containerRef.current) {
-          containerRef.current.style.display = '';
-        }
-      });
-    }
-  }, [isOpen]);
-
   // The native view has no DOM node this component can size with CSS — main positions it in
   // screen coordinates, so the toolbar's and container's own rects (converted from viewport to
   // screen space via `window.screenX/Y`) are resent on every resize either one undergoes.

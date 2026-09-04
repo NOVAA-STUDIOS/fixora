@@ -173,10 +173,13 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       });
       void invoke('preview:hide', {}); // Hide immediately
       void invoke('preview:close', {}); // Then destroy
-      // Re-check dev script for new workspace
+      // Re-check dev script for new workspace — wait for it to fully load.
       setTimeout(() => {
-        void get().checkDevScript();
-      }, 500);
+        const currentWorkspace = useWorkspaceStore.getState().workspace;
+        if (currentWorkspace !== null) {
+          void get().checkDevScript();
+        }
+      }, 1500);
     });
     return () => {
       offDetected();
