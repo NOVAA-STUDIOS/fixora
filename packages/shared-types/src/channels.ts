@@ -207,7 +207,6 @@ export const channels = [
   'preview:show',
   'preview:goBack',
   'preview:goForward',
-  'preview:forceReset',
 ] as const;
 
 export type Channel = (typeof channels)[number];

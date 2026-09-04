@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 
-import { useWorkspaceStore } from '../features/workspace/workspace-store.js';
 import { invoke, subscribe } from '../lib/bridge.js';
 
 import { toast } from './toast-store.js';
@@ -95,16 +94,33 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   },
 
   launchAndPreview: async () => {
-    // Reset everything
-    set({ isOpen: false, url: null, statusMessage: null, isLoading: false });
-    await invoke('preview:forceReset', {});
+    // First: try to detect an already-running server — skip spawning a redundant process.
+    // Retried a few times with a gap — a server can be up but not answer the very first probe.
+    let detected: { url: string; port: number | null } | null = null;
+    for (let i = 0; i < 3; i++) {
+      const result = await invoke('preview:detect', {});
+      if (result.ok && result.value.url !== null) {
+        detected = { url: result.value.url, port: result.value.port };
+        break;
+      }
+      await new Promise((resolve) => {
+        setTimeout(resolve, 500);
+      });
+    }
+    if (detected !== null) {
+      const opened = await invoke('preview:open', { url: detected.url });
+      if (opened.ok) {
+        set({ isOpen: true, url: detected.url, isLoading: true, statusMessage: null });
+        return;
+      }
+    }
 
-    // Get fresh devCommand — a stale command from a previous workspace must never be run
-    // against this one.
-    await get().checkDevScript();
+    if (get().devCommand === null) await get().checkDevScript();
     const cmd = get().devCommand;
-    if (cmd === null) return;
-
+    if (cmd === null) {
+      set({ isLoading: false });
+      return;
+    }
     set({ isLoading: true });
     const result = await invoke('preview:launchAndPreview', { devCommand: cmd });
     if (result.ok && result.value.ok) {
@@ -127,10 +143,6 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     });
     const offLoading = subscribe('preview:loadingChanged', ({ loading }) => {
       set({ isLoading: loading });
-      if (!loading && get().isOpen) {
-        // Trigger resize when page finishes loading
-        window.dispatchEvent(new Event('resize'));
-      }
     });
     const offStatus = subscribe('preview:statusUpdate', ({ message }) => {
       set({ statusMessage: message });
@@ -138,43 +150,12 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     const offNavigation = subscribe('preview:navigationChanged', ({ canGoBack, canGoForward }) => {
       set({ canGoBack, canGoForward });
     });
-    // No 'workspace:opened' push event exists (shared-types has only request/response
-    // 'workspace:open') — watched via the workspace store's own state instead, which already
-    // reflects every successful open/close.
-    let lastWorkspaceId = useWorkspaceStore.getState().workspace?.id ?? null;
-    const offWorkspace = useWorkspaceStore.subscribe((state) => {
-      const nextId = state.workspace?.id ?? null;
-      if (nextId === lastWorkspaceId) return;
-      lastWorkspaceId = nextId;
-      // Optimistic: reflect the reset immediately, don't wait for the IPC round trip.
-      set({
-        isOpen: false,
-        url: null,
-        port: null,
-        detectedUrl: null,
-        hasDevScript: false,
-        devCommand: null,
-        statusMessage: null,
-        canGoBack: false,
-        canGoForward: false,
-      });
-      void invoke('preview:hide', {}); // Hide immediately
-      void invoke('preview:close', {}); // Then destroy
-      // Re-check dev script for new workspace — wait for it to fully load.
-      setTimeout(() => {
-        const currentWorkspace = useWorkspaceStore.getState().workspace;
-        if (currentWorkspace !== null) {
-          void get().checkDevScript();
-        }
-      }, 1500);
-    });
     return () => {
       offDetected();
       offTitle();
       offLoading();
       offStatus();
       offNavigation();
-      offWorkspace();
     };
   },
 }));
