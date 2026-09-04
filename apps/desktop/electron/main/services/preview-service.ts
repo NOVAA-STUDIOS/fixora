@@ -182,8 +182,6 @@ export function createPreviewService(
   let scanTimer: ReturnType<typeof setInterval> | null = null;
   let scanStartTimer: ReturnType<typeof setTimeout> | null = null;
   let devProcess: ChildProcess | null = null;
-  // Guards against a double-launch race — e.g. two rapid "Open Preview" clicks.
-  let launching = false;
   // Set by createView/destroyView — the race guard for FIX 1's delayed stdout-triggered open
   // below (the port poll and the stdout hint can both fire; only the first should act).
   let viewOpen = false;
@@ -444,178 +442,172 @@ export function createPreviewService(
   }
 
   async function launchAndPreview(devCommand: string): Promise<{ ok: boolean; error?: string }> {
-    if (launching) return { ok: true }; // Already in progress
-    launching = true;
-    try {
-      // Kill any dev server Fixora itself spawned (e.g. for a previous workspace) before
-      // checking what's on the ports — a stale process from another workspace must never be
-      // mistaken for this one's server just because it happens to share a port.
-      killDevProcess();
+    // Kill any dev server Fixora itself spawned (e.g. for a previous workspace) before
+    // checking what's on the ports — a stale process from another workspace must never be
+    // mistaken for this one's server just because it happens to share a port.
+    killDevProcess();
 
-      // Already running — open it directly, no process spawned. Retried a few times with a gap —
-      // a server can be up but not answer the very first probe.
-      let already: DetectedServer | null = null;
-      for (let i = 0; i < 3; i++) {
-        already = await scanPorts();
-        if (already !== null) break;
-        if (i < 2) {
-          await new Promise((resolve) => {
-            setTimeout(resolve, 500);
+    // Already running — open it directly, no process spawned. Retried a few times with a gap —
+    // a server can be up but not answer the very first probe.
+    let already: DetectedServer | null = null;
+    for (let i = 0; i < 3; i++) {
+      already = await scanPorts();
+      if (already !== null) break;
+      if (i < 2) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 500);
+        });
+      }
+    }
+    if (already !== null) {
+      if (window !== null && !window.isDestroyed()) {
+        emitToWindow(window, 'preview:serverDetected', already);
+      }
+      createView(DEFAULT_BOUNDS);
+      loadUrl(already.url);
+      emitStatus('Preview ready', 'ready');
+      return { ok: true };
+    }
+
+    const open = workspace.getCurrent();
+    if (open === null) return { ok: false, error: 'No project is open.' };
+
+    const trimmed = devCommand.trim();
+    const parts = trimmed.split(/\s+/);
+    const command = parts[0];
+    if (command === undefined || command === '') {
+      return { ok: false, error: 'No dev command to run.' };
+    }
+    const args = parts.slice(1);
+
+    const nodeModulesPath = join(open.rootPath, 'node_modules');
+    const needsInstall = !existsSync(nodeModulesPath);
+    if (needsInstall) {
+      const hasPnpmLock = existsSync(join(open.rootPath, 'pnpm-lock.yaml'));
+      const hasYarnLock = existsSync(join(open.rootPath, 'yarn.lock'));
+      const installCmd = hasPnpmLock ? 'pnpm' : hasYarnLock ? 'yarn' : 'npm';
+      const installArgs = ['install'];
+
+      emitStatus('Installing dependencies...', 'installing');
+
+      const installError = await new Promise<Error | null>((resolve) => {
+        const installProc = spawn(installCmd, installArgs, {
+          cwd: open.rootPath,
+          shell: true,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          windowsHide: true,
+          env: { ...process.env },
+        });
+        const timer = setTimeout(() => {
+          installProc.kill();
+          resolve(new Error('Install timed out after 120 seconds'));
+        }, INSTALL_TIMEOUT_MS);
+        installProc.stdout.on('data', (data: Buffer) => {
+          const text = data.toString().trim().slice(0, 80);
+          if (text !== '') emitStatus(`Installing: ${text}`, 'installing');
+        });
+        installProc.on('exit', (code) => {
+          clearTimeout(timer);
+          if (code === 0) resolve(null);
+          else resolve(new Error(`Install failed with code ${String(code)}`));
+        });
+        installProc.on('error', (error) => {
+          clearTimeout(timer);
+          resolve(error);
+        });
+      });
+      if (installError !== null) {
+        emitStatus(`Install failed: ${installError.message}`, 'error');
+        return { ok: false, error: installError.message };
+      }
+    }
+
+    emitStatus('Starting dev server...', 'starting');
+
+    killDevProcess(); // a stale process from a previous attempt, if any
+    const proc = spawn(command, args, {
+      cwd: open.rootPath,
+      shell: true, // Let OS shell resolve PATH (pnpm/npm/yarn)
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+      env: { ...process.env }, // Inherit full environment including PATH
+    });
+    proc.stderr.on('data', (data: Buffer) => {
+      console.error('[preview] dev server stderr:', data.toString().slice(0, 200));
+    });
+    // Also scan stdout for a port announcement (Vite/Next print "localhost:PORT") — opens the
+    // view straight away rather than waiting for the next poll tick, with a fallback pattern for
+    // tools that print just ":PORT" with no host.
+    proc.stdout.on('data', (data: Buffer) => {
+      const text = data.toString();
+      const portMatch =
+        /(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)/i.exec(text) ?? /➜.*?:(\d+)/.exec(text);
+      const portStr = portMatch?.[1];
+      if (portStr === undefined) return;
+      const port = Number.parseInt(portStr, 10);
+      if (!(port > 0 && port < 65536)) return;
+      const url = `http://localhost:${String(port)}`;
+      console.error('[preview] port from stdout:', port);
+      // Opened after a short delay, not immediately — the port is often bound before the server
+      // is actually ready to answer requests. Only if the poll loop hasn't already opened it.
+      void (async () => {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 1000);
+        });
+        if (viewOpen) return;
+        if (window !== null && !window.isDestroyed()) {
+          emitToWindow(window, 'preview:serverDetected', {
+            port,
+            url,
+            framework: FRAMEWORK_HINTS[port] ?? 'Dev Server',
           });
         }
-      }
-      if (already !== null) {
+        createView(DEFAULT_BOUNDS);
+        loadUrl(url);
+        emitStatus('Preview ready', 'ready');
+      })();
+    });
+    devProcess = proc;
+    devProcess.on('exit', () => {
+      devProcess = null;
+    });
+
+    const guessedPort = guessPortFromCommand(devCommand);
+    const deadline = Date.now() + LAUNCH_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      // Try the framework's default port directly first — cheaper than a full scan, and it's
+      // usually right.
+      if (guessedPort !== null && (await probePort(guessedPort))) {
+        const found: DetectedServer = {
+          port: guessedPort,
+          url: `http://localhost:${String(guessedPort)}`,
+          framework: FRAMEWORK_HINTS[guessedPort] ?? 'Dev Server',
+        };
         if (window !== null && !window.isDestroyed()) {
-          emitToWindow(window, 'preview:serverDetected', already);
+          emitToWindow(window, 'preview:serverDetected', found);
         }
         createView(DEFAULT_BOUNDS);
-        loadUrl(already.url);
+        loadUrl(found.url);
         emitStatus('Preview ready', 'ready');
         return { ok: true };
       }
-
-      const open = workspace.getCurrent();
-      if (open === null) return { ok: false, error: 'No project is open.' };
-
-      const trimmed = devCommand.trim();
-      const parts = trimmed.split(/\s+/);
-      const command = parts[0];
-      if (command === undefined || command === '') {
-        return { ok: false, error: 'No dev command to run.' };
-      }
-      const args = parts.slice(1);
-
-      const nodeModulesPath = join(open.rootPath, 'node_modules');
-      const needsInstall = !existsSync(nodeModulesPath);
-      if (needsInstall) {
-        const hasPnpmLock = existsSync(join(open.rootPath, 'pnpm-lock.yaml'));
-        const hasYarnLock = existsSync(join(open.rootPath, 'yarn.lock'));
-        const installCmd = hasPnpmLock ? 'pnpm' : hasYarnLock ? 'yarn' : 'npm';
-        const installArgs = ['install'];
-
-        emitStatus('Installing dependencies...', 'installing');
-
-        const installError = await new Promise<Error | null>((resolve) => {
-          const installProc = spawn(installCmd, installArgs, {
-            cwd: open.rootPath,
-            shell: true,
-            stdio: ['ignore', 'pipe', 'pipe'],
-            windowsHide: true,
-            env: { ...process.env },
-          });
-          const timer = setTimeout(() => {
-            installProc.kill();
-            resolve(new Error('Install timed out after 120 seconds'));
-          }, INSTALL_TIMEOUT_MS);
-          installProc.stdout.on('data', (data: Buffer) => {
-            const text = data.toString().trim().slice(0, 80);
-            if (text !== '') emitStatus(`Installing: ${text}`, 'installing');
-          });
-          installProc.on('exit', (code) => {
-            clearTimeout(timer);
-            if (code === 0) resolve(null);
-            else resolve(new Error(`Install failed with code ${String(code)}`));
-          });
-          installProc.on('error', (error) => {
-            clearTimeout(timer);
-            resolve(error);
-          });
-        });
-        if (installError !== null) {
-          emitStatus(`Install failed: ${installError.message}`, 'error');
-          return { ok: false, error: installError.message };
+      const found = await scanPorts();
+      if (found !== null) {
+        if (window !== null && !window.isDestroyed()) {
+          emitToWindow(window, 'preview:serverDetected', found);
         }
+        createView(DEFAULT_BOUNDS);
+        loadUrl(found.url);
+        emitStatus('Preview ready', 'ready');
+        return { ok: true };
       }
-
-      emitStatus('Starting dev server...', 'starting');
-
-      killDevProcess(); // a stale process from a previous attempt, if any
-      const proc = spawn(command, args, {
-        cwd: open.rootPath,
-        shell: true, // Let OS shell resolve PATH (pnpm/npm/yarn)
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-        env: { ...process.env }, // Inherit full environment including PATH
+      await new Promise((resolve) => {
+        setTimeout(resolve, LAUNCH_POLL_INTERVAL_MS);
       });
-      proc.stderr.on('data', (data: Buffer) => {
-        console.error('[preview] dev server stderr:', data.toString().slice(0, 200));
-      });
-      // Also scan stdout for a port announcement (Vite/Next print "localhost:PORT") — opens the
-      // view straight away rather than waiting for the next poll tick, with a fallback pattern for
-      // tools that print just ":PORT" with no host.
-      proc.stdout.on('data', (data: Buffer) => {
-        const text = data.toString();
-        const portMatch =
-          /(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)/i.exec(text) ?? /➜.*?:(\d+)/.exec(text);
-        const portStr = portMatch?.[1];
-        if (portStr === undefined) return;
-        const port = Number.parseInt(portStr, 10);
-        if (!(port > 0 && port < 65536)) return;
-        const url = `http://localhost:${String(port)}`;
-        console.error('[preview] port from stdout:', port);
-        // Opened after a short delay, not immediately — the port is often bound before the server
-        // is actually ready to answer requests. Only if the poll loop hasn't already opened it.
-        void (async () => {
-          await new Promise((resolve) => {
-            setTimeout(resolve, 1000);
-          });
-          if (viewOpen) return;
-          if (window !== null && !window.isDestroyed()) {
-            emitToWindow(window, 'preview:serverDetected', {
-              port,
-              url,
-              framework: FRAMEWORK_HINTS[port] ?? 'Dev Server',
-            });
-          }
-          createView(DEFAULT_BOUNDS);
-          loadUrl(url);
-          emitStatus('Preview ready', 'ready');
-        })();
-      });
-      devProcess = proc;
-      devProcess.on('exit', () => {
-        devProcess = null;
-      });
-
-      const guessedPort = guessPortFromCommand(devCommand);
-      const deadline = Date.now() + LAUNCH_TIMEOUT_MS;
-      while (Date.now() < deadline) {
-        // Try the framework's default port directly first — cheaper than a full scan, and it's
-        // usually right.
-        if (guessedPort !== null && (await probePort(guessedPort))) {
-          const found: DetectedServer = {
-            port: guessedPort,
-            url: `http://localhost:${String(guessedPort)}`,
-            framework: FRAMEWORK_HINTS[guessedPort] ?? 'Dev Server',
-          };
-          if (window !== null && !window.isDestroyed()) {
-            emitToWindow(window, 'preview:serverDetected', found);
-          }
-          createView(DEFAULT_BOUNDS);
-          loadUrl(found.url);
-          emitStatus('Preview ready', 'ready');
-          return { ok: true };
-        }
-        const found = await scanPorts();
-        if (found !== null) {
-          if (window !== null && !window.isDestroyed()) {
-            emitToWindow(window, 'preview:serverDetected', found);
-          }
-          createView(DEFAULT_BOUNDS);
-          loadUrl(found.url);
-          emitStatus('Preview ready', 'ready');
-          return { ok: true };
-        }
-        await new Promise((resolve) => {
-          setTimeout(resolve, LAUNCH_POLL_INTERVAL_MS);
-        });
-      }
-      killDevProcess();
-      emitStatus('Dev server did not start within 30 seconds.', 'error');
-      return { ok: false, error: 'Dev server did not start within 30 seconds.' };
-    } finally {
-      launching = false;
     }
+    killDevProcess();
+    emitStatus('Dev server did not start within 30 seconds.', 'error');
+    return { ok: false, error: 'Dev server did not start within 30 seconds.' };
   }
 
   function dispose(): void {
@@ -646,7 +638,6 @@ export function createPreviewService(
     currentUrl = null;
     currentPort = null;
     viewOpen = false;
-    launching = false;
   }
   // Belt to `index.ts`'s own `will-quit` cleanup: self-registered so a spawned dev server can
   // never outlive the app even if a future call site forgets to wire this in explicitly — the
