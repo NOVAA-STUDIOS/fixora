@@ -95,6 +95,16 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   },
 
   launchAndPreview: async () => {
+    // Always close existing preview first
+    set({ isOpen: false, url: null, statusMessage: null });
+    await invoke('preview:close', {});
+    await invoke('preview:hide', {});
+
+    // Small wait for cleanup
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+
     // First: try to detect an already-running server — skip spawning a redundant process.
     // Retried a few times with a gap — a server can be up but not answer the very first probe.
     let detected: { url: string; port: number | null } | null = null;
