@@ -58,6 +58,9 @@ export function PreviewPanel(): React.JSX.Element {
       // y, and its own height is already the full available height, not the toolbar's.
       const toolbarRect = toolbar.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
+      // Sanity check — a zero-sized rect (mid-layout, or a collapsed panel) means these coords
+      // aren't real yet; resizing the native view to it would just hide/misplace it.
+      if (containerRect.width === 0 || containerRect.height === 0) return;
       console.error('[preview] toolbar rect:', JSON.stringify(toolbarRect.toJSON()));
       console.error('[preview] container rect:', JSON.stringify(containerRect.toJSON()));
       console.error('[preview] screen offset:', { screenX: window.screenX, screenY: window.screenY });

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { useWorkspaceStore } from '../features/workspace/workspace-store.js';
 import { invoke, subscribe } from '../lib/bridge.js';
 
 import { toast } from './toast-store.js';
@@ -150,12 +151,34 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     const offNavigation = subscribe('preview:navigationChanged', ({ canGoBack, canGoForward }) => {
       set({ canGoBack, canGoForward });
     });
+    // No 'workspace:opened' push event exists (shared-types has only request/response
+    // 'workspace:open') — watched via the workspace store's own state instead, which already
+    // reflects every successful open/close.
+    let lastWorkspaceId = useWorkspaceStore.getState().workspace?.id ?? null;
+    const offWorkspace = useWorkspaceStore.subscribe((state) => {
+      const nextId = state.workspace?.id ?? null;
+      if (nextId === lastWorkspaceId) return;
+      lastWorkspaceId = nextId;
+      void invoke('preview:close', {});
+      set({
+        isOpen: false,
+        url: null,
+        port: null,
+        detectedUrl: null,
+        hasDevScript: false,
+        devCommand: null,
+        statusMessage: null,
+        canGoBack: false,
+        canGoForward: false,
+      });
+    });
     return () => {
       offDetected();
       offTitle();
       offLoading();
       offStatus();
       offNavigation();
+      offWorkspace();
     };
   },
 }));
