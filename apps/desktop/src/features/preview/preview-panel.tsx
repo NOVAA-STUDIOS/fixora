@@ -1,5 +1,5 @@
 import { CloseIcon, ExternalIcon, RefreshIcon, cn } from '@fixora/ui';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { usePreviewStore } from '../../stores/preview-store.js';
@@ -36,6 +36,8 @@ export function PreviewPanel(): React.JSX.Element {
   const listen = usePreviewStore((s) => s.listen);
   const containerRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const [isEditingUrl, setIsEditingUrl] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
 
   useEffect(() => listen(), [listen]);
   useEffect(() => {
@@ -107,15 +109,44 @@ export function PreviewPanel(): React.JSX.Element {
         </button>
 
         {/* URL pill — takes most space */}
-        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg bg-inset px-2.5 py-1">
-          <div
-            className={cn(
-              'size-1.5 shrink-0 rounded-full transition-colors',
-              isLoading ? 'animate-pulse bg-warn' : 'bg-success',
-            )}
+        {isEditingUrl ? (
+          <input
+            value={urlInput}
+            onChange={(e) => {
+              setUrlInput(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const fullUrl = urlInput.startsWith('http') ? urlInput : `http://${urlInput}`;
+                void open(fullUrl);
+                setIsEditingUrl(false);
+              }
+              if (e.key === 'Escape') setIsEditingUrl(false);
+            }}
+            onBlur={() => {
+              setIsEditingUrl(false);
+            }}
+            placeholder="localhost:3000"
+            autoFocus
+            className="min-w-0 flex-1 rounded-lg border border-accent bg-inset px-2.5 py-1 font-mono text-xs outline-none"
           />
-          <span className="truncate font-mono text-xs text-fg-secondary">{url ?? 'No preview'}</span>
-        </div>
+        ) : (
+          <div
+            onClick={() => {
+              setIsEditingUrl(true);
+              setUrlInput(url ?? '');
+            }}
+            className="flex min-w-0 flex-1 cursor-text items-center gap-2 rounded-lg bg-inset px-2.5 py-1"
+          >
+            <div
+              className={cn(
+                'size-1.5 shrink-0 rounded-full transition-colors',
+                isLoading ? 'animate-pulse bg-warn' : 'bg-success',
+              )}
+            />
+            <span className="truncate font-mono text-xs text-fg-secondary">{url ?? 'No preview'}</span>
+          </div>
+        )}
 
         {/* Compact action buttons */}
         <button
