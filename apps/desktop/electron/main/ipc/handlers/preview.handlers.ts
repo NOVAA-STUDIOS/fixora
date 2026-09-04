@@ -82,6 +82,10 @@ export function registerPreviewHandlers(service: PreviewService): void {
   registerHandler('preview:goForward', () => {
     service.goForward();
   });
+
+  registerHandler('preview:forceReset', () => {
+    service.forceReset();
+  });
 }
 
 /** Called from `workspace.handlers.ts`'s `fs:writeFile` after a successful save — refreshes the

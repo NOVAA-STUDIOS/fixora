@@ -113,6 +113,8 @@ export interface PreviewService {
   dispose(): void;
   /** Kills the spawned dev server (if any), without touching the view. */
   stopDevProcess(): void;
+  /** Kills everything — process, view, and all tracked state — for a hard, known-good restart. */
+  forceReset(): void;
 }
 
 type PackageManager = 'pnpm' | 'yarn' | 'npm';
@@ -642,6 +644,15 @@ export function createPreviewService(
   function stopDevProcess(): void {
     killDevProcess();
   }
+
+  function forceReset(): void {
+    killDevProcess();
+    destroyView();
+    currentUrl = null;
+    currentPort = null;
+    viewOpen = false;
+    launching = false;
+  }
   // Belt to `index.ts`'s own `will-quit` cleanup: self-registered so a spawned dev server can
   // never outlive the app even if a future call site forgets to wire this in explicitly — the
   // same reasoning terminal.handlers.ts's own `app.on('will-quit')` documents for PTY sessions.
@@ -667,5 +678,6 @@ export function createPreviewService(
     launchAndPreview,
     dispose,
     stopDevProcess,
+    forceReset,
   };
 }

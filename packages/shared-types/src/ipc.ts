@@ -808,6 +808,10 @@ export const contracts = {
     request: empty,
     response: z.void(),
   },
+  'preview:forceReset': {
+    request: empty,
+    response: z.void(),
+  },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

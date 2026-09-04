@@ -97,12 +97,10 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   launchAndPreview: async () => {
     // Always close existing preview first
     set({ isOpen: false, url: null, statusMessage: null });
-    await invoke('preview:close', {});
-    await invoke('preview:hide', {});
-
-    // Small wait for cleanup
+    await invoke('preview:forceReset', {});
+    // Wait for full reset
     await new Promise((resolve) => {
-      setTimeout(resolve, 500);
+      setTimeout(resolve, 2000);
     });
 
     // First: try to detect an already-running server — skip spawning a redundant process.
