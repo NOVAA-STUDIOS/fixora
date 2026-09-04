@@ -127,6 +127,10 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     });
     const offLoading = subscribe('preview:loadingChanged', ({ loading }) => {
       set({ isLoading: loading });
+      if (!loading && get().isOpen) {
+        // Trigger resize when page finishes loading
+        window.dispatchEvent(new Event('resize'));
+      }
     });
     const offStatus = subscribe('preview:statusUpdate', ({ message }) => {
       set({ statusMessage: message });

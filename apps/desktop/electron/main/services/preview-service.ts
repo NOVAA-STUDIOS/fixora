@@ -342,6 +342,11 @@ export function createPreviewService(
       console.error('[preview] destroyView error (ignored):', error);
     } finally {
       view = null;
+      // Pause scanning for 3s after close to avoid re-detecting killed server
+      stopScanning();
+      setTimeout(() => {
+        startScanning();
+      }, 3000);
       viewOpen = false;
       currentUrl = null;
       currentPort = null;
