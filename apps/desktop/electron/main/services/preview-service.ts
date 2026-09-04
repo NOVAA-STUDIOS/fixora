@@ -431,6 +431,15 @@ export function createPreviewService(
     if (launching) return { ok: true }; // Already in progress
     launching = true;
     try {
+      // Kill any dev server Fixora itself spawned (e.g. for a previous workspace) before
+      // checking what's on the ports — a stale process from another workspace must never be
+      // mistaken for this one's server just because it happens to share a port.
+      killDevProcess();
+      // Wait briefly for the port to free up.
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1000);
+      });
+
       // Already running — open it directly, no process spawned. Retried a few times with a gap —
       // a server can be up but not answer the very first probe.
       let already: DetectedServer | null = null;
