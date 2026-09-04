@@ -3,6 +3,15 @@
 All notable changes to Fixora. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.2.19 (September 4, 2026)
+
+### Features
+- Preview: click the URL bar to navigate to any address — type a port or full URL and press Enter.
+- Preview: open any running server directly without needing a dev script in package.json.
+
+### Fixes
+- Preview: layout now fills the window correctly after opening a URL.
+
 Commits are [Conventional Commits](https://www.conventionalcommits.org/) — they generate this file, and
 this file is a **product surface on the website** (Repo §3), not an afterthought.
 
