@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execSync, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { get as httpGet } from 'node:http';
@@ -188,8 +188,22 @@ export function createPreviewService(
 
   function killDevProcess(): void {
     if (devProcess === null) return;
+
+    const pid = devProcess.pid;
     devProcess.kill();
     devProcess = null;
+
+    // On Windows: kill entire process tree (cmd.exe + children)
+    if (pid !== undefined && process.platform === 'win32') {
+      try {
+        execSync(`taskkill /F /T /PID ${String(pid)}`, {
+          windowsHide: true,
+          timeout: 3000,
+        });
+      } catch {
+        // Process may already be dead — ignore
+      }
+    }
   }
 
   function emitStatus(
