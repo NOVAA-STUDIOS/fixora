@@ -630,6 +630,18 @@ export function createPreviewService(
 
   function forceReset(): void {
     killDevProcess();
+    // Kill by PORT, not PID — more reliable on Windows than tracking the spawned process tree,
+    // and catches a stray process `killDevProcess()` alone couldn't reach.
+    if (process.platform === 'win32' && currentPort !== null) {
+      try {
+        execSync(
+          `for /f "tokens=5" %a in ('netstat -aon ^| find ":${String(currentPort)}"') do taskkill /F /PID %a`,
+          { windowsHide: true, timeout: 3000 },
+        );
+      } catch {
+        // Ignore — port may already be free
+      }
+    }
     destroyView();
     currentUrl = null;
     currentPort = null;
