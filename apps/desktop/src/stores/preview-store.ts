@@ -68,6 +68,10 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     const result = await invoke('preview:open', { url });
     if (result.ok && result.value.ok) {
       set({ isOpen: true, url, isLoading: false, statusMessage: null });
+      // Trigger resize after a short delay
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 200);
     } else {
       set({ isLoading: false, statusMessage: 'Could not connect to server.' });
       // Clear message after 3s
