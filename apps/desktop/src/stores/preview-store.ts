@@ -28,6 +28,8 @@ type PreviewState = {
   canGoForward: boolean;
 
   open: (url: string) => Promise<void>;
+  /** Direct connection to an arbitrary localhost URL — no dev server spawn, no dev script check. */
+  openUrl: (url: string) => Promise<void>;
   close: () => Promise<void>;
   refresh: () => Promise<void>;
   goBack: () => Promise<void>;
@@ -58,6 +60,21 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   open: async (url) => {
     const result = await invoke('preview:open', { url });
     if (result.ok && result.value.ok) set({ isOpen: true, url, statusMessage: null });
+  },
+
+  openUrl: async (url) => {
+    set({ isLoading: true, statusMessage: 'Connecting...' });
+    // Try to open directly — no dev server spawn, no dev script check.
+    const result = await invoke('preview:open', { url });
+    if (result.ok && result.value.ok) {
+      set({ isOpen: true, url, isLoading: false, statusMessage: null });
+    } else {
+      set({ isLoading: false, statusMessage: 'Could not connect to server.' });
+      // Clear message after 3s
+      setTimeout(() => {
+        set({ statusMessage: null });
+      }, 3000);
+    }
   },
 
   close: async () => {

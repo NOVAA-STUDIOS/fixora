@@ -24,6 +24,7 @@ export function PreviewPanel(): React.JSX.Element {
   const detectedUrl = usePreviewStore((s) => s.detectedUrl);
   const hasDevScript = usePreviewStore((s) => s.hasDevScript);
   const open = usePreviewStore((s) => s.open);
+  const openUrl = usePreviewStore((s) => s.openUrl);
   const close = usePreviewStore((s) => s.close);
   const refresh = usePreviewStore((s) => s.refresh);
   const goBack = usePreviewStore((s) => s.goBack);
@@ -118,8 +119,8 @@ export function PreviewPanel(): React.JSX.Element {
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 const fullUrl = urlInput.startsWith('http') ? urlInput : `http://${urlInput}`;
-                void open(fullUrl);
                 setIsEditingUrl(false);
+                void openUrl(fullUrl);
               }
               if (e.key === 'Escape') setIsEditingUrl(false);
             }}
