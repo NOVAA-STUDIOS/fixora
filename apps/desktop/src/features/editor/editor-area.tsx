@@ -109,16 +109,19 @@ export function EditorArea(): React.JSX.Element {
 
   if (tabs.length === 0) {
     return (
-      <section
-        aria-label="Editor"
-        className="flex h-full flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-border-subtle bg-canvas p-6 text-center"
-      >
-        <p className="text-sm font-medium text-fg">No file open</p>
-        <p className="max-w-sm text-xs text-fg-muted">
-          Pick a file in <span className="text-fg-secondary">Files</span>, or click a finding in{' '}
-          <span className="text-fg-secondary">Problems</span> to jump straight to the line
-          it&rsquo;s on.
-        </p>
+      <section aria-label="Editor" className="flex h-full items-center justify-center bg-canvas">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-raised ring-1 ring-border-subtle">
+            <FileIcon className="size-5 text-fg-muted" />
+          </div>
+          <div>
+            <p className="text-[14px] font-medium text-fg">No file open</p>
+            <p className="mt-1 max-w-[200px] text-[12px] leading-relaxed text-fg-muted">
+              Pick a file in Files, or click a finding in Problems to jump straight to the line
+              it&rsquo;s on.
+            </p>
+          </div>
+        </div>
       </section>
     );
   }

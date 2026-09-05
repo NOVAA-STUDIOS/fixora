@@ -1291,16 +1291,18 @@ function Centered({
       {icon !== undefined && (
         <span
           className={cn(
-            'flex size-10 items-center justify-center rounded-full',
-            tone === 'success' ? 'bg-success-subtle' : 'bg-inset',
+            'mb-1 flex size-12 items-center justify-center rounded-2xl ring-1',
+            tone === 'success'
+              ? 'bg-success-subtle ring-success-border'
+              : 'bg-accent/10 ring-accent/20',
           )}
         >
           {icon}
         </span>
       )}
       <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium text-fg">{title}</p>
-        <p className="max-w-xs text-xs leading-relaxed text-fg-muted">{body}</p>
+        <p className="text-[15px] font-semibold text-fg">{title}</p>
+        <p className="max-w-[220px] text-[13px] leading-relaxed text-fg-muted">{body}</p>
       </div>
       {action !== undefined && <div className="mt-0.5">{action}</div>}
     </div>
