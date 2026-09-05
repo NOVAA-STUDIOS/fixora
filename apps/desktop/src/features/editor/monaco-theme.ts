@@ -18,8 +18,10 @@ function themeFrom(base: 'vs' | 'vs-dark', c: SemanticColors): monaco.editor.ISt
     colors: {
       // Matches the editor card's surface (`bg-canvas`), not the shell base. Monaco painting a
       // different near-black than its own container is the kind of 2px mismatch that reads as
-      // cheap without anyone being able to say why.
-      'editor.background': c.bg.canvas,
+      // cheap without anyone being able to say why. Forced dark for the 'vs-dark' base only —
+      // `c.bg.canvas` was resolving unreliably; 'vs' (FIXORA_LIGHT) keeps the real token so light
+      // mode is not also forced dark.
+      'editor.background': base === 'vs-dark' ? '#0d0d0d' : c.bg.canvas,
       'editor.foreground': c.text.primary,
       'editorLineNumber.foreground': c.text.muted,
       'editorLineNumber.activeForeground': c.text.secondary,
@@ -30,7 +32,7 @@ function themeFrom(base: 'vs' | 'vs-dark', c: SemanticColors): monaco.editor.ISt
       'editor.lineHighlightBackground': 'transparent',
       'editor.lineHighlightBorder': 'transparent',
       'editorIndentGuide.background1': c.border.subtle,
-      'editorGutter.background': c.bg.canvas,
+      'editorGutter.background': base === 'vs-dark' ? '#0d0d0d' : c.bg.canvas,
       'editorWidget.background': c.bg.overlay,
       'editorWidget.border': c.border.subtle,
       focusBorder: c.accent.solid,
