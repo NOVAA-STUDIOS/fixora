@@ -1,5 +1,5 @@
 import { CloseIcon, cn } from '@fixora/ui';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useZapprStore } from '../../stores/zappr-store.js';
 
@@ -25,21 +25,53 @@ export function ZapprPanel(): React.JSX.Element | null {
 
   useEffect(() => listen(), [listen]);
 
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(
+    null,
+  );
+
   if (!isOpen) return null;
 
   return (
-    <div
-      className="absolute inset-0 z-50 flex items-center justify-center bg-black/40"
-      onClick={close}
-    >
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40">
       <div
-        className="animate-ios-dialog-enter relative w-[600px] max-w-[90vw] rounded-2xl border border-border-subtle bg-canvas/95 shadow-2xl"
-        onClick={(e) => {
-          e.stopPropagation();
-        }}
+        className="animate-ios-dialog-enter relative w-[600px] max-w-[90vw] overflow-hidden rounded-2xl border border-border-subtle bg-canvas/95 shadow-2xl"
+        style={{ transform: `translate(${String(pos.x)}px, ${String(pos.y)}px)` }}
       >
-        <div className="flex items-center gap-3 border-b border-border-subtle px-5 pt-5 pb-4">
-          <div className="flex size-8 items-center justify-center rounded-xl bg-accent/15">
+        {/* Animated gradient border glow — subtle, behind all content */}
+        <div
+          className="pointer-events-none absolute inset-0 rounded-2xl opacity-60"
+          style={{
+            background: 'linear-gradient(135deg, #7c3aed22, #06b6d422, #7c3aed22)',
+            animation: 'zappr-glow 3s ease infinite alternate',
+          }}
+        />
+        <div
+          className="relative flex cursor-grab items-center gap-3 border-b border-border-subtle px-5 pt-5 pb-4 active:cursor-grabbing"
+          onMouseDown={(e) => {
+            dragRef.current = {
+              startX: e.clientX,
+              startY: e.clientY,
+              startPosX: pos.x,
+              startPosY: pos.y,
+            };
+            const onMove = (moveEvent: MouseEvent): void => {
+              if (dragRef.current === null) return;
+              setPos({
+                x: dragRef.current.startPosX + (moveEvent.clientX - dragRef.current.startX),
+                y: dragRef.current.startPosY + (moveEvent.clientY - dragRef.current.startY),
+              });
+            };
+            const onUp = (): void => {
+              dragRef.current = null;
+              window.removeEventListener('mousemove', onMove);
+              window.removeEventListener('mouseup', onUp);
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+          }}
+        >
+          <div className="flex size-8 animate-pulse items-center justify-center rounded-xl bg-accent/15">
             <span className="text-lg">⚡</span>
           </div>
           <div>
@@ -69,14 +101,18 @@ export function ZapprPanel(): React.JSX.Element | null {
                 setPrompt(e.target.value);
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void run();
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (prompt.trim() !== '') void run();
+                }
+                // Shift+Enter = new line (default textarea behavior)
               }}
               placeholder='Try "Create a login page with React" or "Add dark mode toggle"'
-              className="min-h-[80px] w-full resize-none rounded-xl border border-border-subtle bg-inset px-4 py-3 text-sm text-fg outline-none transition-colors placeholder:text-fg-muted focus:border-accent"
+              className="min-h-[80px] w-full resize-none rounded-xl border border-border-subtle bg-inset px-4 py-3 text-sm text-fg outline-none transition-colors placeholder:text-fg-muted focus:border-accent focus:shadow-[0_0_20px_rgba(124,58,237,0.15)] focus:ring-2 focus:ring-accent/40"
               autoFocus
             />
             <div className="mt-3 flex items-center justify-between">
-              <span className="text-[11px] text-fg-muted">Ctrl+Enter to run</span>
+              <span className="text-[11px] text-fg-muted">Enter to run · Shift+Enter for new line</span>
               <button
                 type="button"
                 onClick={() => void run()}

@@ -168,6 +168,17 @@
   .animate-fade-in {
     animation: fade-in 0.1s ease-out forwards;
   }
+  @keyframes zappr-glow {
+    0% {
+      background: linear-gradient(135deg, #7c3aed33, #06b6d422, #a855f733);
+    }
+    50% {
+      background: linear-gradient(135deg, #06b6d433, #7c3aed22, #06b6d433);
+    }
+    100% {
+      background: linear-gradient(135deg, #a855f733, #7c3aed22, #06b6d433);
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     .animate-ios-enter,
     .animate-ios-exit,
