@@ -83,20 +83,20 @@ export function ZapprPanel(): React.JSX.Element | null {
   if (!isOpen) return null;
 
   return (
-    <div className="absolute inset-0 z-50 flex items-start justify-start bg-black/40 pt-16 pl-16">
+    <div className="absolute inset-0 z-50 flex items-end justify-end bg-black/40 pr-6 pb-16">
       <div
         ref={panelRef}
-        className="zappr-rgb animate-ios-dialog-enter relative w-[420px] max-w-[90vw]"
+        className="zappr-rgb animate-ios-dialog-enter relative w-[360px] max-w-[90vw]"
         style={{
-          borderRadius: '16px',
+          borderRadius: '14px',
           background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
           padding: '1px',
         }}
       >
-        <div className="overflow-hidden rounded-[15px] bg-[#0d0d0d]">
+        <div className="overflow-hidden rounded-[13px] bg-[#0d0d0d]">
           <div
             onMouseDown={handleHeaderMouseDown}
-            className="flex cursor-grab items-center gap-3 border-b border-border-subtle px-4 pt-4 pb-3 select-none active:cursor-grabbing"
+            className="flex cursor-grab items-center gap-3 border-b border-border-subtle px-3 pt-3 pb-2.5 select-none active:cursor-grabbing"
           >
             <div className="flex size-8 animate-pulse items-center justify-center rounded-xl bg-accent/15">
               <span className="text-lg">⚡</span>
@@ -115,13 +115,13 @@ export function ZapprPanel(): React.JSX.Element | null {
           </div>
 
           {error !== null && (
-          <p role="alert" className="px-4 pt-3 text-xs text-danger-text [overflow-wrap:anywhere]">
+          <p role="alert" className="px-3 pt-2.5 text-xs text-danger-text [overflow-wrap:anywhere]">
             {error}
           </p>
         )}
 
         {!isRunning && plan === null && (
-          <div className="px-4 py-3">
+          <div className="px-3 py-2.5">
             <textarea
               value={prompt}
               onChange={(e) => {
@@ -135,7 +135,7 @@ export function ZapprPanel(): React.JSX.Element | null {
                 // Shift+Enter = new line (default textarea behavior)
               }}
               placeholder='Try "Create a login page with React" or "Add dark mode toggle"'
-              className="max-h-[150px] min-h-[80px] w-full resize-none rounded-xl bg-[#1a1a1a] p-4 text-sm text-fg outline-none transition-colors placeholder:text-fg-muted focus:shadow-[0_0_20px_rgba(124,58,237,0.15)] focus:ring-2 focus:ring-accent/40"
+              className="max-h-[150px] min-h-[60px] w-full resize-none rounded-xl bg-[#1a1a1a] p-4 text-sm text-fg outline-none transition-colors placeholder:text-fg-muted focus:shadow-[0_0_20px_rgba(124,58,237,0.15)] focus:ring-2 focus:ring-accent/40"
               autoFocus
             />
             <div className="mt-3 flex items-center justify-between">
@@ -153,7 +153,7 @@ export function ZapprPanel(): React.JSX.Element | null {
         )}
 
         {plan !== null && (
-          <div className="max-h-[300px] space-y-2 overflow-y-auto px-4 py-3">
+          <div className="max-h-[300px] space-y-2 overflow-y-auto px-3 py-2.5">
             {summary !== null && summary !== '' && (
               <p className="mb-3 text-sm text-fg-secondary">{summary}</p>
             )}
@@ -201,7 +201,7 @@ export function ZapprPanel(): React.JSX.Element | null {
         )}
 
           {isRunning && (
-            <div className="flex items-center justify-between border-t border-border-subtle px-4 py-3">
+            <div className="flex items-center justify-between border-t border-border-subtle px-3 py-2.5">
               <span className="animate-pulse text-xs text-fg-muted">Zapping...</span>
               <button
                 type="button"
