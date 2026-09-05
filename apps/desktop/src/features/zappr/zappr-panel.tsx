@@ -57,6 +57,29 @@ export function ZapprPanel(): React.JSX.Element | null {
     };
   }, [isOpen]);
 
+  // Direct DOM manipulation — no React re-renders during drag.
+  function handleHeaderMouseDown(e: React.MouseEvent): void {
+    e.preventDefault();
+    const panel = panelRef.current;
+    if (panel === null) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const matrix = new DOMMatrix(window.getComputedStyle(panel).transform);
+    const startTransX = matrix.m41;
+    const startTransY = matrix.m42;
+
+    const onMove = (ev: MouseEvent): void => {
+      panel.style.transform = `translate(${String(startTransX + ev.clientX - startX)}px, ${String(startTransY + ev.clientY - startY)}px)`;
+    };
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
   if (!isOpen) return null;
 
   return (
@@ -73,7 +96,10 @@ export function ZapprPanel(): React.JSX.Element | null {
         }}
       >
         <div className="overflow-hidden rounded-[19px] bg-[#0d0d0d]">
-          <div className="flex items-center gap-3 border-b border-border-subtle px-5 pt-5 pb-4">
+          <div
+            onMouseDown={handleHeaderMouseDown}
+            className="flex cursor-grab items-center gap-3 border-b border-border-subtle px-5 pt-5 pb-4 select-none active:cursor-grabbing"
+          >
             <div className="flex size-8 animate-pulse items-center justify-center rounded-xl bg-accent/15">
               <span className="text-lg">⚡</span>
             </div>
