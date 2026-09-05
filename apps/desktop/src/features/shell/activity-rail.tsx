@@ -118,7 +118,7 @@ export function ActivityRail(): React.JSX.Element {
               setActiveView(view);
             }}
             className={cn(
-              'relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg transition-all duration-150',
+              'relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg transition-all duration-150 active:scale-95',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
               active ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
@@ -148,7 +148,7 @@ export function ActivityRail(): React.JSX.Element {
         onClick={() => {
           setUpgradeDialogOpen(true);
         }}
-        className="relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg text-amber-500/70 transition-all duration-150 hover:bg-hover hover:text-amber-400"
+        className="relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg text-amber-500/70 transition-all duration-150 active:scale-95 hover:bg-hover hover:text-amber-400"
       >
         <SparkleIcon className="size-[15px] shrink-0" />
         <span className="text-[9px] leading-none font-medium tracking-wide">{planMeta.label}</span>
@@ -166,7 +166,7 @@ export function ActivityRail(): React.JSX.Element {
               setActiveView(view);
             }}
             className={cn(
-              'relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg transition-all duration-150',
+              'relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg transition-all duration-150 active:scale-95',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
               active ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}

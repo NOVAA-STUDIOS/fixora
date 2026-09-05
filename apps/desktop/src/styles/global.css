@@ -110,12 +110,52 @@
   .animate-ios-slide-up {
     animation: ios-slide-up 0.28s var(--ease-spring) forwards;
   }
+  @keyframes slide-in-left {
+    from {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .animate-slide-in-left {
+    animation: slide-in-left 0.15s ease-out forwards;
+  }
+  .animate-slide-in-right {
+    animation: slide-in-right 0.15s ease-out forwards;
+  }
+  .animate-fade-in {
+    animation: fade-in 0.1s ease-out forwards;
+  }
   @media (prefers-reduced-motion: reduce) {
     .animate-ios-enter,
     .animate-ios-exit,
     .animate-ios-slide-up,
     .animate-ios-dialog-enter,
-    .animate-ios-dialog-exit {
+    .animate-ios-dialog-exit,
+    .animate-slide-in-left,
+    .animate-slide-in-right,
+    .animate-fade-in {
       animation-duration: 0.01ms;
     }
   }

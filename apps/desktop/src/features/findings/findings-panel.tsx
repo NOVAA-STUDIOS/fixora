@@ -964,7 +964,8 @@ const FindingRow = memo(function FindingRow({
         // computes offsets from a transient height and the next row is placed on top of this one —
         // the garbled, overlapping text during repair transitions. Colour and shadow cannot change
         // a row's height, so they are safe to animate; height and spacing must land instantly.
-        'transition-[background-color,box-shadow,border-color] duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+        'transition-[background-color,box-shadow,border-color,transform] duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+        'hover:translate-x-0.5',
         !isSelected &&
           (finding.category === 'security' ? 'hover:bg-danger-subtle' : 'hover:bg-white/[0.04]'),
         // The selected row is what the details pane is describing — say so, with a bar rather than a

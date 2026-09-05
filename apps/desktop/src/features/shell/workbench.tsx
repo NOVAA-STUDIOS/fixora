@@ -1,4 +1,4 @@
-import { PanelGroupRoot, ResizablePanel, ResizeHandle, Skeleton, usePanelRef } from '@fixora/ui';
+import { PanelGroupRoot, ResizablePanel, ResizeHandle, Skeleton, cn, usePanelRef } from '@fixora/ui';
 import { lazy, Suspense, useCallback, useEffect, useRef } from 'react';
 
 import { ErrorBoundary } from '../../app/error-boundary.js';
@@ -328,7 +328,7 @@ function WorkbenchContent(): React.JSX.Element {
         collapsedSize={0}
         minSize={200}
         defaultSize="20"
-        className="min-w-0"
+        className={cn('min-w-0', primaryPanelVisible && 'animate-slide-in-left')}
       >
         {/* Per-pane, so a malformed finding or an unreadable file costs the user one panel rather
             than the whole window. The root boundary in main.tsx is the backstop behind these. */}
@@ -350,7 +350,7 @@ function WorkbenchContent(): React.JSX.Element {
         collapsedSize={0}
         minSize={260}
         defaultSize="24"
-        className="min-w-0"
+        className={cn('min-w-0', aiPanelVisible && 'animate-slide-in-right')}
       >
         <ErrorBoundary label="The assistant panel">
           <AssistantPanel />
