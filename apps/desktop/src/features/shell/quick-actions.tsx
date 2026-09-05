@@ -69,14 +69,14 @@ export function QuickActions(): React.JSX.Element {
       </h2>
       <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <QuickActionButton
-          icon={<FolderIcon className="size-5" />}
+          icon={<FolderIcon className="size-6" />}
           label="Open folder"
           onClick={() => void pickAndOpen()}
         />
 
         <Popover open={recentOpen} onOpenChange={setRecentOpen}>
           <PopoverTrigger asChild>
-            <QuickActionButton icon={<ClockIcon className="size-5" />} label="Open recent" />
+            <QuickActionButton icon={<ClockIcon className="size-6" />} label="Open recent" />
           </PopoverTrigger>
           <PopoverContent align="start" className="w-72 p-1.5">
             <RecentQuickList recent={recent} onOpen={openRecent} />
@@ -84,7 +84,7 @@ export function QuickActions(): React.JSX.Element {
         </Popover>
 
         <QuickActionButton
-          icon={<BookIcon className="size-5" />}
+          icon={<BookIcon className="size-6" />}
           label="Documentation"
           onClick={() => {
             setDocsOpen(true);
@@ -92,7 +92,7 @@ export function QuickActions(): React.JSX.Element {
         />
 
         <QuickActionButton
-          icon={<SparkleIcon className="size-5" />}
+          icon={<SparkleIcon className="size-6" />}
           label="What's new"
           onClick={() => {
             setWhatsNewOpen(true);
@@ -120,7 +120,7 @@ const QuickActionButton = forwardRef<
       ref={ref}
       type="button"
       className={cn(
-        'group flex flex-col items-center gap-2 rounded-xl border border-border-subtle bg-raised p-4',
+        'group flex flex-col items-center gap-2 rounded-xl border border-border-subtle bg-raised p-5',
         'text-fg-secondary transition-all duration-150',
         'hover:border-border hover:bg-hover hover:text-fg',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline',
@@ -131,7 +131,7 @@ const QuickActionButton = forwardRef<
       <span className="flex size-8 items-center justify-center rounded-lg bg-raised text-fg-muted">
         {icon}
       </span>
-      <span className="text-[12px] font-medium">{label}</span>
+      <span className="text-[13px] font-medium">{label}</span>
     </button>
   );
 });

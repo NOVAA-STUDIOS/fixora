@@ -313,9 +313,9 @@ function RecentCard({
             onClick={onOpen}
             title={workspace.rootPath}
             className={cn(
-              'flex w-full min-w-0 items-center gap-3 rounded-xl border border-border-subtle bg-inset px-3 py-2.5 text-left',
+              'flex w-full min-w-0 items-center gap-3 rounded-xl border border-border-subtle bg-inset px-4 py-3 text-left',
               'transition-[background-color,border-color,transform] duration-150 ease-(--ease-entrance)',
-              'hover:scale-[1.01] hover:border-accent-border hover:bg-hover disabled:opacity-50',
+              'hover:scale-[1.01] hover:border-accent/30 hover:bg-hover disabled:opacity-50',
               'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline',
             )}
           >
@@ -323,7 +323,7 @@ function RecentCard({
               <FolderIcon className="size-4" />
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="truncate text-sm font-medium text-fg">{workspace.name}</span>
+              <span className="truncate text-[13px] font-medium text-fg">{workspace.name}</span>
               {/* The path is the identifier — two projects can share a name. It reads RTL so the
                   tail (the part that disambiguates) survives truncation instead of the drive letter. */}
               <span dir="rtl" className="truncate text-left text-[11px] text-fg-muted">
@@ -332,7 +332,7 @@ function RecentCard({
             </span>
             {/* The timestamp yields its space to the ✕ on hover, rather than the two fighting for
                 the same corner or the card growing a third column it only sometimes needs. */}
-            <span className="shrink-0 text-[11px] tabular-nums text-fg-muted transition-opacity duration-(--fx-motion-duration-fast) group-hover/card:opacity-0">
+            <span className="shrink-0 text-[11px] text-fg-muted tabular-nums transition-opacity duration-(--fx-motion-duration-fast) group-hover/card:opacity-0">
               {relativeTime(workspace.lastOpenedAt)}
             </span>
           </button>
