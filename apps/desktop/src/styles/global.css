@@ -179,6 +179,46 @@
       background: linear-gradient(135deg, #a855f733, #7c3aed22, #06b6d433);
     }
   }
+  @keyframes rgb-glow {
+    0% {
+      box-shadow:
+        0 0 20px 2px #ff000066,
+        0 0 40px 4px #ff000033;
+    }
+    16% {
+      box-shadow:
+        0 0 20px 2px #ff880066,
+        0 0 40px 4px #ff880033;
+    }
+    33% {
+      box-shadow:
+        0 0 20px 2px #ffff0066,
+        0 0 40px 4px #ffff0033;
+    }
+    50% {
+      box-shadow:
+        0 0 20px 2px #00ff0066,
+        0 0 40px 4px #00ff0033;
+    }
+    66% {
+      box-shadow:
+        0 0 20px 2px #0088ff66,
+        0 0 40px 4px #0088ff33;
+    }
+    83% {
+      box-shadow:
+        0 0 20px 2px #8800ff66,
+        0 0 40px 4px #8800ff33;
+    }
+    100% {
+      box-shadow:
+        0 0 20px 2px #ff000066,
+        0 0 40px 4px #ff000033;
+    }
+  }
+  .zappr-rgb {
+    animation: rgb-glow 3s linear infinite;
+  }
   @media (prefers-reduced-motion: reduce) {
     .animate-ios-enter,
     .animate-ios-exit,
