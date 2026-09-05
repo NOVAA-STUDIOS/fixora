@@ -595,7 +595,7 @@ export function FindingsPanel(): React.JSX.Element {
       )}
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border-subtle bg-raised px-2 py-1.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border-subtle bg-raised px-4 py-1.5">
         <SeverityFilter
           label="All"
           active={filter.severity === undefined}
@@ -630,7 +630,7 @@ export function FindingsPanel(): React.JSX.Element {
         Two rows fixes both: the search bar gets its full width to breathe, and the toggle gets room
         to read as three distinct buttons instead of three cramped abbreviations.
       */}
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle bg-raised px-3">
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle bg-raised px-4">
         <SearchIcon className="size-3.5 shrink-0 text-fg-muted" />
         <input
           type="text"
@@ -656,7 +656,7 @@ export function FindingsPanel(): React.JSX.Element {
           </button>
         )}
       </div>
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle bg-raised px-3">
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle bg-raised px-4">
         <span className="shrink-0 text-[10px] font-medium tracking-wide text-fg-muted uppercase">
           Group by
         </span>
@@ -949,7 +949,7 @@ const FindingRow = memo(function FindingRow({
         // iOS Premium: a rounded card with its own subtle border, not a full-bleed row — mx-1.5
         // insets it from the panel edges the same way the sidebar's active pill does, so the two
         // read as the same design language.
-        'group/row mx-1.5 my-0.5 flex min-w-0 flex-col rounded-xl border border-white/[0.06]',
+        'group/row mx-0 my-0 flex min-w-0 flex-col border-b border-border-subtle/50',
         // Severity accent on the left edge, not a dot inside it — one signal instead of two.
         // Security overrides it to the danger token regardless of the finding's own severity — a
         // security *warning* still reads as more urgent than a correctness *warning* does.
@@ -990,7 +990,7 @@ const FindingRow = memo(function FindingRow({
         aria-current={isSelected}
         // The clamped message is still readable in full on hover, without opening the details pane.
         title={`${finding.message}\n${finding.location.file}:${String(finding.location.startLine)} — click for details`}
-        className="flex w-full min-w-0 flex-col items-start gap-1 text-left"
+        className="flex w-full min-w-0 flex-col items-start gap-1 px-4 py-2.5 text-left"
       >
         {/*
           TOP ROW: severity + rule, both small and muted — context, not the headline. The repair
