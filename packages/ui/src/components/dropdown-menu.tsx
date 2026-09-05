@@ -23,7 +23,9 @@ export const DropdownMenuContent = forwardRef<
         sideOffset={sideOffset}
         className={cn(
           'z-(--fx-z-popover) min-w-44 overflow-hidden rounded-md p-1',
-          'bg-overlay text-fg border border-border-subtle shadow-lg',
+          // No backdrop-filter (froze the GPU process in Electron before) — a near-opaque solid
+          // color stands in for the blur, the same pattern .glass-panel/.glass-overlay use.
+          'bg-[color-mix(in_srgb,var(--fx-color-bg-overlay)_85%,transparent)] text-fg border border-border-subtle shadow-lg',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           className,
         )}
