@@ -312,7 +312,7 @@ function WorkbenchContent(): React.JSX.Element {
       orientation="horizontal"
       defaultLayout={savedLayout[layoutKey] ?? defaultLayout}
       onLayoutChanged={onLayoutChanged}
-      className="min-h-0 flex-1"
+      className="min-h-0 flex-1 bg-[#0d0d0d]"
     >
       {/*
         react-resizable-panels v4: a NUMBER is pixels, a unit-less STRING is a percentage. So the
