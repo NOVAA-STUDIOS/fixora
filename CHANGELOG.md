@@ -3,6 +3,22 @@
 All notable changes to Fixora. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.2.20 (September 5, 2026)
+
+### Features
+- Redesigned activity rail with Linear/Cursor-inspired styling — active indicator, smoother hover states, and cleaner icon layout.
+- Home screen refreshed — larger logo, bigger Quick Action cards, polished Recent Projects list.
+- Empty states across the app now have icon circles and better typography.
+- Mode switcher in the title bar has a refined tab style.
+- Smooth slide-in animations when panels open and close.
+- Semi-transparent command palette and dropdown menus.
+- Thin 4px scrollbars throughout the app.
+- Panels are now edge-to-edge with tighter, darker headers.
+
+### Fixes
+- Light and dark mode now render consistently across all panels.
+- Editor background no longer appears white in dark mode after layout changes.
+
 ## 1.2.19 (September 4, 2026)
 
 ### Features
