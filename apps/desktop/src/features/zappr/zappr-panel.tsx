@@ -1,5 +1,5 @@
 import { CloseIcon, cn } from '@fixora/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useZapprStore } from '../../stores/zappr-store.js';
 
@@ -25,50 +25,42 @@ export function ZapprPanel(): React.JSX.Element | null {
 
   useEffect(() => listen(), [listen]);
 
-  const posRef = useRef({ x: 0, y: 0 });
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const headerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const el = headerRef.current;
-    if (el === null) return;
-    let startX = 0;
-    let startY = 0;
-    let startPosX = 0;
-    let startPosY = 0;
-    const onMove = (e: MouseEvent): void => {
-      const newPos = { x: startPosX + e.clientX - startX, y: startPosY + e.clientY - startY };
-      posRef.current = newPos;
-      setPos(newPos);
+  // Direct DOM manipulation — no React re-renders during drag.
+  function handleHeaderMouseDown(e: React.MouseEvent): void {
+    const panel = panelRef.current;
+    if (panel === null) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+
+    const style = window.getComputedStyle(panel);
+    const matrix = new DOMMatrix(style.transform);
+    const startTransX = matrix.m41;
+    const startTransY = matrix.m42;
+
+    const onMove = (moveEvent: MouseEvent): void => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      panel.style.transform = `translate(${String(startTransX + dx)}px, ${String(startTransY + dy)}px)`;
     };
     const onUp = (): void => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-    const onDown = (e: MouseEvent): void => {
-      startX = e.clientX;
-      startY = e.clientY;
-      startPosX = posRef.current.x;
-      startPosY = posRef.current.y;
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    };
-    el.addEventListener('mousedown', onDown);
-    return () => {
-      el.removeEventListener('mousedown', onDown);
-    };
-    // Empty deps — register once only; posRef keeps the drag start position up to date without
-    // needing pos in the dependency array.
-  }, []);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
 
   if (!isOpen) return null;
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40">
       <div
+        ref={panelRef}
         className="animate-ios-dialog-enter relative w-[680px] max-w-[90vw]"
         style={{
-          transform: `translate(${String(pos.x)}px, ${String(pos.y)}px)`,
           borderRadius: '20px',
           background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
           padding: '1px',
@@ -78,8 +70,8 @@ export function ZapprPanel(): React.JSX.Element | null {
       >
         <div className="overflow-hidden rounded-[19px] bg-[#0d0d0d]">
           <div
-            ref={headerRef}
-            className="flex cursor-move items-center gap-3 border-b border-border-subtle px-5 pt-5 pb-4 select-none"
+            onMouseDown={handleHeaderMouseDown}
+            className="flex cursor-grab items-center gap-3 border-b border-border-subtle px-5 pt-5 pb-4 select-none active:cursor-grabbing"
           >
             <div className="flex size-8 animate-pulse items-center justify-center rounded-xl bg-accent/15">
               <span className="text-lg">⚡</span>
