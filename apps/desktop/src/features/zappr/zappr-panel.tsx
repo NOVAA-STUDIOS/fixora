@@ -25,6 +25,7 @@ export function ZapprPanel(): React.JSX.Element | null {
 
   useEffect(() => listen(), [listen]);
 
+  const posRef = useRef({ x: 0, y: 0 });
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const headerRef = useRef<HTMLDivElement>(null);
 
@@ -36,7 +37,9 @@ export function ZapprPanel(): React.JSX.Element | null {
     let startPosX = 0;
     let startPosY = 0;
     const onMove = (e: MouseEvent): void => {
-      setPos({ x: startPosX + e.clientX - startX, y: startPosY + e.clientY - startY });
+      const newPos = { x: startPosX + e.clientX - startX, y: startPosY + e.clientY - startY };
+      posRef.current = newPos;
+      setPos(newPos);
     };
     const onUp = (): void => {
       window.removeEventListener('mousemove', onMove);
@@ -45,8 +48,8 @@ export function ZapprPanel(): React.JSX.Element | null {
     const onDown = (e: MouseEvent): void => {
       startX = e.clientX;
       startY = e.clientY;
-      startPosX = pos.x;
-      startPosY = pos.y;
+      startPosX = posRef.current.x;
+      startPosY = posRef.current.y;
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     };
@@ -54,7 +57,9 @@ export function ZapprPanel(): React.JSX.Element | null {
     return () => {
       el.removeEventListener('mousedown', onDown);
     };
-  }, [pos.x, pos.y]);
+    // Empty deps — register once only; posRef keeps the drag start position up to date without
+    // needing pos in the dependency array.
+  }, []);
 
   if (!isOpen) return null;
 
