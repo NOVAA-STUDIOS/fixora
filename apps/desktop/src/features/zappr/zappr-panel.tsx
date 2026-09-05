@@ -27,31 +27,35 @@ export function ZapprPanel(): React.JSX.Element | null {
 
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Direct DOM manipulation — no React re-renders during drag.
-  function handleHeaderMouseDown(e: React.MouseEvent): void {
+  // Mouse drag was unreliable with GPU compositing disabled — Alt+Arrow keys move the panel
+  // instead, in fixed steps, always starting from screen center.
+  useEffect(() => {
+    if (!isOpen) return;
     const panel = panelRef.current;
     if (panel === null) return;
 
-    const startX = e.clientX;
-    const startY = e.clientY;
+    const STEP = 20;
+    const onKey = (e: KeyboardEvent): void => {
+      if (!e.altKey) return;
+      const style = window.getComputedStyle(panel);
+      const matrix = new DOMMatrix(style.transform);
+      let x = matrix.m41;
+      let y = matrix.m42;
 
-    const style = window.getComputedStyle(panel);
-    const matrix = new DOMMatrix(style.transform);
-    const startTransX = matrix.m41;
-    const startTransY = matrix.m42;
+      if (e.key === 'ArrowLeft') x -= STEP;
+      if (e.key === 'ArrowRight') x += STEP;
+      if (e.key === 'ArrowUp') y -= STEP;
+      if (e.key === 'ArrowDown') y += STEP;
 
-    const onMove = (moveEvent: MouseEvent): void => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-      panel.style.transform = `translate(${String(startTransX + dx)}px, ${String(startTransY + dy)}px)`;
+      panel.style.transform = `translate(${String(x)}px, ${String(y)}px)`;
+      e.preventDefault();
     };
-    const onUp = (): void => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -69,10 +73,7 @@ export function ZapprPanel(): React.JSX.Element | null {
         }}
       >
         <div className="overflow-hidden rounded-[19px] bg-[#0d0d0d]">
-          <div
-            onMouseDown={handleHeaderMouseDown}
-            className="flex cursor-grab items-center gap-3 border-b border-border-subtle px-5 pt-5 pb-4 select-none active:cursor-grabbing"
-          >
+          <div className="flex items-center gap-3 border-b border-border-subtle px-5 pt-5 pb-4">
             <div className="flex size-8 animate-pulse items-center justify-center rounded-xl bg-accent/15">
               <span className="text-lg">⚡</span>
             </div>
