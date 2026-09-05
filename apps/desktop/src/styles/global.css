@@ -227,21 +227,18 @@
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 4px;
+    height: 4px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    /* Inset via a transparent border so the thumb reads as 6px but keeps a 10px hit target. */
-    background-color: var(--fx-color-border-strong);
-    border: 2px solid transparent;
-    background-clip: content-box;
-    border-radius: 9999px;
+    background: color-mix(in srgb, var(--fx-color-border-subtle) 60%, transparent);
+    border-radius: 2px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--fx-color-text-muted);
+    background: var(--fx-color-border-subtle);
   }
   ::-webkit-scrollbar-corner {
     background: transparent;

@@ -153,9 +153,9 @@ export function EditorArea(): React.JSX.Element {
                 className={cn(
                   // shrink-0: the strip scrolls horizontally, so tabs must keep their width rather
                   // than compressing every open file into an unreadable sliver as more are opened.
-                  'group flex shrink-0 items-center gap-1 border-r border-border-subtle pl-3 pr-1 text-xs',
+                  'group flex shrink-0 items-center gap-1 border-r border-b-2 border-border-subtle border-b-transparent pl-3 pr-1 text-[12px] font-medium',
                   tab.relPath === activeTab
-                    ? 'bg-canvas text-fg'
+                    ? 'border-b-accent bg-canvas text-fg'
                     : 'text-fg-muted hover:bg-hover hover:text-fg',
                 )}
               >

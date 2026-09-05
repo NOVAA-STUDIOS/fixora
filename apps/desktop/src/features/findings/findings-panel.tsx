@@ -953,7 +953,7 @@ const FindingRow = memo(function FindingRow({
         // Severity accent on the left edge, not a dot inside it — one signal instead of two.
         // Security overrides it to the danger token regardless of the finding's own severity — a
         // security *warning* still reads as more urgent than a correctness *warning* does.
-        'border-l-[3px]',
+        'border-l-[3px] hover:brightness-125',
         finding.category === 'security' ? 'border-l-danger' : SEVERITY_BORDER[finding.severity],
         'gap-(--fx-card-gap) px-(--fx-card-padding-x) py-(--fx-card-padding-y)',
         // Only the properties that CANNOT change layout.
