@@ -157,7 +157,7 @@ export function HistoryPanel(): React.JSX.Element {
       className="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
     >
       <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+        <h2 className="font-[system-ui] text-[10px] font-semibold tracking-[0.08em] text-fg-muted uppercase">
           Repair history
         </h2>
         <div className="flex shrink-0 items-center gap-1">

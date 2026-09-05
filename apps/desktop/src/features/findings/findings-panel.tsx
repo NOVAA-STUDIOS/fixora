@@ -365,7 +365,7 @@ export function FindingsPanel(): React.JSX.Element {
     >
       <header className="flex flex-col shrink-0 border-b border-border-subtle bg-raised">
         <div className="flex h-8 items-center justify-between gap-2 px-3">
-          <h2 className="shrink-0 text-[10px] font-semibold text-fg-muted uppercase tracking-[0.1em]">
+          <h2 className="shrink-0 font-[system-ui] text-[10px] font-semibold tracking-[0.08em] text-fg-muted uppercase">
             Problems
           </h2>
           {/*

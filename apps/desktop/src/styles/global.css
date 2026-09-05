@@ -47,6 +47,20 @@
     border: 1px solid color-mix(in srgb, var(--fx-color-border-subtle) 50%, transparent);
   }
 
+  .text-panel-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fx-color-text-muted);
+  }
+
+  .text-panel-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--fx-color-text-secondary);
+  }
+
   /* iOS spring entrances/exits. Not linear — a real spring overshoots before it settles, which is
    * exactly what makes it read as "iOS" rather than as any other ease curve at the same duration. */
   @keyframes ios-enter {

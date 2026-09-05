@@ -39,7 +39,7 @@ export function HomeScreen(): React.JSX.Element {
             <h1 className="text-2xl font-semibold tracking-tight text-fg">Fixora</h1>
             {/* One sentence that says what the product is for, at a size you actually read —
                 the old copy said the same thing at 12px inside a 220px column. */}
-            <p className="text-md text-fg-secondary">
+            <p className="text-sm text-fg-muted">
               The workspace you open when the code is already broken.
             </p>
           </div>

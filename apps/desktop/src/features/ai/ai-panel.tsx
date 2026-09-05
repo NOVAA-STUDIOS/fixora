@@ -90,7 +90,7 @@ export function AiPanel(): React.JSX.Element {
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
     >
       <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
-        <h2 className="flex min-w-0 items-center gap-2 truncate text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+        <h2 className="flex min-w-0 items-center gap-2 truncate font-[system-ui] text-[10px] font-semibold tracking-[0.08em] text-fg-muted uppercase">
           {status === 'idle'
             ? selected !== null
               ? 'Problem details'
