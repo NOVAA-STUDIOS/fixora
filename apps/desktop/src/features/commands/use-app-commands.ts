@@ -5,6 +5,7 @@ import { usePreviewStore } from '../../stores/preview-store.js';
 import { useTestGenerationStore } from '../../stores/test-generation-store.js';
 import { toast } from '../../stores/toast-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
+import { useZapprStore } from '../../stores/zappr-store.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
@@ -332,6 +333,17 @@ export function useAppCommands(): Command[] {
         run: () => {
           setPaletteOpen(false);
           setEditorTheme('monokai');
+        },
+      },
+      {
+        id: 'zappr.open',
+        title: 'Open Zappr',
+        keybinding: 'mod+i',
+        keywords: ['zappr', 'zap', 'create', 'build', 'generate', 'ai', 'agent'],
+        group: 'AI',
+        run: () => {
+          setPaletteOpen(false);
+          useZapprStore.getState().open();
         },
       },
     ],

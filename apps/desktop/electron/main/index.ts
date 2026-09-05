@@ -51,6 +51,7 @@ import { registerTerminalHandlers } from './ipc/handlers/terminal.handlers.js';
 import { registerTestGenerationHandlers } from './ipc/handlers/test-generation.handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window.handlers.js';
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace.handlers.js';
+import { registerZapprHandlers } from './ipc/handlers/zappr.handlers.js';
 import { assertEveryChannelIsHandled, mountRouter, registerHandler } from './ipc/router.js';
 import { revalidateIfDue } from './lib/gumroad-revalidate.js';
 import { checkAndRecordLaunchedVersion } from './lib/last-launched-version.js';
@@ -63,6 +64,7 @@ import { migrateLegacyUserData } from './services/migrate-user-data.js';
 import { createPreviewService, setFixoraDevPort } from './services/preview-service.js';
 import { createShieldService } from './services/shield/shield-service.js';
 import { createWorkspaceService } from './services/workspace-service.js';
+import { createZapprService } from './services/zappr-service.js';
 import { createSuggestionRepository } from './suggestions/suggestion-repository.js';
 import { createSuggestionService } from './suggestions/suggestion-service.js';
 import { createSuggestionStorage } from './suggestions/suggestion-storage.js';
@@ -478,6 +480,7 @@ function startBackend(window: BrowserWindow | null): void {
     catalogue: modelCatalogue,
   });
   registerTestGenerationHandlers({ workspace: workspaceService, orchestrator });
+  registerZapprHandlers(createZapprService(orchestrator, workspaceService, window));
   registerNotificationHandlers();
   // Code Shield: reads only — it re-runs the analyzers already wired above and reports what they
   // found. Registered with the same services the Problems panel uses, so the two cannot disagree.

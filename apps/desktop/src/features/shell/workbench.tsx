@@ -11,6 +11,7 @@ import { ShieldPanel } from '../shield/shield-panel.js';
 import { useShieldWatch } from '../shield/use-shield-watch.js';
 import { SuggestionPanel } from '../suggestions/suggestion-panel.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
+import { ZapprPanel } from '../zappr/zappr-panel.js';
 
 import { HomeScreen } from './home-screen.js';
 import { PrimaryPlaceholder } from './placeholder-views.js';
@@ -167,7 +168,7 @@ export function Workbench(): React.JSX.Element {
   const everActivatedTerminal = useRef(false);
   if (activeView === 'terminal') everActivatedTerminal.current = true;
   return (
-    <>
+    <div className="relative flex min-h-0 flex-1">
       {everActivatedTerminal.current && (
         <div className={activeView === 'terminal' ? 'flex min-h-0 flex-1' : 'hidden'}>
           <ErrorBoundary label="Terminal">
@@ -179,7 +180,8 @@ export function Workbench(): React.JSX.Element {
       )}
       {activeView !== 'terminal' && <WorkbenchContent />}
       <ShieldPanel />
-    </>
+      <ZapprPanel />
+    </div>
   );
 }
 

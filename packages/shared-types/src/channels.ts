@@ -207,6 +207,10 @@ export const channels = [
   'preview:show',
   'preview:goBack',
   'preview:goForward',
+  // Zappr: a freeform-prompt coding agent, distinct from the finding-grounded repair pipeline.
+  'zappr:run',
+  'zappr:cancel',
+  'zappr:getContext',
 ] as const;
 
 export type Channel = (typeof channels)[number];
@@ -270,6 +274,12 @@ export const eventChannels = [
   'preview:loadingChanged',
   'preview:statusUpdate',
   'preview:navigationChanged',
+  // Zappr push events: the agent's plan, per-step progress, streamed tokens, and completion.
+  'zappr:plan',
+  'zappr:stepStart',
+  'zappr:stepDone',
+  'zappr:done',
+  'zappr:delta',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

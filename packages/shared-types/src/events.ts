@@ -4,6 +4,7 @@ import { AiDeltaSchema, AiRunStateSchema } from './ai.js';
 import { AnalysisStateSchema, FindingSchema } from './analysis.js';
 import type { EventChannel } from './channels.js';
 import { FilesChangedSchema } from './workspace.js';
+import { ZapprStepSchema } from './zappr.js';
 
 /**
  * The main → renderer event contracts (push). The counterpart to `contracts` in ipc.ts, for the
@@ -81,6 +82,32 @@ export const PreviewNavigationChangedSchema = z.object({
   canGoForward: z.boolean(),
 });
 export type PreviewNavigationChanged = z.infer<typeof PreviewNavigationChangedSchema>;
+
+/** Zappr's proposed plan, once the model has answered. */
+export const ZapprPlanEventSchema = z.object({
+  steps: z.array(ZapprStepSchema),
+  summary: z.string(),
+});
+export type ZapprPlanEvent = z.infer<typeof ZapprPlanEventSchema>;
+
+export const ZapprStepStartSchema = z.object({ index: z.number().int(), step: ZapprStepSchema });
+export type ZapprStepStart = z.infer<typeof ZapprStepStartSchema>;
+
+export const ZapprStepDoneSchema = z.object({
+  index: z.number().int(),
+  success: z.boolean(),
+  error: z.string().optional(),
+});
+export type ZapprStepDone = z.infer<typeof ZapprStepDoneSchema>;
+
+export const ZapprDoneSchema = z.object({
+  success: z.boolean(),
+  filesChanged: z.array(z.string()),
+});
+export type ZapprDone = z.infer<typeof ZapprDoneSchema>;
+
+export const ZapprDeltaSchema = z.object({ text: z.string() });
+export type ZapprDelta = z.infer<typeof ZapprDeltaSchema>;
 
 /** A chunk of PTY output, keyed by the session id `terminal:create` was called with. */
 export const TerminalDataSchema = z.object({ id: z.string().min(1), data: z.string() });
@@ -166,6 +193,11 @@ export const eventContracts = {
   'preview:loadingChanged': PreviewLoadingChangedSchema,
   'preview:statusUpdate': PreviewStatusUpdateSchema,
   'preview:navigationChanged': PreviewNavigationChangedSchema,
+  'zappr:plan': ZapprPlanEventSchema,
+  'zappr:stepStart': ZapprStepStartSchema,
+  'zappr:stepDone': ZapprStepDoneSchema,
+  'zappr:done': ZapprDoneSchema,
+  'zappr:delta': ZapprDeltaSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

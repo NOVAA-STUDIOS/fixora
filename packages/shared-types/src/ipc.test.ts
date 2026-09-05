@@ -146,6 +146,9 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'preview:show',
       'preview:goBack',
       'preview:goForward',
+      'zappr:run',
+      'zappr:cancel',
+      'zappr:getContext',
     ]);
   });
 });

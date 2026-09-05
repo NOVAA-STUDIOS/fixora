@@ -808,6 +808,18 @@ export const contracts = {
     request: empty,
     response: z.void(),
   },
+  'zappr:run': {
+    request: z.object({ prompt: z.string().min(1), workspaceRoot: z.string() }),
+    response: z.object({ ok: z.boolean(), error: z.string().optional() }),
+  },
+  'zappr:cancel': {
+    request: empty,
+    response: z.void(),
+  },
+  'zappr:getContext': {
+    request: empty,
+    response: z.object({ files: z.array(z.string()), hasPackageJson: z.boolean() }),
+  },
 } as const satisfies Record<Channel, Contract>;
 
 export type Contracts = typeof contracts;

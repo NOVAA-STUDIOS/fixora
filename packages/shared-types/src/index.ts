@@ -206,6 +206,14 @@ export {
   type Verdict,
   type VerificationReport,
 } from './ai.js';
+export {
+  ZapprStepTypeSchema,
+  ZapprStepSchema,
+  ZapprPlanSchema,
+  type ZapprStepType,
+  type ZapprStep,
+  type ZapprPlan,
+} from './zappr.js';
 
 export {
   isRepairSupportedPath,
