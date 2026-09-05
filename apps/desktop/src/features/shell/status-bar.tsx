@@ -144,7 +144,7 @@ export function StatusBar(): React.JSX.Element {
       role="status"
       // Height follows density: at compact every row of vertical space is contested, and a status bar
       // is the cheapest place to give one back. Token-driven so it cannot drift from the toggle.
-      className="flex h-(--fx-status-bar-height) shrink-0 items-center justify-between gap-3 px-3 text-xs text-fg-muted select-none"
+      className="flex h-(--fx-status-bar-height) shrink-0 items-center justify-between gap-3 border-t border-border-subtle bg-inset px-3 text-[10px] text-fg-muted select-none"
     >
       <div className="flex min-w-0 items-center gap-2">
         <ShieldPill />

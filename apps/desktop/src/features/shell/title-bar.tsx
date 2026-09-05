@@ -34,7 +34,7 @@ export function TitleBar(): React.JSX.Element {
   return (
     <header
       // The whole bar is draggable; interactive children opt out with `no-drag-region` below.
-      className="drag-region flex h-10 shrink-0 items-center justify-between pl-3 select-none"
+      className="drag-region flex h-10 shrink-0 items-center justify-between border-b border-border-subtle bg-raised pl-3 select-none"
     >
       <div className="flex min-w-0 items-center gap-4">
         <div className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight text-fg">

@@ -28,7 +28,7 @@ export function WorkspacePanel(): React.JSX.Element {
         aria-label="Workspace"
         className="flex h-full min-w-0 flex-col overflow-hidden bg-raised"
       >
-        <header className="flex h-8 shrink-0 items-center gap-1.5 border-b border-[#1e1e1e] bg-[#111111] px-2">
+        <header className="flex h-8 shrink-0 items-center gap-1.5 border-b border-border-subtle bg-raised px-2">
           <FolderIcon className="size-4 shrink-0 text-fg-muted" />
           <h2
             className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wider text-fg-secondary"

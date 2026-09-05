@@ -103,7 +103,7 @@ export function ActivityRail(): React.JSX.Element {
   return (
     <nav
       aria-label="Primary"
-      className="flex w-[52px] shrink-0 flex-col items-center gap-0.5 border-r border-[#1e1e1e] bg-[#111111] py-2 select-none"
+      className="flex w-[52px] shrink-0 flex-col items-center gap-0.5 border-r border-border-subtle bg-raised py-2 select-none"
     >
       {items.map(({ view, label, Icon }) => {
         const active = view === activeView;

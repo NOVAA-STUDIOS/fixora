@@ -363,7 +363,7 @@ export function FindingsPanel(): React.JSX.Element {
       aria-label="Problems"
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-canvas"
     >
-      <header className="flex flex-col shrink-0 border-b border-[#1e1e1e] bg-[#111111]">
+      <header className="flex flex-col shrink-0 border-b border-border-subtle bg-raised">
         <div className="flex h-8 items-center justify-between gap-2 px-3">
           <h2 className="shrink-0 text-[10px] font-semibold text-fg-muted uppercase tracking-[0.1em]">
             Problems
