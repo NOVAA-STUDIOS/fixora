@@ -112,7 +112,7 @@ function ModeSwitcher(): React.JSX.Element {
     <div
       role="radiogroup"
       aria-label="Workbench mode"
-      className="no-drag-region flex shrink-0 items-center gap-0.5 rounded-md bg-inset p-0.5"
+      className="no-drag-region flex shrink-0 items-center gap-0.5 rounded-lg bg-inset p-0.5"
       onKeyDown={(e) => {
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
         e.preventDefault();
@@ -135,13 +135,13 @@ function ModeSwitcher(): React.JSX.Element {
               setMode(id);
             }}
             className={cn(
-              'flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors duration-(--fx-motion-duration-fast) focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline',
+              'flex items-center gap-1.5 rounded px-2 py-1 text-[12px] tracking-tight transition-colors duration-(--fx-motion-duration-fast) focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline',
               active
-                ? 'bg-raised font-medium text-fg shadow-sm'
-                : 'text-fg-muted hover:bg-hover hover:text-fg-secondary',
+                ? 'bg-raised font-semibold text-fg shadow-sm ring-1 ring-border-subtle'
+                : 'text-fg-muted hover:bg-raised/50 hover:text-fg',
             )}
           >
-            <Icon className="size-3.5 shrink-0" />
+            <Icon className="size-3 shrink-0" />
             {label}
           </button>
         );
