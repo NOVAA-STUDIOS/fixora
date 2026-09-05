@@ -26,68 +26,73 @@ export function ZapprPanel(): React.JSX.Element | null {
   useEffect(() => listen(), [listen]);
 
   const [pos, setPos] = useState({ x: 0, y: 0 });
-  const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(
-    null,
-  );
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (el === null) return;
+    let startX = 0;
+    let startY = 0;
+    let startPosX = 0;
+    let startPosY = 0;
+    const onMove = (e: MouseEvent): void => {
+      setPos({ x: startPosX + e.clientX - startX, y: startPosY + e.clientY - startY });
+    };
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    const onDown = (e: MouseEvent): void => {
+      startX = e.clientX;
+      startY = e.clientY;
+      startPosX = pos.x;
+      startPosY = pos.y;
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
+    el.addEventListener('mousedown', onDown);
+    return () => {
+      el.removeEventListener('mousedown', onDown);
+    };
+  }, [pos.x, pos.y]);
 
   if (!isOpen) return null;
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40">
       <div
-        className="animate-ios-dialog-enter relative w-[600px] max-w-[90vw] overflow-hidden rounded-2xl border border-border-subtle bg-canvas/95 shadow-2xl"
-        style={{ transform: `translate(${String(pos.x)}px, ${String(pos.y)}px)` }}
+        className="animate-ios-dialog-enter relative w-[680px] max-w-[90vw]"
+        style={{
+          transform: `translate(${String(pos.x)}px, ${String(pos.y)}px)`,
+          borderRadius: '20px',
+          background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
+          padding: '1px',
+          boxShadow:
+            '0 0 0 1px rgba(124,58,237,0.3), 0 0 40px rgba(124,58,237,0.15), 0 0 80px rgba(6,182,212,0.1)',
+        }}
       >
-        {/* Animated gradient border glow — subtle, behind all content */}
-        <div
-          className="pointer-events-none absolute inset-0 rounded-2xl opacity-60"
-          style={{
-            background: 'linear-gradient(135deg, #7c3aed22, #06b6d422, #7c3aed22)',
-            animation: 'zappr-glow 3s ease infinite alternate',
-          }}
-        />
-        <div
-          className="relative flex cursor-grab items-center gap-3 border-b border-border-subtle px-5 pt-5 pb-4 active:cursor-grabbing"
-          onMouseDown={(e) => {
-            dragRef.current = {
-              startX: e.clientX,
-              startY: e.clientY,
-              startPosX: pos.x,
-              startPosY: pos.y,
-            };
-            const onMove = (moveEvent: MouseEvent): void => {
-              if (dragRef.current === null) return;
-              setPos({
-                x: dragRef.current.startPosX + (moveEvent.clientX - dragRef.current.startX),
-                y: dragRef.current.startPosY + (moveEvent.clientY - dragRef.current.startY),
-              });
-            };
-            const onUp = (): void => {
-              dragRef.current = null;
-              window.removeEventListener('mousemove', onMove);
-              window.removeEventListener('mouseup', onUp);
-            };
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onUp);
-          }}
-        >
-          <div className="flex size-8 animate-pulse items-center justify-center rounded-xl bg-accent/15">
-            <span className="text-lg">⚡</span>
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-fg">Zappr</h2>
-            <p className="text-[11px] text-fg-muted">Just zap it into existence</p>
-          </div>
-          <button
-            type="button"
-            onClick={close}
-            className="ml-auto rounded-lg p-1.5 text-fg-muted hover:bg-hover"
+        <div className="overflow-hidden rounded-[19px] bg-[#0d0d0d]">
+          <div
+            ref={headerRef}
+            className="flex cursor-move items-center gap-3 border-b border-border-subtle px-5 pt-5 pb-4 select-none"
           >
-            <CloseIcon className="size-4" />
-          </button>
-        </div>
+            <div className="flex size-8 animate-pulse items-center justify-center rounded-xl bg-accent/15">
+              <span className="text-lg">⚡</span>
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-fg">Zappr</h2>
+              <p className="text-[11px] text-fg-muted">Just zap it into existence</p>
+            </div>
+            <button
+              type="button"
+              onClick={close}
+              className="ml-auto rounded-lg p-1.5 text-fg-muted hover:bg-hover"
+            >
+              <CloseIcon className="size-4" />
+            </button>
+          </div>
 
-        {error !== null && (
+          {error !== null && (
           <p role="alert" className="px-5 pt-3 text-xs text-danger-text [overflow-wrap:anywhere]">
             {error}
           </p>
@@ -108,7 +113,7 @@ export function ZapprPanel(): React.JSX.Element | null {
                 // Shift+Enter = new line (default textarea behavior)
               }}
               placeholder='Try "Create a login page with React" or "Add dark mode toggle"'
-              className="min-h-[80px] w-full resize-none rounded-xl border border-border-subtle bg-inset px-4 py-3 text-sm text-fg outline-none transition-colors placeholder:text-fg-muted focus:border-accent focus:shadow-[0_0_20px_rgba(124,58,237,0.15)] focus:ring-2 focus:ring-accent/40"
+              className="max-h-[200px] min-h-[100px] w-full resize-none rounded-xl bg-[#1a1a1a] p-4 text-sm text-fg outline-none transition-colors placeholder:text-fg-muted focus:shadow-[0_0_20px_rgba(124,58,237,0.15)] focus:ring-2 focus:ring-accent/40"
               autoFocus
             />
             <div className="mt-3 flex items-center justify-between">
@@ -117,7 +122,7 @@ export function ZapprPanel(): React.JSX.Element | null {
                 type="button"
                 onClick={() => void run()}
                 disabled={prompt.trim() === ''}
-                className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:opacity-40"
+                className="rounded-xl bg-gradient-to-r from-purple-600 to-cyan-500 px-6 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-40"
               >
                 ⚡ Zap
               </button>
@@ -173,18 +178,19 @@ export function ZapprPanel(): React.JSX.Element | null {
           </div>
         )}
 
-        {isRunning && (
-          <div className="flex items-center justify-between border-t border-border-subtle px-5 py-3">
-            <span className="animate-pulse text-xs text-fg-muted">Zapping...</span>
-            <button
-              type="button"
-              onClick={() => void cancel()}
-              className="text-xs text-danger-text hover:underline"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+          {isRunning && (
+            <div className="flex items-center justify-between border-t border-border-subtle px-5 py-3">
+              <span className="animate-pulse text-xs text-fg-muted">Zapping...</span>
+              <button
+                type="button"
+                onClick={() => void cancel()}
+                className="text-xs text-danger-text hover:underline"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
