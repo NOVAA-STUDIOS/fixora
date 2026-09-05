@@ -103,9 +103,7 @@ export function ActivityRail(): React.JSX.Element {
   return (
     <nav
       aria-label="Primary"
-      // Sidebar spacing follows density too: compact tightens the gap between rail items so the
-      // toggle affects the navigation as well as the content beside it.
-      className="flex w-14 shrink-0 flex-col items-stretch gap-0.5 border-r border-border-subtle bg-canvas pt-2 pb-2"
+      className="flex w-[52px] shrink-0 flex-col items-center gap-0.5 border-r border-[#1e1e1e] bg-[#111111] py-2 select-none"
     >
       {items.map(({ view, label, Icon }) => {
         const active = view === activeView;
@@ -115,21 +113,21 @@ export function ActivityRail(): React.JSX.Element {
             type="button"
             aria-label={label}
             aria-current={active ? 'page' : undefined}
+            title={label}
             onClick={() => {
               setActiveView(view);
             }}
             className={cn(
-              'relative mx-1 flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[9px] font-medium',
-              'transition-all duration-200',
+              'relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg transition-all duration-150',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
-              active ? 'bg-accent/15 text-accent-text' : 'text-fg-muted hover:bg-hover hover:text-fg',
+              active ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
           >
-            {/* Active indicator — left edge line */}
+            {/* Active indicator */}
             {active && (
-              <div className="absolute top-1/2 left-0 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent" />
+              <span className="absolute top-1/2 left-0 h-[18px] w-[3px] -translate-y-1/2 rounded-r-full bg-accent" />
             )}
-            <Icon className={cn('size-4 shrink-0', active && 'text-accent')} />
+            <Icon className="size-[15px] shrink-0" />
             {/*
               leading-none (line-height: 1) left no buffer above a glyph's descender — invisible
               for every label until "Suggest" (F1) added the rail's first descender (the two "g"s),
@@ -139,30 +137,21 @@ export function ActivityRail(): React.JSX.Element {
               descender room without visibly growing the row — the label box is unconstrained by any
               ancestor height, so it grows to fit rather than clipping.
             */}
-            <span
-              className={cn(
-                'w-full truncate text-center leading-tight tracking-wide',
-                active ? 'text-accent-text' : 'text-fg-muted',
-              )}
-            >
-              {label}
-            </span>
+            <span className="text-[9px] leading-none font-medium tracking-wide">{label}</span>
           </button>
         );
       })}
       <button
         type="button"
         aria-label={`Fixora ${planMeta.label}`}
+        title={planMeta.label}
         onClick={() => {
           setUpgradeDialogOpen(true);
         }}
-        className={cn(
-          'mx-1 flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[9px] font-medium tracking-wide transition-all duration-200 hover:bg-hover',
-          planMeta.color,
-        )}
+        className="relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg text-amber-500/70 transition-all duration-150 hover:bg-hover hover:text-amber-400"
       >
-        <SparkleIcon className="size-4 shrink-0" />
-        <span className="w-full truncate text-center leading-tight">{planMeta.label}</span>
+        <SparkleIcon className="size-[15px] shrink-0" />
+        <span className="text-[9px] leading-none font-medium tracking-wide">{planMeta.label}</span>
       </button>
       {(() => {
         const { view, label, Icon } = SETTINGS_ITEM;
@@ -172,29 +161,25 @@ export function ActivityRail(): React.JSX.Element {
             type="button"
             aria-label={label}
             aria-current={active ? 'page' : undefined}
+            title={label}
             onClick={() => {
               setActiveView(view);
             }}
             className={cn(
-              'relative mx-1 flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[9px] font-medium',
-              'transition-all duration-200',
+              'relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg transition-all duration-150',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
-              active ? 'bg-accent/15 text-accent-text' : 'text-fg-muted hover:bg-hover hover:text-fg',
+              active ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
           >
-            <Icon className={cn('size-4 shrink-0', active && 'text-accent')} />
-            <span
-              className={cn(
-                'w-full truncate text-center leading-tight tracking-wide',
-                active ? 'text-accent-text' : 'text-fg-muted',
-              )}
-            >
-              {label}
-            </span>
+            {active && (
+              <span className="absolute top-1/2 left-0 h-[18px] w-[3px] -translate-y-1/2 rounded-r-full bg-accent" />
+            )}
+            <Icon className="size-[15px] shrink-0" />
+            <span className="text-[9px] leading-none font-medium tracking-wide">{label}</span>
           </button>
         );
       })()}
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col items-center gap-1 pb-1">
         {user === null ? (
           <button
             type="button"
@@ -203,15 +188,9 @@ export function ActivityRail(): React.JSX.Element {
             onClick={() => {
               setShowSignIn(true);
             }}
-            className="mx-1 flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[9px] font-medium tracking-wide text-fg-muted transition-all duration-200 hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
+            className="flex size-7 items-center justify-center rounded-full bg-hover text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
           >
-            <span
-              aria-hidden="true"
-              className="flex size-[18px] shrink-0 items-center justify-center rounded-full border border-current text-[9px] font-semibold"
-            >
-              ?
-            </span>
-            <span className="w-full truncate text-center leading-tight">Sign in</span>
+            <span className="text-[10px]">?</span>
           </button>
         ) : (
           // Radix's DropdownMenu already owns outside-click, Escape-to-close, and focus return
@@ -223,26 +202,22 @@ export function ActivityRail(): React.JSX.Element {
                 type="button"
                 title={displayName}
                 aria-label="Account"
-                className="mx-1 flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[9px] font-medium tracking-wide text-fg-muted transition-all duration-200 hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
+                className="size-7 overflow-hidden rounded-full ring-1 ring-border transition-all duration-150 hover:ring-accent focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
               >
                 {showAvatar ? (
                   <img
                     src={avatarUrl}
                     alt=""
-                    className="size-[18px] shrink-0 rounded-full object-cover"
+                    className="size-full object-cover"
                     onError={() => {
                       setAvatarFailed(true);
                     }}
                   />
                 ) : (
-                  <span
-                    aria-hidden="true"
-                    className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-accent text-[9px] font-semibold text-on-accent"
-                  >
+                  <div className="flex size-full items-center justify-center bg-accent/20 text-[10px] font-semibold text-accent">
                     {initial}
-                  </span>
+                  </div>
                 )}
-                <span className="w-full truncate text-center leading-tight">Account</span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-[260px] p-2">
