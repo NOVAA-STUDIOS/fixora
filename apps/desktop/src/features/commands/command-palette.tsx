@@ -84,7 +84,7 @@ export function CommandPalette(): React.JSX.Element {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-xl overflow-hidden p-0">
+      <DialogContent className="max-w-xl overflow-hidden border-border-subtle/50 bg-[color-mix(in_srgb,var(--fx-color-bg-overlay)_85%,transparent)] p-0">
         {/* The dialog needs a name and description for screen readers; the palette's visible
             surface is the search box, so these are visually hidden but present. */}
         <DialogTitle className="sr-only">Command palette</DialogTitle>
@@ -98,6 +98,7 @@ export function CommandPalette(): React.JSX.Element {
             autoFocus
             value={query}
             onValueChange={setQuery}
+            className="text-base"
           />
           <CommandList>
             <CommandEmpty>No matching command.</CommandEmpty>

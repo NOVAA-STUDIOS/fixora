@@ -40,6 +40,13 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
+  /* No backdrop-filter here either, for the same reason as .glass-panel above — a solid,
+   * near-opaque overlay color stands in for the blur. */
+  .glass-overlay {
+    background: color-mix(in srgb, var(--fx-color-bg-overlay) 85%, transparent);
+    border: 1px solid color-mix(in srgb, var(--fx-color-border-subtle) 50%, transparent);
+  }
+
   /* iOS spring entrances/exits. Not linear — a real spring overshoots before it settles, which is
    * exactly what makes it read as "iOS" rather than as any other ease curve at the same duration. */
   @keyframes ios-enter {
