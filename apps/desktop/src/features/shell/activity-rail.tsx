@@ -105,7 +105,7 @@ export function ActivityRail(): React.JSX.Element {
       aria-label="Primary"
       // Sidebar spacing follows density too: compact tightens the gap between rail items so the
       // toggle affects the navigation as well as the content beside it.
-      className="flex w-16 shrink-0 flex-col items-stretch gap-(--fx-sidebar-gap) border-r border-border-subtle bg-raised py-1"
+      className="flex w-14 shrink-0 flex-col items-stretch gap-0.5 border-r border-border-subtle bg-canvas pt-2 pb-2"
     >
       {items.map(({ view, label, Icon }) => {
         const active = view === activeView;
@@ -119,21 +119,17 @@ export function ActivityRail(): React.JSX.Element {
               setActiveView(view);
             }}
             className={cn(
-              // iOS Premium: a rounded, inset pill — not Xcode's square full-bleed item — with a
-              // filled background for the active state rather than a thin indicator bar.
-              'group relative mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 text-[10px] font-medium',
-              'py-(--fx-card-padding-y)',
-              'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+              'relative mx-1 flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[9px] font-medium',
+              'transition-all duration-200',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
-              active ? 'bg-white/10 text-accent-text' : 'text-fg-muted hover:bg-hover hover:text-fg',
+              active ? 'bg-accent/15 text-accent-text' : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
           >
-            <Icon
-              className={cn(
-                'size-[18px] shrink-0 transition-transform duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
-                !active && 'group-hover:scale-110',
-              )}
-            />
+            {/* Active indicator — left edge line */}
+            {active && (
+              <div className="absolute top-1/2 left-0 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent" />
+            )}
+            <Icon className={cn('size-4 shrink-0', active && 'text-accent')} />
             {/*
               leading-none (line-height: 1) left no buffer above a glyph's descender — invisible
               for every label until "Suggest" (F1) added the rail's first descender (the two "g"s),
@@ -143,7 +139,14 @@ export function ActivityRail(): React.JSX.Element {
               descender room without visibly growing the row — the label box is unconstrained by any
               ancestor height, so it grows to fit rather than clipping.
             */}
-            <span className="w-full truncate text-center leading-tight">{label}</span>
+            <span
+              className={cn(
+                'w-full truncate text-center leading-tight tracking-wide',
+                active ? 'text-accent-text' : 'text-fg-muted',
+              )}
+            >
+              {label}
+            </span>
           </button>
         );
       })}
@@ -154,11 +157,11 @@ export function ActivityRail(): React.JSX.Element {
           setUpgradeDialogOpen(true);
         }}
         className={cn(
-          'group mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 py-(--fx-card-padding-y) text-[10px] font-medium transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover',
+          'mx-1 flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[9px] font-medium tracking-wide transition-all duration-200 hover:bg-hover',
           planMeta.color,
         )}
       >
-        <SparkleIcon className="size-[18px] shrink-0 transition-transform duration-(--fx-motion-duration-fast) group-hover:scale-110" />
+        <SparkleIcon className="size-4 shrink-0" />
         <span className="w-full truncate text-center leading-tight">{planMeta.label}</span>
       </button>
       {(() => {
@@ -173,20 +176,21 @@ export function ActivityRail(): React.JSX.Element {
               setActiveView(view);
             }}
             className={cn(
-              'group relative mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 text-[10px] font-medium',
-              'py-(--fx-card-padding-y)',
-              'transition-colors duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
+              'relative mx-1 flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[9px] font-medium',
+              'transition-all duration-200',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
-              active ? 'bg-white/10 text-accent-text' : 'text-fg-muted hover:bg-hover hover:text-fg',
+              active ? 'bg-accent/15 text-accent-text' : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
           >
-            <Icon
+            <Icon className={cn('size-4 shrink-0', active && 'text-accent')} />
+            <span
               className={cn(
-                'size-[18px] shrink-0 transition-transform duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
-                !active && 'group-hover:scale-110',
+                'w-full truncate text-center leading-tight tracking-wide',
+                active ? 'text-accent-text' : 'text-fg-muted',
               )}
-            />
-            <span className="w-full truncate text-center leading-tight">{label}</span>
+            >
+              {label}
+            </span>
           </button>
         );
       })()}
@@ -199,7 +203,7 @@ export function ActivityRail(): React.JSX.Element {
             onClick={() => {
               setShowSignIn(true);
             }}
-            className="group mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 py-(--fx-card-padding-y) text-[10px] font-medium text-fg-muted transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
+            className="mx-1 flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[9px] font-medium tracking-wide text-fg-muted transition-all duration-200 hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
           >
             <span
               aria-hidden="true"
@@ -219,7 +223,7 @@ export function ActivityRail(): React.JSX.Element {
                 type="button"
                 title={displayName}
                 aria-label="Account"
-                className="group mx-1.5 flex flex-col items-center gap-1.5 rounded-xl px-1 py-(--fx-card-padding-y) text-[10px] font-medium text-fg-muted transition-colors duration-(--fx-motion-duration-fast) hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
+                className="mx-1 flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[9px] font-medium tracking-wide text-fg-muted transition-all duration-200 hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline"
               >
                 {showAvatar ? (
                   <img
