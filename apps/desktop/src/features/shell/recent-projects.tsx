@@ -219,7 +219,9 @@ function shownWorkspaces(recent: WorkspaceInfo[]): WorkspaceInfo[] {
 function Header({ onClear }: { onClear: (() => void) | null }): React.JSX.Element {
   return (
     <div className="flex items-center justify-between gap-3 px-0.5">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted">Recent</h2>
+      <h2 className="mb-3 text-[10px] font-semibold text-fg-muted uppercase tracking-[0.08em]">
+        Recent
+      </h2>
       {onClear !== null && (
         <button
           type="button"
@@ -312,8 +314,8 @@ function RecentCard({
             title={workspace.rootPath}
             className={cn(
               'flex w-full min-w-0 items-center gap-3 rounded-xl border border-border-subtle bg-inset px-3 py-2.5 text-left',
-              'transition-[background-color,border-color] duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
-              'hover:border-accent-border hover:bg-hover disabled:opacity-50',
+              'transition-[background-color,border-color,transform] duration-150 ease-(--ease-entrance)',
+              'hover:scale-[1.01] hover:border-accent-border hover:bg-hover disabled:opacity-50',
               'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline',
             )}
           >
