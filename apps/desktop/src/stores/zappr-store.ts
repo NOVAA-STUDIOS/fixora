@@ -1,8 +1,11 @@
-import type { ZapprStep } from '@fixora/shared-types';
+import type { ZapprAction, ZapprStep } from '@fixora/shared-types';
 import { create } from 'zustand';
 
+import { useFindingsStore } from '../features/findings/findings-store.js';
 import { useWorkspaceStore } from '../features/workspace/workspace-store.js';
 import { invoke, subscribe } from '../lib/bridge.js';
+
+import { useUiStore } from './ui-store.js';
 
 type StepState = {
   step: ZapprStep;
@@ -21,6 +24,7 @@ type ZapprState = {
   mode: 'chat' | 'file' | 'math' | 'repair' | null;
   chatResponse: string | null;
   streamingText: string;
+  pendingAction: ZapprAction | null;
 
   open: () => void;
   close: () => void;
@@ -29,6 +33,7 @@ type ZapprState = {
   setMode: (mode: 'chat' | 'file' | 'math' | 'repair' | null) => void;
   appendDelta: (text: string) => void;
   setChatResponse: (text: string | null) => void;
+  executeAction: (action: ZapprAction) => Promise<string | null>;
   run: () => Promise<void>;
   cancel: () => Promise<void>;
   listen: () => () => void;
@@ -49,6 +54,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   mode: null,
   chatResponse: null,
   streamingText: '',
+  pendingAction: null,
 
   open: () => {
     set({
@@ -63,6 +69,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       mode: null,
       chatResponse: null,
       streamingText: '',
+      pendingAction: null,
     });
   },
 
@@ -95,6 +102,32 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
 
   setChatResponse: (text) => {
     set({ chatResponse: text, streamingText: '' });
+  },
+
+  executeAction: async (action) => {
+    switch (action.type) {
+      case 'open_settings':
+        useUiStore.getState().setActiveView('settings');
+        return 'Opening settings...';
+
+      case 'set_theme':
+        useUiStore.getState().setTheme(action.theme);
+        return `Switched to ${action.theme} mode ✓`;
+
+      case 'set_provider':
+        useUiStore.getState().setActiveView('settings');
+        return `Opening AI settings for ${action.providerId}...`;
+
+      case 'run_analysis':
+        await useFindingsStore.getState().run();
+        return 'Running analysis... ✓';
+
+      case 'create_file':
+        return `Creating ${action.path}...`;
+
+      default:
+        return null;
+    }
   },
 
   run: async () => {
@@ -140,6 +173,10 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
     const offDone = subscribe('zappr:done', ({ chatResponse }) => {
       set({ isRunning: false, ...(chatResponse !== undefined ? { chatResponse, streamingText: '' } : {}) });
     });
+    const offActionResult = subscribe('zappr:actionResult', ({ message, action }) => {
+      set({ chatResponse: message, isRunning: false, pendingAction: action });
+      void get().executeAction(action);
+    });
     return () => {
       offMode();
       offPlan();
@@ -147,6 +184,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       offStepDone();
       offDelta();
       offDone();
+      offActionResult();
     };
   },
 }));

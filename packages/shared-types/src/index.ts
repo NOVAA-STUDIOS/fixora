@@ -210,9 +210,11 @@ export {
   ZapprStepTypeSchema,
   ZapprStepSchema,
   ZapprPlanSchema,
+  ZapprActionSchema,
   type ZapprStepType,
   type ZapprStep,
   type ZapprPlan,
+  type ZapprAction,
 } from './zappr.js';
 
 export {

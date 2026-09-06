@@ -281,6 +281,7 @@ export const eventChannels = [
   'zappr:done',
   'zappr:delta',
   'zappr:mode',
+  'zappr:actionResult',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

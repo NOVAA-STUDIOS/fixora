@@ -4,7 +4,7 @@ import { AiDeltaSchema, AiRunStateSchema } from './ai.js';
 import { AnalysisStateSchema, FindingSchema } from './analysis.js';
 import type { EventChannel } from './channels.js';
 import { FilesChangedSchema } from './workspace.js';
-import { ZapprStepSchema } from './zappr.js';
+import { ZapprActionSchema, ZapprStepSchema } from './zappr.js';
 
 /**
  * The main → renderer event contracts (push). The counterpart to `contracts` in ipc.ts, for the
@@ -116,6 +116,14 @@ export const ZapprModeSchema = z.object({
 });
 export type ZapprMode = z.infer<typeof ZapprModeSchema>;
 
+/** Carries the detected action along so the renderer (which owns the stores) can execute it. */
+export const ZapprActionResultSchema = z.object({
+  ok: z.boolean(),
+  message: z.string(),
+  action: ZapprActionSchema,
+});
+export type ZapprActionResult = z.infer<typeof ZapprActionResultSchema>;
+
 /** A chunk of PTY output, keyed by the session id `terminal:create` was called with. */
 export const TerminalDataSchema = z.object({ id: z.string().min(1), data: z.string() });
 export type TerminalData = z.infer<typeof TerminalDataSchema>;
@@ -206,6 +214,7 @@ export const eventContracts = {
   'zappr:done': ZapprDoneSchema,
   'zappr:delta': ZapprDeltaSchema,
   'zappr:mode': ZapprModeSchema,
+  'zappr:actionResult': ZapprActionResultSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

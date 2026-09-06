@@ -21,3 +21,22 @@ export const ZapprPlanSchema = z.object({
   summary: z.string(),
 });
 export type ZapprPlan = z.infer<typeof ZapprPlanSchema>;
+
+/** A Jarvis-style command Zappr can carry out directly, detected from the prompt without an AI call. */
+export const ZapprActionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('open_settings') }),
+  z.object({ type: z.literal('set_theme'), theme: z.enum(['dark', 'light']) }),
+  z.object({
+    type: z.literal('set_provider'),
+    providerId: z.string(),
+    apiKey: z.string().optional(),
+    model: z.string().optional(),
+  }),
+  z.object({ type: z.literal('create_shortcut'), keys: z.string(), commandId: z.string() }),
+  z.object({ type: z.literal('create_file'), path: z.string(), content: z.string().optional() }),
+  z.object({ type: z.literal('open_folder') }),
+  z.object({ type: z.literal('toggle_panel') }),
+  z.object({ type: z.literal('run_analysis') }),
+  z.object({ type: z.literal('none') }),
+]);
+export type ZapprAction = z.infer<typeof ZapprActionSchema>;

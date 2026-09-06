@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describeProviderFailure, type ProviderRequest } from '@fixora/core-ai';
-import type { EventChannel, EventPayloadOf, ZapprStep } from '@fixora/shared-types';
+import type { EventChannel, EventPayloadOf, ZapprAction, ZapprStep } from '@fixora/shared-types';
 import type { BrowserWindow } from 'electron';
 
 import type { Orchestrator } from '../ai/providers/orchestrator.js';
@@ -42,8 +42,41 @@ function detectMode(prompt: string): ZapprMode {
   return 'chat';
 }
 
+/** Regex-based, no AI call needed — a Jarvis-style command Zappr can carry out directly. */
+function detectAction(prompt: string): ZapprAction {
+  if (/open.*(setting|preference)/i.test(prompt)) return { type: 'open_settings' };
+
+  if (/dark.*(mode|theme)|turn.*dark/i.test(prompt)) return { type: 'set_theme', theme: 'dark' };
+  if (/light.*(mode|theme)|turn.*light/i.test(prompt)) return { type: 'set_theme', theme: 'light' };
+
+  const providerMatch = /use\s+(openai|gemini|anthropic|groq|openrouter|ollama|deepseek)/i.exec(prompt);
+  if (providerMatch !== null) {
+    const apiKeyMatch = /key[:\s]+([A-Za-z0-9\-_]{20,})/i.exec(prompt);
+    const modelMatch = /model[:\s]+([A-Za-z0-9\-_.:/]+)/i.exec(prompt);
+    return {
+      type: 'set_provider',
+      providerId: providerMatch[1]?.toLowerCase() ?? '',
+      apiKey: apiKeyMatch?.[1],
+      model: modelMatch?.[1],
+    };
+  }
+
+  const fileMatch = /create\s+(?:a\s+)?(?:file\s+)?(?:named?\s+)?([A-Za-z0-9_\-./]+\.[a-z]+)/i.exec(prompt);
+  if (fileMatch?.[1] !== undefined) return { type: 'create_file', path: fileMatch[1] };
+
+  if (/run\s+analysis|analyze\s+code|check\s+errors/i.test(prompt)) return { type: 'run_analysis' };
+
+  return { type: 'none' };
+}
+
 function buildChatPrompt(userPrompt: string, workspaceName: string): string {
-  return `You are Zappr — a brilliant, fast, friendly AI assistant built into Fixora, an AI coding IDE.
+  return `You are Zappr — the Jarvis of coding IDEs. You are brilliant, witty, and incredibly capable. You help with ANYTHING instantly.
+
+PERSONALITY:
+- Confident and capable like Jarvis/Friday from Marvel
+- Friendly but professional
+- Brief acknowledgments before answers: "Right away.", "Of course.", "Consider it done."
+- Smart, fast, accurate
 
 You help with ANYTHING:
 - Coding questions, debugging, architecture
@@ -152,6 +185,17 @@ export function createZapprService(
 
   async function run(prompt: string): Promise<{ ok: boolean; error?: string }> {
     cancelled = false;
+
+    const action = detectAction(prompt);
+    if (action.type !== 'none') {
+      emit('zappr:actionResult', {
+        ok: true,
+        message: `I'll handle that for you! Executing: ${action.type}`,
+        action,
+      });
+      return { ok: true };
+    }
+
     const mode = detectMode(prompt);
     emit('zappr:mode', { mode });
 
