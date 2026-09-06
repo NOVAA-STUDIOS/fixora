@@ -8,7 +8,7 @@ import type { BrowserWindow } from 'electron';
 import type { Orchestrator } from '../ai/providers/orchestrator.js';
 import { emitToWindow } from '../ipc/emit.js';
 
-import { deletePath, listDirectory, writeTextFile } from './fs/fs-service.js';
+import { deletePath, listDirectory, writeWorkspaceFile } from './fs/fs-service.js';
 import type { WorkspaceService } from './workspace-service.js';
 
 const MAX_CONTEXT_FILES = 20;
@@ -357,7 +357,7 @@ export function createZapprService(
             index: i,
             total: plan.steps.length,
           });
-          writeTextFile(open.rootPath, step.filePath, step.content ?? '');
+          writeWorkspaceFile(open.rootPath, step.filePath, step.content ?? '');
         }
         filesChanged.push(step.filePath);
         emit('zappr:stepDone', { index: i, success: true });
