@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { SqliteDriver } from '../../db/driver.js';
 import {
   getRepairCount,
@@ -10,6 +12,8 @@ import {
 import { registerHandler } from '../router.js';
 
 const VALIDATE_URL = 'https://api.gumroad.com/v2/licenses/verify';
+/** SHA-256 of the founder's own license key — permanent PRO access without a Gumroad round trip. */
+const FOUNDER_KEY_HASH = 'd38538a526bce7438d3153753a8e88cbec882b5d6f0286161b669f681040cd81';
 const PERMALINK_TO_PLAN: Record<string, 'go' | 'pro'> = {
   euprne: 'go',
   bqbxp: 'pro',
@@ -28,6 +32,13 @@ export function registerLicenseHandlers(deps: { driver: SqliteDriver; dir: strin
   scheduleWindowReset();
 
   registerHandler('license:validate', async ({ licenseKey, productId: productPermalink }) => {
+    const trimmedKey = licenseKey.trim();
+    const inputHash = createHash('sha256').update(trimmedKey).digest('hex');
+    if (inputHash === FOUNDER_KEY_HASH) {
+      recordValidation('pro', trimmedKey);
+      return { valid: true, plan: 'pro' };
+    }
+
     const plan = PERMALINK_TO_PLAN[productPermalink];
     if (plan === undefined) return { valid: false, plan: null };
 
