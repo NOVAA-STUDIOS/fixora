@@ -282,6 +282,7 @@ export const eventChannels = [
   'zappr:delta',
   'zappr:mode',
   'zappr:actionResult',
+  'zappr:fileProgress',
 ] as const;
 
 export type EventChannel = (typeof eventChannels)[number];

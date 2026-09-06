@@ -25,6 +25,8 @@ type ZapprState = {
   chatResponse: string | null;
   streamingText: string;
   pendingAction: ZapprAction | null;
+  currentFilePath: string | null;
+  currentFileContent: string | null;
 
   open: () => void;
   close: () => void;
@@ -55,6 +57,8 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   chatResponse: null,
   streamingText: '',
   pendingAction: null,
+  currentFilePath: null,
+  currentFileContent: null,
 
   open: () => {
     set({
@@ -70,6 +74,8 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       chatResponse: null,
       streamingText: '',
       pendingAction: null,
+      currentFilePath: null,
+      currentFileContent: null,
     });
   },
 
@@ -170,8 +176,16 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
     const offDelta = subscribe('zappr:delta', ({ text }) => {
       get().appendDelta(text);
     });
+    const offFileProgress = subscribe('zappr:fileProgress', ({ filePath, content }) => {
+      set({ currentFilePath: filePath, currentFileContent: content });
+    });
     const offDone = subscribe('zappr:done', ({ chatResponse }) => {
-      set({ isRunning: false, ...(chatResponse !== undefined ? { chatResponse, streamingText: '' } : {}) });
+      set({
+        isRunning: false,
+        currentFilePath: null,
+        currentFileContent: null,
+        ...(chatResponse !== undefined ? { chatResponse, streamingText: '' } : {}),
+      });
     });
     const offActionResult = subscribe('zappr:actionResult', ({ message, action }) => {
       set({ chatResponse: message, isRunning: false, pendingAction: action });
@@ -183,6 +197,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       offStepStart();
       offStepDone();
       offDelta();
+      offFileProgress();
       offDone();
       offActionResult();
     };

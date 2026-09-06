@@ -124,6 +124,14 @@ export const ZapprActionResultSchema = z.object({
 });
 export type ZapprActionResult = z.infer<typeof ZapprActionResultSchema>;
 
+export const ZapprFileProgressSchema = z.object({
+  filePath: z.string(),
+  content: z.string(),
+  index: z.number().int(),
+  total: z.number().int(),
+});
+export type ZapprFileProgress = z.infer<typeof ZapprFileProgressSchema>;
+
 /** A chunk of PTY output, keyed by the session id `terminal:create` was called with. */
 export const TerminalDataSchema = z.object({ id: z.string().min(1), data: z.string() });
 export type TerminalData = z.infer<typeof TerminalDataSchema>;
@@ -215,6 +223,7 @@ export const eventContracts = {
   'zappr:delta': ZapprDeltaSchema,
   'zappr:mode': ZapprModeSchema,
   'zappr:actionResult': ZapprActionResultSchema,
+  'zappr:fileProgress': ZapprFileProgressSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

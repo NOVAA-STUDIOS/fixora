@@ -21,6 +21,8 @@ export function ZapprPanel(): React.JSX.Element | null {
   const mode = useZapprStore((s) => s.mode);
   const chatResponse = useZapprStore((s) => s.chatResponse);
   const streamingText = useZapprStore((s) => s.streamingText);
+  const currentFilePath = useZapprStore((s) => s.currentFilePath);
+  const currentFileContent = useZapprStore((s) => s.currentFileContent);
   const close = useZapprStore((s) => s.close);
   const setPrompt = useZapprStore((s) => s.setPrompt);
   const clearError = useZapprStore((s) => s.clearError);
@@ -268,6 +270,19 @@ export function ZapprPanel(): React.JSX.Element | null {
             >
               ⚡ New Zap
             </button>
+          </div>
+        )}
+
+        {currentFilePath !== null && (
+          <div className="border-t border-white/10 px-3 py-2">
+            <p className="mb-1 font-mono text-[10px] text-fg-muted">Writing: {currentFilePath}</p>
+            <div className="relative max-h-[200px] overflow-hidden rounded-lg bg-[#1a1a1a] p-2">
+              <pre className="animate-pulse overflow-hidden font-mono text-[11px] leading-relaxed text-green-400">
+                {currentFileContent?.slice(0, 500)}
+                {(currentFileContent?.length ?? 0) > 500 ? '...' : ''}
+              </pre>
+              <span className="ml-0.5 inline-block h-3 w-2 animate-pulse bg-green-400" />
+            </div>
           </div>
         )}
 

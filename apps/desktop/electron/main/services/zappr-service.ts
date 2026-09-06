@@ -18,24 +18,19 @@ type ZapprMode = 'chat' | 'file' | 'math' | 'repair';
 
 /** Regex-based, no AI call needed — fast enough to run before every request. */
 function detectMode(prompt: string): ZapprMode {
-  const p = prompt.toLowerCase();
-
-  if (
-    /\b(create|make|build|generate|write|add|new file|scaffold)\b/.test(p) &&
-    /\b(file|page|component|function|class|api|route|hook|style|css|html)\b/.test(p)
-  ) {
+  if (/\b(create|make|build|generate|write|add|scaffold|new)\b/i.test(prompt)) {
     return 'file';
   }
 
   if (
-    /\b(solve|calculate|equation|integral|derivative|matrix|proof|math)\b/.test(p) ||
-    /[∫∑∏√±×÷=]/.test(prompt) ||
-    /\d+x[\^²]/.test(prompt)
+    /\b(solve|calculate|equation|integral|derivative|matrix)\b/i.test(prompt) ||
+    /[∫∑∏√±×÷]/.test(prompt) ||
+    /\d+x/.test(prompt)
   ) {
     return 'math';
   }
 
-  if (/\b(fix|debug|repair|error|bug|issue|problem|crash|failing)\b/.test(p)) {
+  if (/\b(fix|debug|repair|error|bug|issue|crash)\b/i.test(prompt)) {
     return 'repair';
   }
 
@@ -190,10 +185,9 @@ export function createZapprService(
     if (action.type !== 'none') {
       emit('zappr:actionResult', {
         ok: true,
-        message: `I'll handle that for you! Executing: ${action.type}`,
+        message: `On it! Executing: ${action.type}`,
         action,
       });
-      return { ok: true };
     }
 
     const mode = detectMode(prompt);
@@ -357,6 +351,12 @@ export function createZapprService(
         if (step.type === 'delete') {
           deletePath(open.rootPath, step.filePath);
         } else {
+          emit('zappr:fileProgress', {
+            filePath: step.filePath,
+            content: step.content ?? '',
+            index: i,
+            total: plan.steps.length,
+          });
           writeTextFile(open.rootPath, step.filePath, step.content ?? '');
         }
         filesChanged.push(step.filePath);
