@@ -12,7 +12,7 @@ import { deletePath, listDirectory, writeTextFile } from './fs/fs-service.js';
 import type { WorkspaceService } from './workspace-service.js';
 
 const MAX_CONTEXT_FILES = 20;
-const ZAPPR_MODEL_MAX_TOKENS = 4000;
+const ZAPPR_MODEL_MAX_TOKENS = 8000;
 
 export interface ZapprService {
   run(prompt: string): Promise<{ ok: boolean; error?: string }>;
@@ -29,28 +29,27 @@ async function listContextFiles(rootPath: string, workspace: WorkspaceService): 
   return entries.filter((e) => e.kind === 'file').slice(0, MAX_CONTEXT_FILES).map((e) => e.relPath);
 }
 
-function buildSystemPrompt(workspaceName: string, files: string[], prompt: string): string {
-  return `You are Zappr, an AI coding agent inside Fixora.
-You help developers create and edit code files.
+function buildSystemPrompt(workspaceName: string, files: string[], userPrompt: string): string {
+  return `You are Zappr — an elite AI coding agent built into Fixora. You are fast, precise, and produce production-quality code instantly.
 
-Current project: ${workspaceName}
-Files: ${files.join(', ')}
+WORKSPACE: ${workspaceName}
+FILES:
+${files.map((f) => `  • ${f}`).join('\n')}
 
-User request: ${prompt}
+YOUR MISSION: ${userPrompt}
 
-Respond with a JSON plan:
-{
-"steps": [
-{ "type": "create|edit|delete", "filePath": "relative/path", "description": "what you'll do", "content": "full file content" }
-],
-"summary": "What I'll do in one sentence"
-}
+RULES (non-negotiable):
+1. Return ONLY a raw JSON object — no markdown, no backticks, no prose
+2. Use relative file paths only
+3. Every file gets its COMPLETE content — no placeholders, no "// rest of code"
+4. Write real, working, production-ready code
+5. Be opinionated — make the right choices without asking
+6. If editing, include the ENTIRE file with your changes merged in
 
-Rules:
-- Always use relative paths
-- Full file content for create/edit
-- Be concise and practical
-- Respond with ONLY the JSON object, no markdown fences, no prose`;
+RESPONSE FORMAT (exact):
+{"summary":"One sentence — what you're building","steps":[{"type":"create|edit|delete","filePath":"src/example.tsx","description":"What this file does","content":"full file content here"}]}
+
+Think step by step, then respond with ONLY the JSON.`;
 }
 
 /** Best-effort JSON extraction — the model may wrap the object in prose or markdown fences
@@ -81,6 +80,7 @@ export function createZapprService(
   window: BrowserWindow | null,
 ): ZapprService {
   let cancelled = false;
+  let currentAbortController: AbortController | null = null;
 
   function emit<E extends EventChannel>(channel: E, payload: EventPayloadOf<E>): void {
     if (window !== null && !window.isDestroyed()) emitToWindow(window, channel, payload);
@@ -95,6 +95,8 @@ export function createZapprService(
 
   function cancel(): void {
     cancelled = true;
+    currentAbortController?.abort();
+    currentAbortController = null;
   }
 
   async function run(prompt: string): Promise<{ ok: boolean; error?: string }> {
@@ -112,13 +114,16 @@ export function createZapprService(
     };
 
     let fullText = '';
+    const abortController = new AbortController();
+    currentAbortController = abortController;
     // Reuses the same orchestrator (provider resolution + failover) every other AI feature routes
-    // through — 'explain' is the closest existing routing profile for a freeform-text task; Zappr
-    // has no verification/repair contract, so it does not go through ai-service.ts's AiService.run().
+    // through — 'explain' is the closest existing routing profile for a freeform-text task (there
+    // is no 'proceed' TaskProfile — the enum is only 'repair' | 'explain' | 'test'). Zappr has no
+    // verification/repair contract, so it does not go through ai-service.ts's AiService.run().
     const outcome = await orchestrator.run('explain', async (candidate) => {
       try {
         const req = { ...request, model: candidate.model };
-        for await (const event of candidate.adapter.stream(req, new AbortController().signal)) {
+        for await (const event of candidate.adapter.stream(req, abortController.signal)) {
           if (cancelled) return { ok: false, failure: describeProviderFailure({ providerCode: 'cancelled', detail: 'Cancelled', retryable: false }) };
           if (event.type === 'text_delta') {
             fullText += event.text;
@@ -146,6 +151,7 @@ export function createZapprService(
         };
       }
     });
+    currentAbortController = null;
 
     if (!outcome.ok) {
       const message = 'refused' in outcome ? 'No AI provider is configured.' : outcome.failure.message;

@@ -19,6 +19,7 @@ export function ZapprPanel(): React.JSX.Element | null {
   const error = useZapprStore((s) => s.error);
   const close = useZapprStore((s) => s.close);
   const setPrompt = useZapprStore((s) => s.setPrompt);
+  const clearError = useZapprStore((s) => s.clearError);
   const run = useZapprStore((s) => s.run);
   const cancel = useZapprStore((s) => s.cancel);
   const listen = useZapprStore((s) => s.listen);
@@ -115,9 +116,19 @@ export function ZapprPanel(): React.JSX.Element | null {
           </div>
 
           {error !== null && (
-          <p role="alert" className="px-3 pt-2.5 text-xs text-danger-text [overflow-wrap:anywhere]">
-            {error}
-          </p>
+          <div role="alert" className="px-3 py-2.5 text-xs text-danger-text bg-danger/10 rounded-lg mx-3 mb-3">
+            ⚡ {error}
+            <button
+              type="button"
+              onClick={() => {
+                clearError();
+                setPrompt('');
+              }}
+              className="ml-2 underline"
+            >
+              Try again
+            </button>
+          </div>
         )}
 
         {!isRunning && plan === null && (
