@@ -22,6 +22,7 @@ type ZapprState = {
   open: () => void;
   close: () => void;
   setPrompt: (prompt: string) => void;
+  clearError: () => void;
   run: () => Promise<void>;
   cancel: () => Promise<void>;
   listen: () => () => void;
@@ -56,6 +57,10 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
 
   setPrompt: (prompt) => {
     set({ prompt });
+  },
+
+  clearError: () => {
+    set({ error: null });
   },
 
   run: async () => {
