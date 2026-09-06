@@ -33,6 +33,13 @@ export function ZapprPanel(): React.JSX.Element | null {
   useEffect(() => listen(), [listen]);
 
   const panelRef = useRef<HTMLDivElement>(null);
+  const responseRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (responseRef.current) {
+      responseRef.current.scrollTop = responseRef.current.scrollHeight;
+    }
+  }, [streamingText, chatResponse]);
 
   // Mouse drag was unreliable with GPU compositing disabled — Alt+Arrow keys move the panel
   // instead, in fixed steps, always starting from screen center.
@@ -246,7 +253,7 @@ export function ZapprPanel(): React.JSX.Element | null {
               )}
             </div>
 
-            <div className="max-h-[280px] overflow-y-auto px-3 py-2.5">
+            <div ref={responseRef} className="max-h-[280px] overflow-y-auto px-3 py-2.5">
               <pre className="font-sans text-[12.5px] leading-[1.7] tracking-[0.01em] whitespace-pre-wrap text-fg">
                 {streamingText !== '' ? streamingText : chatResponse}
               </pre>
