@@ -3,6 +3,24 @@
 All notable changes to Fixora. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.2.21 (September 6, 2026)
+
+### Features
+- Introducing Zappr — an AI agent built into Fixora. Press Ctrl+I to open.
+- Zappr creates and edits files from a single prompt. Describe what you want and it writes the code.
+- Zappr answers questions, solves math, explains concepts, and helps with anything — not just code.
+- Zappr detects your intent automatically and chooses the right mode: file creation, chat, math, or debug.
+- Zappr can control Fixora — open settings, switch themes, and run analysis on command.
+- Zappr is powered by your existing AI provider. The stronger the model, the better the results.
+- Zappr panel sits in the bottom-right corner with a premium aurora glow animation.
+- Provider settings now include a Test button for every provider, including Ollama and LM Studio.
+- Permanent founder PRO access via a secure hashed license key.
+
+### Fixes
+- Zappr now correctly creates new files in your workspace.
+- Zappr panel no longer dims the background when opened.
+- Provider test no longer reports OK for unconfigured providers.
+
 ## 1.2.20 (September 5, 2026)
 
 ### Features
