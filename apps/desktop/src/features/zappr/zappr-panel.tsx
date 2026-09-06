@@ -225,32 +225,43 @@ export function ZapprPanel(): React.JSX.Element | null {
           </div>
         )}
 
-          {(streamingText !== '' || chatResponse !== null) && mode !== 'file' && (
-          <div className="max-h-[400px] overflow-y-auto scrollbar-thin px-3 py-2">
-            <div className="sticky top-0 mb-2 flex items-center gap-1.5 bg-[#0d0d0d] py-1">
-              <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">
-                ⚡ Zappr
-              </span>
-              <span className="text-[10px] text-fg-muted">
-                {mode === 'math' ? 'Math solver' : mode === 'repair' ? 'Debug mode' : 'Assistant'}
+          {(streamingText !== '' || chatResponse !== null) && (
+          <div className="mx-3 mb-3 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+            <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
+              <img src={zapprMascot} alt="" className="size-5 object-contain" />
+              <span className="text-[11px] font-semibold text-accent">Zappr</span>
+              <span className="ml-1 text-[10px] text-fg-muted">
+                {mode === 'math'
+                  ? '· Math solver'
+                  : mode === 'file'
+                    ? '· Code agent'
+                    : mode === 'repair'
+                      ? '· Debug mode'
+                      : '· Assistant'}
               </span>
               {isRunning && (
-                <span className="ml-auto animate-pulse text-[10px] text-fg-muted">typing...</span>
+                <span className="ml-auto text-[10px] text-fg-muted">
+                  <span className="animate-pulse">●</span> thinking...
+                </span>
               )}
             </div>
 
-            <div className="text-[13px] leading-[1.65] tracking-[0.01em] whitespace-pre-wrap text-fg selection:bg-accent/20">
-              {streamingText !== '' ? streamingText : chatResponse}
+            <div className="max-h-[280px] overflow-y-auto px-3 py-2.5">
+              <pre className="font-sans text-[12.5px] leading-[1.7] tracking-[0.01em] whitespace-pre-wrap text-fg">
+                {streamingText !== '' ? streamingText : chatResponse}
+              </pre>
             </div>
 
-            {chatResponse !== null && (
-              <button
-                type="button"
-                onClick={() => void navigator.clipboard.writeText(chatResponse)}
-                className="mt-2 flex items-center gap-1 text-[11px] text-fg-muted transition-colors hover:text-fg"
-              >
-                📋 Copy response
-              </button>
+            {chatResponse !== null && !isRunning && (
+              <div className="flex items-center gap-2 border-t border-white/10 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => void navigator.clipboard.writeText(chatResponse)}
+                  className="flex items-center gap-1 text-[10px] text-fg-muted transition-colors hover:text-fg"
+                >
+                  📋 Copy
+                </button>
+              </div>
             )}
           </div>
         )}
