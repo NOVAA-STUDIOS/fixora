@@ -18,11 +18,17 @@ type ZapprState = {
   steps: StepState[];
   summary: string | null;
   error: string | null;
+  mode: 'chat' | 'file' | 'math' | 'repair' | null;
+  chatResponse: string | null;
+  streamingText: string;
 
   open: () => void;
   close: () => void;
   setPrompt: (prompt: string) => void;
   clearError: () => void;
+  setMode: (mode: 'chat' | 'file' | 'math' | 'repair' | null) => void;
+  appendDelta: (text: string) => void;
+  setChatResponse: (text: string | null) => void;
   run: () => Promise<void>;
   cancel: () => Promise<void>;
   listen: () => () => void;
@@ -37,6 +43,9 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   steps: [],
   summary: null,
   error: null,
+  mode: null,
+  chatResponse: null,
+  streamingText: '',
 
   open: () => {
     set({
@@ -48,6 +57,9 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       steps: [],
       summary: null,
       error: null,
+      mode: null,
+      chatResponse: null,
+      streamingText: '',
     });
   },
 
@@ -61,6 +73,18 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  setMode: (mode) => {
+    set({ mode });
+  },
+
+  appendDelta: (text) => {
+    set((state) => ({ streamingText: state.streamingText + text }));
+  },
+
+  setChatResponse: (text) => {
+    set({ chatResponse: text, streamingText: '' });
   },
 
   run: async () => {
@@ -83,6 +107,9 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   },
 
   listen: () => {
+    const offMode = subscribe('zappr:mode', ({ mode }) => {
+      set({ mode });
+    });
     const offPlan = subscribe('zappr:plan', ({ steps, summary }) => {
       set({ plan: steps, summary, steps: steps.map((step) => ({ step, status: 'pending' })) });
     });
@@ -97,13 +124,18 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
         steps: state.steps.map((s, i) => (i === index ? { ...s, status: success ? 'done' : 'error' } : s)),
       }));
     });
-    const offDone = subscribe('zappr:done', () => {
-      set({ isRunning: false });
+    const offDelta = subscribe('zappr:delta', ({ text }) => {
+      set((state) => ({ streamingText: state.streamingText + text }));
+    });
+    const offDone = subscribe('zappr:done', ({ chatResponse }) => {
+      set({ isRunning: false, ...(chatResponse !== undefined ? { chatResponse, streamingText: '' } : {}) });
     });
     return () => {
+      offMode();
       offPlan();
       offStepStart();
       offStepDone();
+      offDelta();
       offDone();
     };
   },

@@ -14,6 +14,57 @@ import type { WorkspaceService } from './workspace-service.js';
 const MAX_CONTEXT_FILES = 20;
 const ZAPPR_MODEL_MAX_TOKENS = 8000;
 
+type ZapprMode = 'chat' | 'file' | 'math' | 'repair';
+
+/** Regex-based, no AI call needed — fast enough to run before every request. */
+function detectMode(prompt: string): ZapprMode {
+  const p = prompt.toLowerCase();
+
+  if (
+    /\b(create|make|build|generate|write|add|new file|scaffold)\b/.test(p) &&
+    /\b(file|page|component|function|class|api|route|hook|style|css|html)\b/.test(p)
+  ) {
+    return 'file';
+  }
+
+  if (
+    /\b(solve|calculate|equation|integral|derivative|matrix|proof|math)\b/.test(p) ||
+    /[∫∑∏√±×÷=]/.test(prompt) ||
+    /\d+x[\^²]/.test(prompt)
+  ) {
+    return 'math';
+  }
+
+  if (/\b(fix|debug|repair|error|bug|issue|problem|crash|failing)\b/.test(p)) {
+    return 'repair';
+  }
+
+  return 'chat';
+}
+
+function buildChatPrompt(userPrompt: string, workspaceName: string): string {
+  return `You are Zappr — a brilliant, fast, friendly AI assistant built into Fixora, an AI coding IDE.
+
+You help with ANYTHING:
+- Coding questions, debugging, architecture
+- Math problems (show step-by-step working)
+- Study questions, explanations, concepts
+- Writing, planning, brainstorming
+- Research, analysis, summaries
+
+Current workspace: ${workspaceName}
+
+RESPONSE STYLE:
+- Be concise but complete
+- Use markdown formatting (headers, bold, code blocks, lists)
+- For math: show step-by-step working clearly
+- For code: always include working examples
+- Be friendly and enthusiastic ⚡
+- Keep responses focused and actionable
+
+User: ${userPrompt}`;
+}
+
 export interface ZapprService {
   run(prompt: string): Promise<{ ok: boolean; error?: string }>;
   cancel(): void;
@@ -101,6 +152,71 @@ export function createZapprService(
 
   async function run(prompt: string): Promise<{ ok: boolean; error?: string }> {
     cancelled = false;
+    const mode = detectMode(prompt);
+    emit('zappr:mode', { mode });
+
+    if (mode === 'file') return runFileMode(prompt);
+    return runChatMode(prompt);
+  }
+
+  async function runChatMode(prompt: string): Promise<{ ok: boolean; error?: string }> {
+    const open = workspace.getCurrent();
+    const workspaceName = open?.name ?? 'No project';
+
+    const request: ProviderRequest = {
+      model: '',
+      messages: [{ role: 'user', content: buildChatPrompt(prompt, workspaceName) }],
+      maxOutputTokens: ZAPPR_MODEL_MAX_TOKENS,
+    };
+
+    let fullText = '';
+    const abortController = new AbortController();
+    currentAbortController = abortController;
+    const outcome = await orchestrator.run('explain', async (candidate) => {
+      try {
+        const req = { ...request, model: candidate.model };
+        for await (const event of candidate.adapter.stream(req, abortController.signal)) {
+          if (cancelled) return { ok: false, failure: describeProviderFailure({ providerCode: 'cancelled', detail: 'Cancelled', retryable: false }) };
+          if (event.type === 'text_delta') {
+            fullText += event.text;
+            emit('zappr:delta', { text: event.text });
+          } else if (event.type === 'error') {
+            return {
+              ok: false,
+              failure: describeProviderFailure({
+                providerCode: event.providerCode,
+                detail: event.message,
+                retryable: event.retryable,
+              }),
+            };
+          }
+        }
+        return { ok: true, value: fullText };
+      } catch (error) {
+        return {
+          ok: false,
+          failure: describeProviderFailure({
+            providerCode: 'unknown',
+            detail: error instanceof Error ? error.message : String(error),
+            retryable: false,
+          }),
+        };
+      }
+    });
+    currentAbortController = null;
+
+    if (!outcome.ok) {
+      const message = 'refused' in outcome ? 'No AI provider is configured.' : outcome.failure.message;
+      emit('zappr:done', { success: false, filesChanged: [], error: message });
+      return { ok: false, error: message };
+    }
+    if (cancelled) return { ok: false, error: 'Cancelled.' };
+
+    emit('zappr:done', { success: true, filesChanged: [], chatResponse: outcome.value });
+    return { ok: true };
+  }
+
+  async function runFileMode(prompt: string): Promise<{ ok: boolean; error?: string }> {
     const open = workspace.getCurrent();
     if (open === null) return { ok: false, error: 'No project is open.' };
 
@@ -157,9 +273,6 @@ export function createZapprService(
       const message = 'refused' in outcome ? 'No AI provider is configured.' : outcome.failure.message;
       return { ok: false, error: message };
     }
-    // `cancelled` can flip true concurrently, from `cancel()`, while the await above was pending —
-    // a real runtime possibility the linter's static narrowing cannot see.
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (cancelled) return { ok: false, error: 'Cancelled.' };
 
     let plan: { steps: ZapprStep[]; summary: string };

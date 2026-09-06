@@ -103,11 +103,18 @@ export type ZapprStepDone = z.infer<typeof ZapprStepDoneSchema>;
 export const ZapprDoneSchema = z.object({
   success: z.boolean(),
   filesChanged: z.array(z.string()),
+  chatResponse: z.string().optional(),
+  error: z.string().optional(),
 });
 export type ZapprDone = z.infer<typeof ZapprDoneSchema>;
 
 export const ZapprDeltaSchema = z.object({ text: z.string() });
 export type ZapprDelta = z.infer<typeof ZapprDeltaSchema>;
+
+export const ZapprModeSchema = z.object({
+  mode: z.enum(['chat', 'file', 'math', 'repair']),
+});
+export type ZapprMode = z.infer<typeof ZapprModeSchema>;
 
 /** A chunk of PTY output, keyed by the session id `terminal:create` was called with. */
 export const TerminalDataSchema = z.object({ id: z.string().min(1), data: z.string() });
@@ -198,6 +205,7 @@ export const eventContracts = {
   'zappr:stepDone': ZapprStepDoneSchema,
   'zappr:done': ZapprDoneSchema,
   'zappr:delta': ZapprDeltaSchema,
+  'zappr:mode': ZapprModeSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type EventContracts = typeof eventContracts;

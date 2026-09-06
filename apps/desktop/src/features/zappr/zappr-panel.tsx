@@ -17,9 +17,14 @@ export function ZapprPanel(): React.JSX.Element | null {
   const steps = useZapprStore((s) => s.steps);
   const summary = useZapprStore((s) => s.summary);
   const error = useZapprStore((s) => s.error);
+  const mode = useZapprStore((s) => s.mode);
+  const chatResponse = useZapprStore((s) => s.chatResponse);
+  const streamingText = useZapprStore((s) => s.streamingText);
   const close = useZapprStore((s) => s.close);
   const setPrompt = useZapprStore((s) => s.setPrompt);
   const clearError = useZapprStore((s) => s.clearError);
+  const setMode = useZapprStore((s) => s.setMode);
+  const setChatResponse = useZapprStore((s) => s.setChatResponse);
   const run = useZapprStore((s) => s.run);
   const cancel = useZapprStore((s) => s.cancel);
   const listen = useZapprStore((s) => s.listen);
@@ -211,7 +216,50 @@ export function ZapprPanel(): React.JSX.Element | null {
           </div>
         )}
 
-          {isRunning && (
+          {(streamingText !== '' || chatResponse !== null) && mode !== 'file' && (
+          <div className="max-h-[320px] overflow-y-auto px-3 py-2.5">
+            <div className="mb-2 flex items-center gap-1.5">
+              <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">
+                ⚡ Zappr
+              </span>
+              <span className="text-[10px] text-fg-muted">
+                {mode === 'math' ? 'Math solver' : mode === 'repair' ? 'Debug mode' : 'Assistant'}
+              </span>
+            </div>
+
+            <div className="font-mono text-sm leading-relaxed whitespace-pre-wrap text-fg">
+              {streamingText !== '' ? streamingText : chatResponse}
+            </div>
+
+            {chatResponse !== null && (
+              <button
+                type="button"
+                onClick={() => void navigator.clipboard.writeText(chatResponse)}
+                className="mt-2 flex items-center gap-1 text-[11px] text-fg-muted transition-colors hover:text-fg"
+              >
+                📋 Copy response
+              </button>
+            )}
+          </div>
+        )}
+
+        {chatResponse !== null && (
+          <div className="px-3 pb-3">
+            <button
+              type="button"
+              onClick={() => {
+                setChatResponse(null);
+                setPrompt('');
+                setMode(null);
+              }}
+              className="w-full rounded-lg border border-border-subtle py-1.5 text-xs text-fg-muted transition-colors hover:bg-hover"
+            >
+              ⚡ New Zap
+            </button>
+          </div>
+        )}
+
+        {isRunning && (
             <div className="flex items-center justify-between border-t border-border-subtle px-3 py-2.5">
               <span className="animate-pulse text-xs text-fg-muted">Zapping...</span>
               <button
