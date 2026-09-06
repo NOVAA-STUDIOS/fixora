@@ -396,3 +396,20 @@
   color: var(--fx-color-fg);
   line-height: var(--fx-inline-line-height, 19px);
 }
+
+@keyframes zappr-idle {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-3px) rotate(1deg); }
+}
+
+@keyframes zappr-run {
+  0%, 100% { transform: scale(1) rotate(-3deg); }
+  50% { transform: scale(1.05) rotate(3deg); }
+}
+
+.animate-zappr-idle {
+  animation: zappr-idle 2s ease-in-out infinite;
+}
+.animate-zappr-run {
+  animation: zappr-run 0.4s ease-in-out infinite;
+}

@@ -1,6 +1,7 @@
 import { CloseIcon, cn } from '@fixora/ui';
 import { useEffect, useRef } from 'react';
 
+import zapprMascot from '../../assets/zappr-mascot.png';
 import { useZapprStore } from '../../stores/zappr-store.js';
 
 /**
@@ -104,12 +105,21 @@ export function ZapprPanel(): React.JSX.Element | null {
             onMouseDown={handleHeaderMouseDown}
             className="flex cursor-grab items-center gap-3 border-b border-border-subtle px-3 pt-3 pb-2.5 select-none active:cursor-grabbing"
           >
-            <div className="flex size-8 animate-pulse items-center justify-center rounded-xl bg-accent/15">
-              <span className="text-lg">⚡</span>
+            <div className="relative size-10 shrink-0">
+              <img
+                src={zapprMascot}
+                alt="Zappr"
+                className={cn(
+                  'size-10 object-contain transition-transform',
+                  isRunning ? 'animate-zappr-run' : 'animate-zappr-idle',
+                )}
+              />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-fg">Zappr</h2>
-              <p className="text-[11px] text-fg-muted">Just zap it into existence</p>
+              <h2 className="text-sm font-bold tracking-tight text-fg">Zappr</h2>
+              <p className="text-[10px] text-fg-muted">
+                {isRunning ? 'Zapping...' : 'just zap it into existence'}
+              </p>
             </div>
             <button
               type="button"
