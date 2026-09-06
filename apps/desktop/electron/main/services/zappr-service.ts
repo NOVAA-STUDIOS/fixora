@@ -12,7 +12,7 @@ import { deletePath, listDirectory, writeWorkspaceFile } from './fs/fs-service.j
 import type { WorkspaceService } from './workspace-service.js';
 
 const MAX_CONTEXT_FILES = 20;
-const ZAPPR_MODEL_MAX_TOKENS = 8000;
+const ZAPPR_MODEL_MAX_TOKENS = 12000;
 
 type ZapprMode = 'chat' | 'file' | 'math' | 'repair';
 
@@ -128,18 +128,36 @@ RULES (non-negotiable):
 RESPONSE FORMAT (exact):
 {"summary":"One sentence — what you're building","steps":[{"type":"create|edit|delete","filePath":"src/example.tsx","description":"What this file does","content":"full file content here"}]}
 
+CRITICAL: Your response must be ONLY valid JSON.
+No markdown, no backticks, no code fences.
+File content goes inside the "content" string — escape all quotes with \\" and newlines with \\n
+
 Think step by step, then respond with ONLY the JSON.`;
 }
 
 /** Best-effort JSON extraction — the model may wrap the object in prose or markdown fences
  *  despite being asked not to. */
 function extractJson(text: string): unknown {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
-  const candidate = fenced?.[1] ?? text;
-  const start = candidate.indexOf('{');
-  const end = candidate.lastIndexOf('}');
-  if (start === -1 || end === -1 || end < start) throw new Error('No JSON object found in response');
-  return JSON.parse(candidate.slice(start, end + 1));
+  const cleaned = text.replace(/^```(?:json)?\s*/gm, '').replace(/^```\s*$/gm, '').trim();
+
+  let depth = 0;
+  let start = -1;
+  let end = -1;
+  for (let i = 0; i < cleaned.length; i++) {
+    if (cleaned[i] === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (cleaned[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+
+  if (start === -1 || end === -1) throw new Error('No JSON object found in response');
+  return JSON.parse(cleaned.slice(start, end + 1));
 }
 
 function isValidStep(value: unknown): value is ZapprStep {
