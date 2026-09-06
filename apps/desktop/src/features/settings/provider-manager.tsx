@@ -210,6 +210,10 @@ export function ProviderManager(): React.JSX.Element {
               provider={provider}
               known={knownModels[provider.id] ?? null}
               onSave={(model) => apply(invoke('providers:setModel', { id: provider.id, model }))}
+              testStatus={testStatus.get(provider.id) ?? 'idle'}
+              onTest={() => {
+                testProvider(provider.id);
+              }}
             />
 
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-fg-muted">
@@ -402,6 +406,8 @@ function ProviderModelField({
   provider,
   known,
   onSave,
+  testStatus,
+  onTest,
 }: {
   provider: ProviderInfo;
   // Fetched once, batched, by the parent (`providers:listAllModels`) — not by this component. N
@@ -409,6 +415,8 @@ function ProviderModelField({
   // calls the instant this panel opened; the parent now makes one request for all of them.
   known: { models: string[]; notice: string | null } | null;
   onSave: (model: string) => Promise<boolean>;
+  testStatus: TestStatus;
+  onTest: () => void;
 }): React.JSX.Element {
   const inputId = useId();
   const listId = useId();
@@ -474,6 +482,20 @@ function ProviderModelField({
       >
         Set model
       </Button>
+      <button
+        type="button"
+        onClick={onTest}
+        disabled={testStatus === 'testing'}
+        className="rounded-md border border-border-subtle px-2 py-1 text-xs text-fg-muted transition-colors hover:border-border hover:text-fg disabled:opacity-50"
+      >
+        {testStatus === 'testing'
+          ? 'Testing...'
+          : testStatus === 'ok'
+            ? '✓ OK'
+            : testStatus === 'error'
+              ? '✗ Error'
+              : 'Test'}
+      </button>
 
       {/*
         Warned, not blocked. The list can be behind the provider, so refusing an unknown id would
