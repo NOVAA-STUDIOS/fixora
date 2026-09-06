@@ -26,8 +26,6 @@ export function ZapprPanel(): React.JSX.Element | null {
   const close = useZapprStore((s) => s.close);
   const setPrompt = useZapprStore((s) => s.setPrompt);
   const clearError = useZapprStore((s) => s.clearError);
-  const setMode = useZapprStore((s) => s.setMode);
-  const setChatResponse = useZapprStore((s) => s.setChatResponse);
   const run = useZapprStore((s) => s.run);
   const cancel = useZapprStore((s) => s.cancel);
   const listen = useZapprStore((s) => s.listen);
@@ -257,16 +255,26 @@ export function ZapprPanel(): React.JSX.Element | null {
           </div>
         )}
 
-        {chatResponse !== null && (
-          <div className="px-3 pb-3">
+        {!isRunning && (steps.length > 0 || chatResponse !== null) && (
+          <div className="border-t border-white/10 px-3 pt-2 pb-3">
             <button
               type="button"
               onClick={() => {
-                setChatResponse(null);
+                clearError();
                 setPrompt('');
-                setMode(null);
+                useZapprStore.setState({
+                  steps: [],
+                  plan: null,
+                  chatResponse: null,
+                  streamingText: '',
+                  summary: null,
+                  currentStep: 0,
+                  mode: null,
+                  currentFilePath: null,
+                  currentFileContent: null,
+                });
               }}
-              className="w-full rounded-lg border border-border-subtle py-1.5 text-xs text-fg-muted transition-colors hover:bg-hover"
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 py-2 text-xs font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg"
             >
               ⚡ New Zap
             </button>
