@@ -362,6 +362,7 @@ export function createZapprService(
         filesChanged.push(step.filePath);
         emit('zappr:stepDone', { index: i, success: true });
       } catch (error) {
+        console.error('[zappr] writeTextFile failed:', error);
         emit('zappr:stepDone', {
           index: i,
           success: false,
