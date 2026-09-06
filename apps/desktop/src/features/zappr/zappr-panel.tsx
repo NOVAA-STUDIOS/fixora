@@ -90,10 +90,9 @@ export function ZapprPanel(): React.JSX.Element | null {
   if (!isOpen) return null;
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-end bg-black/40 pr-6 pb-4">
       <div
         ref={panelRef}
-        className="zappr-rgb animate-ios-dialog-enter relative w-[360px] max-w-[90vw] max-h-[80vh] overflow-hidden"
+        className="zappr-rgb animate-ios-dialog-enter absolute right-6 bottom-16 z-50 w-[360px] max-w-[90vw] max-h-[80vh] overflow-hidden"
         style={{
           borderRadius: '14px',
           background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
@@ -286,6 +285,5 @@ export function ZapprPanel(): React.JSX.Element | null {
           )}
         </div>
       </div>
-    </div>
   );
 }
