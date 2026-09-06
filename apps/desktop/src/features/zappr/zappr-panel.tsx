@@ -90,10 +90,10 @@ export function ZapprPanel(): React.JSX.Element | null {
   if (!isOpen) return null;
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-end bg-black/40 pr-6 pb-16">
+    <div className="absolute inset-0 z-50 flex items-end justify-end bg-black/40 pr-6 pb-4">
       <div
         ref={panelRef}
-        className="zappr-rgb animate-ios-dialog-enter relative w-[360px] max-w-[90vw]"
+        className="zappr-rgb animate-ios-dialog-enter relative w-[360px] max-w-[90vw] max-h-[80vh] overflow-hidden"
         style={{
           borderRadius: '14px',
           background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
@@ -227,17 +227,20 @@ export function ZapprPanel(): React.JSX.Element | null {
         )}
 
           {(streamingText !== '' || chatResponse !== null) && mode !== 'file' && (
-          <div className="max-h-[320px] overflow-y-auto px-3 py-2.5">
-            <div className="mb-2 flex items-center gap-1.5">
+          <div className="max-h-[400px] overflow-y-auto scrollbar-thin px-3 py-2">
+            <div className="sticky top-0 mb-2 flex items-center gap-1.5 bg-[#0d0d0d] py-1">
               <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">
                 ⚡ Zappr
               </span>
               <span className="text-[10px] text-fg-muted">
                 {mode === 'math' ? 'Math solver' : mode === 'repair' ? 'Debug mode' : 'Assistant'}
               </span>
+              {isRunning && (
+                <span className="ml-auto animate-pulse text-[10px] text-fg-muted">typing...</span>
+              )}
             </div>
 
-            <div className="font-mono text-sm leading-relaxed whitespace-pre-wrap text-fg">
+            <div className="text-[13px] leading-[1.65] tracking-[0.01em] whitespace-pre-wrap text-fg selection:bg-accent/20">
               {streamingText !== '' ? streamingText : chatResponse}
             </div>
 

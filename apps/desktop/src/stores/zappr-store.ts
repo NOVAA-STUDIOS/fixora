@@ -34,6 +34,9 @@ type ZapprState = {
   listen: () => () => void;
 };
 
+let deltaBuffer = '';
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useZapprStore = create<ZapprState>((set, get) => ({
   isOpen: false,
   isRunning: false,
@@ -80,7 +83,14 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   },
 
   appendDelta: (text) => {
-    set((state) => ({ streamingText: state.streamingText + text }));
+    deltaBuffer += text;
+    if (flushTimer) return;
+    flushTimer = setTimeout(() => {
+      const buffered = deltaBuffer;
+      deltaBuffer = '';
+      flushTimer = null;
+      set((state) => ({ streamingText: state.streamingText + buffered }));
+    }, 30);
   },
 
   setChatResponse: (text) => {
@@ -125,7 +135,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       }));
     });
     const offDelta = subscribe('zappr:delta', ({ text }) => {
-      set((state) => ({ streamingText: state.streamingText + text }));
+      get().appendDelta(text);
     });
     const offDone = subscribe('zappr:done', ({ chatResponse }) => {
       set({ isRunning: false, ...(chatResponse !== undefined ? { chatResponse, streamingText: '' } : {}) });
