@@ -212,6 +212,11 @@ export function ProviderManager(): React.JSX.Element {
               onSave={(model) => apply(invoke('providers:setModel', { id: provider.id, model }))}
               testStatus={testStatus.get(provider.id) ?? 'idle'}
               onTest={() => {
+                // Don't test if API key required but not set
+                if (provider.requiresKey && !provider.hasKey) {
+                  setTestStatus((prev) => new Map(prev).set(provider.id, 'error'));
+                  return;
+                }
                 testProvider(provider.id);
               }}
             />
