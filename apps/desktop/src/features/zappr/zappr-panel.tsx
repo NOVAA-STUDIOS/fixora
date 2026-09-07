@@ -1,7 +1,9 @@
 import { CloseIcon, cn } from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 
 import zapprMascot from '../../assets/zappr-mascot.png';
 import { useZapprStore } from '../../stores/zappr-store.js';
@@ -174,14 +176,14 @@ export function ZapprPanel(): React.JSX.Element | null {
   return (
       <div
         ref={panelRef}
-        className="zappr-rgb animate-ios-dialog-enter absolute right-6 bottom-16 z-50 w-[360px] max-w-[90vw] flex flex-col"
+        className="zappr-rgb animate-ios-dialog-enter absolute right-6 bottom-16 z-50 w-[360px] max-w-[90vw] flex flex-col max-h-[90vh]"
         style={{
           borderRadius: '14px',
           background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
           padding: '1px',
         }}
       >
-        <div className="flex max-h-[90vh] flex-col overflow-hidden rounded-[13px] bg-[#0d0d0d]">
+        <div className="flex flex-col rounded-[13px] bg-[#0d0d0d]">
           <div
             onMouseDown={handleHeaderMouseDown}
             className="flex cursor-grab items-center gap-3 border-b border-border-subtle px-3 pt-3 pb-2.5 select-none active:cursor-grabbing"
@@ -228,7 +230,7 @@ export function ZapprPanel(): React.JSX.Element | null {
         )}
 
         {!isRunning && plan === null && (
-          <div className="px-3 py-2.5">
+          <div className="shrink-0 px-3 py-2.5">
             <textarea
               value={prompt}
               onChange={(e) => {
@@ -371,10 +373,14 @@ export function ZapprPanel(): React.JSX.Element | null {
 
             <div
               ref={responseRef}
-              className="min-h-[300px] max-h-[450px] overflow-y-auto px-3 py-2.5 text-[12.5px] tracking-[0.01em]"
-              style={{ overflowX: 'hidden', overflowY: 'auto' }}
+              className="min-h-[200px] max-h-[50vh] overflow-y-auto px-3 py-2.5 text-[12.5px] tracking-[0.01em]"
+              style={{ overflowX: 'hidden' }}
             >
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={markdownComponents}
+              >
                 {streamingText !== '' ? streamingText : chatResponse}
               </ReactMarkdown>
             </div>

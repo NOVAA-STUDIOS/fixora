@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'katex/dist/katex.min.css';
 
 /*
  * The tokens are the palette and the theme is the Tailwind mapping over it. Both come from
