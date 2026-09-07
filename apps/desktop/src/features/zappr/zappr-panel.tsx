@@ -1,8 +1,38 @@
 import { CloseIcon, cn } from '@fixora/ui';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import zapprMascot from '../../assets/zappr-mascot.png';
 import { useZapprStore } from '../../stores/zappr-store.js';
+
+/** Tailwind classes, not inline CSS vars — this file styles everything through the design-token
+ *  utility classes (text-fg, bg-hover, etc.), not raw `var(--...)` references. */
+const markdownComponents: Components = {
+  h1: ({ children }) => <h1 className="my-2 text-[15px] font-semibold text-fg">{children}</h1>,
+  h2: ({ children }) => <h2 className="my-2 text-[14px] font-semibold text-fg">{children}</h2>,
+  h3: ({ children }) => <h3 className="my-1.5 text-[13px] font-semibold text-fg">{children}</h3>,
+  p: ({ children }) => <p className="my-1.5 leading-[1.7] text-fg">{children}</p>,
+  strong: ({ children }) => <strong className="font-semibold text-fg">{children}</strong>,
+  code: ({ className, children }) =>
+    className?.includes('language-') === true ? (
+      <pre
+        className="my-2 overflow-x-auto rounded-lg bg-[#1a1a1a] p-3 font-mono text-[13px]"
+        style={{ overflowX: 'auto', maxWidth: '100%', wordBreak: 'break-word' }}
+      >
+        <code>{children}</code>
+      </pre>
+    ) : (
+      <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 font-mono text-[13px] text-accent">{children}</code>
+    ),
+  ul: ({ children }) => <ul className="my-1.5 pl-5">{children}</ul>,
+  ol: ({ children }) => <ol className="my-1.5 pl-5">{children}</ol>,
+  li: ({ children }) => <li className="my-0.5 leading-[1.6] text-fg">{children}</li>,
+  hr: () => <hr className="my-3 border-t border-border-subtle" />,
+  blockquote: ({ children }) => (
+    <blockquote className="my-2 border-l-2 border-accent/50 pl-3 text-fg-muted">{children}</blockquote>
+  ),
+};
 
 /**
  * Zappr: a floating, freeform-prompt coding agent panel — an overlay inside the workbench (not
@@ -32,6 +62,7 @@ export function ZapprPanel(): React.JSX.Element | null {
   const run = useZapprStore((s) => s.run);
   const cancel = useZapprStore((s) => s.cancel);
   const listen = useZapprStore((s) => s.listen);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => listen(), [listen]);
 
@@ -43,10 +74,19 @@ export function ZapprPanel(): React.JSX.Element | null {
   const responseRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (responseRef.current) {
-      responseRef.current.scrollTop = responseRef.current.scrollHeight;
+    const el = responseRef.current;
+    if (el === null) return;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+    if (isRunning || isNearBottom) {
+      el.scrollTop = el.scrollHeight;
     }
-  }, [streamingText, chatResponse]);
+  }, [streamingText, chatResponse, isRunning]);
+
+  useEffect(() => {
+    if (isRunning && responseRef.current !== null) {
+      responseRef.current.scrollTop = 0;
+    }
+  }, [isRunning]);
 
   // Mouse drag was unreliable with GPU compositing disabled — Alt+Arrow keys move the panel
   // instead, in fixed steps, always starting from screen center.
@@ -101,19 +141,52 @@ export function ZapprPanel(): React.JSX.Element | null {
     window.addEventListener('mouseup', onUp);
   }
 
+  function fallbackCopy(text: string): void {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.position = 'fixed';
+    el.style.opacity = '0';
+    document.body.appendChild(el);
+    el.select();
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- only reliable fallback when the async Clipboard API is unavailable
+    document.execCommand('copy');
+    document.body.removeChild(el);
+  }
+
+  async function copyToClipboard(text: string): Promise<void> {
+    if (window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        fallbackCopy(text);
+      }
+    } else {
+      fallbackCopy(text);
+    }
+    setCopied(true);
+    setTimeout(() => {
+      setCopied(false);
+    }, 2000);
+  }
+
   if (!isOpen) return null;
 
   return (
       <div
         ref={panelRef}
-        className="zappr-rgb animate-ios-dialog-enter absolute right-6 bottom-16 z-50 w-[360px] max-w-[90vw] max-h-[80vh] overflow-hidden"
+        className="zappr-rgb animate-ios-dialog-enter absolute right-6 bottom-16 z-50 w-[360px] max-w-[90vw] overflow-y-auto max-h-[85vh] flex flex-col"
         style={{
           borderRadius: '14px',
           background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
           padding: '1px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
         }}
       >
-        <div className="overflow-hidden rounded-[13px] bg-[#0d0d0d]">
+        <div
+          className="overflow-hidden rounded-[13px] bg-[#0d0d0d]"
+          style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+        >
           <div
             onMouseDown={handleHeaderMouseDown}
             className="flex cursor-grab items-center gap-3 border-b border-border-subtle px-3 pt-3 pb-2.5 select-none active:cursor-grabbing"
@@ -281,8 +354,8 @@ export function ZapprPanel(): React.JSX.Element | null {
           )}
 
           {(streamingText !== '' || chatResponse !== null) && lastTerminalCommand === null && lastKeyUpdateProvider === null && lastShortcutCreated === null && (
-          <div className="mx-3 mb-3 overflow-hidden rounded-xl border border-white/10 bg-white/5">
-            <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
+          <div className="mx-3 mb-3 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/5">
+            <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-2">
               <img src={zapprMascot} alt="" className="size-5 object-contain" />
               <span className="text-[11px] font-semibold text-accent">Zappr</span>
               <span className="ml-1 text-[10px] text-fg-muted">
@@ -301,20 +374,27 @@ export function ZapprPanel(): React.JSX.Element | null {
               )}
             </div>
 
-            <div ref={responseRef} className="max-h-[280px] overflow-y-auto px-3 py-2.5">
-              <pre className="font-sans text-[12.5px] leading-[1.7] tracking-[0.01em] whitespace-pre-wrap text-fg">
+            <div
+              ref={responseRef}
+              className="min-h-[300px] max-h-[450px] overflow-y-auto px-3 py-2.5 text-[12.5px] tracking-[0.01em]"
+              style={{ overflowX: 'hidden', overflowY: 'auto' }}
+            >
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {streamingText !== '' ? streamingText : chatResponse}
-              </pre>
+              </ReactMarkdown>
             </div>
 
             {chatResponse !== null && !isRunning && (
-              <div className="flex items-center gap-2 border-t border-white/10 px-3 py-2">
+              <div className="flex shrink-0 items-center gap-2 border-t border-white/10 px-3 py-2">
                 <button
                   type="button"
-                  onClick={() => void navigator.clipboard.writeText(chatResponse)}
-                  className="flex items-center gap-1 text-[10px] text-fg-muted transition-colors hover:text-fg"
+                  onClick={() => void copyToClipboard(chatResponse)}
+                  className={cn(
+                    'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors',
+                    copied ? 'bg-success/15 text-success-text' : 'text-fg-muted hover:text-fg',
+                  )}
                 >
-                  📋 Copy
+                  {copied ? '✓ Copied!' : '📋 Copy'}
                 </button>
               </div>
             )}
@@ -322,7 +402,7 @@ export function ZapprPanel(): React.JSX.Element | null {
         )}
 
         {!isRunning && (steps.length > 0 || chatResponse !== null) && (
-          <div className="border-t border-white/10 px-3 pt-2 pb-3">
+          <div className="shrink-0 border-t border-white/10 px-3 pt-2 pb-3">
             <button
               type="button"
               onClick={() => {

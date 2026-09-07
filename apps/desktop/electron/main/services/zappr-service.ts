@@ -218,11 +218,12 @@ Current workspace: ${workspaceName}
 
 RESPONSE STYLE:
 - Be concise but complete
-- Use markdown formatting (headers, bold, code blocks, lists)
+- Format your response using markdown. Use headers (##), bold (**text**), code blocks (\`\`\`lang), bullet lists, and tables where appropriate.
 - For math: show step-by-step working clearly
 - For code: always include working examples
 - Be friendly and enthusiastic ⚡
 - Keep responses focused and actionable
+- Do NOT wrap your response in JSON. Return plain markdown text only.
 
 User: ${userPrompt}`;
 }
