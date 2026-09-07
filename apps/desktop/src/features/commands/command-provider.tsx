@@ -7,6 +7,7 @@ import {
   type Command,
   type CommandRegistry,
 } from './registry.js';
+import { useUserKeybindingsStore } from './user-keybindings-store.js';
 
 const CommandContext = createContext<CommandRegistry | null>(null);
 
@@ -28,6 +29,7 @@ export function CommandProvider({
   children: ReactNode;
 }): React.JSX.Element {
   const registry = useMemo(() => createCommandRegistry(), []);
+  const userBindings = useUserKeybindingsStore((s) => s.bindings);
 
   useEffect(() => {
     const unregisters = commands.map((c) => registry.register(c));
@@ -64,13 +66,26 @@ export function CommandProvider({
         command.run();
         return;
       }
+
+      // User-defined shortcuts (Zappr's `create_shortcut`) — checked after the built-in registry,
+      // so a user override can never shadow a core command's own binding.
+      for (const binding of userBindings) {
+        if (!matchesBinding(event, binding.keys)) continue;
+        const command = registry.get(binding.commandId);
+        if (command === undefined || !isCommandEnabled(command)) continue;
+        if (inEditable && !binding.keys.includes('mod')) continue;
+
+        event.preventDefault();
+        command.run();
+        return;
+      }
     };
 
     document.addEventListener('keydown', onKeyDown, { capture: true });
     return () => {
       document.removeEventListener('keydown', onKeyDown, { capture: true });
     };
-  }, [registry]);
+  }, [registry, userBindings]);
 
   return <CommandContext.Provider value={registry}>{children}</CommandContext.Provider>;
 }

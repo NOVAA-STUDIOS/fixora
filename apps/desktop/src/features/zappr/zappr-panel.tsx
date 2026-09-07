@@ -23,6 +23,9 @@ export function ZapprPanel(): React.JSX.Element | null {
   const streamingText = useZapprStore((s) => s.streamingText);
   const currentFilePath = useZapprStore((s) => s.currentFilePath);
   const currentFileContent = useZapprStore((s) => s.currentFileContent);
+  const lastTerminalCommand = useZapprStore((s) => s.lastTerminalCommand);
+  const lastKeyUpdateProvider = useZapprStore((s) => s.lastKeyUpdateProvider);
+  const lastShortcutCreated = useZapprStore((s) => s.lastShortcutCreated);
   const close = useZapprStore((s) => s.close);
   const setPrompt = useZapprStore((s) => s.setPrompt);
   const clearError = useZapprStore((s) => s.clearError);
@@ -31,6 +34,10 @@ export function ZapprPanel(): React.JSX.Element | null {
   const listen = useZapprStore((s) => s.listen);
 
   useEffect(() => listen(), [listen]);
+
+  useEffect(() => {
+    console.warn('[Zappr:UI] State →', mode, isRunning ? 'running' : 'idle');
+  }, [mode, isRunning]);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
@@ -232,7 +239,48 @@ export function ZapprPanel(): React.JSX.Element | null {
           </div>
         )}
 
-          {(streamingText !== '' || chatResponse !== null) && (
+          {lastTerminalCommand !== null && (
+            <div className="mx-3 mb-3 rounded-lg border border-white/10 px-3 py-2" style={{ background: 'color-mix(in srgb, black 60%, transparent)' }}>
+              <p className="font-mono text-[11px] text-green-400">$ {lastTerminalCommand}</p>
+              {chatResponse !== null && (
+                <p className="mt-1 text-[11px] text-fg-muted">{chatResponse}</p>
+              )}
+              {chatResponse !== null && !chatResponse.startsWith('Terminal not open') && (
+                <p className="mt-1 text-[10px] text-fg-muted">→ Sent to terminal</p>
+              )}
+            </div>
+          )}
+
+          {lastKeyUpdateProvider !== null && (
+            <div className="mx-3 mb-3 flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2">
+              <span className="text-sm">🔑</span>
+              <div>
+                <p className="text-[11px] font-medium text-success-text">API key saved</p>
+                <p className="text-[10px] text-fg-muted">Provider: {lastKeyUpdateProvider}</p>
+              </div>
+            </div>
+          )}
+
+          {lastShortcutCreated !== null && (
+            <div
+              className={cn(
+                'mx-3 mb-3 flex items-center gap-2 rounded-lg border px-3 py-2',
+                lastShortcutCreated.unresolved
+                  ? 'border-warn/30 bg-warn/10'
+                  : 'border-success/30 bg-success/10',
+              )}
+            >
+              <span className="text-sm">⌨</span>
+              <div>
+                <p className={cn('font-mono text-[11px] font-medium', lastShortcutCreated.unresolved ? 'text-warn-text' : 'text-success-text')}>
+                  [{lastShortcutCreated.keys}]
+                </p>
+                <p className="text-[10px] text-fg-muted">→ {lastShortcutCreated.description}</p>
+              </div>
+            </div>
+          )}
+
+          {(streamingText !== '' || chatResponse !== null) && lastTerminalCommand === null && lastKeyUpdateProvider === null && lastShortcutCreated === null && (
           <div className="mx-3 mb-3 overflow-hidden rounded-xl border border-white/10 bg-white/5">
             <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
               <img src={zapprMascot} alt="" className="size-5 object-contain" />
@@ -290,6 +338,9 @@ export function ZapprPanel(): React.JSX.Element | null {
                   mode: null,
                   currentFilePath: null,
                   currentFileContent: null,
+                  lastTerminalCommand: null,
+                  lastKeyUpdateProvider: null,
+                  lastShortcutCreated: null,
                 });
               }}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 py-2 text-xs font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg"

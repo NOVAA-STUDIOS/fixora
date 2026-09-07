@@ -809,7 +809,13 @@ export const contracts = {
     response: z.void(),
   },
   'zappr:run': {
-    request: z.object({ prompt: z.string().min(1), workspaceRoot: z.string() }),
+    request: z.object({
+      prompt: z.string().min(1),
+      workspaceRoot: z.string(),
+      /** Editor UI state — only the renderer knows this, so it rides along with the request. */
+      activeFile: z.string().nullable().optional(),
+      openTabs: z.array(z.string()).optional(),
+    }),
     response: z.object({ ok: z.boolean(), error: z.string().optional() }),
   },
   'zappr:cancel': {

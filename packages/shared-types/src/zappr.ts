@@ -32,11 +32,19 @@ export const ZapprActionSchema = z.discriminatedUnion('type', [
     apiKey: z.string().optional(),
     model: z.string().optional(),
   }),
-  z.object({ type: z.literal('create_shortcut'), keys: z.string(), commandId: z.string() }),
+  z.object({
+    type: z.literal('create_shortcut'),
+    keys: z.string(),
+    commandId: z.string(),
+    description: z.string(),
+    unresolved: z.boolean(),
+  }),
   z.object({ type: z.literal('create_file'), path: z.string(), content: z.string().optional() }),
   z.object({ type: z.literal('open_folder') }),
   z.object({ type: z.literal('toggle_panel') }),
   z.object({ type: z.literal('run_analysis') }),
+  z.object({ type: z.literal('run_terminal_command'), command: z.string().min(1) }),
+  z.object({ type: z.literal('update_api_key'), provider: z.string(), apiKey: z.string().min(1) }),
   z.object({ type: z.literal('none') }),
 ]);
 export type ZapprAction = z.infer<typeof ZapprActionSchema>;
