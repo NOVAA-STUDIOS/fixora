@@ -147,14 +147,19 @@ export function applyNavigationGuards(window: BrowserWindow, options: GuardOptio
   attachPermissionHandlers(webContents.session);
 }
 
-/** Deny every web permission. When one is genuinely needed, it gets added here, deliberately. */
+/** Deny every web permission. When one is genuinely needed, it gets added here, deliberately.
+ *  Clipboard write/read is needed for Zappr's "Copy" button — Electron/Chromium gates
+ *  `navigator.clipboard` behind this handler even for the app's own first-party renderer. */
+const ALLOWED_PERMISSIONS = ['clipboard-sanitized-write', 'clipboard-read'];
+
 export function attachPermissionHandlers(session: Session): void {
   session.setPermissionRequestHandler((_wc, permission, callback) => {
-    console.error('[security] denied permission request', { permission });
-    callback(false);
+    const allowed = ALLOWED_PERMISSIONS.includes(permission);
+    if (!allowed) console.error('[security] denied permission request', { permission });
+    callback(allowed);
   });
 
-  session.setPermissionCheckHandler(() => false);
+  session.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.includes(permission));
 }
 
 /**

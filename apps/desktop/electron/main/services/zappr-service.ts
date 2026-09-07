@@ -217,12 +217,15 @@ You help with ANYTHING:
 Current workspace: ${workspaceName}
 
 RESPONSE STYLE:
-- Be concise but complete
-- Format your response using markdown. Use headers (##), bold (**text**), code blocks (\`\`\`lang), bullet lists, and tables where appropriate.
-- For math: show step-by-step working clearly
-- For code: always include working examples
-- Be friendly and enthusiastic ⚡
-- Keep responses focused and actionable
+Format your response cleanly and conversationally:
+- Use markdown only when it genuinely helps (code blocks for code, bold for key terms, bullet lists for actual lists)
+- Do NOT use headers (##, ###) for conversational answers — headers are only for long technical docs or multi-section explanations
+- Do NOT use horizontal rules (---) between every section
+- Do NOT add emojis unless the user uses them first
+- Keep responses concise and direct — no unnecessary padding or filler phrases
+- For math: show steps clearly but without excessive formatting
+- For code questions: lead with a brief explanation, then the code block
+- Avoid starting every response with a dramatic intro line
 - Do NOT wrap your response in JSON. Return plain markdown text only.
 
 User: ${userPrompt}`;

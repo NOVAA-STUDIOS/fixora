@@ -174,19 +174,14 @@ export function ZapprPanel(): React.JSX.Element | null {
   return (
       <div
         ref={panelRef}
-        className="zappr-rgb animate-ios-dialog-enter absolute right-6 bottom-16 z-50 w-[360px] max-w-[90vw] overflow-y-auto max-h-[85vh] flex flex-col"
+        className="zappr-rgb animate-ios-dialog-enter absolute right-6 bottom-16 z-50 w-[360px] max-w-[90vw] flex flex-col"
         style={{
           borderRadius: '14px',
           background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
           padding: '1px',
-          maxHeight: '90vh',
-          overflowY: 'auto',
         }}
       >
-        <div
-          className="overflow-hidden rounded-[13px] bg-[#0d0d0d]"
-          style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
-        >
+        <div className="flex max-h-[90vh] flex-col overflow-hidden rounded-[13px] bg-[#0d0d0d]">
           <div
             onMouseDown={handleHeaderMouseDown}
             className="flex cursor-grab items-center gap-3 border-b border-border-subtle px-3 pt-3 pb-2.5 select-none active:cursor-grabbing"
