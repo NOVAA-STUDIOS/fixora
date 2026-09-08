@@ -304,6 +304,44 @@ function extractJson(text: string): unknown {
   }
 }
 
+function buildRepairPrompt(filePath: string, fileContent: string, contextBlock: string, userPrompt: string): string {
+  return `${contextBlock}
+You are Zappr, fixing errors in an existing file.
+
+FILE: ${filePath}
+CONTENT:
+${fileContent}
+
+TASK: ${userPrompt || 'Fix ALL errors in this file.'}
+
+Fix ALL errors in this file. Return ONLY a JSON object in this exact format:
+{"summary":"Brief description of fixes","steps":[{"type":"edit","filePath":"${filePath}","description":"What was fixed","content":"complete fixed file content"}]}
+
+Return the COMPLETE file content in "content" — not a diff, not partial.
+No markdown fences. Only valid JSON.`;
+}
+
+/** Parses and validates the plan JSON an AI response is expected to contain. Throws on malformed shape. */
+function parsePlan(raw: string): { steps: ZapprStep[]; summary: string } {
+  const parsed = extractJson(raw);
+  log.debug('[Zappr] Parsed JSON', { parsed: JSON.stringify(parsed).slice(0, 300) });
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    !Array.isArray((parsed as Record<string, unknown>)['steps'])
+  ) {
+    throw new Error('Malformed plan shape');
+  }
+  const rawSteps = (parsed as { steps: unknown[] }).steps;
+  if (!rawSteps.every(isValidStep)) throw new Error('Malformed step in plan');
+  return {
+    steps: rawSteps,
+    summary: typeof (parsed as Record<string, unknown>)['summary'] === 'string'
+      ? (parsed as { summary: string }).summary
+      : '',
+  };
+}
+
 function isValidStep(value: unknown): value is ZapprStep {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -340,6 +378,53 @@ export function createZapprService(
     currentAbortController = null;
   }
 
+  /** Shared by file mode and repair mode — writes/deletes every step and reports progress. */
+  function executePlan(
+    rootPath: string,
+    plan: { steps: ZapprStep[]; summary: string },
+  ): { ok: boolean; error?: string } {
+    if (plan.steps.length > 5) {
+      return { ok: false, error: `Zappr planned ${String(plan.steps.length)} files, but the max is 5 per request.` };
+    }
+
+    emit('zappr:plan', { steps: plan.steps, summary: plan.summary });
+
+    const filesChanged: string[] = [];
+    for (let i = 0; i < plan.steps.length; i++) {
+      if (cancelled) break;
+      const step = plan.steps[i];
+      if (step === undefined) continue;
+      emit('zappr:stepStart', { index: i, step });
+      try {
+        if (step.type === 'delete') {
+          deletePath(rootPath, step.filePath);
+        } else {
+          emit('zappr:fileProgress', {
+            filePath: step.filePath,
+            content: step.content ?? '',
+            index: i,
+            total: plan.steps.length,
+          });
+          log.debug('[Zappr] Writing file', { path: step.filePath });
+          writeWorkspaceFile(rootPath, step.filePath, step.content ?? '');
+        }
+        filesChanged.push(step.filePath);
+        emit('zappr:stepDone', { index: i, success: true });
+      } catch (error) {
+        log.error('[Zappr] ERROR', { error: String(error), stack: error instanceof Error ? error.stack?.slice(0, 500) : undefined });
+        emit('zappr:stepDone', {
+          index: i,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    const doneMessage = cancelled ? undefined : `${String(filesChanged.length)} file${filesChanged.length === 1 ? '' : 's'} written successfully`;
+    emit('zappr:done', { success: !cancelled, filesChanged, chatResponse: doneMessage });
+    return { ok: true };
+  }
+
   async function run(
     prompt: string,
     activeFile: string | null,
@@ -363,6 +448,7 @@ export function createZapprService(
     emit('zappr:mode', { mode });
 
     if (mode === 'file') return runFileMode(prompt, activeFile, openTabs);
+    if (mode === 'repair') return runRepairMode(prompt, activeFile, openTabs);
     return runChatMode(prompt, activeFile, openTabs);
   }
 
@@ -504,23 +590,7 @@ export function createZapprService(
 
     let plan: { steps: ZapprStep[]; summary: string };
     try {
-      const parsed = extractJson(outcome.value);
-      log.debug('[Zappr] Parsed JSON', { parsed: JSON.stringify(parsed).slice(0, 300) });
-      if (
-        typeof parsed !== 'object' ||
-        parsed === null ||
-        !Array.isArray((parsed as Record<string, unknown>)['steps'])
-      ) {
-        throw new Error('Malformed plan shape');
-      }
-      const rawSteps = (parsed as { steps: unknown[] }).steps;
-      if (!rawSteps.every(isValidStep)) throw new Error('Malformed step in plan');
-      plan = {
-        steps: rawSteps,
-        summary: typeof (parsed as Record<string, unknown>)['summary'] === 'string'
-          ? (parsed as { summary: string }).summary
-          : '',
-      };
+      plan = parsePlan(outcome.value);
     } catch (error) {
       log.error('[Zappr] ERROR', { error: String(error), stack: error instanceof Error ? error.stack?.slice(0, 500) : undefined });
       return {
@@ -529,48 +599,98 @@ export function createZapprService(
       };
     }
 
-    if (plan.steps.length > 5) {
-      return { ok: false, error: `Zappr planned ${String(plan.steps.length)} files, but the max is 5 per request.` };
+    return executePlan(open.rootPath, plan);
+  }
+
+  async function runRepairMode(
+    prompt: string,
+    activeFile: string | null,
+    openTabs: string[],
+  ): Promise<{ ok: boolean; error?: string }> {
+    const open = workspace.getCurrent();
+    if (open === null) return { ok: false, error: 'No project is open.' };
+    if (activeFile === null) {
+      const message = 'No file open. Open the file you want to fix in the editor first.';
+      emit('zappr:done', { success: false, filesChanged: [], error: message });
+      return { ok: false, error: message };
     }
 
-    emit('zappr:plan', { steps: plan.steps, summary: plan.summary });
+    // The full file, not ZapprContext's 200-line-truncated preview — repair must rewrite the
+    // ENTIRE file, and a truncated read here would silently discard the tail of longer files.
+    let fileContent: string;
+    try {
+      fileContent = readTextFile(open.rootPath, activeFile).content;
+    } catch (error) {
+      log.error('[Zappr] ERROR', { error: String(error), stack: error instanceof Error ? error.stack?.slice(0, 500) : undefined });
+      return { ok: false, error: `Could not read ${activeFile}: ${error instanceof Error ? error.message : String(error)}` };
+    }
 
-    const filesChanged: string[] = [];
-    for (let i = 0; i < plan.steps.length; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- can flip mid-loop via cancel()
-      if (cancelled) break;
-      const step = plan.steps[i];
-      if (step === undefined) continue;
-      emit('zappr:stepStart', { index: i, step });
+    const contextBlock = buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs));
+    const repairPrompt = buildRepairPrompt(activeFile, fileContent, contextBlock, prompt);
+
+    const request: ProviderRequest = {
+      model: '',
+      messages: [{ role: 'user', content: repairPrompt }],
+      maxOutputTokens: ZAPPR_MODEL_MAX_TOKENS,
+    };
+
+    let fullText = '';
+    const abortController = new AbortController();
+    currentAbortController = abortController;
+    const outcome = await orchestrator.run('explain', async (candidate) => {
+      log.debug('[Zappr] Calling AI', { provider: candidate.provider, model: candidate.model, promptLength: request.messages[0]?.content.length ?? 0 });
       try {
-        if (step.type === 'delete') {
-          deletePath(open.rootPath, step.filePath);
-        } else {
-          emit('zappr:fileProgress', {
-            filePath: step.filePath,
-            content: step.content ?? '',
-            index: i,
-            total: plan.steps.length,
-          });
-          log.debug('[Zappr] Writing file', { path: step.filePath });
-          writeWorkspaceFile(open.rootPath, step.filePath, step.content ?? '');
+        const req = { ...request, model: candidate.model };
+        for await (const event of candidate.adapter.stream(req, abortController.signal)) {
+          if (cancelled) return { ok: false, failure: describeProviderFailure({ providerCode: 'cancelled', detail: 'Cancelled', retryable: false }) };
+          if (event.type === 'text_delta') {
+            fullText += event.text;
+            emit('zappr:delta', { text: event.text });
+          } else if (event.type === 'error') {
+            return {
+              ok: false,
+              failure: describeProviderFailure({
+                providerCode: event.providerCode,
+                detail: event.message,
+                retryable: event.retryable,
+              }),
+            };
+          }
         }
-        filesChanged.push(step.filePath);
-        emit('zappr:stepDone', { index: i, success: true });
+        log.debug('[Zappr] AI raw response', { raw: fullText.slice(0, 300) });
+        return { ok: true, value: fullText };
       } catch (error) {
         log.error('[Zappr] ERROR', { error: String(error), stack: error instanceof Error ? error.stack?.slice(0, 500) : undefined });
-        emit('zappr:stepDone', {
-          index: i,
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        return {
+          ok: false,
+          failure: describeProviderFailure({
+            providerCode: 'unknown',
+            detail: error instanceof Error ? error.message : String(error),
+            retryable: false,
+          }),
+        };
       }
+    });
+    currentAbortController = null;
+
+    if (!outcome.ok) {
+      const message = 'refused' in outcome ? 'No AI provider is configured.' : outcome.failure.message;
+      return { ok: false, error: message };
+    }
+    if (cancelled) return { ok: false, error: 'Cancelled.' };
+
+    let plan: { steps: ZapprStep[]; summary: string };
+    try {
+      plan = parsePlan(outcome.value);
+    } catch (error) {
+      log.error('[Zappr] ERROR', { error: String(error), stack: error instanceof Error ? error.stack?.slice(0, 500) : undefined });
+      return {
+        ok: false,
+        error: `Zappr's response wasn't valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+      };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- can flip mid-loop via cancel()
-    const doneMessage = cancelled ? undefined : `${String(filesChanged.length)} file${filesChanged.length === 1 ? '' : 's'} written successfully`;
-    emit('zappr:done', { success: !cancelled, filesChanged, chatResponse: doneMessage });
-    return { ok: true };
+    return executePlan(open.rootPath, plan);
   }
 
   return { run, cancel, getContext };
