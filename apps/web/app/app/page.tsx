@@ -5,13 +5,21 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github-dark.css'
 
 const markdownComponents: Components = {
-  code: ({ className, children, ...props }) => {
+  code: ({ className, children }) => {
     const isBlock = className?.startsWith('language-') === true
-    return isBlock
-      ? <pre style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 16px', overflowX: 'auto', fontSize: 13, fontFamily: '"JetBrains Mono", monospace', margin: '12px 0' }}><code {...props}>{children}</code></pre>
-      : <code style={{ background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: 5, fontSize: 12, fontFamily: '"JetBrains Mono", monospace', color: '#a78bfa' }} {...props}>{children}</code>
+    if (isBlock) {
+      const highlighted = hljs.highlightAuto(String(children)).value
+      return (
+        <pre style={{ background: '#0d1117', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 20px', overflowX: 'auto', fontSize: 13, fontFamily: '"JetBrains Mono", monospace', margin: '12px 0', lineHeight: 1.7 }}>
+          <code dangerouslySetInnerHTML={{ __html: highlighted }} />
+        </pre>
+      )
+    }
+    return <code style={{ background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: 5, fontSize: 12, fontFamily: '"JetBrains Mono", monospace', color: '#a78bfa' }}>{children}</code>
   },
 }
 
@@ -67,128 +75,155 @@ export default function AppPage() {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'linear-gradient(160deg, #0a0a0f 0%, #080808 50%, #0a080f 100%)', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'linear-gradient(160deg, #0a0a0f 0%, #080808 50%, #0a080f 100%)', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' }}>
 
       {/* Header */}
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 12, backdropFilter: 'blur(20px)', background: 'rgba(8,8,8,0.8)' }}>
-        <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, boxShadow: '0 4px 12px rgba(124,58,237,0.4)' }}>⚡</div>
-        <div>
-          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>Fixora</span>
-          <span style={{ fontSize: 12, color: '#555', marginLeft: 6 }}>Zappr AI</span>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <a href="/" style={{ fontSize: 12, color: '#555', textDecoration: 'none', padding: '6px 12px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.03)' }}>← Home</a>
-          <button onClick={() => setShowSettings(true)} style={{ fontSize: 12, color: apiKey || provider === 'ollama' ? '#22c55e' : '#f59e0b', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: apiKey || provider === 'ollama' ? '#22c55e' : '#f59e0b', display: 'inline-block' }}></span>
-            {apiKey || provider === 'ollama' ? 'Connected' : 'Setup API Key'}
+      <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, boxShadow: '0 4px 12px rgba(124,58,237,0.35)' }}>⚡</div>
+        <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>Fixora</span>
+        <span style={{ fontSize: 12, color: '#3a3a3a' }}>· Zappr AI</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <a href="/" style={{ fontSize: 12, color: '#444', textDecoration: 'none', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>← Home</a>
+          <button onClick={() => setShowSettings(true)} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: (apiKey || provider === 'ollama') ? '#4ade80' : '#f59e0b' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: (apiKey || provider === 'ollama') ? '#4ade80' : '#f59e0b', display: 'inline-block' }} />
+            {(apiKey || provider === 'ollama') ? 'Connected' : 'Setup API Key'}
           </button>
         </div>
       </div>
 
       {/* Settings modal */}
       {showSettings && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(8px)' }}>
-          <div style={{ background: 'rgba(18,18,24,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: 28, width: 380, backdropFilter: 'blur(40px)', boxShadow: '0 32px 64px rgba(0,0,0,0.6)' }}>
-            <h3 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>⚙️ Settings</h3>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 8, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>AI Provider</label>
-              <select value={provider} onChange={e => setProvider(e.target.value)} style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#f0f0f0', fontSize: 14, outline: 'none' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#111116', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 28, width: 380, boxShadow: '0 32px 64px rgba(0,0,0,0.6)' }}>
+            <h3 style={{ margin: '0 0 20px', fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em' }}>Settings</h3>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Provider</label>
+              <select value={provider} onChange={e => setProvider(e.target.value)} style={{ width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#f0f0f0', fontSize: 14, outline: 'none' }}>
                 <option value="gemini">Google Gemini</option>
                 <option value="openai">OpenAI</option>
-                <option value="openrouter">OpenRouter (Free)</option>
+                <option value="openrouter">OpenRouter (Free models)</option>
                 <option value="anthropic">Anthropic Claude</option>
                 <option value="ollama">Ollama (Local)</option>
               </select>
             </div>
-            {provider !== 'ollama' && (
+            {provider !== 'ollama' ? (
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 8, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>API Key</label>
-                <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Paste your API key..." style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#f0f0f0', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+                <label style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>API Key</label>
+                <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Paste your API key..." style={{ width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#f0f0f0', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
               </div>
-            )}
-            {provider === 'ollama' && (
-              <div style={{ marginBottom: 20, padding: '12px 14px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 12 }}>
-                <p style={{ margin: 0, fontSize: 13, color: '#4ade80' }}>✓ No API key needed — connects to your local Ollama instance at localhost:11434</p>
+            ) : (
+              <div style={{ marginBottom: 20, padding: '12px 14px', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 12 }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#4ade80', lineHeight: 1.5 }}>✓ Connects to Ollama at localhost:11434 — no key needed</p>
               </div>
             )}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={saveSettings} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', letterSpacing: '-0.01em' }}>Save Settings</button>
-              <button onClick={() => setShowSettings(false)} style={{ padding: '12px 20px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#888', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+              <button onClick={saveSettings} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Save</button>
+              <button onClick={() => setShowSettings(false)} style={{ padding: '12px 18px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#666', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, gap: 0 }}>
+      {/* Chat area — full width */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 800, width: '100%', margin: '0 auto', padding: '0 20px', minHeight: 0 }}>
 
-        {/* Left — Code editor */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid rgba(255,255,255,0.05)', minWidth: 0 }}>
-          <div style={{ padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: 10, color: '#3a3a3a', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Code · Optional</div>
-          <textarea
-            value={code}
-            onChange={e => setCode(e.target.value)}
-            placeholder="// Paste your code here..."
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '20px', color: '#c9d1d9', fontSize: 13, fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", monospace', resize: 'none', lineHeight: 1.7 }}
-          />
+        {/* Messages */}
+        <div ref={responseRef} style={{ flex: 1, overflowY: 'scroll', scrollbarWidth: 'none', padding: '20px 0 12px', minHeight: 0 }}>
+          {!response && !loading && (
+            <div style={{ textAlign: 'center', marginTop: 40 }}>
+              <div style={{ width: 64, height: 64, borderRadius: 20, background: 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(6,182,212,0.15))', border: '1px solid rgba(124,58,237,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, margin: '0 auto 20px' }}>⚡</div>
+              <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#e0e0e0' }}>How can Zappr help?</h2>
+              <p style={{ margin: 0, fontSize: 14, color: '#333', lineHeight: 1.6 }}>Fix bugs · Explain code · Create components · Add types</p>
+
+              {/* Suggestion cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 20, textAlign: 'left' }}>
+                {[
+                  { icon: '🔧', title: 'Fix my code', desc: 'Paste code and describe the bug' },
+                  { icon: '📖', title: 'Explain this', desc: 'Understand complex code instantly' },
+                  { icon: '✨', title: 'Create a component', desc: 'Generate React, Vue, or vanilla JS' },
+                  { icon: '🧪', title: 'Write tests', desc: 'Unit tests for your functions' },
+                ].map(s => (
+                  <button key={s.title} onClick={() => setPrompt(s.title)} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, cursor: 'pointer', textAlign: 'left', animation: 'slideUp 0.4s ease' }}>
+                    <div style={{ fontSize: 18, marginBottom: 6 }}>{s.icon}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#c0c0c0', marginBottom: 3 }}>{s.title}</div>
+                    <div style={{ fontSize: 12, color: '#3a3a3a' }}>{s.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {loading && !response && (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 24 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>⚡</div>
+              <div style={{ padding: '10px 0', color: '#444', fontSize: 14 }}>Thinking...</div>
+            </div>
+          )}
+
+          {response && (
+            <div>
+              {/* User message */}
+              {prompt && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+                  <div style={{ maxWidth: '80%', padding: '12px 16px', background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '16px 16px 4px 16px', fontSize: 14, color: '#e0e0e0', lineHeight: 1.6 }}>{prompt}</div>
+                </div>
+              )}
+              {/* Zappr response */}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', animation: 'fadeIn 0.3s ease' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>⚡</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>Zappr <span style={{ color: '#333', fontWeight: 400 }}>· {provider}</span></div>
+                  <div style={{ fontSize: 14, lineHeight: 1.75, color: '#d0d0d0' }}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
+                      components={markdownComponents}
+                    >{response}</ReactMarkdown>
+                    {loading && <span style={{ display: 'inline-block', width: 2, height: 16, background: '#7c3aed', borderRadius: 2, marginLeft: 2, animation: 'blink 1s step-end infinite', verticalAlign: 'middle' }} />}
+                  </div>
+                  <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+                    <button onClick={() => navigator.clipboard.writeText(response).catch(() => null)} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, fontSize: 11, color: '#555', cursor: 'pointer' }}>Copy</button>
+                    <button onClick={() => { setResponse(''); setPrompt(''); setCode('') }} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, fontSize: 11, color: '#555', cursor: 'pointer' }}>New Chat</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Right — Zappr */}
-        <div style={{ width: 440, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'rgba(255,255,255,0.01)' }}>
+        {/* Input area */}
+        <div style={{ paddingBottom: 20, flexShrink: 0 }}>
+          {/* Code attach preview */}
+          {code && (
+            <div style={{ marginBottom: 8, padding: '8px 14px', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 12, color: '#a78bfa' }}>📄 Code attached ({code.split('\n').length} lines)</span>
+              <button onClick={() => setCode('')} style={{ marginLeft: 'auto', fontSize: 11, color: '#555', background: 'none', border: 'none', cursor: 'pointer' }}>✕ Remove</button>
+            </div>
+          )}
 
-          {/* Response area */}
-          <div ref={responseRef} style={{ flex: 1, overflowY: 'auto', padding: '20px', minHeight: 0 }}>
-            {!response && !loading && (
-              <div style={{ textAlign: 'center', marginTop: 80 }}>
-                <div style={{ width: 56, height: 56, borderRadius: 18, background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(6,182,212,0.2))', border: '1px solid rgba(124,58,237,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, margin: '0 auto 16px' }}>⚡</div>
-                <p style={{ color: '#333', fontSize: 14, margin: 0, lineHeight: 1.6 }}>Ask Zappr anything<br /><span style={{ color: '#2a2a2a', fontSize: 12 }}>Fix bugs · Explain code · Create components</span></p>
-              </div>
-            )}
-            {loading && !response && (
-              <div style={{ textAlign: 'center', marginTop: 80 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, margin: '0 auto 12px', animation: 'pulse 1.5s ease-in-out infinite' }}>⚡</div>
-                <p style={{ color: '#444', fontSize: 13, margin: 0 }}>Thinking...</p>
-              </div>
-            )}
-            {response && (
-              <div style={{ fontSize: 14, lineHeight: 1.75, color: '#e0e0e0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                  <div style={{ width: 24, height: 24, borderRadius: 8, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>⚡</div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#a78bfa' }}>Zappr</span>
-                  <span style={{ fontSize: 11, color: '#444' }}>· {provider}</span>
-                </div>
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
-                  components={markdownComponents}
-                >{response}</ReactMarkdown>
-                <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: 8 }}>
-                  <button onClick={() => { void navigator.clipboard.writeText(response) }} style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, fontSize: 11, color: '#666', cursor: 'pointer' }}>Copy</button>
-                  <button onClick={() => { setResponse(''); setPrompt('') }} style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, fontSize: 11, color: '#666', cursor: 'pointer' }}>New Chat</button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Quick prompts */}
-          <div style={{ padding: '10px 16px', display: 'flex', gap: 6, flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-            {['Fix errors', 'Explain code', 'Add TypeScript types', 'Write unit tests', 'Refactor'].map(s => (
-              <button key={s} onClick={() => setPrompt(s)} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, fontSize: 11, color: '#4a4a4a', cursor: 'pointer', transition: 'all 0.15s' }}>{s}</button>
-            ))}
-          </div>
-
-          {/* Input */}
-          <div style={{ padding: '12px 16px 16px' }}>
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 0 0 1px rgba(124,58,237,0) , 0 8px 32px rgba(0,0,0,0.3)' }}>
-              <textarea
-                value={prompt}
-                onChange={e => setPrompt(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void run() } }}
-                placeholder="Ask Zappr anything about your code..."
-                rows={3}
-                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', padding: '14px 16px', color: '#f0f0f0', fontSize: 14, resize: 'none', fontFamily: 'inherit', lineHeight: 1.6 }}
-              />
-              <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                <span style={{ fontSize: 10, color: '#2a2a2a' }}>↵ Send · ⇧↵ New line</span>
-                <button onClick={() => void run()} disabled={loading} style={{ padding: '8px 20px', background: loading ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: 'none', borderRadius: 10, color: loading ? '#444' : '#fff', fontWeight: 700, fontSize: 13, cursor: loading ? 'not-allowed' : 'pointer', letterSpacing: '-0.01em', boxShadow: loading ? 'none' : '0 4px 12px rgba(124,58,237,0.4)' }}>
+          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+            <textarea
+              value={prompt}
+              onChange={e => setPrompt(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void run() } }}
+              placeholder="Ask Zappr anything about your code..."
+              rows={3}
+              style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', padding: '16px 18px 8px', color: '#f0f0f0', fontSize: 15, resize: 'none', fontFamily: 'inherit', lineHeight: 1.6 }}
+            />
+            <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* Code attach button */}
+              <label style={{ cursor: 'pointer', padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, fontSize: 12, color: '#555', display: 'flex', alignItems: 'center', gap: 6 }}>
+                📎 Attach code
+                <input type="file" accept=".ts,.tsx,.js,.jsx,.py,.go,.rs,.java,.cpp,.c,.html,.css,.json" onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (file) { const reader = new FileReader(); reader.onload = ev => setCode(String(ev.target?.result ?? '')); reader.readAsText(file) }
+                }} style={{ display: 'none' }} />
+              </label>
+              {/* Paste code button */}
+              <button onClick={async () => { try { const text = await navigator.clipboard.readText(); setCode(text) } catch { /* denied */ } }} style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, fontSize: 12, color: '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                📋 Paste code
+              </button>
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 10, color: '#2a2a2a' }}>↵ Send</span>
+                <button onClick={() => void run()} disabled={loading} style={{ padding: '9px 22px', background: loading ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: 'none', borderRadius: 12, color: loading ? '#444' : '#fff', fontWeight: 700, fontSize: 13, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 4px 16px rgba(124,58,237,0.4)' }}>
                   {loading ? '...' : '⚡ Zap'}
                 </button>
               </div>
