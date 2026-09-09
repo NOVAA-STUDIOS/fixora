@@ -7,6 +7,7 @@ import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
+import { createTwoFilesPatch } from 'diff'
 
 type Message = { role: 'user' | 'assistant'; content: string }
 
@@ -30,11 +31,15 @@ export default function AppPage() {
   const [provider, setProvider] = useState('gemini')
   const [prompt, setPrompt] = useState('')
   const [code, setCode] = useState('')
+  const [attachedFileName, setAttachedFileName] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [streamingText, setStreamingText] = useState('')
   const [loading, setLoading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [originalCode, setOriginalCode] = useState('')
+  const [showDiff, setShowDiff] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const responseRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -56,6 +61,28 @@ export default function AppPage() {
     localStorage.setItem('fixora_api_key', apiKey)
     localStorage.setItem('fixora_provider', provider)
     setShowSettings(false)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = () => setIsDragging(false)
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    setAttachedFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = ev => {
+      const text = String(ev.target?.result ?? '')
+      setCode(text)
+      setOriginalCode(text)
+    }
+    reader.readAsText(file)
   }
 
   const run = async () => {
@@ -99,7 +126,21 @@ export default function AppPage() {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: theme === 'dark' ? 'linear-gradient(160deg, #0a0a0f 0%, #080808 50%, #0a080f 100%)' : 'linear-gradient(160deg, #f8f8f8 0%, #ffffff 50%, #f5f5ff 100%)', color: theme === 'dark' ? '#f0f0f0' : '#111', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' }}>
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: theme === 'dark' ? 'linear-gradient(160deg, #0a0a0f 0%, #080808 50%, #0a080f 100%)' : 'linear-gradient(160deg, #f8f8f8 0%, #ffffff 50%, #f5f5ff 100%)', color: theme === 'dark' ? '#f0f0f0' : '#111', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' }}
+    >
+      {isDragging && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(124,58,237,0.15)', border: '3px dashed rgba(124,58,237,0.5)', borderRadius: 20, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', pointerEvents: 'none' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📂</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#a78bfa' }}>Drop your file here</div>
+            <div style={{ fontSize: 13, color: '#7c3aed', marginTop: 6 }}>Supports JS, TS, Python, Go, Rust and more</div>
+          </div>
+        </div>
+      )}
       <style>{`
         :root {
           --bg: ${theme === 'dark' ? '#080808' : '#f8f8f8'};
@@ -214,8 +255,41 @@ export default function AppPage() {
                     {i === messages.length - 1 && (
                       <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
                         <button onClick={() => navigator.clipboard.writeText(msg.content).catch(() => null)} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, fontSize: 11, color: '#555', cursor: 'pointer' }}>Copy</button>
+                        {originalCode && msg.content.includes('```') && (
+                          <button
+                            onClick={() => setShowDiff(!showDiff)}
+                            style={{ padding: '5px 12px', background: showDiff ? 'rgba(124,58,237,0.15)' : 'rgba(255,255,255,0.04)', border: showDiff ? '1px solid rgba(124,58,237,0.3)' : '1px solid rgba(255,255,255,0.07)', borderRadius: 20, fontSize: 11, color: showDiff ? '#a78bfa' : '#555', cursor: 'pointer' }}>
+                            {showDiff ? 'Hide diff' : '⬡ Show diff'}
+                          </button>
+                        )}
                       </div>
                     )}
+                    {i === messages.length - 1 && showDiff && originalCode && (() => {
+                      const codeMatch = /```[\w]*\n([\s\S]*?)```/.exec(msg.content)
+                      const newCode = codeMatch?.[1] ?? ''
+                      if (!newCode) return null
+
+                      const lines = createTwoFilesPatch('original', 'fixed', originalCode, newCode).split('\n').slice(4)
+
+                      return (
+                        <div style={{ marginTop: 12, borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', fontFamily: '"JetBrains Mono", monospace', fontSize: 12 }}>
+                          <div style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 11, color: '#555', display: 'flex', gap: 16 }}>
+                            <span style={{ color: '#f87171' }}>− original</span>
+                            <span style={{ color: '#4ade80' }}>+ fixed</span>
+                          </div>
+                          <div style={{ maxHeight: 300, overflowY: 'auto', background: '#0d1117' }}>
+                            {lines.map((line, idx) => (
+                              <div key={idx} style={{
+                                padding: '1px 14px',
+                                background: line.startsWith('+') ? 'rgba(74,222,128,0.08)' : line.startsWith('-') ? 'rgba(248,113,113,0.08)' : 'transparent',
+                                color: line.startsWith('+') ? '#4ade80' : line.startsWith('-') ? '#f87171' : '#666',
+                                whiteSpace: 'pre',
+                              }}>{line}</div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
               </div>
@@ -246,8 +320,8 @@ export default function AppPage() {
         <div style={{ paddingBottom: 24, flexShrink: 0 }}>
           {code && (
             <div style={{ marginBottom: 8, padding: '8px 14px', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 12, color: '#a78bfa' }}>📄 Code attached ({code.split('\n').length} lines)</span>
-              <button onClick={() => setCode('')} style={{ marginLeft: 'auto', fontSize: 11, color: '#555', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+              <span style={{ fontSize: 12, color: '#a78bfa' }}>📄 {attachedFileName || 'Code attached'} ({code.split('\n').length} lines)</span>
+              <button onClick={() => { setCode(''); setAttachedFileName('') }} style={{ marginLeft: 'auto', fontSize: 11, color: '#555', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
             </div>
           )}
 
@@ -258,7 +332,7 @@ export default function AppPage() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
               <input type="file" accept=".ts,.tsx,.js,.jsx,.py,.go,.rs,.java,.cpp,.c,.html,.css,.json" onChange={e => {
                 const file = e.target.files?.[0]
-                if (file) { const reader = new FileReader(); reader.onload = ev => setCode(String(ev.target?.result ?? '')); reader.readAsText(file) }
+                if (file) { setAttachedFileName(file.name); const reader = new FileReader(); reader.onload = ev => { const text = String(ev.target?.result ?? ''); setCode(text); setOriginalCode(text) }; reader.readAsText(file) }
               }} style={{ display: 'none' }} />
             </label>
 
