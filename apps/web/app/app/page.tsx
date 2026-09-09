@@ -63,6 +63,25 @@ export default function AppPage() {
     setShowSettings(false)
   }
 
+  const exportChat = () => {
+    if (messages.length === 0) return
+
+    const md = messages.map(msg => {
+      if (msg.role === 'user') return `## You\n\n${msg.content}\n`
+      return `## Zappr\n\n${msg.content}\n`
+    }).join('\n---\n\n')
+
+    const content = `# Fixora Chat Export\n\n_Exported on ${new Date().toLocaleDateString()}_\n\n---\n\n${md}`
+
+    const blob = new Blob([content], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `fixora-chat-${Date.now()}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -161,6 +180,15 @@ export default function AppPage() {
           {messages.length > 0 && (
             <button onClick={() => { setMessages([]); setStreamingText(''); setCode('') }} style={{ fontSize: 12, color: '#555', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer' }}>
               New Chat
+            </button>
+          )}
+          {messages.length > 0 && (
+            <button
+              onClick={exportChat}
+              style={{ fontSize: 12, color: '#555', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer' }}
+              title="Export chat as Markdown"
+            >
+              ↓ Export
             </button>
           )}
           <button
