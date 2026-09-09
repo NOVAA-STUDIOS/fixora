@@ -210,7 +210,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
         ref={panelRef}
         className={
           sidebar
-            ? 'flex h-full min-h-0 w-full flex-col overflow-y-auto bg-[#0a0a0a]'
+            ? 'flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0a0a0a]'
             : 'zappr-rgb animate-ios-dialog-enter absolute right-4 bottom-4 z-50 w-[360px] max-w-[90vw] flex flex-col'
         }
         style={
@@ -416,7 +416,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
           )}
 
           {(streamingText !== '' || chatResponse !== null) && lastTerminalCommand === null && lastKeyUpdateProvider === null && lastShortcutCreated === null && (
-          <div className={cn('flex flex-col rounded-xl border border-white/10 bg-white/5', sidebar ? 'mx-4 mb-4' : 'mx-3 mb-3')}>
+          <div className={cn('flex flex-col rounded-xl border border-white/10 bg-white/5', sidebar ? 'mx-4 mb-4 min-h-0 flex-1' : 'mx-3 mb-3')}>
             <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-2">
               <img src={zapprMascot} alt="" className="size-5 object-contain" />
               <span className="text-[11px] font-semibold text-accent">Zappr</span>
@@ -439,8 +439,8 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
             <div
               ref={responseRef}
               className={cn(
-                'min-h-[80px] max-h-[30vh] overflow-y-auto tracking-[0.01em]',
-                sidebar ? 'px-4 py-3 text-[13px]' : 'px-3 py-2.5 text-[12.5px]',
+                'min-h-[80px] overflow-y-auto tracking-[0.01em]',
+                sidebar ? 'flex-1 px-4 py-3 text-[13px]' : 'max-h-[30vh] px-3 py-2.5 text-[12.5px]',
               )}
               style={{ overflowX: 'hidden' }}
             >
