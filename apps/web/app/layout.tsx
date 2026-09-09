@@ -4,6 +4,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Fixora — AI Code Assistant',
   description: 'Fix, explain, and create code instantly with Fixora AI',
+  icons: { icon: '/fixora-icon.png' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

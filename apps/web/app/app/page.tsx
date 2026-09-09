@@ -94,7 +94,7 @@ export default function AppPage() {
 
       {/* Header */}
       <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, boxShadow: '0 4px 12px rgba(124,58,237,0.35)' }}>⚡</div>
+        <img src="/fixora-icon.png" alt="Fixora" style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover' }} />
         <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>Fixora</span>
         <span style={{ fontSize: 12, color: '#3a3a3a' }}>· Zappr AI</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
@@ -151,7 +151,7 @@ export default function AppPage() {
         <div ref={responseRef} style={{ flex: 1, overflowY: 'scroll', scrollbarWidth: 'none', padding: '20px 0 12px', minHeight: 0 }}>
           {messages.length === 0 && !loading && (
             <div style={{ textAlign: 'center', marginTop: 40 }}>
-              <div style={{ width: 64, height: 64, borderRadius: 20, background: 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(6,182,212,0.15))', border: '1px solid rgba(124,58,237,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, margin: '0 auto 20px' }}>⚡</div>
+              <img src="/zappr-mascot.png" alt="Zappr" style={{ width: 64, height: 64, borderRadius: 20, objectFit: 'contain', margin: '0 auto 20px', display: 'block' }} />
               <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#e0e0e0' }}>How can Zappr help?</h2>
               <p style={{ margin: 0, fontSize: 14, color: '#333', lineHeight: 1.6 }}>Fix bugs · Explain code · Create components · Add types</p>
 
@@ -176,7 +176,7 @@ export default function AppPage() {
           {messages.map((msg, i) => (
             <div key={i} style={{ marginBottom: 24, display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: 12, alignItems: 'flex-start' }}>
               {msg.role === 'assistant' && (
-                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>⚡</div>
+                <img src="/zappr-mascot.png" alt="Zappr" style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'contain', flexShrink: 0 }} />
               )}
               <div style={{ maxWidth: '85%' }}>
                 {msg.role === 'user' ? (
@@ -199,7 +199,7 @@ export default function AppPage() {
           {/* Streaming text */}
           {streamingText && (
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 24 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>⚡</div>
+              <img src="/zappr-mascot.png" alt="Zappr" style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'contain', flexShrink: 0 }} />
               <div style={{ flex: 1, fontSize: 14, lineHeight: 1.75, color: '#d0d0d0' }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>Zappr · {provider}</div>
                 <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>{streamingText}</ReactMarkdown>
@@ -210,7 +210,7 @@ export default function AppPage() {
 
           {loading && !streamingText && (
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 24 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>⚡</div>
+              <img src="/zappr-mascot.png" alt="Zappr" style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'contain', flexShrink: 0 }} />
               <div style={{ fontSize: 13, color: '#444' }}>Thinking...</div>
             </div>
           )}

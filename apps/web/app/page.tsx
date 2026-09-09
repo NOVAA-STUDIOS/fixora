@@ -7,7 +7,7 @@ export default function Home() {
 
       {/* Nav */}
       <nav style={{ padding: '16px 32px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.04)', position: 'sticky', top: 0, background: 'rgba(8,8,8,0.85)', backdropFilter: 'blur(20px)', zIndex: 10 }}>
-        <div style={{ width: 30, height: 30, borderRadius: 9, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, boxShadow: '0 4px 12px rgba(124,58,237,0.4)' }}>⚡</div>
+        <img src="/fixora-icon.png" alt="Fixora" style={{ width: 30, height: 30, borderRadius: 9, objectFit: 'cover' }} />
         <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>Fixora</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
           <a href="https://fixora-opal.vercel.app" style={{ fontSize: 13, color: '#555', textDecoration: 'none', padding: '7px 16px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)' }}>Download</a>
@@ -81,7 +81,7 @@ export default function Home() {
       {/* CTA */}
       <section style={{ textAlign: 'center', padding: '80px 24px 100px' }}>
         <div style={{ maxWidth: 520, margin: '0 auto', padding: '48px 40px', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 28 }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>⚡</div>
+          <img src="/zappr-mascot.png" alt="Zappr" style={{ width: 56, height: 56, borderRadius: 18, objectFit: 'contain', marginBottom: 16 }} />
           <h2 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 12px', letterSpacing: '-0.03em' }}>Ready to fix your code?</h2>
           <p style={{ fontSize: 14, color: '#555', margin: '0 0 28px', lineHeight: 1.6 }}>Free to use. No account required. Bring your own API key.</p>
           <Link href="/app" style={{ display: 'inline-block', padding: '14px 36px', background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', borderRadius: 14, color: '#fff', fontWeight: 700, fontSize: 15, textDecoration: 'none', boxShadow: '0 8px 32px rgba(124,58,237,0.35)' }}>
