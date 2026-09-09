@@ -217,45 +217,52 @@ export default function AppPage() {
         </div>
 
         {/* Input area */}
-        <div style={{ paddingBottom: 20, flexShrink: 0 }}>
-          {/* Code attach preview */}
+        <div style={{ paddingBottom: 24, flexShrink: 0 }}>
           {code && (
             <div style={{ marginBottom: 8, padding: '8px 14px', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 12, color: '#a78bfa' }}>📄 Code attached ({code.split('\n').length} lines)</span>
-              <button onClick={() => setCode('')} style={{ marginLeft: 'auto', fontSize: 11, color: '#555', background: 'none', border: 'none', cursor: 'pointer' }}>✕ Remove</button>
+              <button onClick={() => setCode('')} style={{ marginLeft: 'auto', fontSize: 11, color: '#555', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
             </div>
           )}
 
-          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 28, display: 'flex', alignItems: 'flex-end', gap: 8, padding: '8px 8px 8px 16px', boxShadow: '0 4px 24px rgba(0,0,0,0.3)' }}>
+
+            {/* Attach button */}
+            <label style={{ cursor: 'pointer', padding: '6px', borderRadius: 8, display: 'flex', alignItems: 'center', color: '#444', flexShrink: 0, marginBottom: 2 }} title="Attach code file">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              <input type="file" accept=".ts,.tsx,.js,.jsx,.py,.go,.rs,.java,.cpp,.c,.html,.css,.json" onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) { const reader = new FileReader(); reader.onload = ev => setCode(String(ev.target?.result ?? '')); reader.readAsText(file) }
+              }} style={{ display: 'none' }} />
+            </label>
+
+            {/* Textarea */}
             <textarea
               value={prompt}
-              onChange={e => setPrompt(e.target.value)}
+              onChange={e => {
+                setPrompt(e.target.value)
+                e.target.style.height = 'auto'
+                e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+              }}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void run() } }}
-              placeholder="Ask Zappr anything about your code..."
-              rows={3}
-              style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', padding: '16px 18px 8px', color: '#f0f0f0', fontSize: 15, resize: 'none', fontFamily: 'inherit', lineHeight: 1.6 }}
+              placeholder="Message Zappr..."
+              rows={1}
+              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '6px 0', color: '#f0f0f0', fontSize: 15, resize: 'none', fontFamily: 'inherit', lineHeight: 1.6, maxHeight: 200, overflowY: 'auto', scrollbarWidth: 'none' }}
             />
-            <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              {/* Code attach button */}
-              <label style={{ cursor: 'pointer', padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, fontSize: 12, color: '#555', display: 'flex', alignItems: 'center', gap: 6 }}>
-                📎 Attach code
-                <input type="file" accept=".ts,.tsx,.js,.jsx,.py,.go,.rs,.java,.cpp,.c,.html,.css,.json" onChange={e => {
-                  const file = e.target.files?.[0]
-                  if (file) { const reader = new FileReader(); reader.onload = ev => setCode(String(ev.target?.result ?? '')); reader.readAsText(file) }
-                }} style={{ display: 'none' }} />
-              </label>
-              {/* Paste code button */}
-              <button onClick={async () => { try { const text = await navigator.clipboard.readText(); setCode(text) } catch { /* denied */ } }} style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, fontSize: 12, color: '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                📋 Paste code
-              </button>
-              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 10, color: '#2a2a2a' }}>↵ Send</span>
-                <button onClick={() => void run()} disabled={loading} style={{ padding: '9px 22px', background: loading ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: 'none', borderRadius: 12, color: loading ? '#444' : '#fff', fontWeight: 700, fontSize: 13, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 4px 16px rgba(124,58,237,0.4)' }}>
-                  {loading ? '...' : '⚡ Zap'}
-                </button>
-              </div>
-            </div>
+
+            {/* Send button */}
+            <button
+              onClick={() => void run()}
+              disabled={loading || !prompt.trim()}
+              style={{ width: 36, height: 36, borderRadius: 20, background: loading || !prompt.trim() ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: loading || !prompt.trim() ? 'not-allowed' : 'pointer', flexShrink: 0, boxShadow: loading || !prompt.trim() ? 'none' : '0 4px 12px rgba(124,58,237,0.4)', transition: 'all 0.2s' }}
+            >
+              {loading
+                ? <span style={{ width: 14, height: 14, border: '2px solid #444', borderTopColor: '#888', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              }
+            </button>
           </div>
+          <p style={{ textAlign: 'center', fontSize: 11, color: '#2a2a2a', marginTop: 10, marginBottom: 0 }}>Fixora can make mistakes. Verify important code.</p>
         </div>
       </div>
     </div>
