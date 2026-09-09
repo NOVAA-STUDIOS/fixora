@@ -3,6 +3,25 @@
 All notable changes to Fixora. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.2.24 (September 9, 2026)
+
+### Zappr AI Agent
+
+- Zappr now opens as a stable sidebar panel alongside the editor, replacing
+  the floating overlay — resize it like any other panel, and it stays put
+  while you work
+- Responses no longer disappear mid-stream; the panel stays mounted
+  throughout the full response
+- Markdown rendering, code blocks, and inline highlights display correctly
+  at all sidebar widths
+- Added mode switcher (Chat, Repair, File, Ask) and quick-prompt chips for
+  common tasks
+- Context chip shows the active file so Zappr always knows what you are
+  working on
+- Panel header shows live provider status
+- Ctrl+I now opens Zappr directly in the sidebar and expands the assistant
+  pane if it was collapsed
+
 ## 1.2.21 (September 6, 2026)
 
 ### Features
