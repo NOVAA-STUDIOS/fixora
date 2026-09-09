@@ -34,6 +34,7 @@ export default function AppPage() {
   const [streamingText, setStreamingText] = useState('')
   const [loading, setLoading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const responseRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -41,6 +42,14 @@ export default function AppPage() {
     const savedProvider = localStorage.getItem('fixora_provider')
     if (saved) setApiKey(saved)
     if (savedProvider) setProvider(savedProvider)
+  }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    setTheme(mq.matches ? 'dark' : 'light')
+    const handler = (e: MediaQueryListEvent) => setTheme(e.matches ? 'dark' : 'light')
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
   }, [])
 
   const saveSettings = () => {
@@ -90,19 +99,36 @@ export default function AppPage() {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'linear-gradient(160deg, #0a0a0f 0%, #080808 50%, #0a080f 100%)', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: theme === 'dark' ? 'linear-gradient(160deg, #0a0a0f 0%, #080808 50%, #0a080f 100%)' : 'linear-gradient(160deg, #f8f8f8 0%, #ffffff 50%, #f5f5ff 100%)', color: theme === 'dark' ? '#f0f0f0' : '#111', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' }}>
+      <style>{`
+        :root {
+          --bg: ${theme === 'dark' ? '#080808' : '#f8f8f8'};
+          --surface: ${theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'};
+          --border: ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'};
+          --text: ${theme === 'dark' ? '#f0f0f0' : '#111'};
+          --text-muted: ${theme === 'dark' ? '#555' : '#888'};
+          --user-bubble: ${theme === 'dark' ? 'rgba(124,58,237,0.12)' : 'rgba(124,58,237,0.08)'};
+        }
+      `}</style>
 
       {/* Header */}
-      <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ padding: '14px 24px', borderBottom: theme === 'dark' ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 12 }}>
         <img src="/fixora-icon.png" alt="Fixora" style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover' }} />
-        <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>Fixora</span>
-        <span style={{ fontSize: 12, color: '#3a3a3a' }}>· Zappr AI</span>
+        <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: theme === 'dark' ? '#f0f0f0' : '#111' }}>Fixora</span>
+        <span style={{ fontSize: 12, color: theme === 'dark' ? '#3a3a3a' : '#666' }}>· Zappr AI</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           {messages.length > 0 && (
             <button onClick={() => { setMessages([]); setStreamingText(''); setCode('') }} style={{ fontSize: 12, color: '#555', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer' }}>
               New Chat
             </button>
           )}
+          <button
+            onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+            style={{ fontSize: 16, padding: '6px 10px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer', lineHeight: 1 }}
+            title="Toggle theme"
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           <a href="/" style={{ fontSize: 12, color: '#444', textDecoration: 'none', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>← Home</a>
           <button onClick={() => setShowSettings(true)} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: (apiKey || provider === 'ollama') ? '#4ade80' : '#f59e0b' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: (apiKey || provider === 'ollama') ? '#4ade80' : '#f59e0b', display: 'inline-block' }} />
@@ -152,8 +178,8 @@ export default function AppPage() {
           {messages.length === 0 && !loading && (
             <div style={{ textAlign: 'center', marginTop: 40 }}>
               <img src="/zappr-mascot.png" alt="Zappr" style={{ width: 64, height: 64, borderRadius: 20, objectFit: 'contain', margin: '0 auto 20px', display: 'block' }} />
-              <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#e0e0e0' }}>How can Zappr help?</h2>
-              <p style={{ margin: 0, fontSize: 14, color: '#333', lineHeight: 1.6 }}>Fix bugs · Explain code · Create components · Add types</p>
+              <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: theme === 'dark' ? '#e0e0e0' : '#111' }}>How can Zappr help?</h2>
+              <p style={{ margin: 0, fontSize: 14, color: theme === 'dark' ? '#333' : '#666', lineHeight: 1.6 }}>Fix bugs · Explain code · Create components · Add types</p>
 
               {/* Suggestion cards */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 20, textAlign: 'left' }}>
@@ -163,10 +189,10 @@ export default function AppPage() {
                   { icon: '✨', title: 'Create a component', desc: 'Generate React, Vue, or vanilla JS' },
                   { icon: '🧪', title: 'Write tests', desc: 'Unit tests for your functions' },
                 ].map(s => (
-                  <button key={s.title} onClick={() => setPrompt(s.title)} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, cursor: 'pointer', textAlign: 'left', animation: 'slideUp 0.4s ease' }}>
+                  <button key={s.title} onClick={() => setPrompt(s.title)} style={{ padding: '12px 14px', background: theme === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.03)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.08)', borderRadius: 14, cursor: 'pointer', textAlign: 'left', animation: 'slideUp 0.4s ease' }}>
                     <div style={{ fontSize: 18, marginBottom: 6 }}>{s.icon}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#c0c0c0', marginBottom: 3 }}>{s.title}</div>
-                    <div style={{ fontSize: 12, color: '#3a3a3a' }}>{s.desc}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: theme === 'dark' ? '#c0c0c0' : '#222', marginBottom: 3 }}>{s.title}</div>
+                    <div style={{ fontSize: 12, color: theme === 'dark' ? '#3a3a3a' : '#666' }}>{s.desc}</div>
                   </button>
                 ))}
               </div>
@@ -180,7 +206,7 @@ export default function AppPage() {
               )}
               <div style={{ maxWidth: '85%' }}>
                 {msg.role === 'user' ? (
-                  <div style={{ padding: '12px 16px', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '16px 16px 4px 16px', fontSize: 14, color: '#e0e0e0', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                  <div style={{ padding: '12px 16px', background: theme === 'dark' ? 'rgba(124,58,237,0.12)' : 'rgba(124,58,237,0.08)', border: theme === 'dark' ? '1px solid rgba(124,58,237,0.2)' : '1px solid rgba(124,58,237,0.15)', borderRadius: '16px 16px 4px 16px', fontSize: 14, color: theme === 'dark' ? '#e0e0e0' : '#1a1a1a', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
                 ) : (
                   <div style={{ fontSize: 14, lineHeight: 1.75, color: '#d0d0d0', animation: 'fadeIn 0.3s ease' }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>Zappr · {provider}</div>
@@ -225,7 +251,7 @@ export default function AppPage() {
             </div>
           )}
 
-          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 28, display: 'flex', alignItems: 'flex-end', gap: 8, padding: '8px 8px 8px 16px', boxShadow: '0 4px 24px rgba(0,0,0,0.3)' }}>
+          <div style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)', borderRadius: 28, display: 'flex', alignItems: 'flex-end', gap: 8, padding: '8px 8px 8px 16px', boxShadow: '0 4px 24px rgba(0,0,0,0.3)' }}>
 
             {/* Attach button */}
             <label style={{ cursor: 'pointer', padding: '6px', borderRadius: 8, display: 'flex', alignItems: 'center', color: '#444', flexShrink: 0, marginBottom: 2 }} title="Attach code file">
@@ -247,7 +273,7 @@ export default function AppPage() {
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void run() } }}
               placeholder="Message Zappr..."
               rows={1}
-              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '6px 0', color: '#f0f0f0', fontSize: 15, resize: 'none', fontFamily: 'inherit', lineHeight: 1.6, maxHeight: 200, overflowY: 'auto', scrollbarWidth: 'none' }}
+              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '6px 0', color: theme === 'dark' ? '#f0f0f0' : '#111', fontSize: 15, resize: 'none', fontFamily: 'inherit', lineHeight: 1.6, maxHeight: 200, overflowY: 'auto', scrollbarWidth: 'none' }}
             />
 
             {/* Send button */}
@@ -262,7 +288,7 @@ export default function AppPage() {
               }
             </button>
           </div>
-          <p style={{ textAlign: 'center', fontSize: 11, color: '#2a2a2a', marginTop: 10, marginBottom: 0 }}>Fixora can make mistakes. Verify important code.</p>
+          <p style={{ textAlign: 'center', fontSize: 11, color: theme === 'dark' ? '#2a2a2a' : '#999', marginTop: 10, marginBottom: 0 }}>Fixora can make mistakes. Verify important code.</p>
         </div>
       </div>
     </div>
