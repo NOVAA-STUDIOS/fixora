@@ -210,7 +210,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
         ref={panelRef}
         className={
           sidebar
-            ? 'flex h-full min-h-0 w-full flex-col overflow-y-auto'
+            ? 'flex h-full min-h-0 w-full flex-col overflow-y-auto bg-[#0a0a0a]'
             : 'zappr-rgb animate-ios-dialog-enter absolute right-4 bottom-4 z-50 w-[360px] max-w-[90vw] flex flex-col'
         }
         style={
@@ -237,15 +237,22 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                 }
           }
         >
+          {sidebar && (
+            <div style={{ height: '3px', background: 'linear-gradient(90deg, #7c3aed, #06b6d4, #7c3aed)', opacity: 0.9, flexShrink: 0 }} />
+          )}
           <div
             onMouseDown={sidebar ? undefined : handleHeaderMouseDown}
             className={cn(
-              'flex items-center gap-2.5 px-4 py-3 select-none',
+              'flex items-center gap-2.5 select-none',
+              sidebar ? 'px-5 py-4' : 'px-4 py-3',
               !sidebar && 'cursor-grab active:cursor-grabbing',
             )}
           >
             <div
-              className="flex size-8 shrink-0 items-center justify-center rounded-[10px]"
+              className={cn(
+                'flex shrink-0 items-center justify-center',
+                sidebar ? 'size-9 rounded-[12px]' : 'size-8 rounded-[10px]',
+              )}
               style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.25), rgba(6,182,212,0.25))', border: '1px solid rgba(124,58,237,0.25)' }}
             >
               <img
@@ -255,10 +262,10 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
               />
             </div>
             <div className="flex flex-col">
-              <span className="text-[13px] font-semibold leading-none tracking-[-0.02em] text-fg">Zappr</span>
+              <span className={cn('leading-none tracking-[-0.02em] text-fg', sidebar ? 'text-[14px] font-bold' : 'text-[13px] font-semibold')}>Zappr</span>
               <div className="mt-1 flex items-center gap-1.5">
-                <div className="size-[5px] rounded-full bg-green-500" />
-                <span className="text-[10px]" style={{ letterSpacing: '0.02em', color: '#3a3a3a' }}>{isRunning ? 'Zapping...' : 'ready'}</span>
+                <div className={cn('rounded-full bg-green-500', sidebar ? 'size-[6px]' : 'size-[5px]')} />
+                <span className={sidebar ? 'text-[11px]' : 'text-[10px]'} style={{ letterSpacing: '0.02em', color: '#3a3a3a' }}>{isRunning ? 'Zapping...' : 'ready'}</span>
               </div>
             </div>
             {!sidebar && (
@@ -275,7 +282,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
             )}
           </div>
 
-          <div className="mx-4 mb-3 flex gap-1 rounded-[10px] p-1.5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+          <div className={cn('mx-4 mb-3 flex rounded-[10px] p-1.5', sidebar ? 'gap-1.5' : 'gap-1')} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
             {MODE_PILLS.map((m) => {
               const storeMode = m === 'ask' ? 'chat' : m;
               const active = selectedPill === m;
@@ -287,7 +294,10 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                     setSelectedPill(m);
                     useZapprStore.setState({ mode: storeMode });
                   }}
-                  className="flex-1 rounded-[7px] py-[5px] text-[10px] font-medium capitalize transition-all"
+                  className={cn(
+                    'flex-1 rounded-[7px] font-medium capitalize transition-all',
+                    sidebar ? 'py-[6px] text-[11px]' : 'py-[5px] text-[10px]',
+                  )}
                   style={
                     active
                       ? { background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.25)', color: '#a78bfa' }
@@ -406,7 +416,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
           )}
 
           {(streamingText !== '' || chatResponse !== null) && lastTerminalCommand === null && lastKeyUpdateProvider === null && lastShortcutCreated === null && (
-          <div className="mx-3 mb-3 flex flex-col rounded-xl border border-white/10 bg-white/5">
+          <div className={cn('flex flex-col rounded-xl border border-white/10 bg-white/5', sidebar ? 'mx-4 mb-4' : 'mx-3 mb-3')}>
             <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-2">
               <img src={zapprMascot} alt="" className="size-5 object-contain" />
               <span className="text-[11px] font-semibold text-accent">Zappr</span>
@@ -428,7 +438,10 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
 
             <div
               ref={responseRef}
-              className="min-h-[80px] max-h-[30vh] overflow-y-auto px-3 py-2.5 text-[12.5px] tracking-[0.01em]"
+              className={cn(
+                'min-h-[80px] max-h-[30vh] overflow-y-auto tracking-[0.01em]',
+                sidebar ? 'px-4 py-3 text-[13px]' : 'px-3 py-2.5 text-[12.5px]',
+              )}
               style={{ overflowX: 'hidden' }}
             >
               <ReactMarkdown
@@ -560,7 +573,10 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                 // Shift+Enter = new line (default textarea behavior)
               }}
               placeholder='Try "Create a login page with React" or "Add dark mode toggle"'
-              className="max-h-[150px] min-h-[60px] w-full resize-none rounded-xl p-4 text-sm text-fg outline-none transition-colors placeholder:text-fg-muted focus:shadow-[0_0_20px_rgba(124,58,237,0.15)] focus:ring-2 focus:ring-accent/40"
+              className={cn(
+                'max-h-[150px] w-full resize-none rounded-xl text-fg outline-none transition-colors placeholder:text-fg-muted focus:shadow-[0_0_20px_rgba(124,58,237,0.15)] focus:ring-2 focus:ring-accent/40',
+                sidebar ? 'min-h-[80px] px-4 py-3.5 text-[13px]' : 'min-h-[60px] p-4 text-sm',
+              )}
               style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px' }}
               autoFocus
             />
@@ -568,7 +584,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
         )}
 
         {!isRunning && plan === null && (
-          <div className="mt-2 flex shrink-0 items-center gap-2 px-4 pb-3">
+          <div className={cn('mt-2 flex shrink-0 items-center gap-2', sidebar ? 'px-5 pb-4' : 'px-4 pb-3')}>
             <div className="flex flex-1 gap-1.5 overflow-hidden">
               {activeFile !== null && (
                 <div
@@ -584,7 +600,10 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
               type="button"
               onClick={() => void run()}
               disabled={prompt.trim() === ''}
-              className="flex shrink-0 items-center gap-1.5 rounded-[8px] px-4 py-[7px] text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+              className={cn(
+                'flex shrink-0 items-center gap-1.5 rounded-[8px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40',
+                sidebar ? 'px-5 py-2 text-[12px]' : 'px-4 py-[7px] text-[11px]',
+              )}
               style={{ background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: '1px solid rgba(124,58,237,0.5)' }}
             >
               ⚡ Zap
@@ -593,7 +612,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
         )}
 
         {!isRunning && plan === null && (
-          <div className="shrink-0 px-4 pb-3" style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+          <div className={cn('shrink-0', sidebar ? 'px-5 pb-4' : 'px-4 pb-3')} style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
             <div className="flex flex-wrap gap-1.5 pt-3">
               {QUICK_PROMPTS.map((suggestion) => (
                 <button
@@ -602,7 +621,10 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                   onClick={() => {
                     setPrompt(suggestion);
                   }}
-                  className="rounded-full px-2.5 py-1 text-[10px] transition-colors hover:border-white/10"
+                  className={cn(
+                    'rounded-full transition-colors hover:border-white/10',
+                    sidebar ? 'px-3 py-1.5 text-[11px]' : 'px-2.5 py-1 text-[10px]',
+                  )}
                   style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', color: '#4a4a4a' }}
                 >
                   {suggestion}
