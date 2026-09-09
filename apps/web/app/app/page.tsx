@@ -11,6 +11,28 @@ import { createTwoFilesPatch } from 'diff'
 
 type Message = { role: 'user' | 'assistant'; content: string }
 
+// Web Speech API — not part of TypeScript's standard DOM lib, so declared minimally here.
+interface SpeechRecognitionEvent extends Event {
+  results: { [index: number]: { [index: number]: { transcript: string } } }
+}
+interface SpeechRecognition extends EventTarget {
+  lang: string
+  interimResults: boolean
+  maxAlternatives: number
+  start: () => void
+  onstart: (() => void) | null
+  onend: (() => void) | null
+  onerror: (() => void) | null
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition
+    webkitSpeechRecognition: new () => SpeechRecognition
+  }
+}
+
 const markdownComponents: Components = {
   code: ({ className, children }) => {
     const isBlock = className?.startsWith('language-') === true
@@ -40,6 +62,7 @@ export default function AppPage() {
   const [originalCode, setOriginalCode] = useState('')
   const [showDiff, setShowDiff] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [isListening, setIsListening] = useState(false)
   const responseRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -102,6 +125,29 @@ export default function AppPage() {
       setOriginalCode(text)
     }
     reader.readAsText(file)
+  }
+
+  const startVoice = () => {
+    const SpeechRecognition = window.SpeechRecognition ?? window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      alert('Voice input not supported in this browser. Try Chrome.')
+      return
+    }
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'en-US'
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+
+    recognition.onstart = () => setIsListening(true)
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = event.results[0]?.[0]?.transcript ?? ''
+      setPrompt(prev => prev + (prev ? ' ' : '') + transcript)
+    }
+
+    recognition.start()
   }
 
   const run = async () => {
@@ -363,6 +409,20 @@ export default function AppPage() {
                 if (file) { setAttachedFileName(file.name); const reader = new FileReader(); reader.onload = ev => { const text = String(ev.target?.result ?? ''); setCode(text); setOriginalCode(text) }; reader.readAsText(file) }
               }} style={{ display: 'none' }} />
             </label>
+
+            {/* Mic button */}
+            <button
+              onClick={startVoice}
+              style={{ padding: '6px', borderRadius: 8, background: isListening ? 'rgba(239,68,68,0.15)' : 'transparent', border: isListening ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent', cursor: 'pointer', color: isListening ? '#ef4444' : '#444', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+              title="Voice input"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            </button>
 
             {/* Textarea */}
             <textarea
