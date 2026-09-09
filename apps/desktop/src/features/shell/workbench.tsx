@@ -395,7 +395,12 @@ function AssistantPanel(): React.JSX.Element {
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
-        {zapprOpen ? <ZapprSidebarContent /> : mode === 'proceed' ? <ProceedView /> : <AiPanel />}
+        <div className={zapprOpen ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+          <ZapprSidebarContent />
+        </div>
+        <div className={!zapprOpen ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+          {mode === 'proceed' ? <ProceedView /> : <AiPanel />}
+        </div>
       </div>
     </div>
   );
