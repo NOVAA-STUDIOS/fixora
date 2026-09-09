@@ -815,6 +815,8 @@ export const contracts = {
       /** Editor UI state — only the renderer knows this, so it rides along with the request. */
       activeFile: z.string().nullable().optional(),
       openTabs: z.array(z.string()).optional(),
+      selectedCode: z.string().nullable().optional(),
+      selectedCodeFile: z.string().nullable().optional(),
     }),
     response: z.object({ ok: z.boolean(), error: z.string().optional() }),
   },

@@ -39,3 +39,14 @@ export function activeSelectionRange(): { startLine: number; endLine: number } |
   if (selection === undefined || selection === null || selection.isEmpty()) return null;
   return { startLine: selection.startLineNumber, endLine: selection.endLineNumber };
 }
+
+/** The selected text when there is a real (non-empty) selection, else null. */
+export function activeSelectionText(): string | null {
+  const editor = mounted;
+  if (editor === null) return null;
+  const selection = editor.getSelection();
+  if (selection === null || selection.isEmpty()) return null;
+  const model = editor.getModel();
+  if (model === null) return null;
+  return model.getValueInRange(selection);
+}

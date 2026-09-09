@@ -343,6 +343,9 @@ export function useAppCommands(): Command[] {
         group: 'AI',
         run: () => {
           setPaletteOpen(false);
+          // Zappr now renders inside the assistant sidebar tab, not a floating overlay — the
+          // pane must be expanded or the panel has nothing to appear in.
+          if (!useUiStore.getState().aiPanelVisible) useUiStore.setState({ aiPanelVisible: true });
           useZapprStore.getState().open();
         },
       },

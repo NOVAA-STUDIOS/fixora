@@ -27,6 +27,9 @@ interface ZapprContext {
   recentErrors: string[];
   gitBranch: string | null;
   platform: NodeJS.Platform;
+  /** The renderer's current editor selection, if any — the primary context when present. */
+  selectedCode: string | null;
+  selectedCodeFile: string | null;
 }
 
 /** Best-effort — a request with no active file/tabs still gets project + git context. */
@@ -34,6 +37,8 @@ function buildZapprContext(
   rootPath: string,
   activeFile: string | null,
   openTabs: string[],
+  selectedCode: string | null = null,
+  selectedCodeFile: string | null = null,
 ): ZapprContext {
   let activeFileContent: string | null = null;
   if (activeFile !== null) {
@@ -66,6 +71,8 @@ function buildZapprContext(
     recentErrors: [],
     gitBranch,
     platform: process.platform,
+    selectedCode,
+    selectedCodeFile,
   };
 }
 
@@ -79,6 +86,10 @@ function buildContextBlock(ctx: ZapprContext): string {
   let block = `CONTEXT:\n${lines.join('\n')}\n`;
   if (ctx.activeFileContent !== null) {
     block += `\nActive file content (${ctx.activeFile ?? ''}):\n\`\`\`\n${ctx.activeFileContent}\n\`\`\`\n`;
+  }
+  // Prepended — the AI should treat the user's editor selection as the primary context.
+  if (ctx.selectedCode !== null) {
+    block = `=== SELECTED CODE ===\nFile: ${ctx.selectedCodeFile ?? 'unknown'}\n${ctx.selectedCode}\n=== END SELECTED CODE ===\n\n${block}`;
   }
   return block;
 }
@@ -232,7 +243,13 @@ User: ${userPrompt}`;
 }
 
 export interface ZapprService {
-  run(prompt: string, activeFile: string | null, openTabs: string[]): Promise<{ ok: boolean; error?: string }>;
+  run(
+    prompt: string,
+    activeFile: string | null,
+    openTabs: string[],
+    selectedCode: string | null,
+    selectedCodeFile: string | null,
+  ): Promise<{ ok: boolean; error?: string }>;
   cancel(): void;
   getContext(): Promise<{ files: string[]; hasPackageJson: boolean }>;
 }
@@ -429,6 +446,8 @@ export function createZapprService(
     prompt: string,
     activeFile: string | null,
     openTabs: string[],
+    selectedCode: string | null,
+    selectedCodeFile: string | null,
   ): Promise<{ ok: boolean; error?: string }> {
     cancelled = false;
     log.debug('[Zappr] Request received', { message: prompt.slice(0, 100), workspaceRoot: workspace.getCurrent()?.rootPath ?? null });
@@ -447,22 +466,24 @@ export function createZapprService(
     log.debug('[Zappr] Mode detected', { mode });
     emit('zappr:mode', { mode });
 
-    if (mode === 'file') return runFileMode(prompt, activeFile, openTabs);
-    if (mode === 'repair') return runRepairMode(prompt, activeFile, openTabs);
-    return runChatMode(prompt, activeFile, openTabs);
+    if (mode === 'file') return runFileMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile);
+    if (mode === 'repair') return runRepairMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile);
+    return runChatMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile);
   }
 
   async function runChatMode(
     prompt: string,
     activeFile: string | null,
     openTabs: string[],
+    selectedCode: string | null,
+    selectedCodeFile: string | null,
   ): Promise<{ ok: boolean; error?: string }> {
     const open = workspace.getCurrent();
     const workspaceName = open?.name ?? 'No project';
     const contextBlock = buildContextBlock(
       open === null
-        ? { workspaceRoot: '', projectName: workspaceName, activeFile: null, activeFileContent: null, openTabs: [], recentErrors: [], gitBranch: null, platform: process.platform }
-        : buildZapprContext(open.rootPath, activeFile, openTabs),
+        ? { workspaceRoot: '', projectName: workspaceName, activeFile: null, activeFileContent: null, openTabs: [], recentErrors: [], gitBranch: null, platform: process.platform, selectedCode, selectedCodeFile }
+        : buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile),
     );
 
     const request: ProviderRequest = {
@@ -525,12 +546,14 @@ export function createZapprService(
     prompt: string,
     activeFile: string | null,
     openTabs: string[],
+    selectedCode: string | null,
+    selectedCodeFile: string | null,
   ): Promise<{ ok: boolean; error?: string }> {
     const open = workspace.getCurrent();
     if (open === null) return { ok: false, error: 'No project is open.' };
 
     const files = await listContextFiles(open.rootPath, workspace);
-    const contextBlock = buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs));
+    const contextBlock = buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile));
     const systemPrompt = buildSystemPrompt(open.name, files, prompt, contextBlock);
 
     const request: ProviderRequest = {
@@ -606,6 +629,8 @@ export function createZapprService(
     prompt: string,
     activeFile: string | null,
     openTabs: string[],
+    selectedCode: string | null,
+    selectedCodeFile: string | null,
   ): Promise<{ ok: boolean; error?: string }> {
     const open = workspace.getCurrent();
     if (open === null) return { ok: false, error: 'No project is open.' };
@@ -625,7 +650,7 @@ export function createZapprService(
       return { ok: false, error: `Could not read ${activeFile}: ${error instanceof Error ? error.message : String(error)}` };
     }
 
-    const contextBlock = buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs));
+    const contextBlock = buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile));
     const repairPrompt = buildRepairPrompt(activeFile, fileContent, contextBlock, prompt);
 
     const request: ProviderRequest = {

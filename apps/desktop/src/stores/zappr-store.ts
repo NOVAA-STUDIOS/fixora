@@ -33,6 +33,8 @@ type ZapprState = {
   lastTerminalCommand: string | null;
   lastKeyUpdateProvider: string | null;
   lastShortcutCreated: { keys: string; description: string; unresolved: boolean } | null;
+  selectedCode: string | null;
+  selectedCodeFile: string | null;
 
   open: () => void;
   close: () => void;
@@ -44,6 +46,7 @@ type ZapprState = {
   setLastTerminalCommand: (cmd: string | null) => void;
   setLastKeyUpdateProvider: (provider: string | null) => void;
   setLastShortcutCreated: (v: { keys: string; description: string; unresolved: boolean } | null) => void;
+  setSelectedCode: (code: string | null, file: string | null) => void;
   executeAction: (action: ZapprAction) => Promise<string | null>;
   run: () => Promise<void>;
   cancel: () => Promise<void>;
@@ -71,6 +74,8 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   lastTerminalCommand: null,
   lastKeyUpdateProvider: null,
   lastShortcutCreated: null,
+  selectedCode: null,
+  selectedCodeFile: null,
 
   open: () => {
     set({
@@ -135,6 +140,10 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
 
   setLastShortcutCreated: (v) => {
     set({ lastShortcutCreated: v });
+  },
+
+  setSelectedCode: (code, file) => {
+    set({ selectedCode: code, selectedCodeFile: file });
   },
 
   executeAction: async (action) => {
@@ -215,12 +224,15 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
     if (prompt === '') return;
     const workspaceRoot = useWorkspaceStore.getState().workspace?.rootPath ?? '';
     const { activeTab, tabs } = useEditorStore.getState();
+    const { selectedCode, selectedCodeFile } = get();
     set({ isRunning: true, error: null });
     const result = await invoke('zappr:run', {
       prompt,
       workspaceRoot,
       activeFile: activeTab,
       openTabs: tabs.map((t) => t.relPath),
+      selectedCode,
+      selectedCodeFile,
     });
     if (!result.ok || !result.value.ok) {
       set({

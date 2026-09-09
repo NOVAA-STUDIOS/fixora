@@ -7,6 +7,11 @@ import remarkMath from 'remark-math';
 
 import zapprMascot from '../../assets/zappr-mascot.png';
 import { useZapprStore } from '../../stores/zappr-store.js';
+import { useEditorStore } from '../editor/editor-store.js';
+
+const QUICK_PROMPTS = ['fix errors in file', 'create component', 'run git status', 'explain this code'];
+/** 'ask' is a display-only alias for 'chat' — the store has no separate mode for it. */
+const MODE_PILLS = ['chat', 'repair', 'file', 'ask'] as const;
 
 /** Tailwind classes, not inline CSS vars — this file styles everything through the design-token
  *  utility classes (text-fg, bg-hover, etc.), not raw `var(--...)` references. */
@@ -42,7 +47,7 @@ const markdownComponents: Components = {
  * finding-grounded repair pipeline: the user describes what they want in prose, the model proposes
  * a plan of file creates/edits/deletes, and each step executes and reports individually.
  */
-export function ZapprPanel(): React.JSX.Element | null {
+export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): React.JSX.Element | null {
   const isOpen = useZapprStore((s) => s.isOpen);
   const isRunning = useZapprStore((s) => s.isRunning);
   const prompt = useZapprStore((s) => s.prompt);
@@ -58,6 +63,8 @@ export function ZapprPanel(): React.JSX.Element | null {
   const lastTerminalCommand = useZapprStore((s) => s.lastTerminalCommand);
   const lastKeyUpdateProvider = useZapprStore((s) => s.lastKeyUpdateProvider);
   const lastShortcutCreated = useZapprStore((s) => s.lastShortcutCreated);
+  const selectedCode = useZapprStore((s) => s.selectedCode);
+  const selectedCodeFile = useZapprStore((s) => s.selectedCodeFile);
   const close = useZapprStore((s) => s.close);
   const setPrompt = useZapprStore((s) => s.setPrompt);
   const clearError = useZapprStore((s) => s.clearError);
@@ -65,8 +72,29 @@ export function ZapprPanel(): React.JSX.Element | null {
   const cancel = useZapprStore((s) => s.cancel);
   const listen = useZapprStore((s) => s.listen);
   const [copied, setCopied] = useState(false);
+  const activeFile = useEditorStore((s) => s.activeTab);
+  // 'chat' and 'ask' both map to the store's 'chat' mode, so the active pill can't be derived
+  // from `mode` alone — tracked separately here to tell the two apart.
+  const [selectedPill, setSelectedPill] = useState<(typeof MODE_PILLS)[number]>('chat');
 
   useEffect(() => listen(), [listen]);
+
+  // Temporarily disabled — selection polling was interfering with panel state.
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     const text = activeSelectionText();
+  //     const file = useEditorStore.getState().activeTab;
+  //     const current = useZapprStore.getState();
+  //     if (current.selectedCode === text && current.selectedCodeFile === (text ? file : null)) return;
+  //     useZapprStore.setState({
+  //       selectedCode: text,
+  //       selectedCodeFile: text ? file : null,
+  //     });
+  //   }, 500);
+  //   return () => {
+  //     clearInterval(interval);
+  //   };
+  // }, []);
 
   useEffect(() => {
     console.warn('[Zappr:UI] State →', mode, isRunning ? 'running' : 'idle');
@@ -76,11 +104,8 @@ export function ZapprPanel(): React.JSX.Element | null {
   const responseRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = responseRef.current;
-    if (el === null) return;
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    if (isRunning || isNearBottom) {
-      el.scrollTop = el.scrollHeight;
+    if (isRunning && responseRef.current !== null) {
+      responseRef.current.scrollTop = responseRef.current.scrollHeight;
     }
   }, [streamingText, chatResponse, isRunning]);
 
@@ -91,15 +116,22 @@ export function ZapprPanel(): React.JSX.Element | null {
   }, [isRunning]);
 
   // Mouse drag was unreliable with GPU compositing disabled — Alt+Arrow keys move the panel
-  // instead, in fixed steps, always starting from screen center.
+  // instead, in fixed steps, always starting from screen center. Dragging/repositioning makes no
+  // sense for the docked sidebar embedding, so this is floating-only.
+  const isOpenRef = useRef(isOpen);
   useEffect(() => {
-    if (!isOpen) return;
-    const panel = panelRef.current;
-    if (panel === null) return;
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (sidebar) return;
 
     const STEP = 20;
     const onKey = (e: KeyboardEvent): void => {
+      if (!isOpenRef.current) return;
       if (!e.altKey) return;
+      const panel = panelRef.current;
+      if (panel === null) return;
       const style = window.getComputedStyle(panel);
       const matrix = new DOMMatrix(style.transform);
       let x = matrix.m41;
@@ -118,7 +150,7 @@ export function ZapprPanel(): React.JSX.Element | null {
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [isOpen]);
+  }, [sidebar]);
 
   // Direct DOM manipulation — no React re-renders during drag.
   function handleHeaderMouseDown(e: React.MouseEvent): void {
@@ -171,46 +203,101 @@ export function ZapprPanel(): React.JSX.Element | null {
     }, 2000);
   }
 
-  if (!isOpen) return null;
+  if (!sidebar && !isOpen) return null;
 
   return (
       <div
         ref={panelRef}
-        className="zappr-rgb animate-ios-dialog-enter absolute right-6 bottom-16 z-50 w-[360px] max-w-[90vw] flex flex-col max-h-[90vh]"
-        style={{
-          borderRadius: '14px',
-          background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
-          padding: '1px',
-        }}
+        className={
+          sidebar
+            ? 'flex h-full min-h-0 w-full flex-col overflow-y-auto'
+            : 'zappr-rgb animate-ios-dialog-enter absolute right-4 bottom-4 z-50 w-[360px] max-w-[90vw] flex flex-col'
+        }
+        style={
+          sidebar
+            ? undefined
+            : {
+                borderRadius: '14px',
+                background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
+                padding: '1px',
+                maxHeight: 'calc(100vh - 80px)',
+              }
+        }
       >
-        <div className="flex flex-col rounded-[13px] bg-[#0d0d0d]">
+        <div
+          className={cn('flex flex-1 flex-col bg-[#0d0d0d]', !sidebar && 'rounded-[13px]')}
+          style={
+            sidebar
+              ? undefined
+              : {
+                  borderTop: '2px solid transparent',
+                  backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(90deg, #7c3aed, #06b6d4, #7c3aed)',
+                  backgroundOrigin: 'border-box',
+                  backgroundClip: 'padding-box, border-box',
+                }
+          }
+        >
           <div
-            onMouseDown={handleHeaderMouseDown}
-            className="flex cursor-grab items-center gap-3 border-b border-border-subtle px-3 pt-3 pb-2.5 select-none active:cursor-grabbing"
+            onMouseDown={sidebar ? undefined : handleHeaderMouseDown}
+            className={cn(
+              'flex items-center gap-2.5 px-4 py-3 select-none',
+              !sidebar && 'cursor-grab active:cursor-grabbing',
+            )}
           >
-            <div className="relative size-10 shrink-0">
+            <div
+              className="flex size-8 shrink-0 items-center justify-center rounded-[10px]"
+              style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.25), rgba(6,182,212,0.25))', border: '1px solid rgba(124,58,237,0.25)' }}
+            >
               <img
                 src={zapprMascot}
                 alt="Zappr"
-                className={cn(
-                  'size-10 object-contain transition-transform',
-                  isRunning ? 'animate-zappr-run' : 'animate-zappr-idle',
-                )}
+                className={cn('size-5 object-contain transition-transform', isRunning ? 'animate-zappr-run' : 'animate-zappr-idle')}
               />
             </div>
-            <div>
-              <h2 className="text-sm font-bold tracking-tight text-fg">Zappr</h2>
-              <p className="text-[10px] text-fg-muted">
-                {isRunning ? 'Zapping...' : 'just zap it into existence'}
-              </p>
+            <div className="flex flex-col">
+              <span className="text-[13px] font-semibold leading-none tracking-[-0.02em] text-fg">Zappr</span>
+              <div className="mt-1 flex items-center gap-1.5">
+                <div className="size-[5px] rounded-full bg-green-500" />
+                <span className="text-[10px]" style={{ letterSpacing: '0.02em', color: '#3a3a3a' }}>{isRunning ? 'Zapping...' : 'ready'}</span>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={close}
-              className="ml-auto rounded-lg p-1.5 text-fg-muted hover:bg-hover"
-            >
-              <CloseIcon className="size-4" />
-            </button>
+            {!sidebar && (
+              <div className="ml-auto flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={close}
+                  className="flex size-7 items-center justify-center rounded-[7px] text-fg-muted transition-colors hover:bg-white/5"
+                  style={{ border: '1px solid rgba(255,255,255,0.06)' }}
+                >
+                  <CloseIcon className="size-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="mx-4 mb-3 flex gap-1 rounded-[10px] p-1.5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+            {MODE_PILLS.map((m) => {
+              const storeMode = m === 'ask' ? 'chat' : m;
+              const active = selectedPill === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    setSelectedPill(m);
+                    useZapprStore.setState({ mode: storeMode });
+                  }}
+                  className="flex-1 rounded-[7px] py-[5px] text-[10px] font-medium capitalize transition-all"
+                  style={
+                    active
+                      ? { background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.25)', color: '#a78bfa' }
+                      : { border: '1px solid transparent', color: '#444' }
+                  }
+                >
+                  {m}
+                </button>
+              );
+            })}
           </div>
 
           {error !== null && (
@@ -226,38 +313,6 @@ export function ZapprPanel(): React.JSX.Element | null {
             >
               Try again
             </button>
-          </div>
-        )}
-
-        {!isRunning && plan === null && (
-          <div className="shrink-0 px-3 py-2.5">
-            <textarea
-              value={prompt}
-              onChange={(e) => {
-                setPrompt(e.target.value);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (prompt.trim() !== '') void run();
-                }
-                // Shift+Enter = new line (default textarea behavior)
-              }}
-              placeholder='Try "Create a login page with React" or "Add dark mode toggle"'
-              className="max-h-[150px] min-h-[60px] w-full resize-none rounded-xl bg-[#1a1a1a] p-4 text-sm text-fg outline-none transition-colors placeholder:text-fg-muted focus:shadow-[0_0_20px_rgba(124,58,237,0.15)] focus:ring-2 focus:ring-accent/40"
-              autoFocus
-            />
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-[11px] text-fg-muted">Enter to run · Shift+Enter for new line</span>
-              <button
-                type="button"
-                onClick={() => void run()}
-                disabled={prompt.trim() === ''}
-                className="rounded-xl bg-gradient-to-r from-purple-600 to-cyan-500 px-6 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-40"
-              >
-                ⚡ Zap
-              </button>
-            </div>
           </div>
         )}
 
@@ -351,7 +406,7 @@ export function ZapprPanel(): React.JSX.Element | null {
           )}
 
           {(streamingText !== '' || chatResponse !== null) && lastTerminalCommand === null && lastKeyUpdateProvider === null && lastShortcutCreated === null && (
-          <div className="mx-3 mb-3 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/5">
+          <div className="mx-3 mb-3 flex flex-col rounded-xl border border-white/10 bg-white/5">
             <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-2">
               <img src={zapprMascot} alt="" className="size-5 object-contain" />
               <span className="text-[11px] font-semibold text-accent">Zappr</span>
@@ -373,7 +428,7 @@ export function ZapprPanel(): React.JSX.Element | null {
 
             <div
               ref={responseRef}
-              className="min-h-[200px] max-h-[50vh] overflow-y-auto px-3 py-2.5 text-[12.5px] tracking-[0.01em]"
+              className="min-h-[80px] max-h-[30vh] overflow-y-auto px-3 py-2.5 text-[12.5px] tracking-[0.01em]"
               style={{ overflowX: 'hidden' }}
             >
               <ReactMarkdown
@@ -456,6 +511,106 @@ export function ZapprPanel(): React.JSX.Element | null {
               </button>
             </div>
           )}
+
+        {!isRunning && plan === null && selectedCode !== null && (
+          <div
+            className="mx-4 mb-2 overflow-hidden rounded-lg"
+            style={{ border: '1px solid rgba(124,58,237,0.2)', background: 'rgba(124,58,237,0.05)' }}
+          >
+            <div
+              className="flex items-center justify-between px-3 py-1.5"
+              style={{ borderBottom: '1px solid rgba(124,58,237,0.1)' }}
+            >
+              <span className="text-[10px] font-medium" style={{ color: '#a78bfa' }}>
+                ⚡ {selectedCodeFile !== null ? (selectedCodeFile.split('/').pop() ?? selectedCodeFile) : 'Selected code'}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  useZapprStore.setState({ selectedCode: null, selectedCodeFile: null });
+                }}
+                className="text-[10px] transition-colors hover:text-fg"
+                style={{ color: '#444' }}
+              >
+                ✕
+              </button>
+            </div>
+            <pre
+              className="max-h-[80px] overflow-x-auto overflow-y-auto px-3 py-2 font-mono text-[11px]"
+              style={{ color: '#666', margin: 0 }}
+            >
+              {selectedCode.slice(0, 300)}
+              {selectedCode.length > 300 ? '...' : ''}
+            </pre>
+          </div>
+        )}
+
+        {!isRunning && plan === null && (
+          <div className="shrink-0 px-3 py-2.5">
+            <textarea
+              value={prompt}
+              onChange={(e) => {
+                setPrompt(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (prompt.trim() !== '') void run();
+                }
+                // Shift+Enter = new line (default textarea behavior)
+              }}
+              placeholder='Try "Create a login page with React" or "Add dark mode toggle"'
+              className="max-h-[150px] min-h-[60px] w-full resize-none rounded-xl p-4 text-sm text-fg outline-none transition-colors placeholder:text-fg-muted focus:shadow-[0_0_20px_rgba(124,58,237,0.15)] focus:ring-2 focus:ring-accent/40"
+              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px' }}
+              autoFocus
+            />
+          </div>
+        )}
+
+        {!isRunning && plan === null && (
+          <div className="mt-2 flex shrink-0 items-center gap-2 px-4 pb-3">
+            <div className="flex flex-1 gap-1.5 overflow-hidden">
+              {activeFile !== null && (
+                <div
+                  className="flex items-center gap-1 rounded-[5px] px-2 py-1 text-[9px] text-fg-muted"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}
+                >
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1h6M1 4h4M1 7h5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" /></svg>
+                  {activeFile.split('/').pop() ?? activeFile}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => void run()}
+              disabled={prompt.trim() === ''}
+              className="flex shrink-0 items-center gap-1.5 rounded-[8px] px-4 py-[7px] text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: '1px solid rgba(124,58,237,0.5)' }}
+            >
+              ⚡ Zap
+            </button>
+          </div>
+        )}
+
+        {!isRunning && plan === null && (
+          <div className="shrink-0 px-4 pb-3" style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+            <div className="flex flex-wrap gap-1.5 pt-3">
+              {QUICK_PROMPTS.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => {
+                    setPrompt(suggestion);
+                  }}
+                  className="rounded-full px-2.5 py-1 text-[10px] transition-colors hover:border-white/10"
+                  style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', color: '#4a4a4a' }}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         </div>
       </div>
   );

@@ -4,6 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef } from 'react';
 import { ErrorBoundary } from '../../app/error-boundary.js';
 import { invoke } from '../../lib/bridge.js';
 import { useUiStore, type PaneSizes } from '../../stores/ui-store.js';
+import { useZapprStore } from '../../stores/zappr-store.js';
 import { AiPanel } from '../ai/ai-panel.js';
 import { EditModeTabs, ProceedView } from '../ai/proceed-panel.js';
 import { EditorArea } from '../editor/editor-area.js';
@@ -180,7 +181,6 @@ export function Workbench(): React.JSX.Element {
       )}
       {activeView !== 'terminal' && <WorkbenchContent />}
       <ShieldPanel />
-      <ZapprPanel />
     </div>
   );
 }
@@ -370,15 +370,41 @@ function AssistantPanel(): React.JSX.Element {
   // From the store, not local state: the Problems panel's Explain button switches to this tab.
   const mode = useUiStore((s) => s.editMode);
   const setMode = useUiStore((s) => s.setEditMode);
+  const zapprOpen = useZapprStore((s) => s.isOpen);
+  const setZapprOpen = (v: boolean): void => {
+    useZapprStore.setState({ isOpen: v });
+  };
   // A flex column that owns the pane's height. The first version returned a bare Fragment, so the tab
   // strip and the `h-full` AiPanel were siblings with no height distribution — together they exceeded
   // the pane, squeezing the strip and overflowing the panel. `min-h-0` lets the body actually shrink.
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <EditModeTabs active={mode} onChange={setMode} />
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {mode === 'proceed' ? <ProceedView /> : <AiPanel />}
+      <div className="flex items-center border-b border-border-subtle px-2">
+        <EditModeTabs active={mode} onChange={(m) => { setMode(m); }} />
+        <button
+          type="button"
+          onClick={() => { setZapprOpen(!zapprOpen); }}
+          className={cn(
+            'ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors',
+            zapprOpen
+              ? 'bg-accent/10 text-accent'
+              : 'text-fg-muted hover:bg-white/5 hover:text-fg',
+          )}
+        >
+          ⚡ Zappr
+        </button>
       </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {zapprOpen ? <ZapprSidebarContent /> : mode === 'proceed' ? <ProceedView /> : <AiPanel />}
+      </div>
+    </div>
+  );
+}
+
+function ZapprSidebarContent(): React.JSX.Element {
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <ZapprPanel sidebar />
     </div>
   );
 }
