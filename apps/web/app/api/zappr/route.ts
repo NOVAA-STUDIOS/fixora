@@ -9,12 +9,21 @@ const MODELS: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest) {
-  const { prompt, code, apiKey, provider = 'gemini' } = await req.json() as { prompt: string; code: string; apiKey: string; provider: string }
+  const { prompt, messages = [], apiKey, provider = 'gemini' } = await req.json() as {
+    prompt: string
+    messages: Array<{ role: string; content: string }>
+    apiKey: string
+    provider: string
+  }
   if (!apiKey && provider !== 'ollama') return new Response('API key required', { status: 401 })
   if (!prompt) return new Response('Prompt required', { status: 400 })
 
   const model = MODELS[provider] ?? MODELS.gemini!
-  const systemPrompt = `You are Zappr, an expert AI coding assistant by Fixora (NOVAA Studios). Help the user fix, explain, and create code. Be concise and use markdown with code blocks.${code ? `\n\nUser's code:\n\`\`\`\n${code}\n\`\`\`` : ''}`
+  const systemPrompt = 'You are Zappr, an expert AI coding assistant by Fixora (NOVAA Studios). Help the user fix, explain, and create code. Be concise and use markdown with code blocks.'
+
+  // The conversation so far (already includes the latest user turn — the client appends it
+  // before sending), converted into each provider's own history shape.
+  const history = messages.length > 0 ? messages : [{ role: 'user', content: prompt }]
 
   let url: string
   let headers: Record<string, string>
@@ -23,20 +32,37 @@ export async function POST(req: NextRequest) {
   if (provider === 'gemini') {
     url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`
     headers = { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }
-    body = { contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + prompt }] }] }
+    body = {
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+    }
   } else if (provider === 'anthropic') {
     url = 'https://api.anthropic.com/v1/messages'
     headers = { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
-    body = { model, messages: [{ role: 'user', content: prompt }], system: systemPrompt, stream: true, max_tokens: 4096 }
+    body = {
+      model,
+      messages: history.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+      system: systemPrompt,
+      stream: true,
+      max_tokens: 4096,
+    }
   } else if (provider === 'ollama') {
     url = 'http://localhost:11434/v1/chat/completions'
     headers = { 'Content-Type': 'application/json' }
-    body = { model, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }], stream: true }
+    body = {
+      model,
+      messages: [{ role: 'system', content: systemPrompt }, ...history.map(m => ({ role: m.role, content: m.content }))],
+      stream: true,
+    }
   } else {
     const baseUrl = provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1'
     url = `${baseUrl}/chat/completions`
     headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }
-    body = { model, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }], stream: true }
+    body = {
+      model,
+      messages: [{ role: 'system', content: systemPrompt }, ...history.map(m => ({ role: m.role, content: m.content }))],
+      stream: true,
+    }
   }
 
   const upstream = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })

@@ -8,6 +8,8 @@ import 'katex/dist/katex.min.css'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
 
+type Message = { role: 'user' | 'assistant'; content: string }
+
 const markdownComponents: Components = {
   code: ({ className, children }) => {
     const isBlock = className?.startsWith('language-') === true
@@ -28,7 +30,8 @@ export default function AppPage() {
   const [provider, setProvider] = useState('gemini')
   const [prompt, setPrompt] = useState('')
   const [code, setCode] = useState('')
-  const [response, setResponse] = useState('')
+  const [messages, setMessages] = useState<Message[]>([])
+  const [streamingText, setStreamingText] = useState('')
   const [loading, setLoading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const responseRef = useRef<HTMLDivElement>(null)
@@ -49,26 +52,38 @@ export default function AppPage() {
   const run = async () => {
     if (!prompt.trim()) return
     if (!apiKey && provider !== 'ollama') { setShowSettings(true); return }
+
+    const userMessage: Message = { role: 'user', content: prompt + (code ? `\n\n\`\`\`\n${code}\n\`\`\`` : '') }
+    const newMessages = [...messages, userMessage]
+    setMessages(newMessages)
+    setPrompt('')
+    setCode('')
+    setStreamingText('')
     setLoading(true)
-    setResponse('')
+
     try {
       const res = await fetch('/api/zappr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, code, apiKey, provider })
+        body: JSON.stringify({ prompt: userMessage.content, messages: newMessages, apiKey, provider })
       })
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
       if (!reader) throw new Error('No response body')
+      let fullText = ''
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
         const chunk = decoder.decode(value)
-        setResponse(prev => prev + chunk)
+        fullText += chunk
+        setStreamingText(fullText)
         if (responseRef.current) responseRef.current.scrollTop = responseRef.current.scrollHeight
       }
+      setMessages(prev => [...prev, { role: 'assistant', content: fullText }])
+      setStreamingText('')
     } catch (e) {
-      setResponse('Error: ' + String(e))
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + String(e) }])
+      setStreamingText('')
     } finally {
       setLoading(false)
     }
@@ -83,6 +98,11 @@ export default function AppPage() {
         <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>Fixora</span>
         <span style={{ fontSize: 12, color: '#3a3a3a' }}>· Zappr AI</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {messages.length > 0 && (
+            <button onClick={() => { setMessages([]); setStreamingText(''); setCode('') }} style={{ fontSize: 12, color: '#555', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer' }}>
+              New Chat
+            </button>
+          )}
           <a href="/" style={{ fontSize: 12, color: '#444', textDecoration: 'none', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>← Home</a>
           <button onClick={() => setShowSettings(true)} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: (apiKey || provider === 'ollama') ? '#4ade80' : '#f59e0b' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: (apiKey || provider === 'ollama') ? '#4ade80' : '#f59e0b', display: 'inline-block' }} />
@@ -129,7 +149,7 @@ export default function AppPage() {
 
         {/* Messages */}
         <div ref={responseRef} style={{ flex: 1, overflowY: 'scroll', scrollbarWidth: 'none', padding: '20px 0 12px', minHeight: 0 }}>
-          {!response && !loading && (
+          {messages.length === 0 && !loading && (
             <div style={{ textAlign: 'center', marginTop: 40 }}>
               <div style={{ width: 64, height: 64, borderRadius: 20, background: 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(6,182,212,0.15))', border: '1px solid rgba(124,58,237,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, margin: '0 auto 20px' }}>⚡</div>
               <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#e0e0e0' }}>How can Zappr help?</h2>
@@ -153,38 +173,45 @@ export default function AppPage() {
             </div>
           )}
 
-          {loading && !response && (
+          {messages.map((msg, i) => (
+            <div key={i} style={{ marginBottom: 24, display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: 12, alignItems: 'flex-start' }}>
+              {msg.role === 'assistant' && (
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>⚡</div>
+              )}
+              <div style={{ maxWidth: '85%' }}>
+                {msg.role === 'user' ? (
+                  <div style={{ padding: '12px 16px', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '16px 16px 4px 16px', fontSize: 14, color: '#e0e0e0', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                ) : (
+                  <div style={{ fontSize: 14, lineHeight: 1.75, color: '#d0d0d0', animation: 'fadeIn 0.3s ease' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>Zappr · {provider}</div>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>{msg.content}</ReactMarkdown>
+                    {i === messages.length - 1 && (
+                      <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                        <button onClick={() => navigator.clipboard.writeText(msg.content).catch(() => null)} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, fontSize: 11, color: '#555', cursor: 'pointer' }}>Copy</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Streaming text */}
+          {streamingText && (
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 24 }}>
               <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>⚡</div>
-              <div style={{ padding: '10px 0', color: '#444', fontSize: 14 }}>Thinking...</div>
+              <div style={{ flex: 1, fontSize: 14, lineHeight: 1.75, color: '#d0d0d0' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>Zappr · {provider}</div>
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>{streamingText}</ReactMarkdown>
+                <span style={{ display: 'inline-block', width: 2, height: 14, background: '#7c3aed', borderRadius: 2, marginLeft: 2, animation: 'blink 1s step-end infinite', verticalAlign: 'middle' }} />
+              </div>
             </div>
           )}
 
-          {response && (
-            <div>
-              {/* User message */}
-              {prompt && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-                  <div style={{ maxWidth: '80%', padding: '12px 16px', background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '16px 16px 4px 16px', fontSize: 14, color: '#e0e0e0', lineHeight: 1.6 }}>{prompt}</div>
-                </div>
-              )}
-              {/* Zappr response */}
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', animation: 'fadeIn 0.3s ease' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>⚡</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>Zappr <span style={{ color: '#333', fontWeight: 400 }}>· {provider}</span></div>
-                  <div style={{ fontSize: 14, lineHeight: 1.75, color: '#d0d0d0' }}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
-                      components={markdownComponents}
-                    >{response}</ReactMarkdown>
-                    {loading && <span style={{ display: 'inline-block', width: 2, height: 16, background: '#7c3aed', borderRadius: 2, marginLeft: 2, animation: 'blink 1s step-end infinite', verticalAlign: 'middle' }} />}
-                  </div>
-                  <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-                    <button onClick={() => navigator.clipboard.writeText(response).catch(() => null)} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, fontSize: 11, color: '#555', cursor: 'pointer' }}>Copy</button>
-                    <button onClick={() => { setResponse(''); setPrompt(''); setCode('') }} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, fontSize: 11, color: '#555', cursor: 'pointer' }}>New Chat</button>
-                  </div>
-                </div>
-              </div>
+          {loading && !streamingText && (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 24 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>⚡</div>
+              <div style={{ fontSize: 13, color: '#444' }}>Thinking...</div>
             </div>
           )}
         </div>
