@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #080808;
+  --surface-1: #0f0f0f;
+  --surface-2: #141414;
+  --border: rgba(255,255,255,0.06);
+  --accent: #7c3aed;
+  --accent-2: #06b6d4;
+  --text-primary: #f0f0f0;
+  --text-secondary: #888;
+  --text-muted: #444;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text-primary); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; }
