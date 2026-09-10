@@ -30,3 +30,4 @@ packages/core-analysis/vendor/
 # Python bytecode from the validation harness compile step (should never be written into the corpus)
 __pycache__/
 *.pyc
+.suite-out.txt
