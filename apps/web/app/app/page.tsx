@@ -70,6 +70,19 @@ export default function AppPage() {
     const savedProvider = localStorage.getItem('fixora_provider')
     if (saved) setApiKey(saved)
     if (savedProvider) setProvider(savedProvider)
+
+    const params = new URLSearchParams(window.location.search)
+    const share = params.get('share')
+    if (share) {
+      try {
+        const data = JSON.parse(decodeURIComponent(atob(share))) as {
+          messages: Message[]
+          provider: string
+        }
+        setMessages(data.messages)
+        if (data.provider) setProvider(data.provider)
+      } catch { /* invalid share link */ }
+    }
   }, [])
 
   useEffect(() => {
@@ -103,6 +116,26 @@ export default function AppPage() {
     a.download = `fixora-chat-${Date.now()}.md`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const shareChat = async () => {
+    if (messages.length === 0) return
+
+    const data = {
+      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      provider,
+      sharedAt: new Date().toISOString(),
+    }
+
+    const encoded = btoa(encodeURIComponent(JSON.stringify(data)))
+    const url = `${window.location.origin}/app?share=${encoded}`
+
+    try {
+      await navigator.clipboard.writeText(url)
+      alert('Share link copied to clipboard! 🔗')
+    } catch {
+      window.prompt('Copy this link:', url)
+    }
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -235,6 +268,15 @@ export default function AppPage() {
               title="Export chat as Markdown"
             >
               ↓ Export
+            </button>
+          )}
+          {messages.length > 0 && (
+            <button
+              onClick={() => void shareChat()}
+              style={{ fontSize: 12, color: '#555', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer' }}
+              title="Share conversation"
+            >
+              ↗ Share
             </button>
           )}
           <button
