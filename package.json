@@ -10,9 +10,9 @@
   },
   "scripts": {
     "dev": "turbo run dev --filter=@fixora/desktop",
-    "build": "turbo run build --filter=!@fixora/web",
-    "typecheck": "turbo run typecheck --filter=!@fixora/web",
-    "lint": "turbo run lint --filter=!@fixora/web",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "turbo run test",
