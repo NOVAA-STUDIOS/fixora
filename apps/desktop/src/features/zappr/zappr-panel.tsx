@@ -71,6 +71,8 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
   const run = useZapprStore((s) => s.run);
   const cancel = useZapprStore((s) => s.cancel);
   const listen = useZapprStore((s) => s.listen);
+  const messages = useZapprStore((s) => s.messages);
+  const clearMessages = useZapprStore((s) => s.clearMessages);
   const [copied, setCopied] = useState(false);
   const activeFile = useEditorStore((s) => s.activeTab);
   // 'chat' and 'ask' both map to the store's 'chat' mode, so the active pill can't be derived
@@ -310,173 +312,186 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
             })}
           </div>
 
-          {error !== null && (
-          <div role="alert" className="px-3 py-2.5 text-xs text-danger-text bg-danger/10 rounded-lg mx-3 mb-3">
-            ⚡ {error}
-            <button
-              type="button"
-              onClick={() => {
-                clearError();
-                setPrompt('');
-              }}
-              className="ml-2 underline"
-            >
-              Try again
-            </button>
-          </div>
-        )}
-
-        {plan !== null && (
-          <div className="max-h-[300px] space-y-2 overflow-y-auto px-3 py-2.5">
-            {summary !== null && summary !== '' && (
-              <p className="mb-3 text-sm text-fg-secondary">{summary}</p>
+          <div
+            ref={responseRef}
+            className={cn('min-h-0 flex-1 overflow-y-auto', sidebar ? 'px-4 py-3' : 'px-3 py-2.5')}
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {/* Empty state */}
+            {messages.length === 0 && !isRunning && (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                <img src={zapprMascot} alt="Zappr" className="size-12 object-contain opacity-60" />
+                <p className="text-[12px] text-fg-muted">Ask anything about your code</p>
+              </div>
             )}
-            {steps.map(({ step, status }, i) => (
-              <div key={i} className="flex items-center gap-3 py-2">
-                <div
-                  className={cn(
-                    'flex size-5 shrink-0 items-center justify-center rounded-full',
-                    status === 'done'
-                      ? 'bg-success/20 text-success-text'
-                      : status === 'running'
-                        ? 'animate-pulse bg-accent/20 text-accent'
-                        : status === 'error'
-                          ? 'bg-danger/20 text-danger-text'
-                          : 'bg-border-subtle text-fg-muted',
-                  )}
-                >
-                  {status === 'done'
-                    ? '✓'
-                    : status === 'running'
-                      ? '⟳'
-                      : status === 'error'
-                        ? '✗'
-                        : String(i + 1)}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-medium text-fg">{step.filePath}</p>
-                  <p className="text-[11px] text-fg-muted">{step.description}</p>
-                </div>
-                <span
-                  className={cn(
-                    'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
-                    step.type === 'create'
-                      ? 'bg-success/15 text-success-text'
-                      : step.type === 'edit'
-                        ? 'bg-accent/15 text-accent-text'
-                        : 'bg-danger/15 text-danger-text',
-                  )}
-                >
-                  {step.type}
-                </span>
+
+            {/* Message history */}
+            {messages.map((msg) => (
+              <div key={msg.id} className={cn('mb-4', msg.role === 'user' ? 'flex justify-end' : 'flex flex-col gap-1')}>
+                {msg.role === 'user' ? (
+                  <div
+                    className="max-w-[85%] rounded-2xl rounded-tr-sm px-3 py-2 text-[13px] text-fg"
+                    style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.2)' }}
+                  >
+                    {msg.content}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <img src={zapprMascot} alt="" className="size-4 object-contain" />
+                      <span className="text-[10px] font-semibold text-accent">Zappr</span>
+                      <span className="text-[10px] text-fg-muted">
+                        · {msg.type === 'file' ? 'Code agent' : msg.type === 'repair' ? 'Debug mode' : 'Assistant'}
+                      </span>
+                    </div>
+                    {/* Steps */}
+                    {msg.steps && msg.steps.length > 0 && (
+                      <div className="mb-2 space-y-1">
+                        {msg.steps.map((step, i) => (
+                          <div key={i} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <span className={cn(
+                              'flex size-4 shrink-0 items-center justify-center rounded-full text-[9px]',
+                              step.status === 'done' ? 'bg-success/20 text-success-text' :
+                              step.status === 'running' ? 'animate-pulse bg-accent/20 text-accent' :
+                              step.status === 'error' ? 'bg-danger/20 text-danger-text' :
+                              'bg-border-subtle text-fg-muted'
+                            )}>
+                              {step.status === 'done' ? '✓' : step.status === 'running' ? '⟳' : step.status === 'error' ? '✗' : String(i + 1)}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-fg">{step.filePath}</span>
+                            <span className={cn(
+                              'shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium',
+                              step.type === 'create' ? 'bg-success/15 text-success-text' :
+                              step.type === 'edit' ? 'bg-accent/15 text-accent-text' :
+                              'bg-danger/15 text-danger-text'
+                            )}>{step.type}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Terminal command */}
+                    {msg.terminalCommand !== undefined && msg.terminalCommand !== '' && (
+                      <div className="mb-2 rounded-lg px-3 py-2 font-mono text-[11px] text-green-400" style={{ background: 'color-mix(in srgb, black 60%, transparent)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        $ {msg.terminalCommand}
+                      </div>
+                    )}
+                    {/* Chat content */}
+                    {msg.content !== '' && (
+                      <div className="text-[13px] text-fg">
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>
+                          {msg.content}
+                        </ReactMarkdown>
+                        <button
+                          type="button"
+                          onClick={() => void copyToClipboard(msg.content)}
+                          className={cn(
+                            'mt-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors',
+                            copied ? 'bg-success/15 text-success-text' : 'text-fg-muted hover:text-fg',
+                          )}
+                        >
+                          {copied ? '✓ Copied!' : '📋 Copy'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
-          </div>
-        )}
 
-          {lastTerminalCommand !== null && (
-            <div className="mx-3 mb-3 rounded-lg border border-white/10 px-3 py-2" style={{ background: 'color-mix(in srgb, black 60%, transparent)' }}>
-              <p className="font-mono text-[11px] text-green-400">$ {lastTerminalCommand}</p>
-              {chatResponse !== null && (
-                <p className="mt-1 text-[11px] text-fg-muted">{chatResponse}</p>
-              )}
-              {chatResponse !== null && !chatResponse.startsWith('Terminal not open') && (
-                <p className="mt-1 text-[10px] text-fg-muted">→ Sent to terminal</p>
-              )}
-            </div>
-          )}
-
-          {lastKeyUpdateProvider !== null && (
-            <div className="mx-3 mb-3 flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2">
-              <span className="text-sm">🔑</span>
-              <div>
-                <p className="text-[11px] font-medium text-success-text">API key saved</p>
-                <p className="text-[10px] text-fg-muted">Provider: {lastKeyUpdateProvider}</p>
+            {/* Streaming response */}
+            {isRunning && streamingText !== '' && (
+              <div className="mb-4 flex flex-col gap-1">
+                <div className="flex items-center gap-1.5">
+                  <img src={zapprMascot} alt="" className="size-4 animate-pulse object-contain" />
+                  <span className="text-[10px] font-semibold text-accent">Zappr</span>
+                  <span className="animate-pulse text-[10px] text-fg-muted">· thinking...</span>
+                </div>
+                <div className="text-[13px] text-fg">
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>
+                    {streamingText}
+                  </ReactMarkdown>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {lastShortcutCreated !== null && (
-            <div
-              className={cn(
-                'mx-3 mb-3 flex items-center gap-2 rounded-lg border px-3 py-2',
-                lastShortcutCreated.unresolved
-                  ? 'border-warn/30 bg-warn/10'
-                  : 'border-success/30 bg-success/10',
-              )}
-            >
-              <span className="text-sm">⌨</span>
-              <div>
-                <p className={cn('font-mono text-[11px] font-medium', lastShortcutCreated.unresolved ? 'text-warn-text' : 'text-success-text')}>
-                  [{lastShortcutCreated.keys}]
-                </p>
-                <p className="text-[10px] text-fg-muted">→ {lastShortcutCreated.description}</p>
+            {/* Running steps (live) */}
+            {isRunning && plan !== null && (
+              <div className="mb-4 space-y-1">
+                {summary !== null && summary !== '' && (
+                  <p className="mb-2 text-[11px] text-fg-secondary">{summary}</p>
+                )}
+                {steps.map(({ step, status }, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span className={cn(
+                      'flex size-4 shrink-0 items-center justify-center rounded-full text-[9px]',
+                      status === 'done' ? 'bg-success/20 text-success-text' :
+                      status === 'running' ? 'animate-pulse bg-accent/20 text-accent' :
+                      status === 'error' ? 'bg-danger/20 text-danger-text' :
+                      'bg-border-subtle text-fg-muted'
+                    )}>
+                      {status === 'done' ? '✓' : status === 'running' ? '⟳' : status === 'error' ? '✗' : String(i + 1)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-fg">{step.filePath}</span>
+                    <span className={cn(
+                      'shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium',
+                      step.type === 'create' ? 'bg-success/15 text-success-text' :
+                      step.type === 'edit' ? 'bg-accent/15 text-accent-text' :
+                      'bg-danger/15 text-danger-text'
+                    )}>{step.type}</span>
+                  </div>
+                ))}
               </div>
-            </div>
-          )}
+            )}
 
-          {(streamingText !== '' || chatResponse !== null) && lastTerminalCommand === null && lastKeyUpdateProvider === null && lastShortcutCreated === null && (
-          <div className={cn('flex flex-col rounded-xl border border-white/10 bg-white/5', sidebar ? 'mx-4 mb-4 min-h-0 flex-1' : 'mx-3 mb-3')}>
-            <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-2">
-              <img src={zapprMascot} alt="" className="size-5 object-contain" />
-              <span className="text-[11px] font-semibold text-accent">Zappr</span>
-              <span className="ml-1 text-[10px] text-fg-muted">
-                {mode === 'math'
-                  ? '· Math solver'
-                  : mode === 'file'
-                    ? '· Code agent'
-                    : mode === 'repair'
-                      ? '· Debug mode'
-                      : '· Assistant'}
-              </span>
-              {isRunning && (
-                <span className="ml-auto text-[10px] text-fg-muted">
-                  <span className="animate-pulse">●</span> thinking...
-                </span>
-              )}
-            </div>
+            {/* Error */}
+            {error !== null && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg bg-danger/10 px-3 py-2 text-[12px] text-danger-text" style={{ border: '1px solid rgba(239,68,68,0.2)' }}>
+                <span>⚠</span>
+                <div className="flex-1">
+                  {error}
+                  <button type="button" onClick={() => { clearError(); setPrompt(''); }} className="ml-2 underline">Try again</button>
+                </div>
+              </div>
+            )}
 
-            <div
-              ref={responseRef}
-              className={cn(
-                'min-h-[80px] overflow-y-auto tracking-[0.01em]',
-                sidebar ? 'flex-1 px-4 py-3 text-[13px]' : 'max-h-[30vh] px-3 py-2.5 text-[12.5px]',
-              )}
-              style={{ overflowX: 'hidden' }}
-            >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex]}
-                components={markdownComponents}
-              >
-                {streamingText !== '' ? streamingText : chatResponse}
-              </ReactMarkdown>
-            </div>
+            {/* Action cards */}
+            {lastKeyUpdateProvider !== null && (
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2">
+                <span>🔑</span>
+                <div>
+                  <p className="text-[11px] font-medium text-success-text">API key saved</p>
+                  <p className="text-[10px] text-fg-muted">Provider: {lastKeyUpdateProvider}</p>
+                </div>
+              </div>
+            )}
 
-            {chatResponse !== null && !isRunning && (
-              <div className="flex shrink-0 items-center gap-2 border-t border-white/10 px-3 py-2">
-                <button
-                  type="button"
-                  onClick={() => void copyToClipboard(chatResponse)}
-                  className={cn(
-                    'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors',
-                    copied ? 'bg-success/15 text-success-text' : 'text-fg-muted hover:text-fg',
-                  )}
-                >
-                  {copied ? '✓ Copied!' : '📋 Copy'}
-                </button>
+            {lastShortcutCreated !== null && (
+              <div className={cn('mb-4 flex items-center gap-2 rounded-lg border px-3 py-2', lastShortcutCreated.unresolved ? 'border-warn/30 bg-warn/10' : 'border-success/30 bg-success/10')}>
+                <span>⌨</span>
+                <div>
+                  <p className={cn('font-mono text-[11px] font-medium', lastShortcutCreated.unresolved ? 'text-warn-text' : 'text-success-text')}>[{lastShortcutCreated.keys}]</p>
+                  <p className="text-[10px] text-fg-muted">→ {lastShortcutCreated.description}</p>
+                </div>
+              </div>
+            )}
+
+            {lastTerminalCommand !== null && (
+              <div className="mb-4 rounded-lg px-3 py-2" style={{ background: 'color-mix(in srgb, black 60%, transparent)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <p className="font-mono text-[11px] text-green-400">$ {lastTerminalCommand}</p>
+                {chatResponse !== null && <p className="mt-1 text-[11px] text-fg-muted">{chatResponse}</p>}
+                {chatResponse !== null && !chatResponse.startsWith('Terminal not open') && <p className="mt-1 text-[10px] text-fg-muted">→ Sent to terminal</p>}
               </div>
             )}
           </div>
-        )}
 
-        {!isRunning && (steps.length > 0 || chatResponse !== null) && (
+        {!isRunning && (messages.length > 0 || steps.length > 0 || chatResponse !== null) && (
           <div className="shrink-0 border-t border-white/10 px-3 pt-2 pb-3">
             <button
               type="button"
               onClick={() => {
                 clearError();
                 setPrompt('');
+                clearMessages();
                 useZapprStore.setState({
                   steps: [],
                   plan: null,
@@ -494,7 +509,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
               }}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 py-2 text-xs font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg"
             >
-              ⚡ New Zap
+              {messages.length > 0 ? `⚡ New Chat (${String(messages.length)} msgs)` : '⚡ New Zap'}
             </button>
           </div>
         )}

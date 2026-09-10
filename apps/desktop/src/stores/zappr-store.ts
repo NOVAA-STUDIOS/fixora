@@ -10,6 +10,21 @@ import { invoke, subscribe } from '../lib/bridge.js';
 
 import { useUiStore } from './ui-store.js';
 
+export type ZapprMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  type: 'chat' | 'file' | 'repair' | 'terminal' | 'error';
+  steps?: {
+    filePath: string;
+    type: string;
+    description: string;
+    status: 'pending' | 'running' | 'done' | 'error';
+  }[];
+  terminalCommand?: string;
+  timestamp: number;
+};
+
 type StepState = {
   step: ZapprStep;
   status: 'pending' | 'running' | 'done' | 'error';
@@ -35,6 +50,7 @@ type ZapprState = {
   lastShortcutCreated: { keys: string; description: string; unresolved: boolean } | null;
   selectedCode: string | null;
   selectedCodeFile: string | null;
+  messages: ZapprMessage[];
 
   open: () => void;
   close: () => void;
@@ -47,6 +63,8 @@ type ZapprState = {
   setLastKeyUpdateProvider: (provider: string | null) => void;
   setLastShortcutCreated: (v: { keys: string; description: string; unresolved: boolean } | null) => void;
   setSelectedCode: (code: string | null, file: string | null) => void;
+  addMessage: (msg: ZapprMessage) => void;
+  clearMessages: () => void;
   executeAction: (action: ZapprAction) => Promise<string | null>;
   run: () => Promise<void>;
   cancel: () => Promise<void>;
@@ -76,6 +94,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   lastShortcutCreated: null,
   selectedCode: null,
   selectedCodeFile: null,
+  messages: [],
 
   open: () => {
     set({
@@ -144,6 +163,14 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
 
   setSelectedCode: (code, file) => {
     set({ selectedCode: code, selectedCodeFile: file });
+  },
+
+  addMessage: (msg) => {
+    set((state) => ({ messages: [...state.messages, msg] }));
+  },
+
+  clearMessages: () => {
+    set({ messages: [] });
   },
 
   executeAction: async (action) => {
@@ -226,6 +253,13 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
     const { activeTab, tabs } = useEditorStore.getState();
     const { selectedCode, selectedCodeFile } = get();
     set({ isRunning: true, error: null });
+    get().addMessage({
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: prompt,
+      type: 'chat',
+      timestamp: Date.now(),
+    });
     const result = await invoke('zappr:run', {
       prompt,
       workspaceRoot,
@@ -282,11 +316,20 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
     const offDone = subscribe('zappr:done', (payload) => {
       console.warn('[Zappr:UI]', 'zappr:done', payload);
       const { chatResponse } = payload;
+      const prevStreaming = get().streamingText;
+      const prevMode = get().mode;
       set({
         isRunning: false,
         currentFilePath: null,
         currentFileContent: null,
         ...(chatResponse !== undefined ? { chatResponse, streamingText: '' } : {}),
+      });
+      get().addMessage({
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: chatResponse ?? prevStreaming,
+        type: prevMode === null || prevMode === 'math' ? 'chat' : prevMode,
+        timestamp: Date.now(),
       });
     });
     const offActionResult = subscribe('zappr:actionResult', (payload) => {
