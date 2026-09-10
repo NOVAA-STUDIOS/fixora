@@ -5,7 +5,6 @@ const MODELS: Record<string, string> = {
   openai: 'gpt-4o-mini',
   openrouter: 'google/gemini-2.0-flash-exp:free',
   anthropic: 'claude-sonnet-4-6',
-  ollama: 'qwen2.5-coder:7b',
 }
 
 export async function POST(req: NextRequest) {
@@ -15,7 +14,7 @@ export async function POST(req: NextRequest) {
     apiKey: string
     provider: string
   }
-  if (!apiKey && provider !== 'ollama') return new Response('API key required', { status: 401 })
+  if (!apiKey) return new Response('API key required', { status: 401 })
   if (!prompt) return new Response('Prompt required', { status: 400 })
 
   const model = MODELS[provider] ?? MODELS.gemini!
@@ -45,14 +44,6 @@ export async function POST(req: NextRequest) {
       system: systemPrompt,
       stream: true,
       max_tokens: 4096,
-    }
-  } else if (provider === 'ollama') {
-    url = 'http://localhost:11434/v1/chat/completions'
-    headers = { 'Content-Type': 'application/json' }
-    body = {
-      model,
-      messages: [{ role: 'system', content: systemPrompt }, ...history.map(m => ({ role: m.role, content: m.content }))],
-      stream: true,
     }
   } else {
     const baseUrl = provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1'

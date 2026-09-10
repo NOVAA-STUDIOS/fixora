@@ -185,7 +185,7 @@ export default function AppPage() {
 
   const run = async () => {
     if (!prompt.trim()) return
-    if (!apiKey && provider !== 'ollama') { setShowSettings(true); return }
+    if (!apiKey) { setShowSettings(true); return }
 
     const userMessage: Message = { role: 'user', content: prompt + (code ? `\n\n\`\`\`\n${code}\n\`\`\`` : '') }
     const newMessages = [...messages, userMessage]
@@ -301,24 +301,17 @@ export default function AppPage() {
             <h3 style={{ margin: '0 0 20px', fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em' }}>Settings</h3>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Provider</label>
-              <select value={provider} onChange={e => setProvider(e.target.value)} style={{ width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#f0f0f0', fontSize: 14, outline: 'none' }}>
+              <select value={provider} onChange={e => setProvider(e.target.value)} style={{ width: '100%', padding: '11px 14px', background: '#111116', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#f0f0f0', fontSize: 14, outline: 'none', colorScheme: 'dark' }}>
                 <option value="gemini">Google Gemini</option>
                 <option value="openai">OpenAI</option>
                 <option value="openrouter">OpenRouter (Free models)</option>
                 <option value="anthropic">Anthropic Claude</option>
-                <option value="ollama">Ollama (Local)</option>
               </select>
             </div>
-            {provider !== 'ollama' ? (
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>API Key</label>
-                <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Paste your API key..." style={{ width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#f0f0f0', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-              </div>
-            ) : (
-              <div style={{ marginBottom: 20, padding: '12px 14px', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 12 }}>
-                <p style={{ margin: 0, fontSize: 13, color: '#4ade80', lineHeight: 1.5 }}>✓ Connects to Ollama at localhost:11434 — no key needed</p>
-              </div>
-            )}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>API Key</label>
+              <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Paste your API key..." style={{ width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#f0f0f0', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+            </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={saveSettings} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Save</button>
               <button onClick={() => setShowSettings(false)} style={{ padding: '12px 18px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#666', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
