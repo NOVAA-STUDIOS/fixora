@@ -258,7 +258,7 @@ export default function AppPage() {
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           {messages.length > 0 && (
             <button onClick={() => { setMessages([]); setStreamingText(''); setCode('') }} style={{ fontSize: 12, color: '#555', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer' }}>
-              New Chat
+              <span className="header-btn-text">New Chat</span>
             </button>
           )}
           {messages.length > 0 && (
@@ -267,7 +267,7 @@ export default function AppPage() {
               style={{ fontSize: 12, color: '#555', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer' }}
               title="Export chat as Markdown"
             >
-              ↓ Export
+              <span className="header-btn-text">↓ Export</span>
             </button>
           )}
           {messages.length > 0 && (
@@ -276,7 +276,7 @@ export default function AppPage() {
               style={{ fontSize: 12, color: '#555', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer' }}
               title="Share conversation"
             >
-              ↗ Share
+              <span className="header-btn-text">↗ Share</span>
             </button>
           )}
           <button
@@ -286,10 +286,10 @@ export default function AppPage() {
           >
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          <a href="/" style={{ fontSize: 12, color: '#444', textDecoration: 'none', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>← Home</a>
+          <a href="/" style={{ fontSize: 12, color: '#444', textDecoration: 'none', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}><span className="header-btn-text">← Home</span></a>
           <button onClick={() => setShowSettings(true)} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: (apiKey || provider === 'ollama') ? '#4ade80' : '#f59e0b' }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: (apiKey || provider === 'ollama') ? '#4ade80' : '#f59e0b', display: 'inline-block' }} />
-            {(apiKey || provider === 'ollama') ? 'Connected' : 'Setup API Key'}
+            <span className="header-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: (apiKey || provider === 'ollama') ? '#4ade80' : '#f59e0b', display: 'inline-block' }} />
+            <span className="header-btn-text">{(apiKey || provider === 'ollama') ? 'Connected' : 'Setup API Key'}</span>
           </button>
         </div>
       </div>
@@ -328,7 +328,7 @@ export default function AppPage() {
       )}
 
       {/* Chat area — full width */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 800, width: '100%', margin: '0 auto', padding: '0 20px', minHeight: 0 }}>
+      <div className="chat-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 800, width: '100%', margin: '0 auto', padding: '0 20px', minHeight: 0 }}>
 
         {/* Messages */}
         <div ref={responseRef} style={{ flex: 1, overflowY: 'scroll', scrollbarWidth: 'none', padding: '20px 0 12px', minHeight: 0 }}>
@@ -339,7 +339,7 @@ export default function AppPage() {
               <p style={{ margin: 0, fontSize: 14, color: theme === 'dark' ? '#333' : '#666', lineHeight: 1.6 }}>Fix bugs · Explain code · Create components · Add types</p>
 
               {/* Suggestion cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 20, textAlign: 'left' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 20, textAlign: 'left' }}>
                 {[
                   { icon: '🔧', title: 'Fix my code', desc: 'Paste code and describe the bug' },
                   { icon: '📖', title: 'Explain this', desc: 'Understand complex code instantly' },
@@ -441,7 +441,7 @@ export default function AppPage() {
             </div>
           )}
 
-          <div style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)', borderRadius: 28, display: 'flex', alignItems: 'flex-end', gap: 8, padding: '8px 8px 8px 16px', boxShadow: '0 4px 24px rgba(0,0,0,0.3)' }}>
+          <div style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)', borderRadius: 28, display: 'flex', alignItems: 'flex-end', gap: 8, padding: '8px 8px 8px 16px', boxShadow: '0 4px 24px rgba(0,0,0,0.3)', maxWidth: '100%' }}>
 
             {/* Attach button */}
             <label style={{ cursor: 'pointer', padding: '6px', borderRadius: 8, display: 'flex', alignItems: 'center', color: '#444', flexShrink: 0, marginBottom: 2 }} title="Attach code file">

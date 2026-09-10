@@ -22,3 +22,13 @@ body { background: var(--bg); color: var(--text-primary); font-family: -apple-sy
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 768px) {
+  .chat-container { padding: 0 12px !important; }
+  .header-buttons span { display: none; }
+}
+
+@media (max-width: 640px) {
+  .header-btn-text { display: none; }
+  .header-dot { display: inline-block !important; }
+}
