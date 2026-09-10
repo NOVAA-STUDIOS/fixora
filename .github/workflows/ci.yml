@@ -80,7 +80,7 @@ jobs:
         run: pnpm gate:electron
 
       - name: Upload Electronegativity SARIF
-        if: always()
+        if: always() && hashFiles('electronegativity-report.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: electronegativity-report.sarif
