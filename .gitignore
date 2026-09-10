@@ -31,3 +31,5 @@ packages/core-analysis/vendor/
 __pycache__/
 *.pyc
 .suite-out.txt
+
+.vercel

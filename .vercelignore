@@ -1,0 +1,7 @@
+apps/web/.next/
+apps/web/node_modules/
+node_modules/
+apps/desktop/out/
+apps/desktop/release/
+packages/vscode-extension/*.vsix
+.suite-out.txt
