@@ -1,9 +1,0 @@
-
- RUN  v4.1.10 C:/dev/FIXORA/apps/desktop
-
-
- Test Files  109 passed (109)
-      Tests  1217 passed (1217)
-   Start at  14:46:27
-   Duration  252.52s (transform 17.68s, setup 111.69s, import 81.36s, tests 102.99s, environment 375.98s)
-
