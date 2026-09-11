@@ -220,7 +220,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
         }
       >
         <div
-          className={cn('flex flex-1 flex-col bg-[#0d0d0d]', !sidebar && 'rounded-[13px]')}
+          className={cn('flex flex-1 flex-col', sidebar ? 'bg-raised' : 'bg-[#0d0d0d] rounded-[13px]')}
           style={
             sidebar
               ? undefined
@@ -324,7 +324,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                     {msg.steps !== undefined && msg.steps.length > 0 && (
                       <div className="space-y-2">
                         {msg.steps.map((step, i) => (
-                          <div key={i} className="rounded-lg overflow-hidden" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)' }}>
+                          <div key={i} className={cn('rounded-lg overflow-hidden', sidebar && 'bg-hover border border-border-subtle')} style={sidebar ? undefined : { background: '#111', border: '1px solid rgba(255,255,255,0.08)' }}>
                             {/* Step header */}
                             <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                               <span className={cn(
@@ -358,7 +358,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
 
                     {/* Terminal command card */}
                     {msg.terminalCommand !== undefined && msg.terminalCommand !== '' && (
-                      <div className="rounded-lg overflow-hidden" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div className={cn('rounded-lg overflow-hidden', sidebar && 'bg-hover border border-border-subtle')} style={sidebar ? undefined : { background: '#111', border: '1px solid rgba(255,255,255,0.08)' }}>
                         <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                           <span className="size-[6px] rounded-full bg-green-500" />
                           <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-green-400">Bash</span>
@@ -412,7 +412,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                   <p className="mb-2 text-[12px] font-medium text-fg">{summary}</p>
                 )}
                 {steps.map(({ step, status }, i) => (
-                  <div key={i} className="rounded-lg overflow-hidden" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div key={i} className={cn('rounded-lg overflow-hidden', sidebar && 'bg-hover border border-border-subtle')} style={sidebar ? undefined : { background: '#111', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                       <span className={cn(
                         'size-[6px] rounded-full',
@@ -465,7 +465,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
             )}
 
             {lastTerminalCommand !== null && (
-              <div className="mb-4 rounded-lg overflow-hidden" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className={cn('mb-4 rounded-lg overflow-hidden', sidebar && 'bg-hover border border-border-subtle')} style={sidebar ? undefined : { background: '#111', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   <span className="size-[6px] rounded-full bg-green-500" />
                   <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-green-400">Bash</span>
