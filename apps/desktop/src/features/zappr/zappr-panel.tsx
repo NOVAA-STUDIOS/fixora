@@ -49,7 +49,6 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
   const prompt = useZapprStore((s) => s.prompt);
   const plan = useZapprStore((s) => s.plan);
   const steps = useZapprStore((s) => s.steps);
-  const summary = useZapprStore((s) => s.summary);
   const error = useZapprStore((s) => s.error);
   const mode = useZapprStore((s) => s.mode);
   const chatResponse = useZapprStore((s) => s.chatResponse);
@@ -248,7 +247,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                 <span className="text-[10px] text-fg-muted">{isRunning ? 'working...' : 'ready'}</span>
               </div>
               <div className="ml-auto flex items-center gap-2">
-                <span className="text-[10px] text-fg-muted opacity-50">gemini</span>
+                <span className="text-[10px] text-fg-muted opacity-50">AI</span>
                 <button
                   type="button"
                   onClick={() => { useZapprStore.setState({ isOpen: false }); }}
@@ -393,51 +392,61 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
               </div>
             ))}
 
-            {/* Live streaming — Claude Code style */}
-            {isRunning && streamingText !== '' && (
-              <div className="mb-4">
-                <div className="text-[13px] text-fg">
-                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>
-                    {streamingText}
-                  </ReactMarkdown>
-                  <span className="ml-0.5 inline-block h-3 w-[2px] animate-pulse bg-accent align-middle" />
-                </div>
-              </div>
-            )}
-
-            {/* Live steps — Claude Code cards */}
-            {isRunning && plan !== null && (
+            {isRunning && (
               <div className="mb-4 space-y-2">
-                {summary !== null && summary !== '' && (
-                  <p className="mb-2 text-[12px] font-medium text-fg">{summary}</p>
-                )}
+                {/* Preparing step — always shown while running */}
+                <div className="flex items-center gap-2.5">
+                  <span className={cn(
+                    'size-[6px] shrink-0 rounded-full',
+                    streamingText !== '' || steps.length > 0 ? 'bg-green-500' : 'animate-pulse bg-accent'
+                  )} />
+                  <span className="text-[12px] text-fg-muted">
+                    {steps.length > 0
+                      ? 'Planning done'
+                      : streamingText !== ''
+                        ? 'Generating...'
+                        : mode === 'file'
+                          ? 'Analyzing request...'
+                          : mode === 'repair'
+                            ? 'Reading file...'
+                            : 'Thinking...'}
+                  </span>
+                </div>
+
+                {/* Live steps */}
                 {steps.map(({ step, status }, i) => (
-                  <div key={i} className={cn('rounded-lg overflow-hidden', sidebar && 'bg-hover border border-border-subtle')} style={sidebar ? undefined : { background: '#111', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                      <span className={cn(
-                        'size-[6px] rounded-full',
-                        status === 'done' ? 'bg-green-500' :
-                        status === 'running' ? 'animate-pulse bg-accent' :
-                        status === 'error' ? 'bg-red-500' : 'bg-fg-muted'
-                      )} />
-                      <span className={cn(
-                        'rounded px-1.5 py-0.5 text-[10px] font-semibold',
-                        step.type === 'create' ? 'bg-green-500/20 text-green-400' :
-                        step.type === 'edit' ? 'bg-blue-500/20 text-blue-400' :
-                        'bg-red-500/20 text-red-400'
-                      )}>
-                        {step.type === 'create' ? 'Write' : step.type === 'edit' ? 'Edit' : 'Delete'}
-                      </span>
-                      <span className="flex-1 truncate font-mono text-[11px] text-fg-muted">{step.filePath}</span>
-                      <span className="text-[10px] text-fg-muted">
-                        {status === 'done' ? '✓' : status === 'running' ? '...' : status === 'error' ? '✗' : String(i + 1)}
-                      </span>
-                    </div>
-                    <div className="px-3 py-1.5">
-                      <p className="text-[11px] text-fg-muted">{step.description}</p>
-                    </div>
+                  <div key={i} className="flex items-center gap-2.5">
+                    <span className={cn(
+                      'size-[6px] shrink-0 rounded-full',
+                      status === 'done' ? 'bg-green-500' :
+                      status === 'running' ? 'animate-pulse bg-accent' :
+                      status === 'error' ? 'bg-red-500' : 'bg-fg-muted/30'
+                    )} />
+                    <span className={cn(
+                      'text-[12px]',
+                      status === 'done' ? 'text-fg-muted' :
+                      status === 'running' ? 'text-fg font-medium' :
+                      'text-fg-muted/50'
+                    )}>
+                      {status === 'running' ? 'Writing' : status === 'done' ? 'Wrote' : 'Pending'}{' '}
+                      <span className="font-mono">{step.filePath.split('/').pop()}</span>
+                    </span>
+                    {status === 'done' && (
+                      <span className="text-[10px] text-green-500">✓</span>
+                    )}
+                    {status === 'running' && (
+                      <span className="ml-auto text-[10px] animate-pulse text-fg-muted">writing...</span>
+                    )}
                   </div>
                 ))}
+
+                {/* Streaming text preview */}
+                {streamingText !== '' && steps.length === 0 && (
+                  <div className="mt-1 rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <p className="line-clamp-3 font-mono text-[11px] text-fg-muted">{streamingText}</p>
+                    <span className="inline-block h-2.5 w-[2px] animate-pulse bg-accent align-middle ml-0.5" />
+                  </div>
+                )}
               </div>
             )}
 

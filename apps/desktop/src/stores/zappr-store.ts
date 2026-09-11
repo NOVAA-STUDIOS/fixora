@@ -51,6 +51,7 @@ type ZapprState = {
   selectedCode: string | null;
   selectedCodeFile: string | null;
   messages: ZapprMessage[];
+  currentRunId: string | null;
 
   open: () => void;
   close: () => void;
@@ -95,6 +96,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   selectedCode: null,
   selectedCodeFile: null,
   messages: [],
+  currentRunId: null,
 
   open: () => {
     set({
@@ -260,6 +262,8 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       type: 'chat',
       timestamp: Date.now(),
     });
+    const runId = crypto.randomUUID();
+    set({ currentRunId: runId });
     const result = await invoke('zappr:run', {
       prompt,
       workspaceRoot,
@@ -324,13 +328,25 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
         currentFileContent: null,
         ...(chatResponse !== undefined ? { chatResponse, streamingText: '' } : {}),
       });
-      get().addMessage({
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: chatResponse ?? prevStreaming,
-        type: prevMode === null || prevMode === 'math' ? 'chat' : prevMode,
-        timestamp: Date.now(),
-      });
+      const content = chatResponse ?? prevStreaming;
+      const runId = get().currentRunId;
+      if (content !== '' && runId !== null) {
+        set({ currentRunId: null });
+        const prevSteps = get().steps;
+        get().addMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content,
+          type: prevMode === null || prevMode === 'math' ? 'chat' : prevMode,
+          steps: prevSteps.map(({ step, status }) => ({
+            filePath: step.filePath,
+            type: step.type,
+            description: step.description,
+            status,
+          })),
+          timestamp: Date.now(),
+        });
+      }
     });
     const offActionResult = subscribe('zappr:actionResult', (payload) => {
       console.warn('[Zappr:UI]', 'zappr:actionResult', payload);

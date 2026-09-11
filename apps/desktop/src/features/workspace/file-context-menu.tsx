@@ -1,5 +1,6 @@
 import { Button, ConfirmDialog, Dialog, DialogContent, DialogDescription, DialogTitle } from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { basename, dirname } from '../../lib/path.js';
 import { useTestGenerationStore } from '../../stores/test-generation-store.js';
@@ -60,15 +61,12 @@ export function useFileActions(): {
   const dirFor = (target: MenuTarget): string =>
     target.kind === 'file' ? dirname(target.relPath) : target.relPath;
 
-  const menu = (
-    <>
-      {contextMenu !== null && (
+  const menuPortal = contextMenu !== null
+    ? createPortal(
         <>
-          <button
-            type="button"
+          <div
             aria-hidden="true"
-            tabIndex={-1}
-            className="fixed inset-0 z-40 cursor-default"
+            className="fixed inset-0 z-[9998] cursor-default"
             onClick={() => {
               setContextMenu(null);
             }}
@@ -77,7 +75,7 @@ export function useFileActions(): {
             ref={menuRef}
             role="menu"
             style={{ left: adjustedPos?.x ?? contextMenu.x, top: adjustedPos?.y ?? contextMenu.y }}
-            className="fixed z-50 w-44 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+            className="fixed z-[9999] w-44 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
           >
             <MenuItem
               label="New File"
@@ -137,8 +135,14 @@ export function useFileActions(): {
               </>
             )}
           </div>
-        </>
-      )}
+        </>,
+        document.body,
+      )
+    : null;
+
+  const menu = (
+    <>
+      {menuPortal}
 
       <NamePromptDialog
         open={pending?.type === 'newFile' || pending?.type === 'newFolder'}
