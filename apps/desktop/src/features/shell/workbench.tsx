@@ -84,16 +84,16 @@ function PanelFallback(): React.JSX.Element {
  */
 const DEFAULT_LAYOUT: Record<string, Record<string, number>> = {
   // Files: a narrow explorer, VS Code proportions, and the widest possible editor.
-  workspace: { primary: 17, editor: 59, ai: 24 },
+  workspace: { primary: 15, editor: 50, ai: 35 },
   // Problems: the list is the thing being worked, so it earns real width.
-  findings: { primary: 28, editor: 46, ai: 26 },
+  findings: { primary: 22, editor: 43, ai: 35 },
   // History rows carry a verdict, a rationale and a file — wider than a tree, narrower than problems.
-  history: { primary: 25, editor: 50, ai: 25 },
+  history: { primary: 20, editor: 45, ai: 35 },
   // Search results carry a filename, a line and up to three lines of context — closer to problems'
   // width need than the tree's.
-  search: { primary: 28, editor: 46, ai: 26 },
-  packages: { primary: 26, editor: 48, ai: 26 },
-  sourceControl: { primary: 28, editor: 46, ai: 26 },
+  search: { primary: 22, editor: 43, ai: 35 },
+  packages: { primary: 20, editor: 45, ai: 35 },
+  sourceControl: { primary: 22, editor: 43, ai: 35 },
 };
 
 /**
@@ -105,7 +105,7 @@ const DEFAULT_LAYOUT: Record<string, Record<string, number>> = {
  * readable width (a file tree is the thing you navigate from) and the assistant keeps enough to
  * hold a diff, so nothing is hidden or unusable; it is a re-weighting, not a different app.
  */
-const CODE_MODE_LAYOUT: PaneSizes = { primary: 16, editor: 66, ai: 18 };
+const CODE_MODE_LAYOUT: PaneSizes = { primary: 14, editor: 51, ai: 35 };
 
 function PrimaryPanel({ view }: { view: string }): React.JSX.Element {
   if (view === 'workspace')
@@ -193,6 +193,7 @@ function WorkbenchContent(): React.JSX.Element {
   const hasWorkspace = useWorkspaceStore((s) => s.workspace !== null);
   const primaryPanelVisible = useUiStore((s) => s.primaryPanelVisible);
   const aiPanelVisible = useUiStore((s) => s.aiPanelVisible);
+  const zapprOpen = useZapprStore((s) => s.isOpen);
   const primaryPanelRef = usePanelRef();
   const aiPanelRef = usePanelRef();
 
@@ -310,7 +311,7 @@ function WorkbenchContent(): React.JSX.Element {
   return (
     <PanelGroupRoot
       // Keyed by mode+view so the group remounts and picks up that combination's proportions.
-      key={layoutKey}
+      key={`${layoutKey}-${String(zapprOpen)}`}
       orientation="horizontal"
       defaultLayout={savedLayout[layoutKey] ?? defaultLayout}
       onLayoutChanged={onLayoutChanged}
@@ -329,7 +330,7 @@ function WorkbenchContent(): React.JSX.Element {
         collapsible
         collapsedSize={0}
         minSize={200}
-        defaultSize="20"
+        defaultSize={zapprOpen ? '15' : '20'}
         className={cn('min-w-0', primaryPanelVisible && 'animate-slide-in-left')}
       >
         {/* Per-pane, so a malformed finding or an unreadable file costs the user one panel rather
@@ -338,21 +339,25 @@ function WorkbenchContent(): React.JSX.Element {
           <PrimaryPanel view={activeView} />
         </ErrorBoundary>
       </ResizablePanel>
-      {primaryPanelVisible && <ResizeHandle aria-label="Resize primary panel" />}
-      <ResizablePanel id="editor" minSize={340} defaultSize="56" className="min-w-0">
-        <ErrorBoundary label="The editor">
-          <EditorArea />
-        </ErrorBoundary>
-      </ResizablePanel>
-      {aiPanelVisible && <ResizeHandle aria-label="Resize AI panel" />}
+      {primaryPanelVisible && !zapprOpen && <ResizeHandle aria-label="Resize primary panel" />}
+      {!zapprOpen && (
+        <>
+          <ResizablePanel id="editor" minSize={340} defaultSize="56" className="min-w-0">
+            <ErrorBoundary label="The editor">
+              <EditorArea />
+            </ErrorBoundary>
+          </ResizablePanel>
+          {aiPanelVisible && <ResizeHandle aria-label="Resize AI panel" />}
+        </>
+      )}
       <ResizablePanel
         id="ai"
         panelRef={aiPanelRef}
         collapsible
         collapsedSize={0}
-        minSize={260}
-        defaultSize="24"
-        className={cn('min-w-0', aiPanelVisible && 'animate-slide-in-right')}
+        minSize={zapprOpen ? 400 : 260}
+        defaultSize={zapprOpen ? '85' : '35'}
+        className={cn('min-w-0', zapprOpen ? 'border-l-2 border-white/20' : 'border-l border-white/[0.06]', aiPanelVisible && 'animate-slide-in-right')}
       >
         <ErrorBoundary label="The assistant panel">
           <AssistantPanel />
@@ -379,6 +384,7 @@ function AssistantPanel(): React.JSX.Element {
   // the pane, squeezing the strip and overflowing the panel. `min-h-0` lets the body actually shrink.
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      {!zapprOpen && (
       <div className="flex items-center border-b border-border-subtle px-2">
         <EditModeTabs active={mode} onChange={(m) => { setMode(m); }} />
         <button
@@ -386,16 +392,15 @@ function AssistantPanel(): React.JSX.Element {
           onClick={() => { setZapprOpen(!zapprOpen); }}
           className={cn(
             'ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors',
-            zapprOpen
-              ? 'bg-accent/10 text-accent'
-              : 'text-fg-muted hover:bg-white/5 hover:text-fg',
+            'text-fg-muted hover:bg-white/5 hover:text-fg',
           )}
         >
           ⚡ Zappr
         </button>
       </div>
+      )}
       <div className="min-h-0 flex-1 overflow-hidden">
-        <div className={zapprOpen ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+        <div className={zapprOpen ? 'h-full w-full' : 'hidden'}>
           <ZapprSidebarContent />
         </div>
         <div className={!zapprOpen ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
@@ -408,7 +413,7 @@ function AssistantPanel(): React.JSX.Element {
 
 function ZapprSidebarContent(): React.JSX.Element {
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="h-full w-full overflow-hidden">
       <ZapprPanel sidebar />
     </div>
   );
