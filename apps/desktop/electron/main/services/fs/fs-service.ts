@@ -386,7 +386,7 @@ export function deletePath(root: string, relPath: string): void {
   if (isSecretPath(normalized)) throw new SecretFileError(normalized);
   const absolute = assertInsideWorkspace(join(root, relPath), root);
   fsTry('delete', normalized, () => {
-    rmSync(absolute, { recursive: true, force: false });
+    rmSync(absolute, { recursive: true, force: true });
   });
 }
 
