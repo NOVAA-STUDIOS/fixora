@@ -29,6 +29,21 @@ export function useFileActions(): {
   );
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [adjustedPos, setAdjustedPos] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (contextMenu === null || menuRef.current === null) {
+      setAdjustedPos(null);
+      return;
+    }
+    const rect = menuRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const x = contextMenu.x + rect.width > vw ? vw - rect.width - 8 : contextMenu.x;
+    const y = contextMenu.y + rect.height > vh ? vh - rect.height - 8 : contextMenu.y;
+    setAdjustedPos({ x, y });
+  }, [contextMenu]);
 
   const createFile = useWorkspaceStore((s) => s.createFile);
   const createFolder = useWorkspaceStore((s) => s.createFolder);
@@ -59,8 +74,9 @@ export function useFileActions(): {
             }}
           />
           <div
+            ref={menuRef}
             role="menu"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
+            style={{ left: adjustedPos?.x ?? contextMenu.x, top: adjustedPos?.y ?? contextMenu.y }}
             className="fixed z-50 w-44 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
           >
             <MenuItem
