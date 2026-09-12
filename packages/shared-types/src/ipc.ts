@@ -817,6 +817,8 @@ export const contracts = {
       openTabs: z.array(z.string()).optional(),
       selectedCode: z.string().nullable().optional(),
       selectedCodeFile: z.string().nullable().optional(),
+      /** Files referenced with an `@mention` in the prompt — read and injected as extra context. */
+      atMentions: z.array(z.string()).optional(),
     }),
     response: z.object({ ok: z.boolean(), error: z.string().optional() }),
   },

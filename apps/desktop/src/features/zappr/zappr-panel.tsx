@@ -1,5 +1,5 @@
 import { CloseIcon, cn } from '@fixora/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
@@ -100,6 +100,13 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
   const messages = useZapprStore((s) => s.messages);
   const clearMessages = useZapprStore((s) => s.clearMessages);
   const [copied, setCopied] = useState(false);
+  const [atSuggestions, setAtSuggestions] = useState<string[]>([]);
+  const [atQuery, setAtQuery] = useState<string | null>(null);
+  const workspaceNodes = useWorkspaceStore((s) => s.nodes);
+  const workspaceFiles = useMemo(
+    () => workspaceNodes.filter((n) => n.kind === 'file').map((n) => n.relPath),
+    [workspaceNodes],
+  );
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
   const activeFile = useEditorStore((s) => s.activeTab);
 
@@ -662,11 +669,50 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
 
         {!isRunning && plan === null && sidebar && (
           <div className="shrink-0 border-t border-white/[0.06] px-4 py-3">
+            {atSuggestions.length > 0 && atQuery !== null && (
+              <div className="mb-1 overflow-hidden rounded-lg border border-border-subtle bg-canvas shadow-lg">
+                {atSuggestions.map((file) => (
+                  <button
+                    key={file}
+                    type="button"
+                    onClick={() => {
+                      // Replace @query with @filename in prompt
+                      const newPrompt = prompt.replace(/@[\w./]*$/, `@${file} `);
+                      setPrompt(newPrompt);
+                      setAtSuggestions([]);
+                      setAtQuery(null);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] hover:bg-hover transition-colors"
+                  >
+                    <span className="font-mono text-accent text-[10px]">@</span>
+                    <span className="flex-1 truncate font-mono text-[11px] text-fg">{file}</span>
+                    <span className="shrink-0 text-[10px] text-fg-muted">{file.split('.').pop()}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex items-start gap-2.5 rounded-xl border border-border-subtle bg-raised px-3 py-2.5">
               <span className="mt-[3px] shrink-0 text-[12px] font-mono text-fg-muted">{'>'}</span>
               <textarea
                 value={prompt}
-                onChange={(e) => { setPrompt(e.target.value); }}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setPrompt(val);
+
+                  // Detect @ mention
+                  const match = /@([\w./]*)$/.exec(val);
+                  if (match !== null) {
+                    const query = match[1] ?? '';
+                    setAtQuery(query);
+                    const filtered = workspaceFiles
+                      .filter((f) => f.toLowerCase().includes(query.toLowerCase()))
+                      .slice(0, 6);
+                    setAtSuggestions(filtered);
+                  } else {
+                    setAtQuery(null);
+                    setAtSuggestions([]);
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();

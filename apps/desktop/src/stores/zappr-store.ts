@@ -269,6 +269,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
     });
     const runId = crypto.randomUUID();
     set({ currentRunId: runId });
+    const atMentions = [...prompt.matchAll(/@([\w./]+)/g)].map((m) => m[1] ?? '').filter(Boolean);
     const result = await invoke('zappr:run', {
       prompt,
       workspaceRoot,
@@ -276,6 +277,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       openTabs: tabs.map((t) => t.relPath),
       selectedCode,
       selectedCodeFile,
+      atMentions,
     });
     if (!result.ok || !result.value.ok) {
       set({

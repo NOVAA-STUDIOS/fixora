@@ -94,6 +94,21 @@ function buildContextBlock(ctx: ZapprContext): string {
   return block;
 }
 
+/** Reads each `@mentioned` file (best-effort — a typo'd or missing path is skipped, not fatal)
+ *  and renders it as extra context ahead of the rest of the prompt. */
+function buildMentionedFilesBlock(rootPath: string, atMentions: string[]): string {
+  const blocks: string[] = [];
+  for (const relPath of atMentions) {
+    try {
+      const { content } = readTextFile(rootPath, relPath);
+      blocks.push(`=== MENTIONED FILE: ${relPath} ===\n${content}\n=== END ===`);
+    } catch {
+      // Missing/secret/invalid path — silently skipped.
+    }
+  }
+  return blocks.length > 0 ? `${blocks.join('\n\n')}\n\n` : '';
+}
+
 type ZapprMode = 'chat' | 'file' | 'math' | 'repair';
 
 /** Regex-based, no AI call needed — fast enough to run before every request. */
@@ -242,6 +257,7 @@ export interface ZapprService {
     openTabs: string[],
     selectedCode: string | null,
     selectedCodeFile: string | null,
+    atMentions?: string[],
   ): Promise<{ ok: boolean; error?: string }>;
   cancel(): void;
   getContext(): Promise<{ files: string[]; hasPackageJson: boolean }>;
@@ -457,6 +473,7 @@ export function createZapprService(
     openTabs: string[],
     selectedCode: string | null,
     selectedCodeFile: string | null,
+    atMentions: string[] = [],
   ): Promise<{ ok: boolean; error?: string }> {
     cancelled = false;
     log.debug('[Zappr] Request received', { message: prompt.slice(0, 100), workspaceRoot: workspace.getCurrent()?.rootPath ?? null });
@@ -475,9 +492,9 @@ export function createZapprService(
     log.debug('[Zappr] Mode detected', { mode });
     emit('zappr:mode', { mode });
 
-    if (mode === 'file') return runFileMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile);
-    if (mode === 'repair') return runRepairMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile);
-    return runChatMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile);
+    if (mode === 'file') return runFileMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile, atMentions);
+    if (mode === 'repair') return runRepairMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile, atMentions);
+    return runChatMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile, atMentions);
   }
 
   async function runChatMode(
@@ -486,10 +503,12 @@ export function createZapprService(
     openTabs: string[],
     selectedCode: string | null,
     selectedCodeFile: string | null,
+    atMentions: string[] = [],
   ): Promise<{ ok: boolean; error?: string }> {
     const open = workspace.getCurrent();
     const workspaceName = open?.name ?? 'No project';
-    const contextBlock = buildContextBlock(
+    const mentionedBlock = open === null ? '' : buildMentionedFilesBlock(open.rootPath, atMentions);
+    const contextBlock = mentionedBlock + buildContextBlock(
       open === null
         ? { workspaceRoot: '', projectName: workspaceName, activeFile: null, activeFileContent: null, openTabs: [], recentErrors: [], gitBranch: null, platform: process.platform, selectedCode, selectedCodeFile }
         : buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile),
@@ -557,12 +576,13 @@ export function createZapprService(
     openTabs: string[],
     selectedCode: string | null,
     selectedCodeFile: string | null,
+    atMentions: string[] = [],
   ): Promise<{ ok: boolean; error?: string }> {
     const open = workspace.getCurrent();
     if (open === null) return { ok: false, error: 'No project is open.' };
 
     const files = await listContextFiles(open.rootPath, workspace);
-    const contextBlock = buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile));
+    const contextBlock = buildMentionedFilesBlock(open.rootPath, atMentions) + buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile));
     const systemPrompt = buildSystemPrompt(open.name, files, prompt, contextBlock);
 
     const request: ProviderRequest = {
@@ -640,6 +660,7 @@ export function createZapprService(
     openTabs: string[],
     selectedCode: string | null,
     selectedCodeFile: string | null,
+    atMentions: string[] = [],
   ): Promise<{ ok: boolean; error?: string }> {
     const open = workspace.getCurrent();
     if (open === null) return { ok: false, error: 'No project is open.' };
@@ -659,7 +680,7 @@ export function createZapprService(
       return { ok: false, error: `Could not read ${activeFile}: ${error instanceof Error ? error.message : String(error)}` };
     }
 
-    const contextBlock = buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile));
+    const contextBlock = buildMentionedFilesBlock(open.rootPath, atMentions) + buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile));
     const repairPrompt = buildRepairPrompt(activeFile, fileContent, contextBlock, prompt);
 
     const request: ProviderRequest = {
