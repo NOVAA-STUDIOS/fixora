@@ -6,8 +6,10 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
 import zapprMascot from '../../assets/zappr-mascot.png';
+import { invoke } from '../../lib/bridge.js';
 import { useZapprStore } from '../../stores/zappr-store.js';
 import { useEditorStore } from '../editor/editor-store.js';
+import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 /** Tailwind classes, not inline CSS vars — this file styles everything through the design-token
  *  utility classes (text-fg, bg-hover, etc.), not raw `var(--...)` references. */
@@ -69,6 +71,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
   const messages = useZapprStore((s) => s.messages);
   const clearMessages = useZapprStore((s) => s.clearMessages);
   const [copied, setCopied] = useState(false);
+  const [expandedStep, setExpandedStep] = useState<string | null>(null);
   const activeFile = useEditorStore((s) => s.activeTab);
 
   useEffect(() => listen(), [listen]);
@@ -98,10 +101,10 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
   const responseRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isRunning && responseRef.current !== null) {
+    if (responseRef.current !== null) {
       responseRef.current.scrollTop = responseRef.current.scrollHeight;
     }
-  }, [streamingText, chatResponse, isRunning]);
+  }, [streamingText, isRunning, messages]);
 
   useEffect(() => {
     if (isRunning && responseRef.current !== null) {
@@ -312,9 +315,9 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
               <div key={msg.id} className="mb-6">
                 {msg.role === 'user' ? (
                   // User message — bold title line like Claude Code
-                  <div className="mb-3 flex items-start gap-2">
-                    <span className="mt-0.5 text-[11px] font-semibold text-fg-muted">You</span>
-                    <p className="flex-1 text-[13px] font-medium text-fg">{msg.content}</p>
+                  <div className="mb-4 flex items-start gap-2.5 rounded-lg px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span className="mt-0.5 shrink-0 text-[10px] font-bold uppercase tracking-wider text-fg-muted opacity-50">You</span>
+                    <p className="flex-1 text-[13px] text-fg leading-relaxed">{msg.content}</p>
                   </div>
                 ) : (
                   // Assistant — Claude Code agent log style
@@ -323,9 +326,14 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                     {msg.steps !== undefined && msg.steps.length > 0 && (
                       <div className="space-y-2">
                         {msg.steps.map((step, i) => (
-                          <div key={i} className={cn('rounded-lg overflow-hidden', sidebar && 'bg-hover border border-border-subtle')} style={sidebar ? undefined : { background: '#111', border: '1px solid rgba(255,255,255,0.08)' }}>
+                          <div
+                            key={i}
+                            className={cn('rounded-xl overflow-hidden cursor-pointer', sidebar && 'bg-hover border border-border-subtle')}
+                            style={sidebar ? undefined : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}
+                            onClick={() => { setExpandedStep(expandedStep === `${msg.id}-${String(i)}` ? null : `${msg.id}-${String(i)}`); }}
+                          >
                             {/* Step header */}
-                            <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                            <div className="flex items-center gap-2 px-3 py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                               <span className={cn(
                                 'size-[6px] rounded-full',
                                 step.status === 'done' ? 'bg-green-500' :
@@ -341,15 +349,26 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                               )}>
                                 {step.type === 'create' ? 'Write' : step.type === 'edit' ? 'Edit' : step.type === 'delete' ? 'Delete' : 'Run'}
                               </span>
-                              <span className="flex-1 truncate font-mono text-[11px] text-fg-muted">{step.filePath}</span>
+                              <span className="flex-1 truncate font-mono text-[12px] text-fg">{step.filePath}</span>
                               <span className="text-[10px] text-fg-muted">
                                 {step.status === 'done' ? '✓' : step.status === 'running' ? '...' : step.status === 'error' ? '✗' : ''}
                               </span>
+                              <svg
+                                width="10" height="10" viewBox="0 0 10 10" fill="none"
+                                className={cn('ml-auto shrink-0 text-fg-muted transition-transform', expandedStep === `${msg.id}-${String(i)}` ? 'rotate-180' : '')}
+                              >
+                                <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
                             </div>
                             {/* Step description */}
-                            <div className="px-3 py-1.5">
-                              <p className="text-[11px] text-fg-muted">{step.description}</p>
+                            <div className="px-3 py-2">
+                              <p className="text-[11px] text-fg-muted leading-relaxed">{step.description}</p>
                             </div>
+                            {expandedStep === `${msg.id}-${String(i)}` && (
+                              <div className="border-t px-3 py-2.5 font-mono text-[11px] leading-relaxed text-fg-muted overflow-x-auto max-h-[300px] overflow-y-auto" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+                                <FileContentPreview filePath={step.filePath} type={step.type} />
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -375,9 +394,19 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                     {/* Chat/text response */}
                     {msg.content !== '' && (
                       <div className="text-[13px] text-fg">
-                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>
-                          {msg.content}
-                        </ReactMarkdown>
+                        {/^\d+ files? written successfully$/i.test(msg.content) ? (
+                          <div className="flex items-center gap-2.5 rounded-lg px-3 py-2.5" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.15)' }}>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                              <circle cx="7" cy="7" r="6" stroke="#22c55e" strokeWidth="1.5"/>
+                              <path d="M4.5 7l2 2 3-3" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            <span className="text-[12px] font-medium text-green-400">{msg.content}</span>
+                          </div>
+                        ) : (
+                          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>
+                            {msg.content}
+                          </ReactMarkdown>
+                        )}
                         <button
                           type="button"
                           onClick={() => void copyToClipboard(msg.content)}
@@ -398,18 +427,16 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                 <div className="flex items-center gap-2.5">
                   <span className={cn(
                     'size-[6px] shrink-0 rounded-full',
-                    streamingText !== '' || steps.length > 0 ? 'bg-green-500' : 'animate-pulse bg-accent'
+                    steps.length > 0 ? 'bg-green-500' : 'animate-pulse bg-accent'
                   )} />
                   <span className="text-[12px] text-fg-muted">
                     {steps.length > 0
-                      ? 'Planning done'
-                      : streamingText !== ''
-                        ? 'Generating...'
-                        : mode === 'file'
-                          ? 'Analyzing request...'
-                          : mode === 'repair'
-                            ? 'Reading file...'
-                            : 'Thinking...'}
+                      ? `${String(steps.filter(s => s.status === 'done').length)}/${String(steps.length)} files done`
+                      : mode === 'file'
+                        ? '● Preparing files...'
+                        : mode === 'repair'
+                          ? '● Reading and analyzing...'
+                          : '● Thinking...'}
                   </span>
                 </div>
 
@@ -494,6 +521,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                 </div>
               </div>
             )}
+            <div className="h-4" />
           </div>
 
         {!isRunning && (messages.length > 0 || steps.length > 0 || chatResponse !== null) && (
@@ -671,5 +699,54 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
         )}
         </div>
       </div>
+  );
+}
+
+function FileContentPreview({ filePath, type }: { filePath: string; type: string }): React.JSX.Element {
+  const workspace = useWorkspaceStore((s) => s.workspace);
+  const [content, setContent] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (workspace === null) return;
+    invoke('fs:readFile', { relPath: filePath })
+      .then((result) => {
+        if (result.ok) setContent(result.value.file.content);
+      })
+      .catch(() => null);
+  }, [filePath, workspace]);
+
+  if (type === 'delete') {
+    return <span className="text-red-400/70 text-[11px]">File deleted</span>;
+  }
+
+  if (content === null) {
+    return <span className="text-fg-muted opacity-50 text-[11px]">Loading...</span>;
+  }
+
+  const lines = content.slice(0, 3000).split('\n');
+  const isCreate = type === 'create';
+
+  return (
+    <div className="space-y-0">
+      {lines.map((line, i) => (
+        <div key={i} className="flex gap-2 hover:bg-white/[0.02] rounded px-1">
+          <span className="shrink-0 w-6 text-right text-[10px] text-fg-muted opacity-30 select-none">
+            {String(i + 1)}
+          </span>
+          {isCreate && (
+            <span className="shrink-0 text-[11px] text-green-500 select-none">+</span>
+          )}
+          <span className={cn(
+            'flex-1 font-mono text-[11px] whitespace-pre-wrap break-all',
+            isCreate ? 'text-green-400/80' : 'text-fg-muted'
+          )}>
+            {line || ' '}
+          </span>
+        </div>
+      ))}
+      {content.length > 3000 && (
+        <p className="text-[10px] text-fg-muted opacity-40 px-1 pt-1">... truncated</p>
+      )}
+    </div>
   );
 }
