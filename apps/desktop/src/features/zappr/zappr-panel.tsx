@@ -11,6 +11,11 @@ import { useZapprStore } from '../../stores/zappr-store.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
+function estimateTokens(text: string): number {
+  // Rough estimate: ~4 chars per token (GPT/Claude standard)
+  return Math.ceil(text.length / 4);
+}
+
 function CodeBlock({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [codeCopied, setCodeCopied] = useState(false);
   const codeText = Array.isArray(children)
@@ -432,13 +437,18 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                             {msg.content}
                           </ReactMarkdown>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => void copyToClipboard(msg.content)}
-                          className={cn('mt-2 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors', copied ? 'bg-success/15 text-success-text' : 'text-fg-muted hover:text-fg')}
-                        >
-                          {copied ? '✓ Copied!' : '📋 Copy'}
-                        </button>
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void copyToClipboard(msg.content)}
+                            className={cn('flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors', copied ? 'bg-success/15 text-success-text' : 'text-fg-muted hover:text-fg')}
+                          >
+                            {copied ? '✓ Copied!' : '📋 Copy'}
+                          </button>
+                          <span className="ml-auto text-[10px] text-fg-muted opacity-40">
+                            ~{String(estimateTokens(msg.content))} tokens
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
