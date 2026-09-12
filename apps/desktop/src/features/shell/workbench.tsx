@@ -311,7 +311,7 @@ function WorkbenchContent(): React.JSX.Element {
   return (
     <PanelGroupRoot
       // Keyed by mode+view so the group remounts and picks up that combination's proportions.
-      key={`${layoutKey}-${String(zapprOpen)}`}
+      key={layoutKey}
       orientation="horizontal"
       defaultLayout={savedLayout[layoutKey] ?? defaultLayout}
       onLayoutChanged={onLayoutChanged}
