@@ -280,6 +280,33 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
               </div>
               <div className="ml-auto flex items-center gap-2">
                 <span className="text-[10px] text-fg-muted opacity-50">AI</span>
+                {messages.length > 0 && !isRunning && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearError();
+                      setPrompt('');
+                      clearMessages();
+                      useZapprStore.setState({
+                        steps: [],
+                        plan: null,
+                        chatResponse: null,
+                        streamingText: '',
+                        currentStep: 0,
+                        mode: null,
+                        currentFilePath: null,
+                        currentFileContent: null,
+                        lastTerminalCommand: null,
+                        lastKeyUpdateProvider: null,
+                        lastShortcutCreated: null,
+                      });
+                    }}
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg"
+                    title="New Chat"
+                  >
+                    ⚡ New
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => { useZapprStore.setState({ isOpen: false }); }}
@@ -573,36 +600,6 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
             )}
             <div className="h-4" />
           </div>
-
-        {!isRunning && (messages.length > 0 || steps.length > 0 || chatResponse !== null) && (
-          <div className="shrink-0 border-t border-white/10 px-3 pt-2 pb-3">
-            <button
-              type="button"
-              onClick={() => {
-                clearError();
-                setPrompt('');
-                clearMessages();
-                useZapprStore.setState({
-                  steps: [],
-                  plan: null,
-                  chatResponse: null,
-                  streamingText: '',
-                  summary: null,
-                  currentStep: 0,
-                  mode: null,
-                  currentFilePath: null,
-                  currentFileContent: null,
-                  lastTerminalCommand: null,
-                  lastKeyUpdateProvider: null,
-                  lastShortcutCreated: null,
-                });
-              }}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 py-2 text-xs font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg"
-            >
-              {messages.length > 0 ? `⚡ New Chat (${String(messages.length)} msgs)` : '⚡ New Zap'}
-            </button>
-          </div>
-        )}
 
         {currentFilePath !== null && (
           <div className="border-t border-white/10 px-3 py-2">
