@@ -7,6 +7,7 @@ import remarkMath from 'remark-math';
 
 import zapprMascot from '../../assets/zappr-mascot.png';
 import { invoke } from '../../lib/bridge.js';
+import { useUiStore } from '../../stores/ui-store.js';
 import { useZapprStore } from '../../stores/zappr-store.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
@@ -108,6 +109,8 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
     [workspaceNodes],
   );
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
+  const autoFixOnSave = useUiStore((s) => s.autoFixOnSave);
+  const toggleAutoFixOnSave = useUiStore((s) => s.toggleAutoFixOnSave);
   const activeFile = useEditorStore((s) => s.activeTab);
 
   useEffect(() => listen(), [listen]);
@@ -287,6 +290,19 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
               </div>
               <div className="ml-auto flex items-center gap-2">
                 <span className="text-[10px] text-fg-muted opacity-50">AI</span>
+                <button
+                  type="button"
+                  onClick={toggleAutoFixOnSave}
+                  className={cn(
+                    'flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors',
+                    autoFixOnSave
+                      ? 'bg-accent/10 text-accent'
+                      : 'text-fg-muted hover:bg-white/5 hover:text-fg',
+                  )}
+                  title={autoFixOnSave ? 'Auto-fix on save: ON' : 'Auto-fix on save: OFF'}
+                >
+                  {autoFixOnSave ? '⚡ Auto' : '○ Auto'}
+                </button>
                 {!isRunning && (
                   <button
                     type="button"

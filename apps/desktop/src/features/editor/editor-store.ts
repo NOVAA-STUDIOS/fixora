@@ -178,6 +178,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
     }
 
+    // Auto-fix on save — triggers Zappr repair if enabled
+    if (useUiStore.getState().autoFixOnSave) {
+      // zappr-store imports this module too; the dynamic import only resolves at call time (after
+      // both modules have finished loading), so it never actually cycles at runtime.
+      // eslint-disable-next-line import-x/no-cycle
+      const zapprStore = (await import('../../stores/zappr-store.js')).useZapprStore;
+      const zappr = zapprStore.getState();
+      if (!zappr.isRunning) {
+        zappr.setPrompt('Fix ALL errors and warnings in this file');
+        void zappr.run();
+      }
+    }
+
     return true;
   },
 }));

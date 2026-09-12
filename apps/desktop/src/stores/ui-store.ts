@@ -117,6 +117,7 @@ function sanitizeLayout(value: unknown): PanelLayout {
 type UiState = {
   theme: ThemeName;
   density: DensityName;
+  autoFixOnSave: boolean;
   activeView: ActivityView;
   /** Which layout the workbench uses. Persisted — it is a working preference, not session state. */
   workspaceMode: WorkspaceMode;
@@ -203,6 +204,7 @@ type UiState = {
 
   setTheme: (theme: ThemeName) => void;
   toggleTheme: () => void;
+  toggleAutoFixOnSave: () => void;
   setDensity: (density: DensityName) => void;
   toggleDensity: () => void;
   setActiveView: (view: ActivityView) => void;
@@ -245,6 +247,7 @@ export const useUiStore = create<UiState>()(
     (set, get) => ({
       theme: 'dark',
       density: 'comfortable',
+      autoFixOnSave: false,
       activeView: 'workspace',
       editMode: 'repair',
       workspaceMode: 'fix',
@@ -286,6 +289,9 @@ export const useUiStore = create<UiState>()(
       },
       toggleTheme: () => {
         set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' }));
+      },
+      toggleAutoFixOnSave: () => {
+        set((s) => ({ autoFixOnSave: !s.autoFixOnSave }));
       },
       setDensity: (density) => {
         set({ density });
@@ -427,6 +433,7 @@ export const useUiStore = create<UiState>()(
         telemetryEnabled: s.telemetryEnabled,
         autoSave: s.autoSave,
         formatOnSave: s.formatOnSave,
+        autoFixOnSave: s.autoFixOnSave,
         editorTheme: s.editorTheme,
         minimapEnabled: s.minimapEnabled,
         wordWrap: s.wordWrap,
@@ -464,6 +471,9 @@ export const useUiStore = create<UiState>()(
           // Same discipline: anything that is not explicitly `true` means "do not write the user's
           // files without being asked".
           autoSave: p.autoSave === true,
+          // Same fail-closed rule: auto-triggering a Zappr repair on save only happens if the
+          // persisted value is explicitly `true`.
+          autoFixOnSave: p.autoFixOnSave === true,
           // Was missing entirely, so the persisted value was dropped on every rehydration and the
           // toggle silently reset to off each launch. Same fail-closed rule: only an explicit true
           // opts in to reopening a project.
