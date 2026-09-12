@@ -287,6 +287,25 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
               </div>
               <div className="ml-auto flex items-center gap-2">
                 <span className="text-[10px] text-fg-muted opacity-50">AI</span>
+                {!isRunning && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrompt('Generate a conventional commit message for my recent changes. Use format: type(scope): description');
+                      void run();
+                    }}
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg"
+                    title="Generate commit message"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      <circle cx="5" cy="5" r="4" stroke="currentColor" strokeWidth="1.2"/>
+                      <circle cx="5" cy="5" r="1.5" fill="currentColor"/>
+                      <line x1="1" y1="5" x2="3.5" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                      <line x1="6.5" y1="5" x2="9" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    </svg>
+                    Commit
+                  </button>
+                )}
                 {messages.length > 0 && !isRunning && (
                   <button
                     type="button"
