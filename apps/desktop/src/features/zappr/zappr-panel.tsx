@@ -341,7 +341,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
             )}
 
             {/* Claude Code style message log */}
-            {messages.map((msg) => (
+            {messages.map((msg, msgIndex) => (
               <div key={msg.id} className="mb-6">
                 {msg.role === 'user' ? (
                   // User message — bold title line like Claude Code
@@ -432,6 +432,8 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                             </svg>
                             <span className="text-[12px] font-medium text-green-400">{msg.content}</span>
                           </div>
+                        ) : msgIndex === messages.length - 1 ? (
+                          <TypewriterText text={msg.content} />
                         ) : (
                           <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>
                             {msg.content}
@@ -786,8 +788,7 @@ function FileContentPreview({ filePath, type }: { filePath: string; type: string
   );
 }
 
-// Temporarily disabled (not rendered anywhere) — kept for re-enabling once the scroll issue is fixed.
-export function TypewriterText({ text, speed = 8 }: { text: string; speed?: number }): React.JSX.Element {
+function TypewriterText({ text, speed = 8 }: { text: string; speed?: number }): React.JSX.Element {
   const [displayed, setDisplayed] = useState('');
   const [done, setDone] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
