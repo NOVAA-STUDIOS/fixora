@@ -11,6 +11,35 @@ import { useZapprStore } from '../../stores/zappr-store.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
+function CodeBlock({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const [codeCopied, setCodeCopied] = useState(false);
+  const codeText = Array.isArray(children)
+    ? children.filter((c): c is string => typeof c === 'string').join('')
+    : typeof children === 'string'
+      ? children
+      : '';
+  return (
+    <div className="relative group my-3">
+      <pre style={{ background: '#0d1117', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '14px 16px', overflowX: 'auto', fontSize: 13, fontFamily: '"JetBrains Mono", monospace', lineHeight: 1.7, margin: 0 }}>
+        <code>{children}</code>
+      </pre>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard.writeText(codeText).then(() => {
+            setCodeCopied(true);
+            setTimeout(() => { setCodeCopied(false); }, 2000);
+          });
+        }}
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-fg-muted hover:text-fg"
+        style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
+      >
+        {codeCopied ? '✓ Copied' : '⎘ Copy'}
+      </button>
+    </div>
+  );
+}
+
 /** Tailwind classes, not inline CSS vars — this file styles everything through the design-token
  *  utility classes (text-fg, bg-hover, etc.), not raw `var(--...)` references. */
 const markdownComponents: Components = {
@@ -21,12 +50,7 @@ const markdownComponents: Components = {
   strong: ({ children }) => <strong className="font-semibold text-fg">{children}</strong>,
   code: ({ className, children }) =>
     className?.includes('language-') === true ? (
-      <pre
-        className="my-2 overflow-x-auto rounded-lg bg-[#1a1a1a] p-3 font-mono text-[13px]"
-        style={{ overflowX: 'auto', maxWidth: '100%', wordBreak: 'break-word' }}
-      >
-        <code>{children}</code>
-      </pre>
+      <CodeBlock>{children}</CodeBlock>
     ) : (
       <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 font-mono text-[13px] text-accent">{children}</code>
     ),
@@ -212,7 +236,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
         }
         style={
           sidebar
-            ? undefined
+            ? { maxHeight: '100vh' }
             : {
                 borderRadius: '14px',
                 background: 'linear-gradient(135deg, #7c3aed, #06b6d4, #7c3aed)',
@@ -222,7 +246,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
         }
       >
         <div
-          className={cn('flex flex-1 flex-col', sidebar ? 'bg-raised' : 'bg-[#0d0d0d] rounded-[13px]')}
+          className={cn('flex min-h-0 flex-1 flex-col', sidebar ? 'bg-raised' : 'bg-[#0d0d0d] rounded-[13px]')}
           style={
             sidebar
               ? undefined
@@ -299,8 +323,9 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
 
           <div
             ref={responseRef}
-            className={cn('min-h-0 flex-1 overflow-y-auto', sidebar ? 'px-4 py-3' : 'px-3 py-2.5')}
-            style={{ scrollbarWidth: 'none' }}
+            data-zappr-scroll=""
+            className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden', sidebar ? 'px-4 py-3' : 'px-3 py-2.5')}
+            style={{ scrollbarWidth: 'none', maxHeight: '100%' }}
           >
             {/* Empty state */}
             {messages.length === 0 && !isRunning && (
@@ -747,6 +772,48 @@ function FileContentPreview({ filePath, type }: { filePath: string; type: string
       {content.length > 3000 && (
         <p className="text-[10px] text-fg-muted opacity-40 px-1 pt-1">... truncated</p>
       )}
+    </div>
+  );
+}
+
+// Temporarily disabled (not rendered anywhere) — kept for re-enabling once the scroll issue is fixed.
+export function TypewriterText({ text, speed = 8 }: { text: string; speed?: number }): React.JSX.Element {
+  const [displayed, setDisplayed] = useState('');
+  const [done, setDone] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const scrollable = containerRef.current?.closest('[data-zappr-scroll]');
+    if (scrollable instanceof HTMLElement) {
+      scrollable.scrollTop = scrollable.scrollHeight;
+    }
+  }, [displayed]);
+
+  useEffect(() => {
+    setDisplayed('');
+    setDone(false);
+    if (text === '') return;
+
+    let i = 0;
+    const timer = setInterval(() => {
+      i += speed;
+      if (i >= text.length) {
+        setDisplayed(text);
+        setDone(true);
+        clearInterval(timer);
+      } else {
+        setDisplayed(text.slice(0, i));
+      }
+    }, 16);
+    return () => { clearInterval(timer); };
+  }, [text, speed]);
+
+  return (
+    <div ref={containerRef}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>
+        {displayed}
+      </ReactMarkdown>
+      {!done && <span className="inline-block h-3 w-[2px] animate-pulse bg-accent align-middle ml-0.5" />}
     </div>
   );
 }
