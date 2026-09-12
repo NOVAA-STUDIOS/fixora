@@ -255,6 +255,11 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
     const { activeTab, tabs } = useEditorStore.getState();
     const { selectedCode, selectedCodeFile } = get();
     set({ isRunning: true, error: null });
+    // Scroll to bottom so isRunning indicator is visible
+    setTimeout(() => {
+      const el = document.querySelector('[data-zappr-scroll]');
+      if (el instanceof HTMLElement) el.scrollTop = el.scrollHeight;
+    }, 50);
     get().addMessage({
       id: crypto.randomUUID(),
       role: 'user',

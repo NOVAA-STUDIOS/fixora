@@ -291,7 +291,20 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                 </button>
               </div>
             </div>
-          ) : (
+          ) : null}
+          {sidebar && isRunning && (
+            <div className="h-[2px] w-full overflow-hidden shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <div
+                className="h-full animate-pulse"
+                style={{
+                  background: 'linear-gradient(90deg, transparent, #7c3aed, #06b6d4, transparent)',
+                  animation: 'zappr-progress 1.5s ease-in-out infinite',
+                  width: '60%',
+                }}
+              />
+            </div>
+          )}
+          {!sidebar && (
             <div
               onMouseDown={handleHeaderMouseDown}
               className="flex cursor-grab items-center gap-2.5 px-4 py-3 select-none active:cursor-grabbing"
