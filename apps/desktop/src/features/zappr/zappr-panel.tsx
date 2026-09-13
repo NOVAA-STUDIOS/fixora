@@ -617,7 +617,9 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                         ? '● Preparing files...'
                         : mode === 'repair'
                           ? '● Reading and analyzing...'
-                          : '● Thinking...'}
+                          : mode === 'review'
+                            ? '● Reviewing code...'
+                            : '● Thinking...'}
                   </span>
                 </div>
 

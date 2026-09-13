@@ -551,6 +551,7 @@ export function createZapprService(
   }
 
   async function runReviewMode(activeFile: string | null): Promise<{ ok: boolean; error?: string }> {
+    emit('zappr:mode', { mode: 'review' });
     const open = workspace.getCurrent();
     if (open === null) return { ok: false, error: 'No project is open.' };
     if (activeFile === null) {

@@ -112,7 +112,7 @@ export const ZapprDeltaSchema = z.object({ text: z.string() });
 export type ZapprDelta = z.infer<typeof ZapprDeltaSchema>;
 
 export const ZapprModeSchema = z.object({
-  mode: z.enum(['chat', 'file', 'math', 'repair']),
+  mode: z.enum(['chat', 'file', 'math', 'repair', 'review']),
 });
 export type ZapprMode = z.infer<typeof ZapprModeSchema>;
 

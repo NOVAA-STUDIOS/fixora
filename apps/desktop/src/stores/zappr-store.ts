@@ -17,7 +17,7 @@ export type ZapprMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  type: 'chat' | 'file' | 'repair' | 'terminal' | 'error';
+  type: 'chat' | 'file' | 'repair' | 'review' | 'terminal' | 'error';
   steps?: {
     filePath: string;
     type: string;
@@ -43,7 +43,7 @@ type ZapprState = {
   steps: StepState[];
   summary: string | null;
   error: string | null;
-  mode: 'chat' | 'file' | 'math' | 'repair' | null;
+  mode: 'chat' | 'file' | 'math' | 'repair' | 'review' | null;
   chatResponse: string | null;
   streamingText: string;
   pendingAction: ZapprAction | null;
@@ -62,7 +62,7 @@ type ZapprState = {
   close: () => void;
   setPrompt: (prompt: string) => void;
   clearError: () => void;
-  setMode: (mode: 'chat' | 'file' | 'math' | 'repair' | null) => void;
+  setMode: (mode: 'chat' | 'file' | 'math' | 'repair' | 'review' | null) => void;
   appendDelta: (text: string) => void;
   setChatResponse: (text: string | null) => void;
   setLastTerminalCommand: (cmd: string | null) => void;
