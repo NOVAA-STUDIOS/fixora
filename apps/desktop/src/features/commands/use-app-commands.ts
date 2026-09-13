@@ -6,6 +6,7 @@ import { useTestGenerationStore } from '../../stores/test-generation-store.js';
 import { toast } from '../../stores/toast-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useZapprStore } from '../../stores/zappr-store.js';
+import { activeSelectionText } from '../editor/active-editor.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
@@ -346,6 +347,12 @@ export function useAppCommands(): Command[] {
           // Zappr now renders inside the assistant sidebar tab, not a floating overlay — the
           // pane must be expanded or the panel has nothing to appear in.
           if (!useUiStore.getState().aiPanelVisible) useUiStore.setState({ aiPanelVisible: true });
+          // Capture selection before focus shifts to Zappr panel
+          const selText = activeSelectionText();
+          const selFile = useEditorStore.getState().activeTab;
+          if (selText !== null) {
+            useZapprStore.setState({ selectedCode: selText, selectedCodeFile: selFile });
+          }
           useZapprStore.getState().open();
         },
       },

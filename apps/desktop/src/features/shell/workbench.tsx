@@ -7,7 +7,9 @@ import { useUiStore, type PaneSizes } from '../../stores/ui-store.js';
 import { useZapprStore } from '../../stores/zappr-store.js';
 import { AiPanel } from '../ai/ai-panel.js';
 import { EditModeTabs, ProceedView } from '../ai/proceed-panel.js';
+import { activeSelectionText } from '../editor/active-editor.js';
 import { EditorArea } from '../editor/editor-area.js';
+import { useEditorStore } from '../editor/editor-store.js';
 import { ShieldPanel } from '../shield/shield-panel.js';
 import { useShieldWatch } from '../shield/use-shield-watch.js';
 import { SuggestionPanel } from '../suggestions/suggestion-panel.js';
@@ -389,6 +391,13 @@ function AssistantPanel(): React.JSX.Element {
         <EditModeTabs active={mode} onChange={(m) => { setMode(m); }} />
         <button
           type="button"
+          onMouseDown={() => {
+            const selText = activeSelectionText();
+            const selFile = useEditorStore.getState().activeTab;
+            if (selText !== null) {
+              useZapprStore.setState({ selectedCode: selText, selectedCodeFile: selFile });
+            }
+          }}
           onClick={() => { setZapprOpen(!zapprOpen); }}
           className={cn(
             'ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors',

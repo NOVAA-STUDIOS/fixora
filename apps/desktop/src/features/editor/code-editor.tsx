@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { invoke } from '../../lib/bridge.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
+import { useZapprStore } from '../../stores/zappr-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
@@ -261,6 +262,21 @@ export function CodeEditor({
 
     const cursorSub = editor.onDidChangeCursorPosition((e) => {
       useEditorStatusStore.getState().setPosition(e.position.lineNumber, e.position.column);
+    });
+
+    // Ctrl/Cmd+I opens Zappr (global keybinding) — captured here first so the selection is saved
+    // before focus shifts away from the editor and the selection is lost.
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, () => {
+      const sel = editor.getSelection();
+      const model = editor.getModel();
+      if (sel !== null && !sel.isEmpty() && model !== null) {
+        const text = model.getValueInRange(sel);
+        useZapprStore.setState({
+          selectedCode: text,
+          selectedCodeFile: relPath,
+        });
+      }
+      // Don't preventDefault — let the keybinding open Zappr normally
     });
 
     // Ctrl/Cmd+S saves the file the editor is showing.

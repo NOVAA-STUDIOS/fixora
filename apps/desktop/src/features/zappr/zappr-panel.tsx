@@ -9,6 +9,7 @@ import zapprMascot from '../../assets/zappr-mascot.png';
 import { invoke } from '../../lib/bridge.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useZapprStore } from '../../stores/zappr-store.js';
+import { activeSelectionText } from '../editor/active-editor.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
@@ -115,22 +116,21 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
 
   useEffect(() => listen(), [listen]);
 
-  // Temporarily disabled — selection polling was interfering with panel state.
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     const text = activeSelectionText();
-  //     const file = useEditorStore.getState().activeTab;
-  //     const current = useZapprStore.getState();
-  //     if (current.selectedCode === text && current.selectedCodeFile === (text ? file : null)) return;
-  //     useZapprStore.setState({
-  //       selectedCode: text,
-  //       selectedCodeFile: text ? file : null,
-  //     });
-  //   }, 500);
-  //   return () => {
-  //     clearInterval(interval);
-  //   };
-  // }, []);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const text = activeSelectionText();
+      const file = useEditorStore.getState().activeTab;
+      const current = useZapprStore.getState();
+      // Only update if there IS a selection — don't clear on focus loss
+      if (text === null) return;
+      if (current.selectedCode === text && current.selectedCodeFile === file) return;
+      useZapprStore.setState({
+        selectedCode: text,
+        selectedCodeFile: file,
+      });
+    }, 500);
+    return () => { clearInterval(interval); };
+  }, []);
 
   useEffect(() => {
     console.warn('[Zappr:UI] State →', mode, isRunning ? 'running' : 'idle');
@@ -670,35 +670,64 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
           )}
 
         {!isRunning && plan === null && selectedCode !== null && (
-          <div
-            className="mx-4 mb-2 overflow-hidden rounded-lg"
-            style={{ border: '1px solid rgba(124,58,237,0.2)', background: 'rgba(124,58,237,0.05)' }}
-          >
-            <div
-              className="flex items-center justify-between px-3 py-1.5"
-              style={{ borderBottom: '1px solid rgba(124,58,237,0.1)' }}
-            >
-              <span className="text-[10px] font-medium" style={{ color: '#a78bfa' }}>
+          <div className="mx-4 mb-2 overflow-hidden rounded-lg" style={{ border: '1px solid rgba(124,58,237,0.2)', background: 'rgba(124,58,237,0.05)' }}>
+            <div className="flex items-center justify-between px-3 py-1.5" style={{ borderBottom: '1px solid rgba(124,58,237,0.1)' }}>
+              <span className="text-[10px] font-medium text-accent">
                 ⚡ {selectedCodeFile !== null ? (selectedCodeFile.split('/').pop() ?? selectedCodeFile) : 'Selected code'}
+                <span className="ml-1 opacity-50">({String(selectedCode.split('\n').length)} lines)</span>
               </span>
               <button
                 type="button"
+                onClick={() => { useZapprStore.setState({ selectedCode: null, selectedCodeFile: null }); }}
+                className="text-[10px] text-fg-muted transition-colors hover:text-fg"
+              >✕</button>
+            </div>
+            <pre className="max-h-[60px] overflow-hidden px-3 py-1.5 font-mono text-[10px] text-fg-muted opacity-60">
+              {selectedCode.slice(0, 150)}{selectedCode.length > 150 ? '...' : ''}
+            </pre>
+            {/* Quick actions */}
+            <div className="flex gap-1 border-t px-3 py-1.5" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+              <button
+                type="button"
                 onClick={() => {
-                  useZapprStore.setState({ selectedCode: null, selectedCodeFile: null });
+                  setPrompt(`Explain this code:\n\`\`\`\n${selectedCode}\n\`\`\``);
+                  void run();
                 }}
-                className="text-[10px] transition-colors hover:text-fg"
-                style={{ color: '#444' }}
+                className="rounded px-2 py-0.5 text-[10px] font-medium text-accent transition-colors hover:bg-accent/10"
               >
-                ✕
+                Explain
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPrompt(`Fix and improve this code:\n\`\`\`\n${selectedCode}\n\`\`\``);
+                  void run();
+                }}
+                className="rounded px-2 py-0.5 text-[10px] font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg"
+              >
+                Fix
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPrompt(`Add TypeScript types to this code:\n\`\`\`\n${selectedCode}\n\`\`\``);
+                  void run();
+                }}
+                className="rounded px-2 py-0.5 text-[10px] font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg"
+              >
+                Add Types
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPrompt(`Write unit tests for this code:\n\`\`\`\n${selectedCode}\n\`\`\``);
+                  void run();
+                }}
+                className="rounded px-2 py-0.5 text-[10px] font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg"
+              >
+                Test
               </button>
             </div>
-            <pre
-              className="max-h-[80px] overflow-x-auto overflow-y-auto px-3 py-2 font-mono text-[11px]"
-              style={{ color: '#666', margin: 0 }}
-            >
-              {selectedCode.slice(0, 300)}
-              {selectedCode.length > 300 ? '...' : ''}
-            </pre>
           </div>
         )}
 
