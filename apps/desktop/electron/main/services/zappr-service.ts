@@ -14,7 +14,7 @@ import { deletePath, listDirectory, readTextFile, writeWorkspaceFile } from './f
 import type { WorkspaceService } from './workspace-service.js';
 
 const MAX_CONTEXT_FILES = 20;
-const ZAPPR_MODEL_MAX_TOKENS = 12000;
+const ZAPPR_MODEL_MAX_TOKENS = 8000;
 const ACTIVE_FILE_MAX_LINES = 200;
 
 interface ZapprContext {
@@ -303,6 +303,8 @@ RULES (non-negotiable):
 8. Import paths must be correct relative to each file's location
 9. If creating a React component — use functional components with proper props typing
 10. If creating an API — follow REST conventions with proper status codes
+11. Keep file content concise — max ~200 lines per file. Split into multiple files if needed.
+12. For React components: functional only, no class components, hooks only at top level.
 
 RESPONSE FORMAT (exact):
 {"summary":"One sentence — what you're building","steps":[{"type":"create|edit|delete","filePath":"src/example.tsx","description":"What this file does","content":"full file content here"}]}
@@ -336,8 +338,17 @@ function extractJson(text: string): unknown {
     try {
       return JSON.parse(sliced.replace(/,\s*([}\]])/g, '$1'));
     } catch {
-      log.error('[zappr] JSON parse failed', { raw: text.slice(0, 200) });
-      throw new Error(`Zappr JSON parse failed. Raw: ${text.slice(0, 200)}`);
+      // Last resort: try to salvage truncated JSON by closing open structures
+      try {
+        const salvaged = sliced
+          .replace(/,?\s*$/, '') // remove trailing comma
+          .replace(/"content":\s*"[^"]*$/, '"content": "// Content truncated"') // fix truncated content
+          + '"}]}';
+        return JSON.parse(salvaged);
+      } catch {
+        log.error('[zappr] JSON parse failed', { raw: text.slice(0, 200) });
+        throw new Error(`Zappr JSON parse failed. Raw: ${text.slice(0, 200)}`);
+      }
     }
   }
 }

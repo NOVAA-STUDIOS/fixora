@@ -110,6 +110,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
     [workspaceNodes],
   );
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
+  const [celebrating, setCelebrating] = useState(false);
   const autoFixOnSave = useUiStore((s) => s.autoFixOnSave);
   const toggleAutoFixOnSave = useUiStore((s) => s.toggleAutoFixOnSave);
   const activeFile = useEditorStore((s) => s.activeTab);
@@ -150,6 +151,16 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
       responseRef.current.scrollTop = 0;
     }
   }, [isRunning]);
+
+  useEffect(() => {
+    if (!isRunning && messages.length > 0) {
+      const last = messages[messages.length - 1];
+      if (last?.role === 'assistant' && /file.*written/i.test(last.content)) {
+        setCelebrating(true);
+        setTimeout(() => { setCelebrating(false); }, 700);
+      }
+    }
+  }, [isRunning, messages]);
 
   // Mouse drag was unreliable with GPU compositing disabled — Alt+Arrow keys move the panel
   // instead, in fixed steps, always starting from screen center. Dragging/repositioning makes no
@@ -281,7 +292,11 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
               <img
                 src={zapprMascot}
                 alt="Zappr"
-                className={cn('size-5 object-contain', isRunning ? 'animate-zappr-run' : 'animate-zappr-idle')}
+                className={cn('size-5 object-contain',
+                  celebrating ? 'animate-zappr-celebrate' :
+                  isRunning ? 'animate-zappr-thinking' :
+                  'animate-zappr-idle'
+                )}
               />
               <span className="text-[13px] font-semibold tracking-[-0.01em] text-fg">Zappr</span>
               <div className="ml-1 flex items-center gap-1.5">
