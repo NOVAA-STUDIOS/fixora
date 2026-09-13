@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
@@ -8,6 +9,8 @@ import type { BrowserWindow } from 'electron';
 import log from 'electron-log';
 
 import type { Orchestrator } from '../ai/providers/orchestrator.js';
+import type { SqliteDriver } from '../db/driver.js';
+import { createZapprConversationRepository } from '../db/repositories.js';
 import { emitToWindow } from '../ipc/emit.js';
 
 import { deletePath, listDirectory, readTextFile, writeWorkspaceFile } from './fs/fs-service.js';
@@ -450,9 +453,46 @@ export function createZapprService(
   orchestrator: Orchestrator,
   workspace: WorkspaceService,
   window: BrowserWindow | null,
+  driver: SqliteDriver,
 ): ZapprService {
   let cancelled = false;
   let currentAbortController: AbortController | null = null;
+  const convRepo = createZapprConversationRepository(driver);
+
+  /** Short summaries from this workspace's last few conversations, so Zappr can reference what
+   *  it already worked on without the renderer having to resend the whole history. */
+  function getMemoryContext(workspaceId: string): string {
+    const recent = convRepo.recent(workspaceId, 3);
+    if (recent.length === 0) return '';
+    const summaries = recent
+      .map((c) => {
+        if (c.summary !== null) return c.summary;
+        try {
+          const parsed = JSON.parse(c.messages) as { content?: string }[];
+          return parsed.at(-1)?.content?.slice(0, 100);
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((s): s is string => s !== undefined && s !== '')
+      .join('\n- ');
+    if (summaries === '') return '';
+    return `\nRECENT CONTEXT (from previous sessions):\n- ${summaries}\n`;
+  }
+
+  /** Records this turn's prompt/response as one conversation row — best-effort; a failed save
+   *  never fails the run itself. */
+  function saveConversationTurn(workspaceId: string, userPrompt: string, response: string, summary: string | null): void {
+    try {
+      const messages = JSON.stringify([
+        { role: 'user', content: userPrompt },
+        { role: 'assistant', content: response },
+      ]);
+      convRepo.save(randomUUID(), workspaceId, messages, summary);
+    } catch (error) {
+      log.error('[Zappr] Failed to save conversation', { error: String(error) });
+    }
+  }
 
   function emit<E extends EventChannel>(channel: E, payload: EventPayloadOf<E>): void {
     if (window !== null && !window.isDestroyed()) emitToWindow(window, channel, payload);
@@ -638,7 +678,8 @@ export function createZapprService(
     const open = workspace.getCurrent();
     const workspaceName = open?.name ?? 'No project';
     const mentionedBlock = open === null ? '' : buildMentionedFilesBlock(open.rootPath, atMentions);
-    const contextBlock = mentionedBlock + buildContextBlock(
+    const memoryBlock = open === null ? '' : getMemoryContext(open.id);
+    const contextBlock = memoryBlock + mentionedBlock + buildContextBlock(
       open === null
         ? { workspaceRoot: '', projectName: workspaceName, activeFile: null, activeFileContent: null, openTabs: [], recentErrors: [], gitBranch: null, platform: process.platform, selectedCode, selectedCodeFile }
         : buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile),
@@ -697,6 +738,7 @@ export function createZapprService(
     if (cancelled) return { ok: false, error: 'Cancelled.' };
 
     emit('zappr:done', { success: true, filesChanged: [], chatResponse: outcome.value });
+    if (open !== null) saveConversationTurn(open.id, prompt, outcome.value, null);
     return { ok: true };
   }
 
@@ -712,7 +754,7 @@ export function createZapprService(
     if (open === null) return { ok: false, error: 'No project is open.' };
 
     const files = await listContextFiles(open.rootPath, workspace);
-    const contextBlock = buildMentionedFilesBlock(open.rootPath, atMentions) + buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile));
+    const contextBlock = getMemoryContext(open.id) + buildMentionedFilesBlock(open.rootPath, atMentions) + buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile));
     const systemPrompt = buildSystemPrompt(open.name, files, prompt, contextBlock);
 
     const request: ProviderRequest = {
@@ -781,6 +823,7 @@ export function createZapprService(
       };
     }
 
+    saveConversationTurn(open.id, prompt, plan.summary, plan.summary);
     return executePlan(open.rootPath, plan);
   }
 

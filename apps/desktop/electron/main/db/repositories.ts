@@ -660,3 +660,50 @@ export function createReferralRepository(driver: SqliteDriver) {
 }
 
 export type ReferralRepository = ReturnType<typeof createReferralRepository>;
+
+export interface ZapprConversationRow {
+  id: string;
+  workspaceId: string;
+  createdAt: number;
+  messages: string; // JSON array
+  summary: string | null;
+}
+
+function toZapprConversation(row: Row): ZapprConversationRow {
+  return {
+    id: row['id'] as string,
+    workspaceId: row['workspace_id'] as string,
+    createdAt: row['created_at'] as number,
+    messages: row['messages'] as string,
+    summary: row['summary'] as string | null,
+  };
+}
+
+export function createZapprConversationRepository(driver: SqliteDriver) {
+  return {
+    save(id: string, workspaceId: string, messages: string, summary: string | null): void {
+      driver
+        .prepare(
+          `INSERT INTO zappr_conversations (id, workspace_id, messages, summary)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET messages = excluded.messages, summary = excluded.summary`,
+        )
+        .run(id, workspaceId, messages, summary);
+    },
+
+    recent(workspaceId: string, limit = 5): ZapprConversationRow[] {
+      return driver
+        .prepare(
+          `SELECT id, workspace_id, created_at, messages, summary
+             FROM zappr_conversations
+             WHERE workspace_id = ?
+             ORDER BY created_at DESC
+             LIMIT ?`,
+        )
+        .all(workspaceId, limit)
+        .map(toZapprConversation);
+    },
+  };
+}
+
+export type ZapprConversationRepository = ReturnType<typeof createZapprConversationRepository>;

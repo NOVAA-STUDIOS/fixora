@@ -254,4 +254,21 @@ export const migrations: readonly Migration[] = [
       d.exec(`ALTER TABLE referrals ADD COLUMN times_used INTEGER NOT NULL DEFAULT 0`);
     },
   },
+  {
+    version: 13,
+    name: 'zappr_conversations',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS zappr_conversations (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          messages TEXT NOT NULL DEFAULT '[]',
+          summary TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_zappr_conv_workspace
+          ON zappr_conversations(workspace_id, created_at DESC);
+      `);
+    },
+  },
 ];

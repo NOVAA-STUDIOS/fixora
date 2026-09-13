@@ -480,7 +480,7 @@ function startBackend(window: BrowserWindow | null): void {
     catalogue: modelCatalogue,
   });
   registerTestGenerationHandlers({ workspace: workspaceService, orchestrator });
-  registerZapprHandlers(createZapprService(orchestrator, workspaceService, window));
+  registerZapprHandlers(createZapprService(orchestrator, workspaceService, window, driver));
   registerNotificationHandlers();
   // Code Shield: reads only — it re-runs the analyzers already wired above and reports what they
   // found. Registered with the same services the Problems panel uses, so the two cannot disagree.
