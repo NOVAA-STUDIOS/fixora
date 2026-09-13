@@ -13,6 +13,30 @@ import { activeSelectionText } from '../editor/active-editor.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
+function playSuccessSound(): void {
+  try {
+    const ctx = new AudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+    oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+    oscillator.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2); // G5
+
+    gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.4);
+
+    oscillator.onended = () => { void ctx.close(); };
+  } catch { /* audio not available */ }
+}
+
 function estimateTokens(text: string): number {
   // Rough estimate: ~4 chars per token (GPT/Claude standard)
   return Math.ceil(text.length / 4);
@@ -157,6 +181,7 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
       const last = messages[messages.length - 1];
       if (last?.role === 'assistant' && /file.*written/i.test(last.content)) {
         setCelebrating(true);
+        playSuccessSound();
         setTimeout(() => { setCelebrating(false); }, 700);
       }
     }
