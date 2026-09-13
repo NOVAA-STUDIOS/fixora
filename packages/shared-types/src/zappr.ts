@@ -43,6 +43,7 @@ export const ZapprActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('open_folder') }),
   z.object({ type: z.literal('toggle_panel') }),
   z.object({ type: z.literal('run_analysis') }),
+  z.object({ type: z.literal('review_file') }),
   z.object({ type: z.literal('run_terminal_command'), command: z.string().min(1) }),
   z.object({ type: z.literal('update_api_key'), provider: z.string(), apiKey: z.string().min(1) }),
   z.object({ type: z.literal('none') }),

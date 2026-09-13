@@ -134,6 +134,8 @@ function detectMode(prompt: string): ZapprMode {
 
 /** Regex-based, no AI call needed — a Jarvis-style command Zappr can carry out directly. */
 function detectAction(prompt: string): ZapprAction {
+  if (/^review\s+this\s+file/i.test(prompt)) return { type: 'review_file' };
+
   if (/open.*(setting|preference)/i.test(prompt)) return { type: 'open_settings' };
 
   if (/dark.*(mode|theme)|turn.*dark/i.test(prompt)) return { type: 'set_theme', theme: 'dark' };
@@ -377,6 +379,41 @@ Return ONLY this JSON (no markdown, no explanation outside JSON):
 CRITICAL: "content" must contain the ENTIRE file. Never truncate. Never use "// ... rest of file".`;
 }
 
+export function buildReviewPrompt(filePath: string, fileContent: string, contextBlock: string): string {
+  return `${contextBlock}
+You are Zappr — an expert code reviewer with 15+ years experience.
+Review this code like a senior engineer doing a thorough PR review.
+
+FILE: ${filePath}
+CONTENT:
+${fileContent}
+
+Perform a comprehensive code review. Return your review as plain markdown (NOT JSON):
+
+## Code Review: ${filePath}
+
+### Overall Score
+Rate the code X/10 with one sentence explanation.
+
+### 🔴 Critical Issues
+List any bugs, security vulnerabilities, or breaking issues. If none, say "None found ✓"
+
+### 🟡 Warnings
+List performance issues, code smells, anti-patterns. If none, say "None found ✓"
+
+### 🟢 Suggestions
+List improvements, best practices, readability fixes.
+
+### ✅ What's Good
+List what the code does well.
+
+### Summary
+One paragraph summary of the overall code quality.
+
+Be specific — reference actual line numbers and variable names from the code.
+Be constructive — explain WHY something is an issue and HOW to fix it.`;
+}
+
 /** Parses and validates the plan JSON an AI response is expected to contain. Throws on malformed shape. */
 function parsePlan(raw: string): { steps: ZapprStep[]; summary: string } {
   const parsed = extractJson(raw);
@@ -506,9 +543,87 @@ export function createZapprService(
     log.debug('[Zappr] Mode detected', { mode });
     emit('zappr:mode', { mode });
 
+    if (action.type === 'review_file') return runReviewMode(activeFile);
+
     if (mode === 'file') return runFileMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile, atMentions);
     if (mode === 'repair') return runRepairMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile, atMentions);
     return runChatMode(prompt, activeFile, openTabs, selectedCode, selectedCodeFile, atMentions);
+  }
+
+  async function runReviewMode(activeFile: string | null): Promise<{ ok: boolean; error?: string }> {
+    const open = workspace.getCurrent();
+    if (open === null) return { ok: false, error: 'No project is open.' };
+    if (activeFile === null) {
+      const message = 'No file open. Open the file you want reviewed in the editor first.';
+      emit('zappr:done', { success: false, filesChanged: [], error: message });
+      return { ok: false, error: message };
+    }
+
+    let fileContent: string;
+    try {
+      fileContent = readTextFile(open.rootPath, activeFile).content;
+    } catch (error) {
+      log.error('[Zappr] ERROR', { error: String(error), stack: error instanceof Error ? error.stack?.slice(0, 500) : undefined });
+      return { ok: false, error: `Could not read ${activeFile}: ${error instanceof Error ? error.message : String(error)}` };
+    }
+
+    const contextBlock = buildContextBlock(buildZapprContext(open.rootPath, activeFile, [], null, null));
+    const reviewPrompt = buildReviewPrompt(activeFile, fileContent, contextBlock);
+
+    const request: ProviderRequest = {
+      model: '',
+      messages: [{ role: 'user', content: reviewPrompt }],
+      maxOutputTokens: ZAPPR_MODEL_MAX_TOKENS,
+    };
+
+    let fullText = '';
+    const abortController = new AbortController();
+    currentAbortController = abortController;
+    const outcome = await orchestrator.run('explain', async (candidate) => {
+      log.debug('[Zappr] Calling AI', { provider: candidate.provider, model: candidate.model, promptLength: request.messages[0]?.content.length ?? 0 });
+      try {
+        const req = { ...request, model: candidate.model };
+        for await (const event of candidate.adapter.stream(req, abortController.signal)) {
+          if (cancelled) return { ok: false, failure: describeProviderFailure({ providerCode: 'cancelled', detail: 'Cancelled', retryable: false }) };
+          if (event.type === 'text_delta') {
+            fullText += event.text;
+            emit('zappr:delta', { text: event.text });
+          } else if (event.type === 'error') {
+            return {
+              ok: false,
+              failure: describeProviderFailure({
+                providerCode: event.providerCode,
+                detail: event.message,
+                retryable: event.retryable,
+              }),
+            };
+          }
+        }
+        log.debug('[Zappr] AI raw response', { raw: fullText.slice(0, 300) });
+        return { ok: true, value: fullText };
+      } catch (error) {
+        log.error('[Zappr] ERROR', { error: String(error), stack: error instanceof Error ? error.stack?.slice(0, 500) : undefined });
+        return {
+          ok: false,
+          failure: describeProviderFailure({
+            providerCode: 'unknown',
+            detail: error instanceof Error ? error.message : String(error),
+            retryable: false,
+          }),
+        };
+      }
+    });
+    currentAbortController = null;
+
+    if (!outcome.ok) {
+      const message = 'refused' in outcome ? 'No AI provider is configured.' : outcome.failure.message;
+      emit('zappr:done', { success: false, filesChanged: [], error: message });
+      return { ok: false, error: message };
+    }
+    if (cancelled) return { ok: false, error: 'Cancelled.' };
+
+    emit('zappr:done', { success: true, filesChanged: [], chatResponse: outcome.value });
+    return { ok: true };
   }
 
   async function runChatMode(

@@ -343,6 +343,22 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                 >
                   {autoFixOnSave ? '⚡ Auto' : '○ Auto'}
                 </button>
+                {!isRunning && activeFile !== null && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrompt(`Review this file: ${activeFile}`);
+                      void run();
+                    }}
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg"
+                    title={`Review ${activeFile}`}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      <path d="M1 2.5h8M1 5h6M1 7.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    </svg>
+                    Review
+                  </button>
+                )}
                 {!isRunning && (
                   <button
                     type="button"
@@ -539,6 +555,12 @@ export function ZapprPanel({ sidebar = false }: { sidebar?: boolean } = {}): Rea
                             <span className="shrink-0 text-[10px] font-semibold text-fg-muted">IN</span>
                             <code className="font-mono text-[11px] text-green-400">{msg.terminalCommand}</code>
                           </div>
+                          {msg.terminalOutput !== undefined && msg.terminalOutput !== '' && (
+                            <div className="flex gap-3 mt-1">
+                              <span className="shrink-0 text-[10px] font-semibold text-fg-muted">OUT</span>
+                              <code className="font-mono text-[11px] text-fg-muted whitespace-pre-wrap">{msg.terminalOutput.slice(0, 500)}</code>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

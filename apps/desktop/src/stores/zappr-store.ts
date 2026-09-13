@@ -2,6 +2,9 @@ import type { ZapprAction, ZapprStep } from '@fixora/shared-types';
 import { create } from 'zustand';
 
 import { toInternalBinding, useUserKeybindingsStore } from '../features/commands/user-keybindings-store.js';
+// editor-store.ts dynamically imports this module too (auto-fix-on-save); the cycle never
+// actually resolves at runtime since that side only imports lazily, inside an async function.
+// eslint-disable-next-line import-x/no-cycle
 import { useEditorStore } from '../features/editor/editor-store.js';
 import { useFindingsStore } from '../features/findings/findings-store.js';
 import { useTerminalStore } from '../features/terminal/terminal-store.js';
@@ -22,6 +25,7 @@ export type ZapprMessage = {
     status: 'pending' | 'running' | 'done' | 'error';
   }[];
   terminalCommand?: string;
+  terminalOutput?: string;
   timestamp: number;
 };
 
@@ -52,6 +56,7 @@ type ZapprState = {
   selectedCodeFile: string | null;
   messages: ZapprMessage[];
   currentRunId: string | null;
+  lastTerminalOutput: string | null;
 
   open: () => void;
   close: () => void;
@@ -63,6 +68,7 @@ type ZapprState = {
   setLastTerminalCommand: (cmd: string | null) => void;
   setLastKeyUpdateProvider: (provider: string | null) => void;
   setLastShortcutCreated: (v: { keys: string; description: string; unresolved: boolean } | null) => void;
+  setLastTerminalOutput: (output: string | null) => void;
   setSelectedCode: (code: string | null, file: string | null) => void;
   addMessage: (msg: ZapprMessage) => void;
   clearMessages: () => void;
@@ -74,6 +80,10 @@ type ZapprState = {
 
 let deltaBuffer = '';
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+let terminalCaptureActive = false;
+let capturedOutput = '';
+let captureTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useZapprStore = create<ZapprState>((set, get) => ({
   isOpen: false,
@@ -97,6 +107,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   selectedCodeFile: null,
   messages: [],
   currentRunId: null,
+  lastTerminalOutput: null,
 
   open: () => {
     set({
@@ -163,6 +174,10 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
     set({ lastShortcutCreated: v });
   },
 
+  setLastTerminalOutput: (output) => {
+    set({ lastTerminalOutput: output });
+  },
+
   setSelectedCode: (code, file) => {
     set({ selectedCode: code, selectedCodeFile: file });
   },
@@ -204,6 +219,8 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
           get().setLastTerminalCommand(null);
           return 'Terminal not open. Open the terminal panel first.';
         }
+        terminalCaptureActive = true;
+        capturedOutput = '';
         await invoke('terminal:write', { id: activeId, data: `${action.command}\n` });
         get().setLastTerminalCommand(action.command);
         return `Command sent to terminal: ${action.command}`;
@@ -340,6 +357,8 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       if (content !== '' && runId !== null) {
         set({ currentRunId: null });
         const prevSteps = get().steps;
+        const prevTerminalCommand = get().lastTerminalCommand;
+        const prevTerminalOutput = get().lastTerminalOutput;
         get().addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
@@ -351,6 +370,8 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
             description: step.description,
             status,
           })),
+          ...(prevTerminalCommand !== null ? { terminalCommand: prevTerminalCommand } : {}),
+          ...(prevTerminalOutput !== null ? { terminalOutput: prevTerminalOutput } : {}),
           timestamp: Date.now(),
         });
       }
@@ -366,6 +387,20 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
           if (result !== null) set({ chatResponse: result });
         });
     });
+    const offTerminalData = subscribe('terminal:data', (payload) => {
+      if (!terminalCaptureActive) return;
+      // Strip ANSI escape codes
+      // eslint-disable-next-line no-control-regex -- \x1b (ESC) is the ANSI escape-sequence marker
+      const clean = payload.data.replace(/\x1b\[[0-9;]*[mGKHF]/g, '').replace(/\r/g, '');
+      capturedOutput += clean;
+      // Debounce — wait 500ms after last output before finalizing
+      if (captureTimer !== null) clearTimeout(captureTimer);
+      captureTimer = setTimeout(() => {
+        set({ lastTerminalOutput: capturedOutput.trim() });
+        capturedOutput = '';
+        terminalCaptureActive = false;
+      }, 500);
+    });
     return () => {
       offMode();
       offPlan();
@@ -375,6 +410,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       offFileProgress();
       offDone();
       offActionResult();
+      offTerminalData();
     };
   },
 }));
