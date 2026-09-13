@@ -417,6 +417,52 @@ Be specific — reference actual line numbers and variable names from the code.
 Be constructive — explain WHY something is an issue and HOW to fix it.`;
 }
 
+function detectProjectStyle(rootPath: string, files: string[]): string {
+  const style: string[] = [];
+
+  // Detect language/framework
+  const hasTS = files.some((f) => f.endsWith('.ts') || f.endsWith('.tsx'));
+  const hasJS = files.some((f) => f.endsWith('.js') || f.endsWith('.jsx'));
+  const hasReact = files.some((f) => f.endsWith('.tsx') || f.endsWith('.jsx'));
+  const hasPy = files.some((f) => f.endsWith('.py'));
+  const hasRust = files.some((f) => f.endsWith('.rs'));
+  const hasGo = files.some((f) => f.endsWith('.go'));
+
+  if (hasTS) style.push('TypeScript');
+  if (hasReact) style.push('React');
+  if (hasPy) style.push('Python');
+  if (hasRust) style.push('Rust');
+  if (hasGo) style.push('Go');
+  if (hasJS && !hasTS) style.push('JavaScript');
+
+  // Detect package manager
+  if (files.some((f) => f === 'pnpm-lock.yaml')) style.push('pnpm');
+  else if (files.some((f) => f === 'yarn.lock')) style.push('yarn');
+  else if (files.some((f) => f === 'package-lock.json')) style.push('npm');
+
+  // Detect testing
+  if (files.some((f) => f.includes('.test.') || f.includes('.spec.'))) style.push('has tests');
+
+  // Try to read package.json for more info
+  try {
+    const pkg = files.find((f) => f === 'package.json');
+    if (pkg !== undefined) {
+      const content = readTextFile(rootPath, pkg);
+      const json = JSON.parse(content.content) as Record<string, unknown>;
+      const deps = { ...json['dependencies'] as Record<string, unknown>, ...json['devDependencies'] as Record<string, unknown> };
+      if ('next' in deps) style.push('Next.js');
+      if ('vite' in deps) style.push('Vite');
+      if ('vitest' in deps) style.push('Vitest');
+      if ('tailwindcss' in deps) style.push('Tailwind CSS');
+      if ('prisma' in deps) style.push('Prisma');
+      if ('express' in deps) style.push('Express');
+    }
+  } catch { /* ignore */ }
+
+  if (style.length === 0) return '';
+  return `\nPROJECT STACK: ${style.join(', ')}\nAlways follow this project's existing conventions and style.\n`;
+}
+
 /** Parses and validates the plan JSON an AI response is expected to contain. Throws on malformed shape. */
 function parsePlan(raw: string): { steps: ZapprStep[]; summary: string } {
   const parsed = extractJson(raw);
@@ -679,7 +725,8 @@ export function createZapprService(
     const workspaceName = open?.name ?? 'No project';
     const mentionedBlock = open === null ? '' : buildMentionedFilesBlock(open.rootPath, atMentions);
     const memoryBlock = open === null ? '' : getMemoryContext(open.id);
-    const contextBlock = memoryBlock + mentionedBlock + buildContextBlock(
+    const styleBlock = open === null ? '' : detectProjectStyle(open.rootPath, await listContextFiles(open.rootPath, workspace));
+    const contextBlock = memoryBlock + styleBlock + mentionedBlock + buildContextBlock(
       open === null
         ? { workspaceRoot: '', projectName: workspaceName, activeFile: null, activeFileContent: null, openTabs: [], recentErrors: [], gitBranch: null, platform: process.platform, selectedCode, selectedCodeFile }
         : buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile),
@@ -754,7 +801,8 @@ export function createZapprService(
     if (open === null) return { ok: false, error: 'No project is open.' };
 
     const files = await listContextFiles(open.rootPath, workspace);
-    const contextBlock = getMemoryContext(open.id) + buildMentionedFilesBlock(open.rootPath, atMentions) + buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile));
+    const styleBlock = detectProjectStyle(open.rootPath, files);
+    const contextBlock = getMemoryContext(open.id) + styleBlock + buildMentionedFilesBlock(open.rootPath, atMentions) + buildContextBlock(buildZapprContext(open.rootPath, activeFile, openTabs, selectedCode, selectedCodeFile));
     const systemPrompt = buildSystemPrompt(open.name, files, prompt, contextBlock);
 
     const request: ProviderRequest = {
