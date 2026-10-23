@@ -1,4 +1,3 @@
-import { execSync } from 'node:child_process';
 import { copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -8,6 +7,7 @@ import { defineConfig } from 'electron-vite';
 import type { Plugin } from 'vite';
 
 import { DEV_CSP_NONCE } from './electron/main/security/csp.js';
+import { runReadOnlyGitSync } from './electron/main/services/git-process.js';
 
 /**
  * The `<meta>` CSP in index.html is the production "second lock" (Electronegativity reads it, and
@@ -93,12 +93,7 @@ function buildTime(): string {
  */
 function gitDirty(): boolean {
   try {
-    return (
-      execSync('git status --porcelain', {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }).trim() !== ''
-    );
+    return runReadOnlyGitSync(['status', '--porcelain'], __dirname, 2_000).trim() !== '';
   } catch {
     return false;
   }
@@ -106,10 +101,7 @@ function gitDirty(): boolean {
 
 function gitCommit(): string {
   try {
-    return execSync('git rev-parse --short HEAD', {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
+    return runReadOnlyGitSync(['rev-parse', '--short', 'HEAD'], __dirname, 2_000).trim();
   } catch {
     return 'unknown';
   }

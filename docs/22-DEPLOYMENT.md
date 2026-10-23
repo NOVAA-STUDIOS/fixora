@@ -1,5 +1,10 @@
 # Fixora — Deployment Strategy
 
+> **Historical deployment proposal.** The FastAPI/Neon environments and pipelines below are not
+> deployed by this repository. Current Windows desktop release automation is
+> [RELEASING.md](./RELEASING.md); current web deployment assumptions are in
+> [apps/web/README.md](../apps/web/README.md).
+
 Three artifacts, three pipelines, three failure modes. The desktop app is the one you cannot take back.
 
 ---

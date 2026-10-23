@@ -1,5 +1,11 @@
 # Fixora — Local-First Data Strategy
 
+> **Historical target-state strategy.** Current storage and network behavior is mixed: desktop
+> workspace data and application history are local SQLite/filesystem, desktop AI calls use configured
+> providers, the web app proxies BYOK requests through its Next.js route, and auth/licensing have
+> separate service calls. Do not read the proposed cloud account/entitlement architecture below as
+> deployed; see [01-ARCHITECTURE.md](./01-ARCHITECTURE.md#current-implementation-snapshot).
+
 > **The default answer to "where does my code go?" is: nowhere.**
 
 This is simultaneously our privacy posture, our cost structure, our performance story, and our enterprise

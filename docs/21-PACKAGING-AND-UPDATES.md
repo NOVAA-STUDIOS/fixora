@@ -1,5 +1,10 @@
 # Fixora — Packaging & Auto-Update Strategy
 
+> **Historical strategy proposal.** Current Windows packaging/signing and updater behavior is in
+> [RELEASING.md](./RELEASING.md); local SQLite uses Node `node:sqlite`, not `better-sqlite3`, and the
+> updater currently consumes GitHub Releases. Staged rollout/self-hosted feed content below is
+> future design context.
+
 The install funnel is where most desktop products lose more users than any feature ever wins back. A single
 "Windows protected your PC" dialog converts a curious developer into a closed tab.
 

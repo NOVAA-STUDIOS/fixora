@@ -17,7 +17,7 @@ export function MinimalTitleBar(): React.JSX.Element {
         type="button"
         aria-label="Minimize"
         onClick={minimize}
-        className="no-drag-region flex h-8 w-12 items-center justify-center text-white/50 hover:bg-white/10 hover:text-white"
+        className="no-drag-region flex h-8 w-12 items-center justify-center text-fg-muted hover:bg-hover hover:text-fg"
       >
         <WinMinimizeIcon className="size-4" />
       </button>
@@ -25,7 +25,7 @@ export function MinimalTitleBar(): React.JSX.Element {
         type="button"
         aria-label="Close"
         onClick={close}
-        className="no-drag-region flex h-8 w-12 items-center justify-center text-white/50 hover:bg-[#ef4444] hover:text-white"
+        className="no-drag-region flex h-8 w-12 items-center justify-center text-fg-muted hover:bg-danger hover:text-on-danger"
       >
         <WinCloseIcon className="size-4" />
       </button>

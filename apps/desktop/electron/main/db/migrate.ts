@@ -22,10 +22,40 @@ export function migrate(
     );
   `);
 
+  const ordered = [...migrations].sort((a, b) => a.version - b.version);
+  const appliedRows = driver
+    .prepare('SELECT version, name, checksum FROM schema_migrations ORDER BY version')
+    .all();
+  const registeredByVersion = new Map(ordered.map((migration) => [migration.version, migration]));
+  const appliedVersions = new Set<number>();
+
+  // Verify the complete applied history before running any pending migration. A local drift must
+  // never be silently blessed by a newer migration.
+  for (const row of appliedRows) {
+    const version = row['version'];
+    if (typeof version !== 'number') throw new DatabaseMigrationIntegrityError();
+    const migration = registeredByVersion.get(version);
+    if (
+      migration === undefined ||
+      row['name'] !== migration.name ||
+      row['checksum'] !== checksumOf(migration)
+    ) {
+      throw new DatabaseMigrationIntegrityError();
+    }
+    appliedVersions.add(version);
+  }
+
+  const maxAppliedVersion = Math.max(0, ...appliedVersions);
+  for (const migration of ordered) {
+    if (migration.version <= maxAppliedVersion && !appliedVersions.has(migration.version)) {
+      throw new DatabaseMigrationIntegrityError();
+    }
+  }
+
   const appliedRow = driver.prepare('SELECT MAX(version) AS v FROM schema_migrations').get();
   const currentVersion = typeof appliedRow?.['v'] === 'number' ? appliedRow['v'] : 0;
 
-  const pending = [...migrations]
+  const pending = ordered
     .filter((m) => m.version > currentVersion)
     .sort((a, b) => a.version - b.version);
 
@@ -38,6 +68,13 @@ export function migrate(
         )
         .run(migration.version, migration.name, checksumOf(migration), Date.now());
     });
+  }
+}
+
+export class DatabaseMigrationIntegrityError extends Error {
+  constructor() {
+    super('Database migration integrity check failed');
+    this.name = 'DatabaseMigrationIntegrityError';
   }
 }
 

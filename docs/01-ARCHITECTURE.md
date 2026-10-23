@@ -1,6 +1,62 @@
-# Fixora — System Architecture (v1)
+# Fixora — Architecture Overview
 
-Status: **proposed, awaiting approval.** No code is written against this document until it is signed off.
+> **Status:** The original document below is a historical 2026 architecture proposal, not a description
+> of the deployed application. The implementation summary here describes the current checked-out
+> repository; verify code for exact behavior. Planned cloud services remain plans unless implemented.
+
+## Current implementation snapshot
+
+- **Desktop:** Electron main + React/Vite renderer. A sandboxed preload exposes a narrow
+  `contextBridge` API; shared channel/request/response/event contracts use Zod and are validated by the
+  main IPC router. Workspace paths, filesystem writes, terminal processes, SQLite and provider
+  orchestration are main-process responsibilities.
+- **Persistence:** local SQLite through Node's built-in `node:sqlite` (`DatabaseSync` behind the
+  `SqliteDriver` interface), WAL, numbered migrations and repositories. This amends ADR-011 via
+  ADR-033; the old `better-sqlite3` decision is historical.
+- **AI:** desktop provider abstractions/integrations live in `packages/core-ai`; desktop credentials
+  are managed by main-side credential services. There is no deployed FastAPI/Neon entitlement or
+  usage backend. Auth integrations do not imply that planned application data services exist.
+- **Web:** an independent Next.js app with `/`, `/app`, and `/api/zappr`. The browser keeps its BYOK
+  key in React memory for the page session; the Node route validates and streams requests to a fixed
+  allowlist of cloud providers. Its process-memory rate limit is best effort per instance, not global.
+- **Zappr:** chat/review remain responses; file/repair plans use shared `ZapprPlanSchema`, safe relative
+  paths and a main-owned, workspace-bound, single-use approval. Approved writes use guarded atomic
+  verification; the service preflights and snapshots targets and rolls back prior plan mutations on
+  failure. Run IDs scope events and cancellation. These guarantees are not a claim that all repair or
+  AI features share Zappr's plan pipeline.
+- **Zappr renderer context:** Ctrl+I captures selected code/file/range; `@mentions` resolve explicit
+  files; active-file fallback is lower priority. The UI deduplicates these sources, snapshots run
+  context, clears workspace-bound context on switching workspaces, and derives live phase labels from
+  run state. Prompt construction includes detected project conventions and focused context. Mention
+  metadata is indexed when the workspace file list changes, suggestions are bounded, and streamed
+  deltas are buffered in the renderer rather than independently scheduling a UI update per token.
+- **Release/update:** tagged Windows releases use the tag as version source, inject it into the desktop
+  package on the runner, sign with Azure Trusted Signing, verify signatures and version metadata, then
+  publish GitHub Release artifacts with SHA-256 checksums. `electron-updater` currently consumes the
+  GitHub feed; ADR-022's self-hosted staged-rollout feed is future work. Credentialled Windows CI is
+  required to verify real signing.
+
+```mermaid
+flowchart LR
+  R[React renderer] <--> P[Sandboxed preload / contextBridge]
+  P <--> I[Typed IPC + Zod validation]
+  I <--> M[Electron main]
+  M --> S[Filesystem / workspace / Zappr / core-ai / PTY services]
+  S --> DB[(Local SQLite)]
+  S --> FS[(Workspace files)]
+  S --> T[PTY processes]
+  S --> AI[Configured AI providers]
+  W[Next.js web chat] --> API[/api/zappr proxy/]
+  API --> AI
+```
+
+## Historical architecture proposal
+
+The sections below preserve the original proposal and its rationale. They include FastAPI, Neon,
+cloud entitlements, a twelve-profile pipeline and other target-state choices that are **not current
+implementation claims**. ADR status records decision history; it does not override the snapshot above
+or prove deployment. Consult current code and newer ADRs (notably ADR-033 for SQLite) before using this
+material as engineering guidance.
 
 ---
 

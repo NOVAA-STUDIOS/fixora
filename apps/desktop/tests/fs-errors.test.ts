@@ -18,7 +18,10 @@ import { toFsError, fsTry } from '../electron/main/services/fs/fs-errors.js';
 import {
   listDirectory,
   readTextFile,
+  restoreWorkspaceFile,
+  snapshotWorkspaceFile,
   writeTextFile,
+  writeWorkspaceFile,
 } from '../electron/main/services/fs/fs-service.js';
 import { loadIgnoreRules } from '../electron/main/services/fs/ignore-rules.js';
 
@@ -177,6 +180,56 @@ describe('fs-service — real filesystem conditions', () => {
     }
     // THE INVARIANT: the real file behind the link is untouched.
     expect(readTextFile(root, 'real.ts').content).toBe('export const real = 1;\n');
+  });
+
+  it('keeps generated writes and rollback from following a workspace symlink', () => {
+    writeFileSync(join(root, 'rollback.ts'), 'before');
+    const snapshot = snapshotWorkspaceFile(root, 'rollback.ts');
+    writeFileSync(join(root, 'safe-target.ts'), 'target');
+
+    try {
+      symlinkSync(join(root, 'safe-target.ts'), join(root, 'rollback.ts'), 'file');
+    } catch {
+      console.warn('[fs-errors] symlink creation unavailable — rollback-link path NOT exercised');
+      return;
+    }
+
+    expect(() => {
+      writeWorkspaceFile(root, 'rollback.ts', 'generated');
+    }).toThrow(UserFacingError);
+    try {
+      snapshotWorkspaceFile(root, 'rollback.ts');
+      expect.unreachable('should have refused to snapshot a symlink');
+    } catch (error) {
+      expect(error).toBeInstanceOf(UserFacingError);
+      expect((error as UserFacingError).options.code).toBe('fs_symlink_write');
+    }
+    expect(() => {
+      restoreWorkspaceFile(root, snapshot);
+    }).toThrow(UserFacingError);
+    expect(readTextFile(root, 'safe-target.ts').content).toBe('target');
+  });
+
+  it('refuses writes and snapshots through an in-workspace ancestor junction', () => {
+    const targetDir = join(root, 'target-dir');
+    mkdirSync(targetDir);
+    writeFileSync(join(targetDir, 'a.ts'), 'before');
+
+    try {
+      symlinkSync(targetDir, join(root, 'alias-dir'), 'junction');
+    } catch {
+      console.warn('[fs-errors] junction creation unavailable — ancestor-link path NOT exercised');
+      return;
+    }
+
+    expect(() => {
+      writeTextFile(root, 'alias-dir/a.ts', 'after');
+    }).toThrow(UserFacingError);
+    expect(() => {
+      writeWorkspaceFile(root, 'alias-dir/a.ts', 'generated');
+    }).toThrow(UserFacingError);
+    expect(() => snapshotWorkspaceFile(root, 'alias-dir/a.ts')).toThrow(UserFacingError);
+    expect(readTextFile(root, 'target-dir/a.ts').content).toBe('before');
   });
 
   it('still allows READING through a symlink', () => {

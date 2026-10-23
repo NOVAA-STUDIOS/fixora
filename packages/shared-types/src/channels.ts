@@ -210,6 +210,8 @@ export const channels = [
   // Zappr: a freeform-prompt coding agent, distinct from the finding-grounded repair pipeline.
   'zappr:run',
   'zappr:cancel',
+  'zappr:approvePlan',
+  'zappr:rejectPlan',
   'zappr:getContext',
 ] as const;
 

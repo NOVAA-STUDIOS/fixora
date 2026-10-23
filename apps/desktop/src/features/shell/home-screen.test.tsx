@@ -34,6 +34,8 @@ describe('HomeScreen', () => {
   it('renders the hero, Quick Actions, and Recent Projects together', async () => {
     render(<HomeScreen />);
     expect(screen.getByRole('heading', { name: 'Fixora' })).toBeTruthy();
+    expect(screen.getByText('AI development workspace')).toBeTruthy();
+    expect(screen.getByText('A focused workspace for understanding and repairing code.')).toBeTruthy();
     // "Open folder" appears twice by design: the hero CTA and the Quick Actions row entry.
     expect(screen.getAllByRole('button', { name: /open folder/i })).toHaveLength(2);
     expect(screen.getByRole('region', { name: 'Quick actions' })).toBeTruthy();

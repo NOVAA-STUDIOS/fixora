@@ -48,7 +48,7 @@ export function AppShell(): React.JSX.Element {
         without a single label. It is the difference between VS Code's classic look and what Linear,
         Arc and current Cursor do, and it costs nothing at runtime.
       */}
-      <div className="flex h-screen flex-col overflow-hidden bg-inset text-fg">
+      <div className="flex h-screen flex-col overflow-hidden bg-canvas text-fg">
         <TitleBar />
         <UpdateBanner />
         {/* `relative` is the positioning context Code Shield's slide-in panel resolves against —

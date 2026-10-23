@@ -1,5 +1,10 @@
 # Fixora — Security Architecture
 
+> **Historical target-state security design.** Treat proposed gateway/token/storage controls below as
+> requirements or plans, not evidence of deployment. Current desktop boundaries are described in
+> [01-ARCHITECTURE.md](./01-ARCHITECTURE.md#current-implementation-snapshot); inspect code before
+> relying on a specific control.
+
 An Electron app that reads your source code, executes your test suite, and talks to a model provider is a
 **high-value target with a large attack surface**. Treating security as a checklist at the end is how this
 product dies. It is a design constraint from M0.

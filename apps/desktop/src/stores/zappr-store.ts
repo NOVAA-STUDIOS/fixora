@@ -9,6 +9,7 @@ import { useEditorStore } from '../features/editor/editor-store.js';
 import { useFindingsStore } from '../features/findings/findings-store.js';
 import { useTerminalStore } from '../features/terminal/terminal-store.js';
 import { useWorkspaceStore } from '../features/workspace/workspace-store.js';
+import { normalizeMentionPath, parseMentionPaths } from '../features/zappr/mention-context.js';
 import { invoke, subscribe } from '../lib/bridge.js';
 
 import { useUiStore } from './ui-store.js';
@@ -34,9 +35,26 @@ type StepState = {
   status: 'pending' | 'running' | 'done' | 'error';
 };
 
+export type ZapprOutcome = {
+  kind: 'success' | 'rejected' | 'cancelled' | 'reverted' | 'rollback-incomplete' | 'error';
+  message: string;
+};
+
+export type ZapprRunContext = {
+  activeFile: string | null;
+  openTabs: string[];
+  selectedCode: string | null;
+  selectedCodeFile: string | null;
+  atMentions: string[];
+  smartContextFiles?: string[];
+};
+
+export type ZapprCommandRunRequest = { id: string; prompt: string; workspaceRoot: string | null };
+
 type ZapprState = {
   isOpen: boolean;
   isRunning: boolean;
+  isCancelling: boolean;
   prompt: string;
   plan: ZapprStep[] | null;
   currentStep: number;
@@ -47,6 +65,8 @@ type ZapprState = {
   chatResponse: string | null;
   streamingText: string;
   pendingAction: ZapprAction | null;
+  pendingApprovalId: string | null;
+  isApproving: boolean;
   currentFilePath: string | null;
   currentFileContent: string | null;
   lastTerminalCommand: string | null;
@@ -54,9 +74,16 @@ type ZapprState = {
   lastShortcutCreated: { keys: string; description: string; unresolved: boolean } | null;
   selectedCode: string | null;
   selectedCodeFile: string | null;
+  selectedCodeStartLine: number | null;
+  selectedCodeEndLine: number | null;
+  selectedCodeLanguage: string | null;
+  selectedCodeWorkspaceRoot: string | null;
+  mentionFiles: string[];
   messages: ZapprMessage[];
-  currentRunId: string | null;
+  activeRunId: string | null;
   lastTerminalOutput: string | null;
+  outcome: ZapprOutcome | null;
+  commandRunRequest: ZapprCommandRunRequest | null;
 
   open: () => void;
   close: () => void;
@@ -70,10 +97,19 @@ type ZapprState = {
   setLastShortcutCreated: (v: { keys: string; description: string; unresolved: boolean } | null) => void;
   setLastTerminalOutput: (output: string | null) => void;
   setSelectedCode: (code: string | null, file: string | null) => void;
+  captureSelection: (context: { code: string; file: string; startLine?: number; endLine?: number; language?: string | null; workspaceRoot?: string | null }) => void;
+  clearSelectedCode: () => void;
   addMessage: (msg: ZapprMessage) => void;
   clearMessages: () => void;
   executeAction: (action: ZapprAction) => Promise<string | null>;
-  run: () => Promise<void>;
+  setMentionFiles: (files: string[]) => void;
+  removeMentionFile: (file: string) => void;
+  clearMentionFiles: () => void;
+  requestCommandRun: (prompt: string) => void;
+  consumeCommandRunRequest: (id: string) => void;
+  run: (context?: ZapprRunContext) => Promise<void>;
+  approvePendingPlan: () => Promise<void>;
+  rejectPendingPlan: () => Promise<void>;
   cancel: () => Promise<void>;
   listen: () => () => void;
 };
@@ -88,6 +124,7 @@ let captureTimer: ReturnType<typeof setTimeout> | null = null;
 export const useZapprStore = create<ZapprState>((set, get) => ({
   isOpen: false,
   isRunning: false,
+  isCancelling: false,
   prompt: '',
   plan: null,
   currentStep: -1,
@@ -98,6 +135,8 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   chatResponse: null,
   streamingText: '',
   pendingAction: null,
+  pendingApprovalId: null,
+  isApproving: false,
   currentFilePath: null,
   currentFileContent: null,
   lastTerminalCommand: null,
@@ -105,14 +144,22 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   lastShortcutCreated: null,
   selectedCode: null,
   selectedCodeFile: null,
+  selectedCodeStartLine: null,
+  selectedCodeEndLine: null,
+  selectedCodeLanguage: null,
+  selectedCodeWorkspaceRoot: null,
+  mentionFiles: [],
   messages: [],
-  currentRunId: null,
+  activeRunId: null,
   lastTerminalOutput: null,
+  outcome: null,
+  commandRunRequest: null,
 
   open: () => {
     set({
       isOpen: true,
       isRunning: false,
+      isCancelling: false,
       prompt: '',
       plan: null,
       currentStep: -1,
@@ -123,11 +170,16 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       chatResponse: null,
       streamingText: '',
       pendingAction: null,
+      pendingApprovalId: null,
+      isApproving: false,
       currentFilePath: null,
       currentFileContent: null,
       lastTerminalCommand: null,
       lastKeyUpdateProvider: null,
       lastShortcutCreated: null,
+      activeRunId: null,
+      outcome: null,
+      commandRunRequest: null,
     });
   },
 
@@ -136,7 +188,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   },
 
   setPrompt: (prompt) => {
-    set({ prompt });
+    set({ prompt, mentionFiles: parseMentionPaths(prompt) });
   },
 
   clearError: () => {
@@ -179,7 +231,51 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
   },
 
   setSelectedCode: (code, file) => {
-    set({ selectedCode: code, selectedCodeFile: file });
+    set({ selectedCode: code, selectedCodeFile: file, selectedCodeStartLine: null, selectedCodeEndLine: null, selectedCodeLanguage: null, selectedCodeWorkspaceRoot: useWorkspaceStore.getState().workspace?.rootPath ?? null });
+  },
+
+  captureSelection: ({ code, file, startLine, endLine, language, workspaceRoot }) => {
+    set({
+      selectedCode: code,
+      selectedCodeFile: file,
+      selectedCodeStartLine: startLine ?? null,
+      selectedCodeEndLine: endLine ?? startLine ?? null,
+      selectedCodeLanguage: language ?? null,
+      selectedCodeWorkspaceRoot: workspaceRoot ?? useWorkspaceStore.getState().workspace?.rootPath ?? null,
+    });
+  },
+
+  clearSelectedCode: () => {
+    set({ selectedCode: null, selectedCodeFile: null, selectedCodeStartLine: null, selectedCodeEndLine: null, selectedCodeLanguage: null, selectedCodeWorkspaceRoot: null });
+  },
+
+  setMentionFiles: (files) => {
+    set({ mentionFiles: [...new Set(files)] });
+  },
+  removeMentionFile: (file) => {
+    set((state) => ({ mentionFiles: state.mentionFiles.filter((item) => item !== file) }));
+  },
+  clearMentionFiles: () => {
+    set({ mentionFiles: [] });
+  },
+
+  requestCommandRun: (prompt) => {
+    const state = get();
+    if (state.isRunning || state.activeRunId !== null || state.pendingApprovalId !== null || prompt.trim() === '') return;
+    set({
+      isOpen: true,
+      prompt,
+      mentionFiles: parseMentionPaths(prompt),
+      commandRunRequest: {
+        id: crypto.randomUUID(),
+        prompt,
+        workspaceRoot: useWorkspaceStore.getState().workspace?.rootPath ?? null,
+      },
+    });
+  },
+
+  consumeCommandRunRequest: (id) => {
+    if (get().commandRunRequest?.id === id) set({ commandRunRequest: null });
   },
 
   addMessage: (msg) => {
@@ -265,13 +361,20 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
     }
   },
 
-  run: async () => {
+  run: async (context) => {
     const prompt = get().prompt.trim();
     if (prompt === '') return;
+    if (flushTimer !== null) clearTimeout(flushTimer);
+    flushTimer = null;
+    deltaBuffer = '';
     const workspaceRoot = useWorkspaceStore.getState().workspace?.rootPath ?? '';
     const { activeTab, tabs } = useEditorStore.getState();
-    const { selectedCode, selectedCodeFile } = get();
-    set({ isRunning: true, error: null });
+    const state = get();
+    const selectedBelongsHere = state.selectedCodeWorkspaceRoot === workspaceRoot;
+    const selectedCode = context?.selectedCode ?? (selectedBelongsHere ? state.selectedCode : null);
+    const selectedCodeFile = context?.selectedCodeFile ?? (selectedBelongsHere ? state.selectedCodeFile : null);
+    const runActiveFile = context === undefined ? activeTab : context.activeFile;
+    set({ isRunning: true, isCancelling: false, error: null, outcome: null, pendingApprovalId: null, isApproving: false, plan: null, steps: [], commandRunRequest: null });
     // Scroll to bottom so isRunning indicator is visible
     setTimeout(() => {
       const el = document.querySelector('[data-zappr-scroll]');
@@ -285,18 +388,30 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       timestamp: Date.now(),
     });
     const runId = crypto.randomUUID();
-    set({ currentRunId: runId });
-    const atMentions = [...prompt.matchAll(/@([\w./]+)/g)].map((m) => m[1] ?? '').filter(Boolean);
+    set({ activeRunId: runId });
+    const rawMentions = context?.atMentions ?? [...prompt.matchAll(/@([\w./-]+)/g)].map((m) => m[1] ?? '').filter(Boolean);
+    const atMentions = [...new Set(rawMentions.map((path) => path.replace(/\\/g, '/').replace(/^\.\//, '')))]
+      .filter((path) => path !== '' && !path.startsWith('/') && !path.split('/').includes('..'))
+      .filter((path) => path !== selectedCodeFile);
+    const smartContextFiles = [...new Set((context?.smartContextFiles ?? [])
+      .map((path) => normalizeMentionPath(path))
+      .filter((path): path is string => path !== null))]
+      .filter((path) => path !== runActiveFile && path !== selectedCodeFile && !atMentions.includes(path))
+      .slice(0, 4);
+    const openTabs = (context?.openTabs ?? tabs.map((tab) => tab.relPath))
+      .filter((path) => path !== runActiveFile && path !== selectedCodeFile && !atMentions.includes(path));
     const result = await invoke('zappr:run', {
+      runId,
       prompt,
       workspaceRoot,
-      activeFile: activeTab,
-      openTabs: tabs.map((t) => t.relPath),
+      activeFile: atMentions.includes(runActiveFile ?? '') || selectedCodeFile === runActiveFile ? null : runActiveFile,
+      openTabs,
       selectedCode,
       selectedCodeFile,
       atMentions,
+      smartContextFiles,
     });
-    if (!result.ok || !result.value.ok) {
+    if (get().activeRunId === runId && (!result.ok || !result.value.ok)) {
       set({
         isRunning: false,
         error: result.ok ? (result.value.error ?? 'Zappr failed.') : result.error.message,
@@ -304,22 +419,75 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
     }
   },
 
+  approvePendingPlan: async () => {
+    const approvalId = get().pendingApprovalId;
+    const runId = get().activeRunId;
+    if (approvalId === null || runId === null || get().isApproving) return;
+    set({ isApproving: true, isRunning: true, isCancelling: false, error: null });
+    const result = await invoke('zappr:approvePlan', { approvalId, runId });
+    if (get().activeRunId !== runId) return;
+    if (!result.ok || !result.value.ok) {
+      const message = result.ok ? (result.value.error ?? 'Could not apply the Zappr plan.') : result.error.message;
+      set({
+        isApproving: false,
+        isRunning: false,
+        pendingApprovalId: null,
+        error: message.startsWith('Changes reverted after failure:') ? null : message,
+      });
+    }
+  },
+
+  rejectPendingPlan: async () => {
+    const approvalId = get().pendingApprovalId;
+    const runId = get().activeRunId;
+    if (approvalId === null || runId === null) return;
+    set({ pendingApprovalId: null, isApproving: false, isRunning: false, isCancelling: false, outcome: { kind: 'rejected', message: 'Changes rejected — no files were modified.' } });
+    const result = await invoke('zappr:rejectPlan', { approvalId, runId });
+    if (get().activeRunId === runId) set({ activeRunId: null });
+    if (!result.ok || !result.value.ok) {
+      set({ error: result.ok ? (result.value.error ?? 'Could not reject the Zappr plan.') : result.error.message });
+    }
+  },
+
   cancel: async () => {
-    await invoke('zappr:cancel', {});
-    set({ isRunning: false });
+    const approvalId = get().pendingApprovalId;
+    const runId = get().activeRunId;
+    if (approvalId !== null) {
+      const runId = get().activeRunId;
+      await get().rejectPendingPlan();
+      if (runId !== null && get().activeRunId === null) {
+        set({ outcome: { kind: 'cancelled', message: 'Cancelled — no files were modified.' } });
+      }
+      return;
+    }
+    if (runId !== null) {
+      set({ isCancelling: true, isRunning: false, isApproving: false });
+      await invoke('zappr:cancel', { runId });
+    }
   },
 
   listen: () => {
     const offMode = subscribe('zappr:mode', (payload) => {
+      if (payload.runId !== get().activeRunId) return;
       console.warn('[Zappr:UI]', 'zappr:mode', payload);
       set({ mode: payload.mode });
     });
     const offPlan = subscribe('zappr:plan', (payload) => {
+      if (payload.runId !== get().activeRunId) return;
       console.warn('[Zappr:UI]', 'zappr:plan', payload);
-      const { steps, summary } = payload;
-      set({ plan: steps, summary, steps: steps.map((step) => ({ step, status: 'pending' })) });
+      const { approvalId, steps, summary } = payload;
+      set({
+        plan: steps,
+        summary,
+        steps: steps.map((step) => ({ step, status: 'pending' })),
+        pendingApprovalId: approvalId,
+        isRunning: false,
+        isCancelling: false,
+        isApproving: false,
+      });
     });
     const offStepStart = subscribe('zappr:stepStart', (payload) => {
+      if (payload.runId !== get().activeRunId) return;
       console.warn('[Zappr:UI]', 'zappr:stepStart', payload);
       const { index } = payload;
       set((state) => ({
@@ -328,34 +496,52 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       }));
     });
     const offStepDone = subscribe('zappr:stepDone', (payload) => {
+      if (payload.runId !== get().activeRunId) return;
       console.warn('[Zappr:UI]', 'zappr:stepDone', payload);
       const { index, success } = payload;
       set((state) => ({
         steps: state.steps.map((s, i) => (i === index ? { ...s, status: success ? 'done' : 'error' } : s)),
       }));
     });
-    const offDelta = subscribe('zappr:delta', ({ text }) => {
+    const offDelta = subscribe('zappr:delta', ({ runId, text }) => {
+      if (runId !== get().activeRunId) return;
       get().appendDelta(text);
     });
     const offFileProgress = subscribe('zappr:fileProgress', (payload) => {
+      if (payload.runId !== get().activeRunId) return;
       console.warn('[Zappr:UI]', 'zappr:fileProgress', payload);
       set({ currentFilePath: payload.filePath, currentFileContent: payload.content });
     });
     const offDone = subscribe('zappr:done', (payload) => {
+      if (payload.runId !== get().activeRunId) return;
       console.warn('[Zappr:UI]', 'zappr:done', payload);
       const { chatResponse } = payload;
       const prevStreaming = get().streamingText;
       const prevMode = get().mode;
+      const completedRunId = get().activeRunId;
+      const outcomeText = payload.error ?? chatResponse ?? '';
+      const outcome: ZapprOutcome = payload.success
+        ? { kind: 'success', message: chatResponse ?? 'Completed successfully.' }
+        : /rollback incomplete|manual review required/i.test(outcomeText)
+          ? { kind: 'rollback-incomplete', message: outcomeText }
+          : /changes reverted|previous changes were reverted/i.test(outcomeText)
+            ? { kind: 'reverted', message: outcomeText }
+            : /cancelled/i.test(outcomeText)
+              ? { kind: 'cancelled', message: /reverted/i.test(outcomeText) ? 'Cancelled — changes were reverted.' : 'Cancelled — no files were modified.' }
+              : { kind: 'error', message: outcomeText || 'Zappr failed.' };
       set({
         isRunning: false,
+        isApproving: false,
+        pendingApprovalId: null,
+        activeRunId: null,
+        ...(payload.error !== undefined ? { error: payload.error } : {}),
         currentFilePath: null,
         currentFileContent: null,
         ...(chatResponse !== undefined ? { chatResponse, streamingText: '' } : {}),
+        outcome,
       });
       const content = chatResponse ?? prevStreaming;
-      const runId = get().currentRunId;
-      if (content !== '' && runId !== null) {
-        set({ currentRunId: null });
+      if (content !== '' && completedRunId !== null) {
         const prevSteps = get().steps;
         const prevTerminalCommand = get().lastTerminalCommand;
         const prevTerminalOutput = get().lastTerminalOutput;
@@ -377,6 +563,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
       }
     });
     const offActionResult = subscribe('zappr:actionResult', (payload) => {
+      if (payload.runId !== get().activeRunId) return;
       console.warn('[Zappr:UI]', 'zappr:actionResult', payload);
       const { message, action } = payload;
       set({ chatResponse: message, isRunning: false, pendingAction: action });
@@ -384,7 +571,7 @@ export const useZapprStore = create<ZapprState>((set, get) => ({
         .executeAction(action)
         .then((result) => {
           console.warn('[Zappr:UI] Action result', result);
-          if (result !== null) set({ chatResponse: result });
+          if (result !== null && get().activeRunId === payload.runId) set({ chatResponse: result });
         });
     });
     const offTerminalData = subscribe('terminal:data', (payload) => {

@@ -171,7 +171,7 @@ export function Workbench(): React.JSX.Element {
   const everActivatedTerminal = useRef(false);
   if (activeView === 'terminal') everActivatedTerminal.current = true;
   return (
-    <div className="relative flex min-h-0 flex-1">
+    <div className="relative flex min-h-0 min-w-0 flex-1">
       {everActivatedTerminal.current && (
         <div className={activeView === 'terminal' ? 'flex min-h-0 flex-1' : 'hidden'}>
           <ErrorBoundary label="Terminal">
@@ -317,7 +317,7 @@ function WorkbenchContent(): React.JSX.Element {
       orientation="horizontal"
       defaultLayout={savedLayout[layoutKey] ?? defaultLayout}
       onLayoutChanged={onLayoutChanged}
-      className="min-h-0 flex-1 bg-inset"
+      className="min-h-0 flex-1 bg-canvas"
     >
       {/*
         react-resizable-panels v4: a NUMBER is pixels, a unit-less STRING is a percentage. So the
@@ -359,7 +359,7 @@ function WorkbenchContent(): React.JSX.Element {
         collapsedSize={0}
         minSize={zapprOpen ? 400 : 260}
         defaultSize={zapprOpen ? '85' : '35'}
-        className={cn('min-w-0', zapprOpen ? 'border-l-2 border-white/20' : 'border-l border-white/[0.06]', aiPanelVisible && 'animate-slide-in-right')}
+        className={cn('min-w-0 border-l border-border-subtle', zapprOpen && 'border-l-2 border-accent-border', aiPanelVisible && 'animate-slide-in-right')}
       >
         <ErrorBoundary label="The assistant panel">
           <AssistantPanel />
@@ -394,14 +394,16 @@ function AssistantPanel(): React.JSX.Element {
           onMouseDown={() => {
             const selText = activeSelectionText();
             const selFile = useEditorStore.getState().activeTab;
-            if (selText !== null) {
-              useZapprStore.setState({ selectedCode: selText, selectedCodeFile: selFile });
+            if (selText !== null && selFile !== null) {
+              useZapprStore.getState().captureSelection({ code: selText, file: selFile });
+            } else {
+              useZapprStore.getState().clearSelectedCode();
             }
           }}
           onClick={() => { setZapprOpen(!zapprOpen); }}
           className={cn(
             'ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors',
-            'text-fg-muted hover:bg-white/5 hover:text-fg',
+            'text-fg-muted hover:bg-hover hover:text-fg',
           )}
         >
           ⚡ Zappr

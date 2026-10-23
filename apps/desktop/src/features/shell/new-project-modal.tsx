@@ -1,4 +1,4 @@
-import { PROJECT_TEMPLATES } from '@fixora/shared-types';
+import { isValidProjectName, PROJECT_TEMPLATES } from '@fixora/shared-types';
 import {
   Button,
   Dialog,
@@ -17,8 +17,6 @@ import { useWorkspaceStore } from '../workspace/workspace-store.js';
 /** Folder-name-safe: no path separators, no shell metacharacters the scaffold command could trip
  * on — checked again in project.handlers.ts, since the renderer's check is a UX nicety, not the
  * boundary (invariant I2). */
-const VALID_NAME = /^[a-zA-Z0-9._-]+$/;
-
 /**
  * New Project: pick a template, a name and a location, then Create runs the scaffold command as a
  * silent background process (`project:create` — see project-service.ts) and opens the result when
@@ -57,8 +55,8 @@ export function NewProjectModal(): React.JSX.Element {
 
   async function create(): Promise<void> {
     if (parentDir === null) return;
-    if (!VALID_NAME.test(name)) {
-      setError('Project name may only contain letters, numbers, dots, dashes and underscores.');
+    if (!isValidProjectName(name)) {
+      setError('Project name must be 1–64 letters, numbers, dots, dashes, or underscores, without paths or consecutive dots.');
       return;
     }
     setPhase('creating');

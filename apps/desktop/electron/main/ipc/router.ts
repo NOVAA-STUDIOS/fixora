@@ -46,6 +46,7 @@ export type HandlerContext = {
 type Registry = { [C in Channel]?: Handler<C> };
 
 const registry: Registry = {};
+const mountedChannels = new Set<Channel>();
 
 export function registerHandler<C extends Channel>(channel: C, handler: Handler<C>): void {
   if (registry[channel] !== undefined) {
@@ -93,8 +94,9 @@ function isEnvelope(value: unknown): value is Envelope {
   return typeof value === 'object' && value !== null && 'requestId' in value && 'payload' in value;
 }
 
-export function mountRouter(): void {
-  for (const channel of channels) {
+export function mountRouter(selectedChannels: readonly Channel[] = channels): void {
+  for (const channel of selectedChannels) {
+    if (mountedChannels.has(channel)) continue;
     ipcMain.handle(channel, async (event, raw: unknown): Promise<Result<unknown>> => {
       const requestId =
         isEnvelope(raw) && typeof raw.requestId === 'string' ? raw.requestId : 'unknown';
@@ -196,6 +198,7 @@ export function mountRouter(): void {
 
       return ok(parsedResponse.data);
     });
+    mountedChannels.add(channel);
   }
 }
 

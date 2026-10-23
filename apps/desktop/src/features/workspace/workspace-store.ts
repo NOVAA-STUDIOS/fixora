@@ -5,6 +5,8 @@ import { invoke } from '../../lib/bridge.js';
 import { dirname } from '../../lib/path.js';
 import { useAiStore } from '../../stores/ai-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
+// Workspace reset needs editor state; the editor's Zappr edge is dynamically imported at action time.
+// eslint-disable-next-line import-x/no-cycle
 import { useEditorStore } from '../editor/editor-store.js';
 import { disposeAllModels } from '../editor/models.js';
 import { useFindingsStore } from '../findings/findings-store.js';
@@ -473,4 +475,3 @@ function reconcileChildren(
   }
   return [...nodes.slice(0, start), ...rebuilt, ...nodes.slice(end)];
 }
-

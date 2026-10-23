@@ -3,6 +3,24 @@
 All notable changes to Fixora. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.2.26 (October 23, 2026)
+
+Known limitation: Windows binaries are unsigned; SmartScreen may show an Unknown Publisher warning.
+
+### Security & Reliability
+- Safer workspace file writes and improved protection against symbolic-link path escapes.
+- New Project scaffolding validates project names and launches tools without shell interpolation.
+- Improved database migration integrity checks and bounded Zappr conversation retention.
+- More reliable desktop test sharding and release artifact verification.
+
+### Zappr
+- File changes now use validated plans, explicit approval, verified writes, and rollback on failure.
+- Run-scoped cancellation and clearer multi-file repair/context handling improve safety and control.
+
+### UI & Web
+- Refined desktop workbench, editor, empty states, and Zappr context/status presentation.
+- Web chat keeps provider keys in memory and renders model markdown without raw HTML injection.
+
 ## 1.2.24 (September 9, 2026)
 
 ### Zappr AI Agent

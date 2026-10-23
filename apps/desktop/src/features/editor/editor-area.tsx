@@ -1,9 +1,10 @@
 import type { FileEncodingName } from '@fixora/shared-types';
-import { ConfirmDialog, FileIcon, SearchIcon, WinCloseIcon, cn } from '@fixora/ui';
+import { ConfirmDialog, FileIcon, FolderIcon, SearchIcon, WinCloseIcon, cn } from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { invoke } from '../../lib/bridge.js';
 import { dirname } from '../../lib/path.js';
+import { useUiStore } from '../../stores/ui-store.js';
 import { useTerminalStore } from '../terminal/terminal-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
@@ -69,6 +70,7 @@ const TAB_SEARCH_THRESHOLD = 5;
 
 export function EditorArea(): React.JSX.Element {
   const tabs = useEditorStore((s) => s.tabs);
+  const setActiveView = useUiStore((s) => s.setActiveView);
   const activeTab = useEditorStore((s) => s.activeTab);
   const splitRelPath = useEditorStore((s) => s.splitRelPath);
   const setSplit = useEditorStore((s) => s.setSplit);
@@ -109,18 +111,25 @@ export function EditorArea(): React.JSX.Element {
 
   if (tabs.length === 0) {
     return (
-      <section aria-label="Editor" className="flex h-full items-center justify-center bg-canvas">
-        <div className="flex flex-col items-center gap-3 text-center">
+      <section aria-label="Editor" className="flex h-full min-w-0 items-center justify-center bg-canvas">
+        <div className="flex max-w-sm flex-col items-center gap-3 p-4 text-center sm:p-6">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-raised ring-1 ring-border-subtle">
             <FileIcon className="size-5 text-fg-muted" />
           </div>
           <div>
-            <p className="text-[14px] font-medium text-fg">No file open</p>
-            <p className="mt-1 max-w-[200px] text-[12px] leading-relaxed text-fg-muted">
-              Pick a file in Files, or click a finding in Problems to jump straight to the line
-              it&rsquo;s on.
+            <p className="text-sm font-semibold text-fg">No file open</p>
+            <p className="mt-1 max-w-[240px] text-xs leading-relaxed text-fg-muted">
+              Choose a file from the workspace, or open a finding to jump to its line.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => { setActiveView('workspace'); }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border-subtle bg-raised px-3 py-1.5 text-xs font-medium text-fg-secondary transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
+          >
+            <FolderIcon className="size-3.5" />
+            Browse files
+          </button>
         </div>
       </section>
     );
@@ -156,7 +165,7 @@ export function EditorArea(): React.JSX.Element {
                 className={cn(
                   // shrink-0: the strip scrolls horizontally, so tabs must keep their width rather
                   // than compressing every open file into an unreadable sliver as more are opened.
-                  'group flex shrink-0 items-center gap-1 border-r border-b-2 border-border-subtle border-b-transparent pl-3 pr-1 text-[12px] font-medium',
+                  'group flex shrink-0 items-center gap-1 border-r border-b-2 border-border-subtle border-b-transparent pl-3 pr-1 text-[12px] font-medium transition-colors duration-150',
                   tab.relPath === activeTab
                     ? 'border-b-accent bg-canvas text-fg'
                     : 'text-fg-muted hover:bg-hover hover:text-fg',
@@ -198,7 +207,10 @@ export function EditorArea(): React.JSX.Element {
                     disposeModel(tab.relPath);
                     closeTab(tab.relPath);
                   }}
-                  className="rounded-sm p-0.5 text-fg-muted opacity-0 hover:bg-hover hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
+                  className={cn(
+                    'rounded-sm p-0.5 text-fg-muted transition-colors hover:bg-hover hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline',
+                    tab.relPath === activeTab ? 'opacity-70' : 'opacity-0 group-hover:opacity-100',
+                  )}
                 >
                   <WinCloseIcon className="size-3.5" />
                 </button>
@@ -241,7 +253,7 @@ export function EditorArea(): React.JSX.Element {
       </div>
 
       {tabSearchOpen && (
-        <div className="absolute inset-x-0 top-9 z-20 flex flex-col rounded-b-lg border border-t-0 border-border-subtle bg-canvas shadow-lg">
+        <div className="absolute inset-x-0 top-9 z-20 flex flex-col rounded-b-lg border border-t-0 border-border-subtle bg-raised shadow-lg">
           <input
             ref={tabSearchInputRef}
             type="text"
@@ -310,14 +322,14 @@ export function EditorArea(): React.JSX.Element {
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex h-6 shrink-0 items-center justify-between border-b border-border-subtle bg-raised px-3 text-[11px] text-fg-muted">
-              <span className="min-w-0 truncate">{splitRelPath}</span>
+              <span className="min-w-0 truncate font-medium text-fg-secondary" title={splitRelPath}>{splitRelPath}</span>
               <button
                 type="button"
                 aria-label="Close split editor"
                 onClick={() => {
                   setSplit(null);
                 }}
-                className="shrink-0 rounded p-0.5 hover:bg-hover hover:text-fg"
+                className="shrink-0 rounded p-0.5 transition-colors hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
               >
                 <WinCloseIcon className="size-3" />
               </button>
@@ -343,7 +355,7 @@ export function EditorArea(): React.JSX.Element {
           <div
             role="menu"
             style={{ left: tabMenu.x, top: tabMenu.y }}
-            className="fixed z-50 w-48 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+            className="fixed z-50 w-48 rounded-md border border-border-subtle bg-raised p-1 shadow-lg"
           >
             <TabMenuItem
               label="Open to the Side"
@@ -436,12 +448,13 @@ function Breadcrumbs({ relPath }: { relPath: string }): React.JSX.Element {
   return (
     <div
       aria-label="Breadcrumb"
-      className="flex h-6 shrink-0 items-center gap-1 overflow-x-auto border-b border-border-subtle bg-raised px-3 text-[11px] text-fg-muted"
+      title={relPath}
+      className="flex h-6 min-w-0 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border-subtle bg-raised px-3 text-[11px] text-fg-muted"
     >
       {segments.map((segment, i) => (
         <span key={`${segment}-${String(i)}`} className="flex shrink-0 items-center gap-1">
           {i > 0 && <span className="text-fg-muted/50">/</span>}
-          <span className={i === segments.length - 1 ? 'text-fg-secondary' : undefined}>
+          <span className={i === segments.length - 1 ? 'font-medium text-fg' : undefined}>
             {segment}
           </span>
         </span>

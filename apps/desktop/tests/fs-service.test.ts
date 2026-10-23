@@ -95,6 +95,11 @@ describe('writeTextFile (atomic write, happy path)', () => {
     }).not.toThrow();
     expect(readFileSync(join(root, 'src', 'verify-ok.ts'), 'utf8')).toBe('const a = 2;\n');
   });
+
+  it('creates a nested file through the atomic verified path when explicitly allowed', () => {
+    writeTextFile(root, 'new/nested.ts', 'export const created = true;\n', { allowCreate: true });
+    expect(readFileSync(join(root, 'new', 'nested.ts'), 'utf8')).toBe('export const created = true;\n');
+  });
 });
 
 /**

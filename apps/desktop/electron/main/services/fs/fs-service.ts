@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import {
+  type Stats,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -10,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { dirname, join, posix } from 'node:path';
+import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 
 import { UserFacingError } from '@fixora/shared-types';
 
@@ -42,6 +43,52 @@ export type FileContent = {
   /** How the bytes were decoded, so a write can put them back the same way. */
   encoding: FileEncoding;
 };
+
+export type WorkspaceFileSnapshot = {
+  relPath: string;
+  existed: boolean;
+  bytes?: Buffer;
+};
+
+function symlinkWriteError(relPath: string): UserFacingError {
+  return new UserFacingError(
+    `${relPath} is a symbolic link. Fixora does not write through links, because analysis ` +
+      'skips them — the file behind this link was never checked. Open the real file and repair it there.',
+    { code: 'fs_symlink_write', action: { type: 'none', label: 'Dismiss' }, stage: 'fs' },
+  );
+}
+
+/** Inspect the caller's lexical path component-by-component so safe in-workspace symlinks are
+ * refused too. `assertInsideWorkspace` still provides the realpath containment check; this keeps
+ * writes aligned with the workspace index, which does not follow links. */
+function lstatWorkspacePath(
+  root: string,
+  relPath: string,
+  normalized: string,
+  operation: 'snapshot' | 'restore' | 'write to' | 'create',
+): Stats | undefined {
+  const rootPath = resolve(root);
+  const candidatePath = resolve(rootPath, relPath);
+  const segments = relative(rootPath, candidatePath).split(sep).filter(Boolean);
+  let current = rootPath;
+  let stat: Stats | undefined;
+
+  for (const segment of segments) {
+    current = join(current, segment);
+    try {
+      stat = lstatSync(current);
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+      if (code === 'ENOENT') return undefined;
+      fsTry(operation, normalized, () => {
+        throw error;
+      });
+    }
+    if (stat?.isSymbolicLink()) throw symlinkWriteError(normalized);
+  }
+
+  return stat;
+}
 
 /** Reading a file that is too large to open as text in the editor is refused with this size. */
 const MAX_TEXT_BYTES = 8 * 1024 * 1024;
@@ -98,7 +145,7 @@ export async function listDirectory(
  * refusal is a thrown typed error the handler turns into a `Result`; it never returns partial or
  * placeholder content.
  */
-export function readTextFile(root: string, relPath: string): FileContent {
+export function readTextFile(root: string, relPath: string, maxBytes = MAX_TEXT_BYTES): FileContent {
   const normalized = relPath.replace(/\\/g, '/');
   if (isSecretPath(normalized)) {
     throw new SecretFileError(normalized);
@@ -115,7 +162,7 @@ export function readTextFile(root: string, relPath: string): FileContent {
       stage: 'fs',
     });
   }
-  if (target.size > MAX_TEXT_BYTES) {
+  if (target.size > Math.min(MAX_TEXT_BYTES, maxBytes)) {
     throw new FileTooLargeError(normalized, target.size);
   }
 
@@ -133,19 +180,87 @@ export function readTextFile(root: string, relPath: string): FileContent {
   };
 }
 
+/** Captures exact bytes for a rollback without following symlinks or accepting directories. */
+export function snapshotWorkspaceFile(root: string, relPath: string): WorkspaceFileSnapshot {
+  const normalized = relPath.replace(/\\/g, '/');
+  if (isSecretPath(normalized)) throw new SecretFileError(normalized);
+  const candidate = join(root, relPath);
+  const absolute = assertInsideWorkspace(candidate, root);
+  const stat = lstatWorkspacePath(root, relPath, normalized, 'snapshot');
+  if (!stat) return { relPath: normalized, existed: false };
+  if (stat.isDirectory()) {
+    throw new UserFacingError('Zappr directory operations are not supported by rollback.', {
+      code: 'is_a_directory',
+      stage: 'fs',
+    });
+  }
+  if (stat.size > MAX_TEXT_BYTES) throw new FileTooLargeError(normalized, stat.size);
+  return { relPath: normalized, existed: true, bytes: fsTry('snapshot', normalized, () => readFileSync(absolute)) };
+}
+
+/** Restores a main-owned snapshot through an atomic sibling rename and byte-for-byte verification. */
+export function restoreWorkspaceFile(root: string, snapshot: WorkspaceFileSnapshot): void {
+  if (!snapshot.existed) {
+    deletePath(root, snapshot.relPath);
+    return;
+  }
+  if (snapshot.bytes === undefined) throw new Error('Rollback snapshot is missing file bytes.');
+  const bytes = snapshot.bytes;
+  const normalized = snapshot.relPath.replace(/\\/g, '/');
+  if (isSecretPath(normalized)) throw new SecretFileError(normalized);
+  const candidate = join(root, normalized);
+  const absolute = assertInsideWorkspace(candidate, root);
+  const stat = lstatWorkspacePath(root, normalized, normalized, 'restore');
+  if (stat?.isDirectory()) {
+    throw new UserFacingError('Zappr cannot safely restore over this path.', {
+      code: 'is_a_directory',
+      stage: 'fs',
+    });
+  }
+  mkdirSync(dirname(absolute), { recursive: true });
+  const tmp = join(dirname(absolute), `.${randomBytes(6).toString('hex')}.fixora-tmp`);
+  fsTry('restore', normalized, () => {
+    try {
+      writeFileSync(tmp, bytes);
+      renameSync(tmp, absolute);
+    } catch (error) {
+      try {
+        rmSync(tmp, { force: true });
+      } catch {
+        // Preserve the original rollback error.
+      }
+      throw error;
+    }
+    verifyWrittenFile(absolute, normalized, bytes);
+  });
+}
+
 /**
  * Write text to a file inside the workspace — the one place Fixora modifies the user's code, and only
  * ever to apply a repair the user accepted. Same guards as reading: the path is workspace-relative and
- * run through `assertInsideWorkspace`, and a secret-denylisted path is refused outright. It writes to an
- * existing file only (a repair replaces code that was analyzed), never creates new files here.
+ * run through `assertInsideWorkspace`, and a secret-denylisted path is refused outright. Callers may
+ * explicitly opt into safely creating a missing file with the same atomic, verified write path.
  */
-export function writeTextFile(root: string, relPath: string, content: string): void {
+export function writeTextFile(
+  root: string,
+  relPath: string,
+  content: string,
+  options: { allowCreate?: boolean } = {},
+): void {
   const normalized = relPath.replace(/\\/g, '/');
   if (isSecretPath(normalized)) {
     throw new SecretFileError(normalized);
   }
-  const absolute = assertInsideWorkspace(join(root, relPath), root);
-  const stat = fsTry('write to', normalized, () => lstatSync(absolute));
+  const candidate = join(root, relPath);
+  const absolute = assertInsideWorkspace(candidate, root);
+  let stat = lstatWorkspacePath(root, relPath, normalized, 'write to');
+  if (stat === undefined) {
+    if (options.allowCreate) {
+      mkdirSync(dirname(absolute), { recursive: true });
+    } else {
+      stat = fsTry('write to', normalized, () => lstatSync(candidate));
+    }
+  }
 
   /*
    * Symlinks: fs-service and analysis MUST agree, and they did not.
@@ -161,14 +276,7 @@ export function writeTextFile(root: string, relPath: string, content: string): v
    * The path guard already resolves the real path, so this is about intent rather than escape: even
    * a link pointing safely inside the workspace targets a file analysis never checked.
    */
-  if (stat.isSymbolicLink()) {
-    throw new UserFacingError(
-      `${normalized} is a symbolic link. Fixora does not write through links, because analysis ` +
-        'skips them — the file behind this link was never checked. Open the real file and repair it there.',
-      { code: 'fs_symlink_write', action: { type: 'none', label: 'Dismiss' }, stage: 'fs' },
-    );
-  }
-  if (stat.isDirectory()) {
+  if (stat?.isDirectory()) {
     throw new UserFacingError('That path is a folder, so Fixora will not write over it.', {
       code: 'is_a_directory',
       stage: 'fs',
@@ -197,8 +305,10 @@ export function writeTextFile(root: string, relPath: string, content: string): v
   const backup = `${absolute}.fixora-backup`;
   let backupWritten = false;
   try {
-    writeFileSync(backup, readFileSync(absolute), { flag: 'w' });
-    backupWritten = true;
+    if (stat !== undefined) {
+      writeFileSync(backup, readFileSync(absolute), { flag: 'w' });
+      backupWritten = true;
+    }
   } catch (error) {
     // Not fatal: a repair must not be refused because a backup could not be written (a read-only
     // directory, a full disk). The atomic rename below still protects against a partial write.
@@ -218,7 +328,7 @@ export function writeTextFile(root: string, relPath: string, content: string): v
    */
   let encoding: FileEncoding = 'utf8';
   try {
-    encoding = detectEncoding(readFileSync(absolute));
+    if (stat !== undefined) encoding = detectEncoding(readFileSync(absolute));
   } catch {
     // Unreadable here means the write below will fail too and report properly; defaulting to utf8
     // keeps this from being the thing that throws first, with a less useful message.
@@ -314,6 +424,7 @@ export function createFile(root: string, relPath: string): void {
     });
   }
   const absolute = assertInsideWorkspace(join(root, relPath), root);
+  lstatWorkspacePath(root, relPath, normalized, 'create');
   fsTry('create', normalized, () => {
     mkdirSync(dirname(absolute), { recursive: true });
     writeFileSync(absolute, '', 'utf8');
@@ -329,7 +440,9 @@ export function createFile(root: string, relPath: string): void {
 export function writeWorkspaceFile(root: string, relPath: string, content: string): void {
   const normalized = relPath.replace(/\\/g, '/');
   if (isSecretPath(normalized)) throw new SecretFileError(normalized);
-  const absolute = assertInsideWorkspace(join(root, relPath), root);
+  const candidate = join(root, relPath);
+  const absolute = assertInsideWorkspace(candidate, root);
+  lstatWorkspacePath(root, relPath, normalized, 'write to');
   fsTry('write to', normalized, () => {
     mkdirSync(dirname(absolute), { recursive: true });
     writeFileSync(absolute, content, 'utf8');

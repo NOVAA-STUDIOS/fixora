@@ -1,10 +1,10 @@
-import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { UserFacingError } from '@fixora/shared-types';
 
 import { detectLanguage } from './fs/language.js';
+import { readOnlyGitArgs, runGitProcess } from './git-process.js';
 
 export type GitFileStatus = { path: string; status: string };
 export type GitStatus = {
@@ -36,20 +36,11 @@ const inFlight = new Map<string, Promise<GitStatus>>();
  * 'ENOENT' means git itself could not be spawned at all; a number is a normal exit code), so both
  * resolve here and the caller decides what a nonzero code means for that command.
  */
-function runGit(root: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
-  return new Promise((resolve) => {
-    execFile(
-      'git',
-      args,
-      { cwd: root, timeout: GIT_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
-      (error, stdout, stderr) => {
-        if (error === null) {
-          resolve({ code: 0, stdout, stderr });
-          return;
-        }
-        resolve({ code: typeof error.code === 'number' ? error.code : 1, stdout, stderr });
-      },
-    );
+function runGit(root: string, args: string[], readOnly = false): Promise<{ code: number; stdout: string; stderr: string }> {
+  return runGitProcess('git', readOnly ? readOnlyGitArgs(args) : args, {
+    cwd: root,
+    timeoutMs: GIT_TIMEOUT_MS,
+    ...(readOnly ? { readOnly: true } : {}),
   });
 }
 
@@ -63,7 +54,7 @@ function runGit(root: string, args: string[]): Promise<{ code: number; stdout: s
  * picture, not as a substitute for the file tree's own view of what's new on disk.
  */
 async function fetchGitStatus(root: string): Promise<GitStatus> {
-  const result = await runGit(root, ['status', '--porcelain=v1', '-b', '--untracked-files=no']);
+  const result = await runGit(root, ['status', '--porcelain=v1', '-b', '--untracked-files=no'], true);
   if (result.code !== 0) return { branch: null, staged: [], unstaged: [] };
 
   const lines = result.stdout.split('\n').filter((l) => l !== '');
@@ -193,12 +184,12 @@ export async function gitDiff(
 ): Promise<{ original: string; modified: string; language: string }> {
   // A nonzero exit here means the file does not exist at HEAD yet — untracked or newly added —
   // which is a real, expected state (not an error): `original` is simply empty.
-  const originalResult = await runGit(root, ['show', `HEAD:${relPath}`]);
+  const originalResult = await runGit(root, ['show', '--no-ext-diff', '--no-textconv', `HEAD:${relPath}`], true);
   const original = originalResult.code === 0 ? originalResult.stdout : '';
 
   let modified: string;
   if (staged) {
-    const indexResult = await runGit(root, ['show', `:0:${relPath}`]);
+    const indexResult = await runGit(root, ['show', '--no-ext-diff', '--no-textconv', `:0:${relPath}`], true);
     if (indexResult.code !== 0) {
       throw new UserFacingError(
         indexResult.stderr.trim() === ''
@@ -257,12 +248,12 @@ export async function gitFetch(root: string): Promise<void> {
 }
 
 export async function gitBranches(root: string): Promise<{ branches: string[]; current: string }> {
-  const list = await runGit(root, ['branch', '-a', '--format=%(refname:short)']);
+  const list = await runGit(root, ['branch', '-a', '--format=%(refname:short)'], true);
   const branches = list.stdout
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l !== '');
-  const current = await runGit(root, ['branch', '--show-current']);
+  const current = await runGit(root, ['branch', '--show-current'], true);
   return { branches, current: current.stdout.trim() };
 }
 

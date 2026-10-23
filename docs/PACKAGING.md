@@ -1,7 +1,11 @@
-# Fixora Packaging (Beta) — Windows installer
+# Fixora Packaging — Windows installer
 
-The beta ships an **unsigned** NSIS installer for Windows. Code signing (ADR-021, Azure Trusted Signing)
-lands for the paid launch; until then the site carries an honest SmartScreen note.
+The local `package:win` / `package:dir` scripts intentionally support unsigned development artifacts.
+Tagged production releases sign with the Azure Trusted Signing overlay when all required values are
+configured. The `v1.2.26` release is an explicit unsigned exception; partial signing configuration
+and unsigned later production tags fail closed. The workflow validates artifacts and updater metadata
+before publishing and attaches `SHA256SUMS.txt`. See [RELEASING.md](./RELEASING.md) for the
+authoritative release process and required Actions configuration.
 
 ## Build
 
@@ -9,9 +13,10 @@ lands for the paid launch; until then the site carries an honest SmartScreen not
 pnpm --filter @fixora/desktop package:win
 ```
 
-This runs `electron-vite build` (main/preload/renderer → `out/`) then `electron-builder --win`, producing
-`apps/desktop/release/Fixora-Setup-<version>.exe`. Use `package:dir` for a fast unpacked build (no
-installer) while iterating.
+This builds main/preload/renderer, prepares the analysis worker assets, and runs electron-builder with
+publishing disabled. It produces `apps/desktop/release/Fixora-Setup.exe` using the checked-out desktop
+package version. Use `package:dir` for an unpacked build while iterating. Neither local command is the
+tagged release workflow.
 
 ## The one hard part: the WASM worker must be unpacked from the ASAR
 
@@ -45,17 +50,21 @@ before electron-builder. It replaces that symlink with a **dereferenced real cop
 `dist/`, `package.json`, and the nested `node_modules/{tree-sitter-wasms,web-tree-sitter}` (the `.wasm`
 files) — so everything `asarUnpack` touches lives under the app. It is idempotent.
 
-> After packaging, run `pnpm install` to restore the workspace symlink for development. (The vendored
-> copy is a build artifact; do not commit `apps/desktop/node_modules`.)
+The `package:win`, `package:win:release`, and `package:dir` scripts run `postpackage.mjs`, which
+restores the workspace symlink automatically. If packaging is interrupted before that cleanup, run
+the postpackage script from `apps/desktop` (or restore dependencies deliberately) before development.
+The vendored copy is a build artifact; do not commit `apps/desktop/node_modules`.
 
-This step, plus a clean-machine verification (below), is the packaging work that must run on the owner's
-build machine — it cannot be verified in a shared CI-less sandbox because it needs a real Windows GUI
-launch to confirm the unpacked WASM path actually loads.
+This step is exercised by packaging. Clean-machine GUI acceptance (below) remains a manual product QA
+task; signature verification for tagged release artifacts is separately automated on the Windows
+Actions runner.
 
 ## Clean-machine verification (the release gate)
 
 A packaged Electron app that builds is not a packaged app that runs. Before release, on a **clean Windows
-machine** (or a fresh VM — one that never ran `pnpm dev`):
+machine** (or a fresh VM — one that never ran `pnpm dev`), use the artifact from the verified tag
+workflow and follow the signature/update checklist in [RELEASING.md](./RELEASING.md). For v1.2.26,
+record the expected unsigned/SmartScreen warning:
 
 1. Run the installer; the app launches to the workspace screen (no black screen — the M2/M3 GPU + dev-CSP
    fixes are for `pnpm dev`; confirm the packaged app is clean too).

@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { openDatabase } from '../electron/main/db/database.js';
 import {
@@ -32,102 +33,125 @@ let dbDir: string;
 const TOTAL_FILES = 10_000;
 const DIRS = 100; // 100 dirs × 100 files = 10,000, plus a realistic bit of nesting
 
-beforeAll(() => {
+beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'fixora-scale-'));
-  dbDir = mkdtempSync(join(tmpdir(), 'fixora-scale-db-'));
-  // A .gitignore so open() exercises real ignore-rule loading (it is itself a real, indexed file).
-  writeFileSync(join(root, '.gitignore'), 'dist/\n*.log\n');
-  const languages = ['ts', 'tsx', 'js', 'py', 'go', 'md', 'json', 'css'];
-  for (let d = 0; d < DIRS; d++) {
-    const dirName = `module-${String(d).padStart(3, '0')}`;
-    const abs = join(root, dirName, 'src');
-    mkdirSync(abs, { recursive: true });
-    for (let f = 0; f < TOTAL_FILES / DIRS; f++) {
-      const ext = languages[f % languages.length] ?? 'ts';
-      const n = String(f);
-      writeFileSync(
-        join(abs, `file-${n}.${ext}`),
-        `// ${dirName} file ${n}\nexport const x = ${n};\n`,
-      );
+  try {
+    dbDir = mkdtempSync(join(tmpdir(), 'fixora-scale-db-'));
+    // A .gitignore so open() exercises real ignore-rule loading (it is itself a real, indexed file).
+    writeFileSync(join(root, '.gitignore'), 'dist/\n*.log\n');
+    const languages = ['ts', 'tsx', 'js', 'py', 'go', 'md', 'json', 'css'];
+    const fixtureFiles: { path: string; content: string }[] = [];
+    for (let d = 0; d < DIRS; d++) {
+      const dirName = `module-${String(d).padStart(3, '0')}`;
+      const abs = join(root, dirName, 'src');
+      mkdirSync(abs, { recursive: true });
+      for (let f = 0; f < TOTAL_FILES / DIRS; f++) {
+        const ext = languages[f % languages.length] ?? 'ts';
+        const n = String(f);
+        fixtureFiles.push({
+          path: join(abs, `file-${n}.${ext}`),
+          content: `// ${dirName} file ${n}\nexport const x = ${n};\n`,
+        });
+      }
     }
+    // Keep the 10k-file acceptance fixture representative without serializing 10k sync writes in
+    // Vitest's worker; bounded async writes avoid starving other shard tests on slower disks.
+    let nextFile = 0;
+    await Promise.all(
+      Array.from({ length: 32 }, async () => {
+        while (nextFile < fixtureFiles.length) {
+          const file = fixtureFiles[nextFile++];
+          if (file) await writeFile(file.path, file.content);
+        }
+      }),
+    );
+    // A build dir and logs that the .gitignore must exclude — proves ignore rules hold at scale, not
+    // just in the unit tests. None of these may appear in the index.
+    mkdirSync(join(root, 'dist'), { recursive: true });
+    for (let i = 0; i < 200; i++)
+      writeFileSync(join(root, 'dist', `bundle-${String(i)}.js`), 'ignored');
+    writeFileSync(join(root, 'build.log'), 'ignored');
+  } catch (error) {
+    await Promise.all([
+      rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }),
+      dbDir
+        ? rm(dbDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+        : Promise.resolve(),
+    ]);
+    throw error;
   }
-  // A build dir and logs that the .gitignore must exclude — proves ignore rules hold at scale, not
-  // just in the unit tests. None of these may appear in the index.
-  mkdirSync(join(root, 'dist'), { recursive: true });
-  for (let i = 0; i < 200; i++)
-    writeFileSync(join(root, 'dist', `bundle-${String(i)}.js`), 'ignored');
-  writeFileSync(join(root, 'build.log'), 'ignored');
-  // Writing ~10k files can exceed the default 10s hook timeout on a loaded Windows box; give the
-  // fixture room so a slow disk is not mistaken for a failure.
 }, 60_000);
 
-/**
- * Windows holds the SQLite file handle briefly after close, and removing a 10k-file tree is not
- * instant; retry the temp cleanup generously rather than flake the suite on a still-locked handle.
- * A failure to delete a temp dir is never a product bug, so swallow it if even the retries lose.
- */
-function rmWithRetry(target: string): void {
-  try {
-    rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-  } catch {
-    // best-effort temp cleanup — the OS reaps the temp dir eventually
-  }
+async function removeFixture(): Promise<void> {
+  await Promise.all([
+    rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }),
+    rm(dbDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }),
+  ]);
 }
-
-afterAll(() => {
-  rmWithRetry(root);
-  rmWithRetry(dbDir);
-});
 
 describe('M2 scale acceptance: a 10,000-file repo', () => {
   it('opens and paints the root in well under 2s (lazy — cost is O(root), not O(repo))', async () => {
     const { driver } = openDatabase({ dir: dbDir });
-    const service = createWorkspaceService({
-      workspaces: createWorkspaceRepository(driver),
-      files: createFileIndexRepository(driver),
-    });
+    try {
+      const service = createWorkspaceService({
+        workspaces: createWorkspaceRepository(driver),
+        files: createFileIndexRepository(driver),
+      });
 
-    const start = performance.now();
-    service.open(root);
-    const workspace = service.requireRoot();
-    const rootEntries = await listDirectory(workspace.rootPath, '', workspace.ignore);
-    const elapsed = performance.now() - start;
+      const start = performance.now();
+      service.open(root);
+      const workspace = service.requireRoot();
+      const rootEntries = await listDirectory(workspace.rootPath, '', workspace.ignore);
+      const elapsed = performance.now() - start;
 
-    // The root holds the 100 module dirs (dist/ is ignored, so it is not listed even if present).
-    expect(rootEntries.length).toBeGreaterThanOrEqual(DIRS);
-    expect(elapsed).toBeLessThan(2000);
-    // In practice this is single-digit milliseconds; the ceiling exists so a regression that makes
-    // open() walk the whole tree (the exact bug lazy loading prevents) fails.
-    //
-    // Raised from 500ms: on a loaded machine this measured 501–948ms across runs and failed most of
-    // them, once by 2ms. A threshold that close to the noise floor stops testing the property and
-    // starts testing the CI machine, and a test that cries wolf is a test people learn to ignore.
-    // The regression it guards against took SECONDS (a full 10k-file walk), so 1500ms still catches
-    // it with room to spare while sitting well clear of scheduling jitter.
-    expect(elapsed).toBeLessThan(1500);
-
-    driver.close();
+      // The root holds the 100 module dirs (dist/ is ignored, so it is not listed even if present).
+      expect(rootEntries.length).toBeGreaterThanOrEqual(DIRS);
+      expect(elapsed).toBeLessThan(2000);
+      // In practice this is single-digit milliseconds; the ceiling exists so a regression that makes
+      // open() walk the whole tree (the exact bug lazy loading prevents) fails.
+      //
+      // Raised from 500ms: on a loaded machine this measured 501–948ms across runs and failed most of
+      // them, once by 2ms. A threshold that close to the noise floor stops testing the property and
+      // starts testing the CI machine, and a test that cries wolf is a test people learn to ignore.
+      // The regression it guards against took SECONDS (a full 10k-file walk), so 1500ms still catches
+      // it with room to spare while sitting well clear of scheduling jitter.
+      expect(elapsed).toBeLessThan(1500);
+    } finally {
+      driver.close();
+    }
   });
 
   it('indexes all 10,000 files in the background (off first paint)', async () => {
-    const { driver } = openDatabase({ dir: dbDir });
-    const files = createFileIndexRepository(driver);
-    const service = createWorkspaceService({
-      workspaces: createWorkspaceRepository(driver),
-      files,
-    });
-    const { workspace } = service.open(root);
-    const open = service.requireRoot();
+    let driver: ReturnType<typeof openDatabase>['driver'] | undefined;
+    try {
+      const opened = openDatabase({ dir: dbDir });
+      driver = opened.driver;
+      const files = createFileIndexRepository(opened.driver);
+      const service = createWorkspaceService({
+        workspaces: createWorkspaceRepository(opened.driver),
+        files,
+      });
+      const { workspace } = service.open(root);
+      const open = service.requireRoot();
 
-    const count = await service.indexFiles(open);
-    // Every non-ignored file is indexed and persisted; this proves the walk + hash pipeline scales.
-    // The +1 is the .gitignore itself (a real file); the 200 dist/ bundles and build.log are excluded
-    // by the ignore rules, so a passing count is also proof the ignore filter holds at 10k scale.
-    const EXPECTED = TOTAL_FILES + 1;
-    expect(count).toBe(EXPECTED);
-    expect(files.countForWorkspace(workspace.id)).toBe(EXPECTED);
+      const count = await service.indexFiles(open);
+      // Every non-ignored file is indexed and persisted; this proves the walk + hash pipeline scales.
+      // The +1 is the .gitignore itself (a real file); the 200 dist/ bundles and build.log are excluded
+      // by the ignore rules, so a passing count is also proof the ignore filter holds at 10k scale.
+      const EXPECTED = TOTAL_FILES + 1;
+      expect(count).toBe(EXPECTED);
+      expect(files.countForWorkspace(workspace.id)).toBe(EXPECTED);
+    } finally {
+      try {
+        driver?.close();
+      } finally {
+        // Remove the full fixture in this test's existing 60s budget after all owned handles close.
+        await removeFixture();
+        expect(existsSync(root)).toBe(false);
+        expect(existsSync(dbDir)).toBe(false);
+      }
+    }
 
-    driver.close();
     // Reading + SHA-256 hashing 10k files is intentionally heavy; it runs off first paint, so this
     // is not gated by the 2s budget — the generous timeout reflects that it is background work.
     // Raised from 30s: indexFiles now yields to the event loop every 200 files (main-process

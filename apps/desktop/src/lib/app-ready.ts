@@ -26,9 +26,15 @@ export function waitForAppReady(): Promise<void> {
     const poll = async (): Promise<void> => {
       try {
         const result = await invoke('app:getReadyState', {});
-        if (result.ok && result.value.ready) {
-          resolve();
-          return;
+        if (result.ok) {
+          if (result.value.ready) {
+            resolve();
+            return;
+          }
+          if (result.value.error !== undefined) {
+            reject(new Error(result.value.error));
+            return;
+          }
         }
       } catch {
         // The channel itself throws only if the preload's allowlist rejects it, which cannot

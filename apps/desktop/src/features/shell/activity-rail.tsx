@@ -34,9 +34,9 @@ const DOCS_URL = 'https://fixora-opal.vercel.app/docs';
 const ISSUES_URL = 'https://github.com/NOVAA-STUDIOS/fixora/issues';
 
 const PLAN_BADGE: Record<'free' | 'go' | 'pro', { label: string; color: string }> = {
-  free: { label: 'FREE', color: 'bg-white/10 text-fg-muted' },
-  go: { label: 'GO', color: 'bg-blue-400/15 text-blue-400' },
-  pro: { label: 'PRO', color: 'bg-emerald-400/15 text-emerald-400' },
+  free: { label: 'FREE', color: 'bg-inset text-fg-muted' },
+  go: { label: 'GO', color: 'bg-info-subtle text-info-text' },
+  pro: { label: 'PRO', color: 'bg-success-subtle text-success-text' },
 };
 
 type RailItem = {
@@ -94,9 +94,9 @@ export function ActivityRail(): React.JSX.Element {
   const usagePct = dailyLimit === Infinity ? 0 : Math.min(100, (repairsToday / dailyLimit) * 100);
 
   const PLAN_META = {
-    free: { label: 'Upgrade', color: 'text-amber-400' },
-    go: { label: 'GO', color: 'text-blue-400' },
-    pro: { label: 'Pro ✓', color: 'text-emerald-400' },
+    free: { label: 'Upgrade', color: 'text-warn-text' },
+    go: { label: 'GO', color: 'text-info-text' },
+    pro: { label: 'Pro ✓', color: 'text-success-text' },
   } as const;
   const planMeta = PLAN_META[plan];
 
@@ -118,7 +118,7 @@ export function ActivityRail(): React.JSX.Element {
               setActiveView(view);
             }}
             className={cn(
-              'relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg transition-all duration-150 active:scale-95',
+              'relative flex h-10 w-11 flex-col items-center justify-center gap-1.5 rounded-lg transition-colors duration-150',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
               active ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
@@ -137,7 +137,7 @@ export function ActivityRail(): React.JSX.Element {
               descender room without visibly growing the row — the label box is unconstrained by any
               ancestor height, so it grows to fit rather than clipping.
             */}
-            <span className="text-[9px] leading-none font-medium tracking-wide">{label}</span>
+            <span className="w-full truncate text-center text-[10px] leading-tight font-medium tracking-wide">{label}</span>
           </button>
         );
       })}
@@ -148,10 +148,13 @@ export function ActivityRail(): React.JSX.Element {
         onClick={() => {
           setUpgradeDialogOpen(true);
         }}
-        className="relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg text-amber-500/70 transition-all duration-150 active:scale-95 hover:bg-hover hover:text-amber-400"
+        className={cn(
+          'relative mt-2 flex h-10 w-11 flex-col items-center justify-center gap-1.5 rounded-lg transition-colors duration-150 hover:bg-hover',
+          planMeta.color,
+        )}
       >
         <SparkleIcon className="size-[15px] shrink-0" />
-        <span className="text-[9px] leading-none font-medium tracking-wide">{planMeta.label}</span>
+        <span className="w-full truncate text-center text-[10px] leading-tight font-medium tracking-wide">{planMeta.label}</span>
       </button>
       {(() => {
         const { view, label, Icon } = SETTINGS_ITEM;
@@ -166,7 +169,7 @@ export function ActivityRail(): React.JSX.Element {
               setActiveView(view);
             }}
             className={cn(
-              'relative flex h-10 w-11 flex-col items-center justify-center gap-[3px] rounded-lg transition-all duration-150 active:scale-95',
+              'relative flex h-10 w-11 flex-col items-center justify-center gap-1.5 rounded-lg transition-colors duration-150',
               'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring focus-visible:outline',
               active ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-hover hover:text-fg',
             )}
@@ -175,7 +178,7 @@ export function ActivityRail(): React.JSX.Element {
               <span className="absolute top-1/2 left-0 h-[18px] w-[3px] -translate-y-1/2 rounded-r-full bg-accent" />
             )}
             <Icon className="size-[15px] shrink-0" />
-            <span className="text-[9px] leading-none font-medium tracking-wide">{label}</span>
+            <span className="w-full truncate text-center text-[10px] leading-tight font-medium tracking-wide">{label}</span>
           </button>
         );
       })()}
@@ -275,7 +278,7 @@ export function ActivityRail(): React.JSX.Element {
               <div className="px-2 py-1.5">
                 <p className="text-xs text-fg-muted">📊 {usageLabel}</p>
                 {dailyLimit !== Infinity && (
-                  <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
+                  <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-inset">
                     <div
                       className="h-full rounded-full bg-accent"
                       style={{ width: `${String(usagePct)}%` }}

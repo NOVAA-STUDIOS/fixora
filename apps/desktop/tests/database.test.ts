@@ -5,14 +5,20 @@ import { join } from 'node:path';
 import type { Finding } from '@fixora/shared-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { openDatabase } from '../electron/main/db/database.js';
-import { currentSchemaVersion, migrate } from '../electron/main/db/migrate.js';
-import { migrations } from '../electron/main/db/migrations.js';
+import { DatabaseMigrationStartupError, openDatabase } from '../electron/main/db/database.js';
+import type { SqliteDriver } from '../electron/main/db/driver.js';
+import {
+  DatabaseMigrationIntegrityError,
+  currentSchemaVersion,
+  migrate,
+} from '../electron/main/db/migrate.js';
+import { migrations, type Migration } from '../electron/main/db/migrations.js';
 import { createNodeSqliteDriver } from '../electron/main/db/node-sqlite-driver.js';
 import {
   createFileIndexRepository,
   createFindingsRepository,
   createRepairHistoryRepository,
+  createZapprConversationRepository,
   createWorkspaceRepository,
   type NewRepair,
 } from '../electron/main/db/repositories.js';
@@ -78,10 +84,90 @@ describe('migrations', () => {
     second.driver.close();
   });
 
+  it('accepts matching checksums for applied migrations', () => {
+    const driver = createNodeSqliteDriver(join(dir, 'checksum.db'));
+    const first: Migration = {
+      version: 1,
+      name: 'checksum_first',
+      up: (db) => {
+        db.exec('CREATE TABLE checksum_first (id INTEGER PRIMARY KEY)');
+      },
+    };
+    migrate(driver, [first]);
+
+    expect(() => {
+      migrate(driver, [first]);
+    }).not.toThrow();
+    expect(currentSchemaVersion(driver)).toBe(1);
+    driver.close();
+  });
+
+  it('rejects checksum drift without overwriting it or applying newer migrations', () => {
+    const driver = createNodeSqliteDriver(join(dir, 'drift.db'));
+    const first: Migration = {
+      version: 1,
+      name: 'drift_first',
+      up: (db) => {
+        db.exec('CREATE TABLE drift_first (id INTEGER PRIMARY KEY)');
+      },
+    };
+    const second: Migration = {
+      version: 2,
+      name: 'drift_second',
+      up: (db) => {
+        db.exec('CREATE TABLE drift_second (id INTEGER PRIMARY KEY)');
+      },
+    };
+    migrate(driver, [first]);
+    driver.prepare('UPDATE schema_migrations SET checksum = ? WHERE version = 1').run('changed');
+
+    expect(() => {
+      migrate(driver, [first, second]);
+    }).toThrow(DatabaseMigrationIntegrityError);
+    expect(
+      driver.prepare('SELECT checksum FROM schema_migrations WHERE version = 1').get(),
+    ).toEqual({
+      checksum: 'changed',
+    });
+    expect(() => driver.prepare('SELECT * FROM drift_second').all()).toThrow();
+    expect(currentSchemaVersion(driver)).toBe(1);
+    driver.close();
+  });
+
   it('backs up the database before migrating an existing one', () => {
     openDatabase({ dir }).driver.close();
     openDatabase({ dir }).driver.close(); // second open sees an existing file → writes .bak
     expect(existsSync(join(dir, 'fixora.db.bak'))).toBe(true);
+  });
+
+  it('preserves a healthy drifted database and backup, with a stable path-free error', () => {
+    const { driver } = openDatabase({ dir });
+    driver.prepare('UPDATE schema_migrations SET checksum = ? WHERE version = 1').run('changed');
+    driver.close();
+
+    expect(() => openDatabase({ dir })).toThrow('Database migration integrity check failed');
+    expect(existsSync(join(dir, 'fixora.db.bak'))).toBe(true);
+    const preserved = createNodeSqliteDriver(join(dir, 'fixora.db'));
+    expect(
+      preserved.prepare('SELECT checksum FROM schema_migrations WHERE version = 1').get(),
+    ).toEqual({
+      checksum: 'changed',
+    });
+    preserved.close();
+  });
+
+  it('closes and preserves a healthy database when a migration cannot apply', () => {
+    const dbPath = join(dir, 'fixora.db');
+    const seeded = createNodeSqliteDriver(dbPath);
+    seeded.exec('CREATE TABLE workspaces (id TEXT PRIMARY KEY)');
+    seeded.prepare('INSERT INTO workspaces (id) VALUES (?)').run('existing-data');
+    seeded.close();
+
+    expect(() => openDatabase({ dir })).toThrow(DatabaseMigrationStartupError);
+    expect(existsSync(`${dbPath}.bak`)).toBe(true);
+    const preserved = createNodeSqliteDriver(dbPath);
+    expect(preserved.prepare('SELECT id FROM workspaces').get()).toEqual({ id: 'existing-data' });
+    preserved.close();
   });
 });
 
@@ -351,6 +437,85 @@ describe('repositories', () => {
 
     workspaces.remove(ws.id);
     expect(files.countForWorkspace(ws.id)).toBe(0);
+    driver.close();
+  });
+
+  it('retains at most 100 newest Zappr conversations per workspace', () => {
+    const { driver } = openDatabase({ dir });
+    const workspaces = createWorkspaceRepository(driver);
+    const first = workspaces.upsertByRootPath('/repo-a', 'repo-a');
+    const second = workspaces.upsertByRootPath('/repo-b', 'repo-b');
+    const conversations = createZapprConversationRepository(driver);
+
+    conversations.save('other-1', second.id, '["kept"]', null);
+    conversations.save('other-2', second.id, '["kept"]', null);
+    for (let index = 0; index < 105; index += 1) {
+      conversations.save(`conversation-${String(index).padStart(3, '0')}`, first.id, '[]', null);
+    }
+
+    const kept = conversations.recent(first.id, 200);
+    expect(kept).toHaveLength(100);
+    expect(kept.map((row) => row.id)).toEqual(
+      Array.from(
+        { length: 100 },
+        (_, index) => `conversation-${String(index + 5).padStart(3, '0')}`,
+      ).reverse(),
+    );
+    expect(conversations.recent(second.id, 200).map((row) => row.id)).toEqual([
+      'other-2',
+      'other-1',
+    ]);
+    driver.close();
+  });
+
+  it('does not prune under the cap and keeps normal save/load data unchanged', () => {
+    const { driver } = openDatabase({ dir });
+    const workspace = createWorkspaceRepository(driver).upsertByRootPath('/repo', 'repo');
+    const conversations = createZapprConversationRepository(driver);
+    conversations.save('conversation-1', workspace.id, '[{"role":"user"}]', 'summary');
+
+    expect(conversations.recent(workspace.id)).toEqual([
+      expect.objectContaining({
+        id: 'conversation-1',
+        workspaceId: workspace.id,
+        messages: '[{"role":"user"}]',
+        summary: 'summary',
+      }),
+    ]);
+    expect(driver.prepare('SELECT COUNT(*) AS n FROM zappr_conversations').get()).toEqual({ n: 1 });
+    driver.close();
+  });
+
+  it('keeps a saved conversation when retention cleanup fails', () => {
+    const { driver } = openDatabase({ dir });
+    const workspace = createWorkspaceRepository(driver).upsertByRootPath('/repo', 'repo');
+    const flakyDriver: SqliteDriver = {
+      exec: (sql: string) => {
+        driver.exec(sql);
+      },
+      prepare: (sql: string) => {
+        const statement = driver.prepare(sql);
+        if (sql.includes('DELETE FROM zappr_conversations')) {
+          return {
+            ...statement,
+            run: () => {
+              throw new Error('cleanup failure');
+            },
+          };
+        }
+        return statement;
+      },
+      transaction: <T>(fn: () => T) => driver.transaction(fn),
+      isHealthy: () => driver.isHealthy(),
+      close: () => {
+        driver.close();
+      },
+    };
+    createZapprConversationRepository(flakyDriver).save('conversation-1', workspace.id, '[]', null);
+
+    expect(driver.prepare('SELECT id FROM zappr_conversations').get()).toEqual({
+      id: 'conversation-1',
+    });
     driver.close();
   });
 });

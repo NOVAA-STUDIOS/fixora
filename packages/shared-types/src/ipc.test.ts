@@ -148,6 +148,8 @@ describe('the channel list (the zod-free surface the preload imports)', () => {
       'preview:goForward',
       'zappr:run',
       'zappr:cancel',
+      'zappr:approvePlan',
+      'zappr:rejectPlan',
       'zappr:getContext',
     ]);
   });
@@ -208,5 +210,62 @@ describe('the IPC contract registry', () => {
       isPackaged: false,
     });
     expect(parsed.success).toBe(false);
+  });
+});
+
+describe('Zappr UUID contracts', () => {
+  const runId = '550e8400-e29b-41d4-a716-446655440000';
+  const approvalId = '550e8400-e29b-41d4-a716-446655440001';
+
+  it('keeps run and approval IDs required and strictly UUID-validated', () => {
+    const requests: [keyof typeof contracts, Record<string, unknown>][] = [
+      ['zappr:run', { runId, prompt: 'hello', workspaceRoot: '/workspace' }],
+      ['zappr:cancel', { runId }],
+      ['zappr:approvePlan', { runId, approvalId }],
+      ['zappr:rejectPlan', { runId, approvalId }],
+    ];
+
+    for (const [channel, request] of requests) {
+      expect(contracts[channel].request.safeParse(request).success).toBe(true);
+      expect(
+        contracts[channel].request.safeParse({ ...request, runId: 'not-a-uuid' }).success,
+      ).toBe(false);
+      expect(contracts[channel].request.safeParse({ ...request, runId: '' }).success).toBe(false);
+    }
+
+    expect(
+      contracts['zappr:approvePlan'].request.safeParse({ runId, approvalId: 'bad' }).success,
+    ).toBe(false);
+    expect(
+      contracts['zappr:rejectPlan'].request.safeParse({ runId, approvalId: '' }).success,
+    ).toBe(false);
+
+    // Optional non-ID run context remains optional.
+    expect(
+      contracts['zappr:run'].request.safeParse({ runId, prompt: 'hello', workspaceRoot: '/workspace' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('keeps all Zappr event run IDs and plan approval IDs strictly validated', () => {
+    const payloads: [keyof typeof eventContracts, Record<string, unknown>][] = [
+      ['zappr:plan', { runId, approvalId, steps: [], summary: 'plan' }],
+      ['zappr:stepStart', { runId, index: 0, step: { type: 'delete', filePath: 'a.ts', description: '' } }],
+      ['zappr:stepDone', { runId, index: 0, success: true }],
+      ['zappr:done', { runId, success: true, filesChanged: [] }],
+      ['zappr:delta', { runId, text: 'token' }],
+      ['zappr:mode', { runId, mode: 'chat' }],
+      ['zappr:actionResult', { runId, ok: true, message: 'done', action: { type: 'none' } }],
+      ['zappr:fileProgress', { runId, filePath: 'a.ts', content: '', index: 0, total: 1 }],
+    ];
+
+    for (const [channel, payload] of payloads) {
+      expect(eventContracts[channel].safeParse(payload).success).toBe(true);
+      expect(eventContracts[channel].safeParse({ ...payload, runId: '' }).success).toBe(false);
+    }
+    expect(
+      eventContracts['zappr:plan'].safeParse({ runId, approvalId: 'bad', steps: [], summary: '' })
+        .success,
+    ).toBe(false);
   });
 });

@@ -1,61 +1,56 @@
-# Fixora Licensing (Beta) — owner setup
+# Desktop licensing: current implementation
 
-Fixora's beta is **free with your own key** (BYOK). A one-time **Supporter/Pro** license funds
-development. It is an **Ed25519-signed token the app verifies offline** — there is no license server,
-nothing calls home, and the beta gates no core feature on it (it grants Pro/supporter status and is the
-entitlement plumbing v1.1's managed tier builds on). This is what you set up before selling.
+This describes the current desktop code, not the earlier offline Ed25519 proposal. There is no
+Stripe fulfilment flow, Fixora licensing API, or server-side entitlement service implemented here.
 
-## Model
+## Plans and enforcement
 
-- **Free** — everything: analysis, BYOK AI, verified repair, diff, apply, history.
-- **Pro / Supporter** — a signed license (`plan: "pro"`). Same features in the beta; recognition +
-  locked-in early-supporter benefits for v1.1. Revenue at launch, zero backend.
+- **Free:** 10 repairs per rolling three-hour window.
+- **GO:** 50 repairs per rolling three-hour window.
+- **PRO:** unlimited repairs (plus any earned referral allowance).
 
-Evolves without a rewrite: the app reads a `LicenseStatus` entitlement; v1.1 swaps the *issuer* (a Stripe
-webhook → the gateway issues/refreshes it) for the same *reader* (ADR-036/038).
+The authoritative plan and repair counter are enforced in Electron main by
+`electron/main/lib/repair-limit.ts` and persisted through the local SQLite `repair_limit` repository.
+Renderer plan state is for display/early UX only; it is not the enforcement boundary. A successful
+main-side validation changes the plan. The rolling window starts with the first repair, not at
+midnight.
 
-## One-time setup
+## Activation and revalidation
 
-### 1. Generate the signing keypair (keep the private key OFFLINE)
+`electron/main/ipc/handlers/license.handlers.ts` validates GO/PRO keys against Gumroad's public
+license verification endpoint, using a fixed product-to-plan mapping. A founder/internal key path is
+recognized by comparing its SHA-256 digest in main; the key or digest is intentionally not documented
+here. The Gumroad key and last-successful-validation time are stored with the main-owned repair limit
+record in local SQLite. This license key is not handled by the AI provider credential safeStorage
+path.
 
-```
-node tooling/scripts/license-keygen.mjs
-```
+At application startup, `electron/main/lib/gumroad-revalidate.ts` rechecks a stored paid key when its
+last successful check is at least 24 hours old. A definitive invalid result revokes the paid plan;
+network errors, timeouts, and ambiguous responses leave the existing plan unchanged. The periodic
+three-hour repair-window reset is a separate timer and should not be confused with license
+revalidation.
 
-- Paste the **PUBLIC** key into `apps/desktop/electron/main/license/public-key.ts`
-  (`EMBEDDED_PUBLIC_KEY_DER_B64`), or set `FIXORA_LICENSE_PUBLIC_KEY` for staging.
-- Save the **PRIVATE** key in your password manager. **Never commit it. Never put it in the app.** If it
-  leaks, anyone can mint licenses; if you lose it, you must re-issue every license. There is no recovery.
+`license-store.ts` and Settings provide the renderer display/activation/upgrade experience. The main
+process remains authoritative for repair limits. The renderer also persists the plan and raw license
+key in localStorage so it can restore its UI and answer a main-process revalidation request. That copy
+is not authoritative, but it is plaintext renderer storage and is a security follow-up. Gumroad
+checkout links are opened by the upgrade flow; purchase fulfillment and customer support operations
+remain external/manual processes.
 
-Until a public key is embedded, every install is Free and `Activate` honestly reports "licensing isn't
-enabled in this build yet" — the app never pretends.
+## Security and operational limits
 
-### 2. Create the Stripe Payment Link
+- Gumroad keys are sensitive. Do not log, paste into documentation, or include in support artifacts.
+- The founder/internal comparison is a local code path, not proof of a server-verified founder
+  identity. Anyone able to patch a local binary can bypass local client-side checks; the main-side
+  limit is an application boundary, not a remote anti-tamper system.
+- The database stores the license key locally in the repair-limit record. Do not describe this as
+  OS-keychain-encrypted; `safeStorage` is used for AI provider credentials, not this license record.
+- The renderer's persisted license key is also not protected by `safeStorage`; it is not an enforcement
+  authority, but renderer compromise/local profile access can expose it.
+- This implementation is online-at-activation/revalidation, not an offline signed-token design.
 
-- In the Stripe dashboard: **Payment Links → new link** for the Supporter/Pro product (one-time price).
-- Set the success page to your site's "thank you — check your email for your key" page.
-- Put the link on the website (`fixora.dev/pro`) and in the app's Settings → License copy
-  (`PURCHASE_URL`).
-
-### 3. Fulfilment (mint + send the key)
-
-On each purchase (manually from the Stripe dashboard, or later via a Zapier/Make step on the
-`checkout.session.completed` event):
-
-```
-FIXORA_LICENSE_PRIVATE_KEY_FILE=./fixora-license-private.pem \
-  node tooling/scripts/sign-license.mjs buyer@example.com
-```
-
-This prints one license key. Email it to the buyer. They paste it into **Settings → License → Activate**;
-the app verifies it offline and shows **Fixora Pro**. (Add a trailing `days` argument for a time-limited
-license; omit it for a perpetual supporter license.)
-
-## Security notes
-
-- The license token is **signed, not secret** — it proves an entitlement, it is not a credential. It is
-  stored in plain `license.json` in the app's userData. Sharing it is low-stakes for a supporter tier.
-- Tampering (changing the plan or expiry) breaks the signature → the app rejects it. Verified by test
-  (`license.test.ts`): tamper, wrong-key, expiry, and malformed are all rejected; only a genuinely signed,
-  unexpired token becomes Pro.
-- Rotating the keypair invalidates every issued license — do it only if the private key is compromised.
+Relevant implementation: `packages/shared-types/src/license.ts`,
+`apps/desktop/electron/main/ipc/handlers/license.handlers.ts`,
+`apps/desktop/electron/main/lib/repair-limit.ts`,
+`apps/desktop/electron/main/lib/gumroad-revalidate.ts`, and
+`apps/desktop/src/features/settings` / `apps/desktop/src/stores/license-store.ts`.

@@ -1,5 +1,11 @@
 # Fixora — Release Readiness Checklist & Execution Roadmap
 
+> **Historical planning snapshot; not a current readiness report.** The branch, versions, open tasks,
+> signing assumptions, and launch gates below refer to an earlier v0.9-era review and have not been
+> reconciled item-by-item with the current implementation. Do not use its checkboxes to authorize or
+> block a current release. Use [RELEASING.md](./RELEASING.md) and `.github/workflows/release.yml` for
+> the current tag-driven signed-release flow. Historical findings remain preserved for context.
+
 **Phase:** Release Readiness (post Beta Readiness Audit series).
 **Precondition, confirmed:** the originally planned **Beta Readiness Audit series (A1–A10) is
 complete** — Welcome Experience, File Explorer & Workspace, Analyzer, Problems Panel, Repair Engine,

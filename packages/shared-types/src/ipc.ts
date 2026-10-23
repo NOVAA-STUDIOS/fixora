@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { uuid as uuidSchema, z } from 'zod';
 
 
 import {
@@ -100,7 +100,7 @@ export const contracts = {
   // subscribed, because there is no listener — the renderer asks until the answer is yes.
   'app:getReadyState': {
     request: empty,
-    response: z.object({ ready: z.boolean() }),
+    response: z.object({ ready: z.boolean(), error: z.string().optional() }),
   },
   /** Restarts the app — e.g. after the user installs Node.js so a scaffold command can find it. */
   'app:relaunch': {
@@ -810,6 +810,7 @@ export const contracts = {
   },
   'zappr:run': {
     request: z.object({
+      runId: uuidSchema(),
       prompt: z.string().min(1),
       workspaceRoot: z.string(),
       /** Editor UI state — only the renderer knows this, so it rides along with the request. */
@@ -819,12 +820,22 @@ export const contracts = {
       selectedCodeFile: z.string().nullable().optional(),
       /** Files referenced with an `@mention` in the prompt — read and injected as extra context. */
       atMentions: z.array(z.string()).optional(),
+      /** Main-side guarded reads of a few automatically selected relative workspace files. */
+      smartContextFiles: z.array(z.string().max(260)).max(4).optional(),
     }),
     response: z.object({ ok: z.boolean(), error: z.string().optional() }),
   },
   'zappr:cancel': {
-    request: empty,
+    request: z.object({ runId: uuidSchema() }),
     response: z.void(),
+  },
+  'zappr:approvePlan': {
+    request: z.object({ approvalId: uuidSchema(), runId: uuidSchema() }),
+    response: z.object({ ok: z.boolean(), error: z.string().optional() }),
+  },
+  'zappr:rejectPlan': {
+    request: z.object({ approvalId: uuidSchema(), runId: uuidSchema() }),
+    response: z.object({ ok: z.boolean(), error: z.string().optional() }),
   },
   'zappr:getContext': {
     request: empty,

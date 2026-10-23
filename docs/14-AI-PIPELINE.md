@@ -1,5 +1,11 @@
 # Fixora — AI Pipeline Architecture
 
+> **Design proposal, not a complete current contract.** Prompt/task-profile material below is useful
+> design history but does not prove all listed profiles or provider mechanisms are implemented.
+> Current provider and Zappr behavior is summarized in
+> [01-ARCHITECTURE.md](./01-ARCHITECTURE.md#current-implementation-snapshot); source contracts are
+> in `packages/core-ai` and `apps/desktop/electron/main/services/zappr-service.ts`.
+
 The pipeline is the product. Everything else is a shell around it.
 
 ```mermaid

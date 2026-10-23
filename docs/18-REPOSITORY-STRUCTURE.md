@@ -1,5 +1,9 @@
 # Fixora — Repository Structure & Strategy
 
+> **Historical multi-repository proposal.** The current checkout is a pnpm/Turborepo monorepo; no
+> separate `fixora-api` FastAPI repository is part of this runtime. Use `pnpm-workspace.yaml` and the
+> actual package manifests for current package boundaries.
+
 ## 1. Three repositories + one shared package
 
 | Repo | Contains | Cadence | Why separate |

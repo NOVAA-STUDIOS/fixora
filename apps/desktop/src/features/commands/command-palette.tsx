@@ -14,11 +14,15 @@ import {
 import { useEffect, useState } from 'react';
 
 import { useUiStore } from '../../stores/ui-store.js';
+import { useZapprStore } from '../../stores/zappr-store.js';
+import { useEditorStore } from '../editor/editor-store.js';
+import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { useCommands } from './command-provider.js';
 import { formatBinding } from './keybinding.js';
 import { groupCommands } from './palette-model.js';
-import type { Command as CommandDef } from './registry.js';
+import { isCommandEnabled, type Command as CommandDef } from './registry.js';
+import { formatZapprPaletteContext } from './zappr-palette-actions.js';
 
 const RECENT_KEY = 'fixora.recentCommands';
 const MAX_RECENT = 5;
@@ -50,7 +54,7 @@ function recordRecentId(id: string): void {
  * own; that is the registry's job, which is what keeps the palette and the keybindings in lockstep.
  *
  * The palette lives inside a Radix Dialog (focus trap, Escape, restore focus) and renders through
- * the cmdk-based Command primitive (filtering + arrow-key listbox a11y). Both of those are the
+ * the cmdk-based Command primitive (arrow-key listbox a11y). Both of those are the
  * parts a hand-rolled palette gets subtly wrong, and both are surfaces axe scrutinises.
  */
 export function CommandPalette(): React.JSX.Element {
@@ -58,6 +62,16 @@ export function CommandPalette(): React.JSX.Element {
   const setOpen = useUiStore((s) => s.setPaletteOpen);
   const registry = useCommands();
   const [query, setQuery] = useState('');
+  const contextLine = formatZapprPaletteContext({
+    selectedCode: useZapprStore((s) => s.selectedCode),
+    selectedCodeFile: useZapprStore((s) => s.selectedCodeFile),
+    selectedCodeStartLine: useZapprStore((s) => s.selectedCodeStartLine),
+    selectedCodeEndLine: useZapprStore((s) => s.selectedCodeEndLine),
+    selectedWorkspaceRoot: useZapprStore((s) => s.selectedCodeWorkspaceRoot),
+    workspaceRoot: useWorkspaceStore((s) => s.workspace?.rootPath ?? null),
+    mentionFiles: useZapprStore((s) => s.mentionFiles),
+    activeFile: useEditorStore((s) => s.activeTab),
+  });
 
   // Query resets whenever the palette opens or closes — "clear on Escape or when palette closes"
   // covers the typed search text, not the persisted recent-commands list itself.
@@ -68,7 +82,14 @@ export function CommandPalette(): React.JSX.Element {
   // Computed each render (cheap for a handful of commands) so the list always reflects the
   // current registry — no memo to keep in sync with a mutable source.
   const all = registry.all();
-  const groups = groupCommands(all);
+  const searchTerms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const matchingCommands = searchTerms.length === 0
+    ? all
+    : all.filter((command) => {
+        const searchText = `${command.title} ${(command.keywords ?? []).join(' ')}`.toLocaleLowerCase();
+        return searchTerms.every((term) => searchText.includes(term));
+      });
+  const groups = groupCommands(matchingCommands);
   const byId = new Map(all.map((command) => [command.id, command]));
   const recent =
     query.trim() === ''
@@ -78,6 +99,7 @@ export function CommandPalette(): React.JSX.Element {
       : [];
 
   const runCommand = (command: CommandDef): void => {
+    if (!isCommandEnabled(command)) return;
     recordRecentId(command.id);
     command.run();
   };
@@ -92,7 +114,13 @@ export function CommandPalette(): React.JSX.Element {
           Search for a command and press Enter to run it.
         </DialogDescription>
 
-        <Command loop>
+        {contextLine !== null && (
+          <p className="border-b border-border-subtle px-4 py-2 text-[11px] text-fg-muted" aria-label="Current Zappr context">
+            {contextLine}
+          </p>
+        )}
+
+        <Command loop shouldFilter={false}>
           <CommandInput
             placeholder="Type a command…"
             autoFocus
@@ -107,6 +135,7 @@ export function CommandPalette(): React.JSX.Element {
                 {recent.map((command) => (
                   <CommandItem
                     key={`recent-${command.id}`}
+                    disabled={!isCommandEnabled(command)}
                     value={`${command.title} ${(command.keywords ?? []).join(' ')}`}
                     onSelect={() => {
                       runCommand(command);
@@ -125,6 +154,7 @@ export function CommandPalette(): React.JSX.Element {
                 {commands.map((command) => (
                   <CommandItem
                     key={command.id}
+                    disabled={!isCommandEnabled(command)}
                     // cmdk matches on this value; include keywords so "spacing" finds density.
                     value={`${command.title} ${(command.keywords ?? []).join(' ')}`}
                     onSelect={() => {

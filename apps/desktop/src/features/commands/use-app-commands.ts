@@ -6,12 +6,14 @@ import { useTestGenerationStore } from '../../stores/test-generation-store.js';
 import { toast } from '../../stores/toast-store.js';
 import { useUiStore } from '../../stores/ui-store.js';
 import { useZapprStore } from '../../stores/zappr-store.js';
-import { activeSelectionText } from '../editor/active-editor.js';
+import { activeSelectionRange, activeSelectionText } from '../editor/active-editor.js';
 import { useEditorStore } from '../editor/editor-store.js';
 import { useFindingsStore } from '../findings/findings-store.js';
 import { useWorkspaceStore } from '../workspace/workspace-store.js';
+import { parseMentionPaths } from '../zappr/mention-context.js';
 
 import type { Command } from './registry.js';
+import { buildZapprPalettePrompt, ZAPPR_PALETTE_ACTIONS } from './zappr-palette-actions.js';
 
 function runGitCommand(channel: 'git:push' | 'git:pull' | 'git:fetch', label: string): void {
   void invoke(channel, {}).then((result) => {
@@ -112,6 +114,61 @@ export function useAppCommands(): Command[] {
           if (other !== undefined) setSplit(other.relPath);
         },
       },
+      {
+        id: 'zappr.ask',
+        title: 'Ask Zappr',
+        group: 'AI',
+        keywords: ['assistant', 'chat', 'prompt', 'zappr'],
+        enabled: () => {
+          const state = useZapprStore.getState();
+          return !state.isRunning && state.activeRunId === null && state.pendingApprovalId === null;
+        },
+        run: () => {
+          setPaletteOpen(false);
+          if (!useUiStore.getState().aiPanelVisible) useUiStore.setState({ aiPanelVisible: true });
+          useZapprStore.setState({ isOpen: true });
+          requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('[data-zappr-input]')?.focus());
+        },
+      },
+      ...ZAPPR_PALETTE_ACTIONS.map((action): Command => ({
+        id: action.id,
+        title: action.title,
+        group: 'AI',
+        keywords: action.keywords,
+        enabled: () => {
+          const state = useZapprStore.getState();
+          return !state.isRunning && state.activeRunId === null && state.pendingApprovalId === null;
+        },
+        run: () => {
+          setPaletteOpen(false);
+          const editor = useEditorStore.getState();
+          const liveSelection = activeSelectionText();
+          if (liveSelection !== null && editor.activeTab !== null) {
+            const range = activeSelectionRange();
+            const tab = editor.tabs.find((item) => item.relPath === editor.activeTab);
+            const language = tab?.language;
+            useZapprStore.getState().captureSelection({
+              code: liveSelection,
+              file: editor.activeTab,
+              ...(range === null ? {} : { startLine: range.startLine, endLine: range.endLine }),
+              ...(language === undefined || language === null ? {} : { language }),
+              workspaceRoot: useWorkspaceStore.getState().workspace?.rootPath ?? null,
+            });
+          }
+
+          const zappr = useZapprStore.getState();
+          const workspaceRoot = useWorkspaceStore.getState().workspace?.rootPath ?? null;
+          const hasSelection = zappr.selectedCode !== null && zappr.selectedCodeWorkspaceRoot === workspaceRoot;
+          const actionPrompt = buildZapprPalettePrompt(action.id, hasSelection);
+          const mentions = parseMentionPaths(zappr.prompt);
+          const prompt = mentions.length === 0
+            ? actionPrompt
+            : `${actionPrompt}\n\nUse these explicit workspace files as context: ${mentions.map((path) => `@${path}`).join(' ')}`;
+
+          if (!useUiStore.getState().aiPanelVisible) useUiStore.setState({ aiPanelVisible: true });
+          useZapprStore.getState().requestCommandRun(prompt);
+        },
+      })),
       {
         id: 'ai.generateTests',
         title: generatingFor !== null ? 'Generating tests…' : 'Generate Tests',
@@ -350,8 +407,13 @@ export function useAppCommands(): Command[] {
           // Capture selection before focus shifts to Zappr panel
           const selText = activeSelectionText();
           const selFile = useEditorStore.getState().activeTab;
-          if (selText !== null) {
-            useZapprStore.setState({ selectedCode: selText, selectedCodeFile: selFile });
+          if (selText !== null && selFile !== null) {
+            const current = useZapprStore.getState();
+            if (current.selectedCode !== selText || current.selectedCodeFile !== selFile) {
+              current.captureSelection({ code: selText, file: selFile });
+            }
+          } else {
+            useZapprStore.getState().clearSelectedCode();
           }
           useZapprStore.getState().open();
         },

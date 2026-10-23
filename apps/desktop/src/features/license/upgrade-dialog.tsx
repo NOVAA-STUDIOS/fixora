@@ -44,18 +44,18 @@ export function UpgradeDialog(): React.JSX.Element | null {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#000000] p-6">
-        <h2 className="text-lg font-semibold text-white">You've hit this window's free-tier limit</h2>
-        <p className="mt-1 text-sm text-white/50">
+      <div className="w-full max-w-md rounded-2xl border border-border-subtle bg-raised p-6 text-fg shadow-2xl">
+        <h2 className="text-lg font-semibold text-fg">You've hit this window's free-tier limit</h2>
+        <p className="mt-1 text-sm text-fg-muted">
           {resetCountdown === null
             ? 'Upgrade for more repairs every 3 hours.'
             : `${resetCountdown}. Upgrade for more repairs every 3 hours.`}
         </p>
 
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <div className="flex flex-col rounded-xl border border-white/10 p-4">
-            <div className="text-sm font-medium text-white">GO — $2.99/mo</div>
-            <ul className="mt-1 flex flex-col gap-0.5 text-xs text-white/50">
+          <div className="flex flex-col rounded-xl border border-border-subtle bg-canvas p-4">
+            <div className="text-sm font-medium text-fg">GO — $2.99/mo</div>
+            <ul className="mt-1 flex flex-col gap-0.5 text-xs text-fg-muted">
               <li>50 repairs / 3 hours</li>
               <li>All AI providers</li>
             </ul>
@@ -64,14 +64,14 @@ export function UpgradeDialog(): React.JSX.Element | null {
               onClick={() => {
                 startCheckout(CHECKOUT_URLS.go);
               }}
-              className="mt-3 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black hover:opacity-90"
+              className="mt-3 rounded-lg border border-border-strong bg-raised px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
             >
               Upgrade to GO →
             </button>
           </div>
-          <div className="flex flex-col rounded-xl border border-white/10 p-4">
-            <div className="text-sm font-medium text-white">PRO — $4.99/mo</div>
-            <ul className="mt-1 flex flex-col gap-0.5 text-xs text-white/50">
+          <div className="flex flex-col rounded-xl border border-accent-border bg-accent-subtle/30 p-4">
+            <div className="text-sm font-medium text-fg">PRO — $4.99/mo</div>
+            <ul className="mt-1 flex flex-col gap-0.5 text-xs text-fg-muted">
               <li>Unlimited repairs</li>
               <li>Priority support</li>
             </ul>
@@ -80,7 +80,7 @@ export function UpgradeDialog(): React.JSX.Element | null {
               onClick={() => {
                 startCheckout(CHECKOUT_URLS.pro);
               }}
-              className="mt-3 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black hover:opacity-90"
+              className="mt-3 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-on-accent hover:bg-accent-hover"
             >
               Upgrade to PRO →
             </button>
@@ -94,7 +94,7 @@ export function UpgradeDialog(): React.JSX.Element | null {
               setKey(e.target.value);
             }}
             placeholder="License key"
-            className="flex-1 rounded-xl border border-white/10 bg-transparent px-3 py-2 text-sm text-white placeholder:text-white/30"
+            className="min-w-0 flex-1 rounded-xl border border-border-strong bg-inset px-3 py-2 text-sm text-fg outline-none placeholder:text-fg-muted focus-visible:outline-2 focus-visible:outline-focus-ring"
           />
           <button
             type="button"
@@ -109,20 +109,20 @@ export function UpgradeDialog(): React.JSX.Element | null {
                 setSuccess(ACTIVATION_MESSAGE[plan]);
               });
             }}
-            className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-black hover:opacity-90"
+            className="shrink-0 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover"
           >
             Activate
           </button>
         </div>
-        {success !== null && <p className="mt-2 text-sm text-[#34d399]">{success}</p>}
-        {error !== null && <p className="mt-2 text-sm text-[#ef4444]">{error}</p>}
+        {success !== null && <p className="mt-2 text-sm text-success-text">{success}</p>}
+        {error !== null && <p className="mt-2 text-sm text-danger-text">{error}</p>}
 
         <button
           type="button"
           onClick={() => {
             setOpen(false);
           }}
-          className="mt-4 text-sm text-white/40 hover:text-white/70"
+          className="mt-4 text-sm text-fg-muted hover:text-fg"
         >
           Not now
         </button>

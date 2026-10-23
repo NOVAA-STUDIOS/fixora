@@ -5,9 +5,10 @@
 
 This is `fixora-desktop` — the Electron app and the framework-free `core-*` packages it is built from.
 
-**The blueprint is in [docs/](./docs/) and it is the source of truth.** If the code and the blueprint
-disagree, one of them is a bug. Start with [docs/README.md](./docs/README.md); if you disagree with
-something, start with the [Decision Register](./docs/03-DECISION-REGISTER.md).
+**Implementation is authoritative for current behavior.** The documents under [docs/](./docs/) include
+current operational guidance as well as historical proposals; see [docs/README.md](./docs/README.md)
+for status and reading guidance. ADRs record decisions and intent, not proof that a planned service was
+deployed.
 
 Current state: **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** · Hard-won context:
 **[PROJECT_MEMORY.md](./PROJECT_MEMORY.md)** · What shipped: **[CHANGELOG.md](./CHANGELOG.md)**
@@ -16,10 +17,10 @@ Current state: **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** · Hard-won context:
 
 ## Using Fixora (Public Beta)
 
-Not building Fixora, just using it? Start with the **[User Guide](./docs/USER-GUIDE.md)** — install,
-add your own AI key, and run your first verified repair. The beta is **BYOK** (bring your own key) and
-free; a one-time **Supporter** license ([LICENSING.md](./docs/LICENSING.md)) funds development. Building
-the Windows installer: **[PACKAGING.md](./docs/PACKAGING.md)**. How the beta was verified:
+Not building Fixora, just using it? Start with the **[User Guide](./docs/USER-GUIDE.md)** and verify its
+version/status note against the current app. Desktop AI is **BYOK**; current licensing behavior is in
+[LICENSING.md](./docs/LICENSING.md). Building locally: **[PACKAGING.md](./docs/PACKAGING.md)**. Production
+tag releases and signing: **[RELEASING.md](./docs/RELEASING.md)**. Historical beta acceptance:
 **[BETA-ACCEPTANCE.md](./docs/BETA-ACCEPTANCE.md)**.
 
 ---
@@ -72,17 +73,19 @@ pnpm run ci         # every gate, exactly as CI runs them  ← note: `run`, see 
 
 ---
 
-## The four sentences that explain the whole product
+## Current product shape
 
-1. **The capabilities are one pipeline.** `Ground → Reason → Propose → Verify → Present`, invoked with
-   different task profiles. Adding a capability must never require touching the engine. _(ADR-001)_
-2. **The LLM reasons over evidence, never over vibes.** Deterministic analysis produces the findings; the
-   model explains and repairs them. _(ADR-002)_
-3. **Every fix ships with its proof.** Patches are applied to an overlay filesystem, re-checked and
-   re-tested before the user ever sees them. _(ADR-003)_
-4. **Code stays on the user's machine unless they say otherwise.** _(ADR-004)_
+Fixora is a pnpm/Turborepo monorepo centered on a Windows-first Electron desktop IDE, plus an independent
+Next.js web chat and a VS Code extension. The desktop React renderer uses a sandboxed preload and
+Zod-validated shared IPC contracts. Electron main owns workspace filesystem and terminal operations,
+SQLite (`node:sqlite`) persistence, and desktop AI orchestration through `packages/core-ai`.
 
-If a change violates one of those four, it is wrong, however convenient.
+The desktop includes both verified repair/proceed workflows and Zappr. Zappr file plans are schema
+validated, workspace-bound, explicitly approved, run-ID-scoped, and use guarded atomic writes with
+rollback on failed multi-step execution. These guarantees are specific to those flows: do not infer
+that every AI response or every feature uses the same verification pipeline. See
+[Architecture Overview](./docs/01-ARCHITECTURE.md) for current boundaries and its clearly marked
+historical proposal sections.
 
 ## The rule that makes this repo worth its structure
 

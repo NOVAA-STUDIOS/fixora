@@ -1,5 +1,5 @@
-# Packaging config (Beta). Unsigned for the beta — code signing (ADR-021, Azure Trusted Signing) lands
-# for the paid launch. Produces an NSIS installer for Windows.
+# Packaging config. Local/dev packaging remains unsigned when no signing credentials are supplied.
+# Tagged production releases use electron-builder.release.cjs, which makes signing mandatory (ADR-021).
 #
 # The critical detail is asarUnpack: the analysis/verification worker is ESM and loads tree-sitter WASM
 # via import.meta.url, which only resolves against real files on disk — never from inside app.asar. So the
@@ -64,11 +64,8 @@ extraResources:
   - from: build/icon.ico
     to: icon.ico
 
-# GitHub Releases. `releaseType: release` — a `--publish always` run goes stright to a published
-# release the moment it uploads, with no draft review step. The build is still UNSIGNED (see
-# `signAndEditExecutable` below), so this is what puts a SmartScreen-warned, unverifiable installer
-# in front of real users automatically; there is no manual gate left before that happens (ADR-021
-# deferred signing, not this decision).
+# GitHub Releases is the currently implemented updater feed (ADR-022's self-hosted feed is not wired
+# into the app yet). Production workflow stages artifacts locally, verifies them, then publishes.
 #
 # Requires GH_TOKEN in the environment at publish time; it is never stored in this file. See
 # docs/RELEASING.md.
@@ -90,9 +87,9 @@ win:
   # already "Fixora" — but NSIS reads this field when it names the Start Menu entry, and stating it
   # is what stops that entry falling back to Electron's own metadata.
   executableName: Fixora
-  # This flag gates TWO things: code signing (which we still do not do — ADR-021 defers it to the
-  # paid launch, and no certificate is configured, so signing is skipped with a log line) AND
-  # rcedit's rewrite of the exe's icon + version resources, which we DO want. With it off, the
+  # This flag gates TWO things: code signing when credentials are present and rcedit's rewrite of
+  # the exe's icon + version resources, which we do want. Production release config additionally
+  # sets forceCodeSigning so missing credentials cannot produce a public unsigned release. With it off, the
   # shipped Fixora.exe reported itself as "Electron 43.1.0 — GitHub, Inc." in Task Manager and in
   # its Properties dialog.
   #
@@ -106,6 +103,8 @@ win:
   #   (Get-Item 'release\win-unpacked\Fixora.exe').VersionInfo
   # which must report ProductName "Fixora" and ProductVersion matching package.json.
   signAndEditExecutable: true
+  # electron-updater checks downloaded Windows update signatures against this publisher.
+  verifyUpdateCodeSignature: true
 
 # Writes the icon and version resource into Fixora.exe.
 #

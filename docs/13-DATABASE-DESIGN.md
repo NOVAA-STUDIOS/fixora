@@ -1,5 +1,10 @@
 # Fixora — Database Design
 
+> **Historical design proposal.** The deployed app uses local SQLite through Node's `node:sqlite`;
+> there is no current Neon Postgres application database. The cloud database sections below are
+> planned design context. For the current local schema and driver, inspect
+> `apps/desktop/electron/main/db/` and ADR-033.
+
 Two databases with a **hard, testable line** between them:
 
 > **Local SQLite holds everything about the user's code. Cloud Postgres holds everything about the user's

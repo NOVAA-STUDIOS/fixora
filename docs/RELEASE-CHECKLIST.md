@@ -1,5 +1,10 @@
 # Fixora — Public Beta Release Checklist
 
+> **Historical checklist for `v0.9.0-beta.1`; do not use for current release operations.** Its
+> engineering claims, owner tasks, licensing setup and unsigned-installer steps describe that old
+> snapshot only. Current tag/version/signing/publish procedure and clean-machine QA are in
+> [RELEASING.md](./RELEASING.md); the authoritative automation is `.github/workflows/release.yml`.
+
 The engineering for the tagged `v0.9.0-beta.1` release is complete, verified, and tagged. This is the
 sequence from a green codebase to a live Public Beta. Items marked **[owner]** need your machine/accounts
 and can't be done from the codebase.

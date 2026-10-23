@@ -680,6 +680,8 @@ function toZapprConversation(row: Row): ZapprConversationRow {
 }
 
 export function createZapprConversationRepository(driver: SqliteDriver) {
+  const retentionLimit = 100;
+
   return {
     save(id: string, workspaceId: string, messages: string, summary: string | null): void {
       driver
@@ -689,6 +691,25 @@ export function createZapprConversationRepository(driver: SqliteDriver) {
            ON CONFLICT(id) DO UPDATE SET messages = excluded.messages, summary = excluded.summary`,
         )
         .run(id, workspaceId, messages, summary);
+
+      // Conversation timestamps use SQLite's unixepoch() seconds default consistently. Rowid
+      // breaks same-second ties in insertion order; cleanup is workspace-local and best-effort.
+      try {
+        driver
+          .prepare(
+            `DELETE FROM zappr_conversations
+             WHERE workspace_id = ?
+               AND id NOT IN (
+                 SELECT id FROM zappr_conversations
+                 WHERE workspace_id = ?
+                 ORDER BY created_at DESC, rowid DESC
+                 LIMIT ?
+               )`,
+          )
+          .run(workspaceId, workspaceId, retentionLimit);
+      } catch {
+        // The conversation itself is already saved; retention is maintenance, not turn success.
+      }
     },
 
     recent(workspaceId: string, limit = 5): ZapprConversationRow[] {
@@ -697,7 +718,7 @@ export function createZapprConversationRepository(driver: SqliteDriver) {
           `SELECT id, workspace_id, created_at, messages, summary
              FROM zappr_conversations
              WHERE workspace_id = ?
-             ORDER BY created_at DESC
+             ORDER BY created_at DESC, rowid DESC
              LIMIT ?`,
         )
         .all(workspaceId, limit)

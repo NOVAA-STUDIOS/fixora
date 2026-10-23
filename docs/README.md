@@ -3,9 +3,10 @@
 > **Fix Smarter. Ship Faster.**
 > Fixora is the workspace you open when the code is already broken.
 
-This directory is the single source of truth for what Fixora is, how it is built, and why every
-significant decision was made the way it was. It is written to be *followed*, not admired. If code and
-this blueprint disagree, one of them is a bug.
+This directory contains a mix of current operational guidance, historical design proposals, and
+decision records. **The checked-out implementation is the source of truth for current behavior.** A
+blueprint or accepted ADR may describe a target that was deferred or superseded; check the status notes
+below and the implementation before relying on such a claim.
 
 ---
 
@@ -34,33 +35,39 @@ this blueprint disagree, one of them is a bug.
 
 ---
 
-## The four sentences that explain the whole product
+## Current implementation at a glance
 
-1. **The twelve capabilities are one pipeline.** `Ground → Reason → Propose → Verify → Present`, invoked
-   with twelve different task profiles. Adding a capability must never require touching the engine.
-2. **The LLM reasons over evidence, never over vibes.** Deterministic analysis (tree-sitter, ESLint,
-   `tsc`, ruff, Semgrep) produces the findings; the model explains and repairs them.
-3. **Every fix ships with its proof.** Patches are applied to an overlay filesystem, re-checked, and
-   re-tested before the user ever sees them.
-4. **Code stays on the user's machine unless they say otherwise.** History is local SQLite. The cloud
-   holds accounts, entitlements and usage — never source code.
+The desktop application is Electron + React/Vite. A sandboxed preload exposes a narrow bridge; the main
+process validates IPC with shared Zod contracts and owns local workspace/filesystem/PTY/SQLite services.
+SQLite uses Node's built-in `node:sqlite` driver. Desktop provider requests are integrated through
+`packages/core-ai`; there is no deployed FastAPI/Neon application backend in this repository. The
+separate Next.js web chat uses a server route as a BYOK provider proxy.
 
-If a proposed change violates one of those four, it is wrong, regardless of how convenient it is.
+Current Zappr file/repair flow: strict shared plan schema, safe workspace-relative paths, an explicit
+main-owned approval gate, atomic verified writes, preflight snapshots and reverse-order rollback,
+scoped run IDs/cancellation, and run-scoped events. Renderer context includes Ctrl+I selection,
+`@mentions`, active-file fallback, deduplication, and derived live status. See the current status section
+in [Architecture Overview](./01-ARCHITECTURE.md). These descriptions apply to the checked-out working
+tree; they do not imply every change is included in a published release.
+
+Treat these constraints as design intent; verify each one against the current implementation and
+applicable newer decisions before extending it.
 
 ---
 
-## Status
+## Status and authority
 
 | Milestone | Status |
 |---|---|
-| Blueprint | ✅ **Signed off — 2026-07-13.** All 28 ADRs Accepted. |
-| M0 Foundations | 🟡 Ready to start — blocked only on the repo move + `git init` |
-| Everything else | ⏸ Not started |
+| Desktop app | Implemented; see code and current architecture snapshot. |
+| Web app | Implemented as a separate Next.js BYOK chat; see `apps/web/README.md`. |
+| Release | Tag-driven Windows release; GitHub Actions validates artifacts before publish, signs when configured, and has an explicit unsigned v1.2.26 exception. See `RELEASING.md`. |
+| Blueprint and roadmap | Historical/planned design context; not a current implementation checklist. |
 
-**Signed-off decisions of record (2026-07-13):**
-FastAPI backend (ADR-008) · 4 launch capabilities, not 12 (ADR-024) · TypeScript + Python + Go (ADR-025) ·
-Violet accent (ADR-026) · Local-first + SQLite + BYOK + verification-first (ADR-002/003/004/011).
-
-**No production code exists yet, by design.**
+**Version/release authority:** a production desktop release tag (`vMAJOR.MINOR.PATCH`) is canonical at
+release time. The package-version snapshot and tag injection are documented in
+[RELEASING.md](./RELEASING.md). `03-DECISION-REGISTER.md` and generated ADRs preserve decision history;
+ADR-033 supersedes ADR-011's database-driver choice. ADR-022's self-hosted updater feed remains future
+work; the current updater uses GitHub Releases.
 </content>
 </invoke>

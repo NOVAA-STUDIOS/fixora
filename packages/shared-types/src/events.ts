@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { uuid as uuidSchema, z } from 'zod';
 
 import { AiDeltaSchema, AiRunStateSchema } from './ai.js';
 import { AnalysisStateSchema, FindingSchema } from './analysis.js';
@@ -85,15 +85,18 @@ export type PreviewNavigationChanged = z.infer<typeof PreviewNavigationChangedSc
 
 /** Zappr's proposed plan, once the model has answered. */
 export const ZapprPlanEventSchema = z.object({
+  runId: uuidSchema(),
+  approvalId: uuidSchema(),
   steps: z.array(ZapprStepSchema),
   summary: z.string(),
 });
 export type ZapprPlanEvent = z.infer<typeof ZapprPlanEventSchema>;
 
-export const ZapprStepStartSchema = z.object({ index: z.number().int(), step: ZapprStepSchema });
+export const ZapprStepStartSchema = z.object({ runId: uuidSchema(), index: z.number().int(), step: ZapprStepSchema });
 export type ZapprStepStart = z.infer<typeof ZapprStepStartSchema>;
 
 export const ZapprStepDoneSchema = z.object({
+  runId: uuidSchema(),
   index: z.number().int(),
   success: z.boolean(),
   error: z.string().optional(),
@@ -101,6 +104,7 @@ export const ZapprStepDoneSchema = z.object({
 export type ZapprStepDone = z.infer<typeof ZapprStepDoneSchema>;
 
 export const ZapprDoneSchema = z.object({
+  runId: uuidSchema(),
   success: z.boolean(),
   filesChanged: z.array(z.string()),
   chatResponse: z.string().optional(),
@@ -108,16 +112,18 @@ export const ZapprDoneSchema = z.object({
 });
 export type ZapprDone = z.infer<typeof ZapprDoneSchema>;
 
-export const ZapprDeltaSchema = z.object({ text: z.string() });
+export const ZapprDeltaSchema = z.object({ runId: uuidSchema(), text: z.string() });
 export type ZapprDelta = z.infer<typeof ZapprDeltaSchema>;
 
 export const ZapprModeSchema = z.object({
+  runId: uuidSchema(),
   mode: z.enum(['chat', 'file', 'math', 'repair', 'review']),
 });
 export type ZapprMode = z.infer<typeof ZapprModeSchema>;
 
 /** Carries the detected action along so the renderer (which owns the stores) can execute it. */
 export const ZapprActionResultSchema = z.object({
+  runId: uuidSchema(),
   ok: z.boolean(),
   message: z.string(),
   action: ZapprActionSchema,
@@ -125,6 +131,7 @@ export const ZapprActionResultSchema = z.object({
 export type ZapprActionResult = z.infer<typeof ZapprActionResultSchema>;
 
 export const ZapprFileProgressSchema = z.object({
+  runId: uuidSchema(),
   filePath: z.string(),
   content: z.string(),
   index: z.number().int(),

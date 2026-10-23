@@ -1,8 +1,10 @@
 import {
   Button,
+  CheckIcon,
   ChevronDownIcon,
   CloseIcon,
   FetchIcon,
+  FolderIcon,
   GitBranchIcon,
   PullIcon,
   PushIcon,
@@ -34,6 +36,7 @@ type SelectedDiffFile = { relPath: string; staged: boolean };
  */
 export function SourceControlPanel(): React.JSX.Element {
   const hasWorkspace = useWorkspaceStore((s) => s.workspace !== null);
+  const pickAndOpen = useWorkspaceStore((s) => s.pickAndOpen);
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -199,13 +202,30 @@ export function SourceControlPanel(): React.JSX.Element {
   };
 
   if (!hasWorkspace) {
-    return <Centered text="Open a folder to see its source control status" />;
+    return (
+      <Centered
+        icon={<FolderIcon className="size-5 text-fg-muted" />}
+        title="No workspace open"
+        body="Open a folder to check its Git status."
+        action={
+          <Button variant="primary" size="sm" onClick={() => void pickAndOpen()}>
+            Open folder
+          </Button>
+        }
+      />
+    );
   }
   if (status === null) {
     return <Centered text="Loading…" />;
   }
   if (status.branch === null) {
-    return <Centered text="Not a git repository (or git is not installed)" />;
+    return (
+      <Centered
+        icon={<GitBranchIcon className="size-5 text-fg-muted" />}
+        title="Git repository not found"
+        body="This folder is not a Git repository, or Git is unavailable on this machine."
+      />
+    );
   }
 
   return (
@@ -218,10 +238,10 @@ export function SourceControlPanel(): React.JSX.Element {
           type="button"
           onClick={openBranchPicker}
           disabled={busy}
-          className="flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-fg-secondary hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1 text-xs font-semibold uppercase tracking-wider text-fg-secondary hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           <GitBranchIcon className="size-3 shrink-0" />
-          <span className="min-w-0 truncate">{status.branch ?? 'detached'}</span>
+          <span className="min-w-0 truncate">{status.branch}</span>
           <ChevronDownIcon className="size-3 shrink-0" />
         </button>
         <button
@@ -260,7 +280,7 @@ export function SourceControlPanel(): React.JSX.Element {
             ref={pickerRef}
             role="menu"
             aria-label="Branches"
-            className="absolute top-full left-2 z-10 mt-1 max-h-64 w-56 overflow-y-auto rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+            className="absolute top-full left-2 z-10 mt-1 max-h-64 w-56 overflow-y-auto rounded-md border border-border-subtle bg-raised p-1 shadow-lg"
           >
             {branches === null ? (
               <p className="px-2 py-1.5 text-xs text-fg-muted">Loading…</p>
@@ -334,7 +354,12 @@ export function SourceControlPanel(): React.JSX.Element {
           onSelectDiff={openDiff}
         />
         {status.staged.length === 0 && status.unstaged.length === 0 && (
-          <Centered text="No changes" compact />
+          <Centered
+            icon={<CheckIcon className="size-4 text-success-text" />}
+            title="Working tree clean"
+            body="No staged or unstaged changes."
+            compact
+          />
         )}
       </div>
 
@@ -439,13 +464,42 @@ function FileGroup({
   );
 }
 
-function Centered({ text, compact = false }: { text: string; compact?: boolean }): React.JSX.Element {
+function Centered({
+  text,
+  title,
+  body,
+  icon,
+  action,
+  compact = false,
+}: {
+  text?: string;
+  title?: string;
+  body?: string;
+  icon?: React.ReactNode;
+  action?: React.ReactNode;
+  compact?: boolean;
+}): React.JSX.Element {
+  if (text !== undefined) {
+    return (
+      <div
+        role="status"
+        className={`flex ${compact ? 'py-6' : 'h-full'} items-center justify-center p-4 text-center text-xs text-fg-muted sm:p-6`}
+      >
+        {text}
+      </div>
+    );
+  }
+
   return (
-    <div
-      role="status"
-      className={`flex ${compact ? 'py-6' : 'h-full'} items-center justify-center p-6 text-center text-xs text-fg-muted`}
-    >
-      {text}
+    <div className={`flex ${compact ? 'py-5' : 'h-full'} min-w-0 flex-col items-center justify-center gap-2.5 p-4 text-center sm:p-6`} role="status">
+      {icon !== undefined && (
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-inset text-fg-muted">
+          {icon}
+        </span>
+      )}
+      {title !== undefined && <p className="text-sm font-semibold text-fg">{title}</p>}
+      {body !== undefined && <p className="max-w-[240px] text-xs leading-relaxed text-fg-muted [overflow-wrap:anywhere]">{body}</p>}
+      {action !== undefined && <div className="pt-0.5">{action}</div>}
     </div>
   );
 }

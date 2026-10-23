@@ -63,7 +63,7 @@ export function InlineRepairBar({
     <div
       role="toolbar"
       aria-label="Repair review"
-      className="pointer-events-auto absolute right-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-1.5 rounded-lg border border-border-strong bg-raised/95 px-2 py-1.5 shadow-lg backdrop-blur"
+      className="pointer-events-auto absolute right-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-1.5 rounded-lg border border-border-strong bg-raised px-2 py-1.5 shadow-lg"
     >
       <span className="mr-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
         Proposed fix

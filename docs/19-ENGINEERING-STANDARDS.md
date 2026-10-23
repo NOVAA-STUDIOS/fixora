@@ -1,5 +1,9 @@
 # Fixora — Engineering Standards
 
+> This standards document contains assumptions from the original target architecture. References to
+> FastAPI/Python boundaries apply only if that planned service is built; current code boundaries are
+> enforced by the repository tooling and actual package imports.
+
 Standards exist to make code reviews about *design* instead of about *style*. Everything mechanical is
 automated; everything automated is non-negotiable; everything left is worth arguing about.
 

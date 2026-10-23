@@ -196,8 +196,6 @@ export const indigoRamp = {
   900: '#312E81',
 } as const;
 
-/** iOS "materials" — a translucent surface over whatever sits behind it, not an opaque colour.
- * Only meaningful paired with `backdrop-blur` (already in use: `full-diff-overlay.tsx`,
- * `inline-repair-bar.tsx`), which is what makes the alpha read as glass instead of a dim tint. */
+/** Tinted surface colors. Use with a border/shadow for separation; no filtering is required. */
 export const iosGlassDark = 'rgba(28, 28, 30, 0.72)';
 export const iosGlassLight = 'rgba(242, 242, 247, 0.72)';

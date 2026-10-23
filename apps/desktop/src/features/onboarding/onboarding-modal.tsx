@@ -1,4 +1,16 @@
-import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, cn } from '@fixora/ui';
+import {
+  Button,
+  CheckIcon,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  FixoraMark,
+  FolderIcon,
+  SearchIcon,
+  SparkleIcon,
+  cn,
+} from '@fixora/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { useOnboardingStore } from '../../stores/onboarding-store.js';
@@ -7,7 +19,6 @@ import { useOnboardingStore } from '../../stores/onboarding-store.js';
 const CONFIRM_SKIP_TIMEOUT_MS = 3000;
 
 type Step = {
-  emoji: string;
   title: string;
   body: string;
   visual: React.JSX.Element;
@@ -15,45 +26,49 @@ type Step = {
 
 const STEPS: readonly Step[] = [
   {
-    emoji: '👋',
     title: 'Welcome to Fixora',
-    body: 'AI-powered code repair for developers.',
-    visual: <div className="text-6xl">🛠️</div>,
+    body: 'A focused workspace for understanding and repairing code.',
+    visual: <FixoraMark className="size-16" title="Fixora" />,
   },
   {
-    emoji: '📁',
     title: 'Open Your Project',
-    body: "Click 'Open Folder' to load your codebase.",
+    body: 'Open a local project to explore files and work in context.',
     visual: (
-      <div className="flex items-center gap-2 text-3xl">
-        <span>📂</span>
-        <span className="text-accent-text">←</span>
-        <span className="text-sm text-fg-muted">Files sidebar</span>
+      <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-inset px-4 py-3 text-sm text-fg-muted">
+        <FolderIcon className="size-5 text-accent-text" />
+        <span>Project files, ready to explore</span>
       </div>
     ),
   },
   {
-    emoji: '🔍',
     title: 'Analyze Your Code',
-    body: "Click 'Fix & Analyze' to find issues.",
-    visual: <div className="animate-pulse text-6xl">🔍</div>,
-  },
-  {
-    emoji: '⚡',
-    title: 'Fix with AI',
-    body: 'Click Repair on any issue — AI fixes it instantly.',
+    body: 'Run analysis to surface actionable issues in your project.',
     visual: (
-      <div className="rounded-lg border border-border-strong bg-inset px-4 py-3 text-left text-xs text-fg-muted">
-        <p className="font-medium text-fg">Unused variable</p>
-        <p className="mt-1">line 42 · repair.ts</p>
+      <div className="flex size-16 items-center justify-center rounded-2xl border border-border-subtle bg-accent-subtle text-accent-text">
+        <SearchIcon className="size-7" />
       </div>
     ),
   },
   {
-    emoji: '🚀',
+    title: 'Fix with AI',
+    body: 'Choose a provider in Settings, then review proposed changes before applying them.',
+    visual: (
+      <div className="flex max-w-sm items-center gap-3 rounded-xl border border-border-subtle bg-inset px-4 py-3 text-left text-sm text-fg-muted">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-subtle text-accent-text">
+          <SparkleIcon className="size-4" />
+        </div>
+        <span>Review a repair plan before changes are applied.</span>
+      </div>
+    ),
+  },
+  {
     title: "You're Ready!",
-    body: 'Start with Explain (free) to understand issues.',
-    visual: <div className="text-6xl">🚀</div>,
+    body: 'Open a project and choose the next step with confidence.',
+    visual: (
+      <div className="flex size-16 items-center justify-center rounded-2xl border border-border-subtle bg-accent-subtle text-accent-text">
+        <CheckIcon className="size-7" />
+      </div>
+    ),
   },
 ];
 
@@ -107,7 +122,7 @@ export function OnboardingModal(): React.JSX.Element | null {
   return (
     <Dialog open>
       <DialogContent
-        className="flex h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col items-center justify-center gap-6 rounded-3xl bg-[#0a0a0a] text-center"
+        className="flex h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col items-center justify-center gap-6 rounded-3xl border border-border-subtle bg-raised text-center"
         onEscapeKeyDown={(e) => {
           e.preventDefault();
           handleEscape();
@@ -122,9 +137,7 @@ export function OnboardingModal(): React.JSX.Element | null {
         <div className="flex flex-col items-center gap-6" key={currentStep}>
           <div className="animate-ios-enter">{step.visual}</div>
           <div className="flex flex-col gap-2">
-            <DialogTitle className="text-2xl font-semibold text-fg">
-              {step.title} {step.emoji}
-            </DialogTitle>
+            <DialogTitle className="text-2xl font-semibold text-fg">{step.title}</DialogTitle>
             <DialogDescription className="max-w-sm text-sm text-fg-muted">
               {step.body}
             </DialogDescription>

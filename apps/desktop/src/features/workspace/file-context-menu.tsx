@@ -75,7 +75,7 @@ export function useFileActions(): {
             ref={menuRef}
             role="menu"
             style={{ left: adjustedPos?.x ?? contextMenu.x, top: adjustedPos?.y ?? contextMenu.y }}
-            className="fixed z-[9999] w-44 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+            className="fixed z-[9999] w-44 rounded-md border border-border-subtle bg-raised p-1 shadow-lg"
           >
             <MenuItem
               label="New File"

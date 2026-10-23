@@ -17,7 +17,8 @@ import { createProviderRegistry } from './ai/providers/provider-registry.js';
 import { createAnalysisHost } from './analysis/analysis-host.js';
 import { createAnalysisService } from './analysis/analysis-service.js';
 import { createConsentStore } from './consent/consent-store.js';
-import { openDatabase } from './db/database.js';
+import { DatabaseMigrationStartupError, openDatabase } from './db/database.js';
+import { DatabaseMigrationIntegrityError } from './db/migrate.js';
 import {
   createFileIndexRepository,
   createFindingsRepository,
@@ -107,6 +108,16 @@ let mcpRunning = false;
 /** Set once `startBackend` has constructed every service and registered every handler. Polled by
  *  the renderer via `app:getReadyState` (`app-ready.ts`) — a pull, so there is no listener to race. */
 let backendReady = false;
+let backendStartupError: string | null = null;
+
+// Keep a readiness-only route available while services initialize. If a migration fails, the
+// renderer can show a path-free backend-not-ready error instead of waiting for a timeout.
+registerHandler('app:getReadyState', () =>
+  backendStartupError === null
+    ? { ready: backendReady }
+    : { ready: false, error: backendStartupError },
+);
+mountRouter(['app:getReadyState']);
 
 export function markMcpRunning(): void {
   mcpRunning = true;
@@ -255,7 +266,21 @@ if (isMcpOnlyLaunch()) {
         });
 
         setImmediate(() => {
-          startBackend(window);
+          try {
+            startBackend(window);
+          } catch (error) {
+            backendReady = false;
+            backendStartupError =
+              error instanceof DatabaseMigrationIntegrityError
+                ? error.message
+                : error instanceof DatabaseMigrationStartupError
+                  ? error.message
+                  : 'Fixora backend could not start. Existing local data was not reset.';
+            log.error('[main] backend startup failed', {
+              name: error instanceof Error ? error.name : 'unknown',
+              message: backendStartupError,
+            });
+          }
         });
 
         // COLD START: if the app was NOT already running, the OS launches it with the `fixora://`
@@ -429,7 +454,6 @@ function startBackend(window: BrowserWindow | null): void {
   });
 
   // Polled by the renderer's splash instead of pushed — see `backendReady` above.
-  registerHandler('app:getReadyState', () => ({ ready: backendReady }));
   registerSystemHandlers({ workspace: workspaceService, gpuPreference });
   registerLicenseHandlers({ driver, dir: app.getPath('userData') });
   registerReferralHandlers({ driver });

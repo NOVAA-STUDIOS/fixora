@@ -31,7 +31,7 @@ export function WorkspacePanel(): React.JSX.Element {
         <header className="flex h-8 shrink-0 items-center gap-1.5 border-b border-border-subtle bg-raised px-2">
           <FolderIcon className="size-4 shrink-0 text-fg-muted" />
           <h2
-            className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wider text-fg-secondary"
+            className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wider text-fg-secondary"
             title={workspace.rootPath}
           >
             {workspace.name}
@@ -220,7 +220,7 @@ function OpenMenu(): React.JSX.Element {
             role="menu"
             // max-w clamps the menu to the pane at its 220px minimum, where a fixed 224px popup
             // would otherwise hang over the editor's left edge.
-            className="absolute right-0 top-full z-20 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+            className="absolute right-0 top-full z-20 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-md border border-border-subtle bg-raised p-1 shadow-lg"
           >
             <button
               type="button"
@@ -250,7 +250,7 @@ function OpenMenu(): React.JSX.Element {
               render={(recent) =>
                 recent.filter((w) => w.rootPath !== current?.rootPath).length === 0 ? null : (
                   <div className="mt-1 border-t border-border-subtle pt-1">
-                    <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-fg-muted">
+                    <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-fg-muted">
                       Recent
                     </p>
                     {recent

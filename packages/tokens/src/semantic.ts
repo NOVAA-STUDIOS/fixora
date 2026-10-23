@@ -20,7 +20,7 @@ export type SemanticColors = {
     overlay: string;
     hover: string;
     active: string;
-    /** iOS "material": a translucent surface, only meaningful paired with `backdrop-blur`. */
+    /** Alternate tinted surface; components must remain readable without background filtering. */
     glass: string;
     /** A more opaque glass variant — content sitting ON a glass surface, not the surface itself. */
     glassSurface: string;
@@ -73,8 +73,8 @@ export type SemanticColors = {
 // Xcode's own blue accent, not the iOS indigo the redesign used before this. `neutralDark` stays
 // defined and used elsewhere (it still backs `violetDark`'s tint derivation); this theme simply
 // stops reading from it for bg/border, in favour of literal Xcode hex.
-// REDESIGN: iOS Premium — restores glass, deepens the canvas, and moves borders/hover/active to
-// translucent white overlays (the iOS "materials" approach) instead of opaque greys.
+// REDESIGN: iOS Premium — restores tinted surfaces, deepens the canvas, and moves borders/hover/active
+// to translucent white overlays instead of opaque greys.
 export const dark: SemanticColors = {
   bg: {
     canvas: '#000000',
@@ -83,8 +83,7 @@ export const dark: SemanticColors = {
     overlay: '#111111',
     hover: 'rgba(255, 255, 255, 0.05)',
     active: 'rgba(255, 255, 255, 0.08)',
-    // Solid, not translucent: backdrop-filter (which made these worth being translucent) is gone —
-    // it caused GPU-process freezes in Electron. Kept as the exact colour the blur used to sit on.
+    // Solid surfaces avoid the filtering effect that caused GPU-process freezes in Electron.
     glass: '#0a0a0a',
     glassSurface: '#111111',
   },

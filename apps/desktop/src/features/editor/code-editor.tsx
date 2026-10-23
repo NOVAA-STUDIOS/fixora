@@ -271,12 +271,18 @@ export function CodeEditor({
       const model = editor.getModel();
       if (sel !== null && !sel.isEmpty() && model !== null) {
         const text = model.getValueInRange(sel);
-        useZapprStore.setState({
-          selectedCode: text,
-          selectedCodeFile: relPath,
+        useZapprStore.getState().captureSelection({
+          code: text,
+          file: relPath,
+          startLine: sel.startLineNumber,
+          endLine: sel.endLineNumber,
+          language,
         });
+      } else {
+        useZapprStore.getState().clearSelectedCode();
       }
-      // Don't preventDefault — let the keybinding open Zappr normally
+      useUiStore.setState({ aiPanelVisible: true });
+      useZapprStore.getState().open();
     });
 
     // Ctrl/Cmd+S saves the file the editor is showing.

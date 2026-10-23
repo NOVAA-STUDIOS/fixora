@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@fixora/ui';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { useAuthStore } from '../../features/auth/auth-store.js';
 import { invoke } from '../../lib/bridge.js';
@@ -110,6 +110,8 @@ const SECTIONS: readonly {
 
 export function SettingsPanel(): React.JSX.Element {
   const [search, setSearch] = useState('');
+  const [activeSection, setActiveSection] = useState(SECTIONS[0]?.title ?? 'Appearance');
+  const contentRef = useRef<HTMLDivElement>(null);
   const query = search.trim().toLowerCase();
   const visible = useMemo(
     () =>
@@ -122,6 +124,34 @@ export function SettingsPanel(): React.JSX.Element {
           ),
     [query],
   );
+
+  useEffect(() => {
+    const root = contentRef.current;
+    if (root === null || typeof IntersectionObserver === 'undefined') return;
+
+    const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-settings-section]'));
+    const firstTitle = visible[0]?.title;
+    if (firstTitle !== undefined) setActiveSection(firstTitle);
+    if (sections.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const topmost = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        const title = topmost?.target.getAttribute('data-settings-section');
+        if (title !== null && title !== undefined) setActiveSection(title);
+      },
+      { root, rootMargin: '-12px 0px -76% 0px', threshold: 0 },
+    );
+    sections.forEach((section) => {
+      observer.observe(section);
+    });
+    return () => { observer.disconnect(); };
+  }, [visible]);
+
+  const sectionId = (title: string): string =>
+    `settings-section-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
   return (
     // flex-1 + min-w-0: this is now a top-level child of the shell's flex row, and a flex item sizes
@@ -142,7 +172,32 @@ export function SettingsPanel(): React.JSX.Element {
           ancestor — and with none, that is the initial containing block. The six per-provider key
           labels then sat at document coordinates up to 1504px, escaping both this scroller and the
           shell's `overflow-hidden`, and gave the whole window 736px of blank scroll below the UI. */}
-      <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div ref={contentRef} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="sticky top-0 z-10 border-b border-border-subtle bg-raised px-4 py-2">
+          <nav aria-label="Settings sections" className="mx-auto flex max-w-2xl gap-1 overflow-x-auto">
+            {visible.map(({ title }) => (
+              <button
+                key={title}
+                type="button"
+                aria-current={activeSection === title ? 'location' : undefined}
+                onClick={() => {
+                  setActiveSection(title);
+                  contentRef.current
+                    ?.querySelector<HTMLElement>(`#${sectionId(title)}`)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className={cn(
+                  'shrink-0 rounded-md px-2 py-1 text-[11px] font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline',
+                  activeSection === title
+                    ? 'bg-accent-subtle text-accent-text'
+                    : 'text-fg-muted hover:bg-hover hover:text-fg',
+                )}
+              >
+                {title}
+              </button>
+            ))}
+          </nav>
+        </div>
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-8">
           <Input
             value={search}
@@ -159,7 +214,16 @@ export function SettingsPanel(): React.JSX.Element {
           {visible.length === 0 ? (
             <p className="text-sm text-fg-muted">No settings found for &lsquo;{search.trim()}&rsquo;</p>
           ) : (
-            visible.map(({ title, Component }) => <Component key={title} />)
+            visible.map(({ title, Component }) => (
+              <div
+                key={title}
+                id={sectionId(title)}
+                data-settings-section={title}
+                className="scroll-mt-12"
+              >
+                <Component />
+              </div>
+            ))
           )}
           <LegalLinks />
         </div>

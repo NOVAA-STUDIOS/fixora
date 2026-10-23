@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { SqliteDriver } from './driver.js';
-import { migrate } from './migrate.js';
+import { DatabaseMigrationIntegrityError, migrate } from './migrate.js';
 import { createNodeSqliteDriver } from './node-sqlite-driver.js';
 
 export type DatabaseOpenResult = {
@@ -62,8 +62,24 @@ export function openDatabase(deps: DatabaseDeps): DatabaseOpenResult {
     }
   }
 
-  migrate(driver);
+  try {
+    migrate(driver);
+  } catch (error) {
+    driver.close();
+    if (error instanceof DatabaseMigrationIntegrityError) throw error;
+    throw new DatabaseMigrationStartupError();
+  }
   return { driver, recovered };
+}
+
+/** Safe-to-display startup failure; the DB was not reset and the pre-migration backup is best-effort. */
+export class DatabaseMigrationStartupError extends Error {
+  constructor() {
+    super(
+      'Database migration failed. Existing data was not reset; a pre-migration backup may be available.',
+    );
+    this.name = 'DatabaseMigrationStartupError';
+  }
 }
 
 /**

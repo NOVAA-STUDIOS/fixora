@@ -26,23 +26,60 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Set apps/desktop/package.json version to the tag
+      - name: Resolve canonical tag version and signing mode
+        id: release-preflight
+        shell: pwsh
         env:
-          TAG: ${{ github.ref_name }}
-        run: node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('apps/desktop/package.json'));p.version=process.env.TAG.replace('v','');fs.writeFileSync('apps/desktop/package.json',JSON.stringify(p,null,2))"
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ vars.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ vars.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_PROFILE: ${{ vars.AZURE_TRUSTED_SIGNING_PROFILE }}
+          AZURE_TRUSTED_SIGNING_PUBLISHER: ${{ vars.AZURE_TRUSTED_SIGNING_PUBLISHER }}
+        run: node apps/desktop/scripts/prepare-release.mjs
 
       # Workspace packages (shared-types, core-ai, …) built BEFORE the app: package:win links
       # against their dist output, and a stale one is a wrong build that still succeeds.
       - run: pnpm -r --filter=!@fixora/desktop build
 
-      # package:win, not build: `build` only compiles to out/ — the .exe under release/ needs the
-      # full electron-builder pass. --publish is deliberately omitted here so this step cannot also
-      # create a release; the upload step below is the one place that happens.
-      - run: pnpm --filter @fixora/desktop package:win
-        env:
-          ELECTRON_BUILDER_SKIP_PUBLISH: 'true'
+      - name: Clear stale release staging artifacts
+        shell: pwsh
+        run: |
+          $releaseDirectory = Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/release'
+          if (Test-Path -LiteralPath $releaseDirectory) {
+            Get-ChildItem -LiteralPath $releaseDirectory -Force | Remove-Item -Recurse -Force
+          }
 
-      - run: dir apps\desktop\release
+      # Signed builds use the production overlay (SHA-256/RFC3161); unsigned builds use the
+      # standard builder config. Both keep publishing disabled until artifact validation completes.
+      - name: Build and sign Windows artifacts
+        if: steps.release-preflight.outputs.signing == 'signed'
+        run: pnpm --filter @fixora/desktop package:win:release
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ vars.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ vars.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_PROFILE: ${{ vars.AZURE_TRUSTED_SIGNING_PROFILE }}
+          AZURE_TRUSTED_SIGNING_PUBLISHER: ${{ vars.AZURE_TRUSTED_SIGNING_PUBLISHER }}
+
+      - name: Build unsigned Windows artifacts
+        if: steps.release-preflight.outputs.signing == 'unsigned'
+        run: |
+          Write-Host 'Signing configuration is absent; this release will ship unsigned Windows binaries.'
+          pnpm --filter @fixora/desktop package:win
+
+      - name: Verify signatures and release versions
+        shell: pwsh
+        env:
+          RELEASE_SIGNING_MODE: ${{ steps.release-preflight.outputs.signing }}
+          AZURE_TRUSTED_SIGNING_PUBLISHER: ${{ vars.AZURE_TRUSTED_SIGNING_PUBLISHER }}
+          EXPECTED_RELEASE_VERSION: ${{ steps.release-preflight.outputs.version }}
+        run: ./apps/desktop/scripts/verify-release-signatures.ps1
 
       - name: Build VS Code extension .vsix
         shell: bash
@@ -52,27 +89,39 @@ jobs:
           npx tsc
           vsce package
 
-      - name: Generate release notes from git log
+      - name: Prepare release notes
         shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${{ github.ref_name }}$" | head -n1 || echo "")
-          if [ -z "$PREV_TAG" ]; then
-            RANGE="${{ github.ref_name }}"
+          if [ "$RELEASE_TAG" = "v1.2.26" ]; then
+            cp RELEASE_NOTES_v1.2.26.md RELEASE_NOTES.md
           else
-            RANGE="$PREV_TAG..${{ github.ref_name }}"
+            PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${RELEASE_TAG}$" | head -n1 || echo "")
+            if [ -z "$PREV_TAG" ]; then
+              RANGE="$RELEASE_TAG"
+            else
+              RANGE="$PREV_TAG..$RELEASE_TAG"
+            fi
+            git log "$RANGE" --pretty=format:'%s' \
+              | grep -viE '^(chore|merge)' \
+              | sed 's/^/- /' > RELEASE_NOTES.md
+            if [ ! -s RELEASE_NOTES.md ]; then
+              echo "- No notable changes." > RELEASE_NOTES.md
+            fi
           fi
-          git log "$RANGE" --pretty=format:'%s' \
-            | grep -viE '^(chore|merge)' \
-            | sed 's/^/- /' > RELEASE_NOTES.md
-          if [ ! -s RELEASE_NOTES.md ]; then
-            echo "- No notable changes." > RELEASE_NOTES.md
-          fi
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: ./apps/desktop/scripts/write-release-checksums.ps1
 
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             apps/desktop/release/*.exe
             apps/desktop/release/latest.yml
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/SHA256SUMS.txt
             packages/vscode-extension/*.vsix
           body_path: RELEASE_NOTES.md
           draft: false

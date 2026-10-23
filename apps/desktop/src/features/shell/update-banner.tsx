@@ -23,7 +23,14 @@ export function UpdateBanner(): React.JSX.Element | null {
       <span className="shrink-0 text-xs font-medium text-accent">Downloading update...</span>
 
       {/* Progress bar */}
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-border-subtle">
+      <div
+        role="progressbar"
+        aria-label="Update download progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(downloadProgress ?? 0)}
+        className="h-1.5 flex-1 overflow-hidden rounded-full bg-border-subtle"
+      >
         <div
           className="h-full rounded-full bg-accent transition-all duration-300 ease-out"
           style={{ width: `${String(downloadProgress ?? 0)}%` }}

@@ -25,9 +25,10 @@ describe('UpdateBanner', () => {
 
   it('shows a progress bar and percentage while available', () => {
     useUpdateStore.setState({ update: { status: 'available', version: '1.2.0' }, downloadProgress: 42 });
-    const { container } = render(<UpdateBanner />);
-    const bar = container.querySelector<HTMLDivElement>('div > div > div');
-    expect(bar?.style.width).toBe('42%');
+    render(<UpdateBanner />);
+    const bar = screen.getByRole('progressbar', { name: 'Update download progress' });
+    expect(bar.getAttribute('aria-valuenow')).toBe('42');
+    expect(bar.querySelector('div')?.getAttribute('style')).toContain('width: 42%');
     expect(screen.getByText('42%')).toBeTruthy();
   });
 

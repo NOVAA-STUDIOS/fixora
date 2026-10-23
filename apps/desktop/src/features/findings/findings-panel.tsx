@@ -949,7 +949,7 @@ const FindingRow = memo(function FindingRow({
         // iOS Premium: a rounded card with its own subtle border, not a full-bleed row — mx-1.5
         // insets it from the panel edges the same way the sidebar's active pill does, so the two
         // read as the same design language.
-        'group/row mx-1.5 my-0.5 flex min-w-0 flex-col rounded-xl border border-white/[0.06]',
+        'group/row mx-1.5 my-0.5 flex min-w-0 flex-col rounded-xl border border-border-subtle',
         // Severity accent on the left edge, not a dot inside it — one signal instead of two.
         // Security overrides it to the danger token regardless of the finding's own severity — a
         // security *warning* still reads as more urgent than a correctness *warning* does.
@@ -967,7 +967,7 @@ const FindingRow = memo(function FindingRow({
         'transition-[background-color,box-shadow,border-color,transform] duration-(--fx-motion-duration-fast) ease-(--ease-entrance)',
         'hover:translate-x-0.5',
         !isSelected &&
-          (finding.category === 'security' ? 'hover:bg-danger-subtle' : 'hover:bg-white/[0.04]'),
+          (finding.category === 'security' ? 'hover:bg-danger-subtle' : 'hover:bg-hover'),
         // The selected row is what the details pane is describing — say so, with a bar rather than a
         // fill, so the severity colours stay the loudest thing in the list.
         isSelected && 'bg-hover shadow-[inset_2px_0_0_0_var(--fx-color-accent)]',
@@ -1287,7 +1287,7 @@ function Centered({
   tone?: 'neutral' | 'success';
 }): React.JSX.Element {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+    <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 p-4 text-center sm:p-6">
       {icon !== undefined && (
         <span
           className={cn(
@@ -1302,7 +1302,7 @@ function Centered({
       )}
       <div className="flex flex-col gap-1">
         <p className="text-[15px] font-semibold text-fg">{title}</p>
-        <p className="max-w-[220px] text-[13px] leading-relaxed text-fg-muted">{body}</p>
+        <p className="max-w-[220px] text-[13px] leading-relaxed text-fg-muted [overflow-wrap:anywhere]">{body}</p>
       </div>
       {action !== undefined && <div className="mt-0.5">{action}</div>}
     </div>

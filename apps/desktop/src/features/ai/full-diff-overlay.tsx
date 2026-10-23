@@ -43,7 +43,7 @@ export function FullDiffOverlay(): React.JSX.Element | null {
       role="dialog"
       aria-modal="true"
       aria-label="Full diff"
-      className="fixed inset-0 z-50 flex flex-col bg-canvas/80 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex flex-col bg-canvas/90 p-6"
       onClick={close}
     >
       <div

@@ -1,10 +1,8 @@
-import { UserFacingError } from '@fixora/shared-types';
+import { isValidProjectName, UserFacingError } from '@fixora/shared-types';
 
 import { createProject } from '../../services/project-service.js';
 import type { WorkspaceService } from '../../services/workspace-service.js';
 import { registerHandler } from '../router.js';
-
-const VALID_NAME = /^[a-zA-Z0-9._-]+$/;
 
 export function registerProjectHandlers(workspace: WorkspaceService): void {
   registerHandler('project:create', async ({ parentDir, name, templateId }) => {
@@ -14,9 +12,9 @@ export function registerProjectHandlers(workspace: WorkspaceService): void {
         { code: 'unauthorized_path', action: { type: 'none', label: 'Dismiss' }, stage: 'workspace' },
       );
     }
-    if (!VALID_NAME.test(name)) {
+    if (!isValidProjectName(name)) {
       throw new UserFacingError(
-        'Project name may only contain letters, numbers, dots, dashes and underscores.',
+        'Project name must be 1–64 letters, numbers, dots, dashes, or underscores, without paths or consecutive dots.',
         { code: 'contract_violation', action: { type: 'none', label: 'Dismiss' }, stage: 'workspace' },
       );
     }

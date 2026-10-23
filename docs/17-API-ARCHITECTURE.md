@@ -1,5 +1,10 @@
 # Fixora — API Architecture
 
+> **Historical proposed Fixora gateway architecture.** No FastAPI service is deployed by this
+> repository. The implemented web endpoint is Next.js `apps/web/app/api/zappr/`; see
+> [the web README](../apps/web/README.md). Do not treat the gateway/billing sections below as current
+> runtime behavior.
+
 **The API is deliberately small.** It is not where the product lives — the product lives on the user's
 machine. The API is an authenticated, metered, stateless gateway plus a billing and release surface.
 

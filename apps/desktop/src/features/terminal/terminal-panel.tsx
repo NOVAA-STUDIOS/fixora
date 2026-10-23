@@ -2,6 +2,7 @@ import '@xterm/xterm/css/xterm.css';
 
 import {
   ChevronDownIcon,
+  FolderIcon,
   PlusIcon,
   SearchIcon,
   TerminalIcon,
@@ -99,6 +100,7 @@ function xtermTheme(appearance: 'dark' | 'light'): ITheme {
  */
 export function TerminalPanel(): React.JSX.Element {
   const workspaceId = useWorkspaceStore((s) => s.workspace?.id ?? null);
+  const pickAndOpen = useWorkspaceStore((s) => s.pickAndOpen);
   const isVisible = useUiStore((s) => s.activeView === 'terminal');
   const sessions = useTerminalStore((s) => s.sessions);
   const activeId = useTerminalStore((s) => s.activeId);
@@ -197,7 +199,7 @@ export function TerminalPanel(): React.JSX.Element {
               <div
                 role="menu"
                 aria-label="Available shells"
-                className="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+                className="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border border-border-subtle bg-raised p-1 shadow-lg"
               >
                 {shells.map((shell) => (
                   <button
@@ -220,8 +222,38 @@ export function TerminalPanel(): React.JSX.Element {
       </div>
       <div className="flex min-h-0 flex-1">
         {sessions.length === 0 ? (
-          <div className="flex h-full w-full items-center justify-center text-xs text-fg-muted">
-            No terminal open
+          <div className="flex h-full w-full items-center justify-center p-6">
+            <div className="flex max-w-xs flex-col items-center gap-2.5 text-center">
+              <div className="flex size-10 items-center justify-center rounded-xl border border-border-subtle bg-raised text-fg-muted">
+                <TerminalIcon className="size-5" />
+              </div>
+              <p className="text-sm font-medium text-fg">
+                {workspaceId === null ? 'Open a workspace to use the terminal' : 'No terminal session is open'}
+              </p>
+              {workspaceId !== null && (
+                <>
+                  <p className="text-xs text-fg-muted">Start a shell in the current workspace.</p>
+                  <button
+                    type="button"
+                    onClick={() => { addSession(); }}
+                    className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-on-accent transition-colors duration-150 hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
+                  >
+                    <PlusIcon className="size-3.5" />
+                    Open terminal
+                  </button>
+                </>
+              )}
+              {workspaceId === null && (
+                <button
+                  type="button"
+                  onClick={() => void pickAndOpen()}
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-border-subtle bg-raised px-3 py-1.5 text-xs font-medium text-fg-secondary transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:outline"
+                >
+                  <FolderIcon className="size-3.5" />
+                  Open workspace
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <>
@@ -615,7 +647,7 @@ const TerminalInstance = memo(function TerminalInstance({
           <div
             role="menu"
             style={{ left: contextMenu.x, top: contextMenu.y }}
-            className="fixed z-50 w-36 rounded-md border border-border-subtle bg-canvas p-1 shadow-lg"
+            className="fixed z-50 w-36 rounded-md border border-border-subtle bg-raised p-1 shadow-lg"
           >
             <button
               type="button"

@@ -76,6 +76,27 @@ describe('assertEveryChannelIsHandled', () => {
   });
 });
 
+describe('early readiness routing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('keeps the readiness route mounted when the remaining handlers are mounted later', async () => {
+    vi.resetModules();
+    const electron = await import('electron');
+    const { mountRouter, registerHandler } = await import('../electron/main/ipc/router.js');
+    registerHandler('app:getReadyState', () => ({ ready: false }));
+    registerHandler('system:getAppInfo', () => appInfo);
+
+    mountRouter(['app:getReadyState']);
+    mountRouter();
+
+    const calls = vi.mocked(electron.ipcMain).handle.mock.calls;
+    expect(calls.filter(([channel]) => channel === 'app:getReadyState')).toHaveLength(1);
+    expect(calls.filter(([channel]) => channel === 'system:getAppInfo')).toHaveLength(1);
+  });
+});
+
 type IpcListener = (
   event: unknown,
   raw: unknown,

@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { readOnlyGitArgs, runGitProcess } from './git-process.js';
 
 export type BlameLine = {
   line: number;
@@ -19,20 +19,13 @@ const BLAME_TIMEOUT_MS = 10_000;
  * best-effort.
  */
 export async function gitBlame(root: string, relPath: string): Promise<BlameLine[]> {
-  return new Promise((resolve) => {
-    execFile(
-      'git',
-      ['blame', '--line-porcelain', '--', relPath],
-      { cwd: root, timeout: BLAME_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
-      (error, stdout) => {
-        if (error) {
-          resolve([]);
-          return;
-        }
-        resolve(parsePorcelain(stdout));
-      },
-    );
-  });
+  const result = await runGitProcess(
+    'git',
+    readOnlyGitArgs(['blame', '--no-textconv', '--line-porcelain', '--', relPath]),
+    { cwd: root, timeoutMs: BLAME_TIMEOUT_MS, readOnly: true },
+  );
+  if (result.code !== 0) return [];
+  return parsePorcelain(result.stdout);
 }
 
 function parsePorcelain(output: string): BlameLine[] {

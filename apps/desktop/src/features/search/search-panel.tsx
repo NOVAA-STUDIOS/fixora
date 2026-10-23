@@ -32,6 +32,7 @@ export function SearchPanel(): React.JSX.Element {
   const [fileFilter, setFileFilter] = useState('');
   const [replacement, setReplacement] = useState('');
   const [confirmReplaceAll, setConfirmReplaceAll] = useState(false);
+  const queryInputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<
     | { status: 'idle' }
     | { status: 'searching' }
@@ -96,7 +97,7 @@ export function SearchPanel(): React.JSX.Element {
       aria-label="Search"
       className="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-raised"
     >
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle px-3">
+      <div className="flex h-9 min-w-0 shrink-0 items-center gap-2 overflow-hidden border-b border-border-subtle px-3">
         <button
           type="button"
           onClick={() => {
@@ -104,7 +105,7 @@ export function SearchPanel(): React.JSX.Element {
           }}
           aria-label={replaceOpen ? 'Hide replace' : 'Show replace'}
           aria-expanded={replaceOpen}
-          className="shrink-0 rounded p-0.5 text-fg-muted hover:bg-hover hover:text-fg"
+          className="shrink-0 rounded p-0.5 text-fg-muted hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring focus-visible:outline"
         >
           {replaceOpen ? (
             <ChevronDownIcon className="size-3.5" />
@@ -114,6 +115,7 @@ export function SearchPanel(): React.JSX.Element {
         </button>
         <SearchIcon className="size-3.5 shrink-0 text-fg-muted" />
         <input
+          ref={queryInputRef}
           type="text"
           value={query}
           onChange={(e) => {
@@ -203,7 +205,30 @@ export function SearchPanel(): React.JSX.Element {
         )}
         {state.status === 'searching' && <Centered text="Searching…" />}
         {state.status === 'error' && <Centered text={state.message} isError />}
-        {state.status === 'done' && state.matches.length === 0 && <Centered text="No matches" />}
+        {state.status === 'done' && state.matches.length === 0 && (
+          <div role="status" className="flex h-full min-w-0 flex-col items-center justify-center gap-2.5 p-4 text-center sm:p-6">
+            <span className="flex size-10 items-center justify-center rounded-xl border border-border-subtle bg-inset text-fg-muted">
+              <SearchIcon className="size-4" />
+            </span>
+            <p className="text-sm font-semibold text-fg">No matches</p>
+            <p className="max-w-[240px] text-xs leading-relaxed text-fg-muted">
+              Try another term or adjust the file filter.
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                generation.current += 1;
+                setState({ status: 'idle' });
+                setQuery('');
+                queryInputRef.current?.focus();
+              }}
+              className="mt-0.5"
+            >
+              Clear search
+            </Button>
+          </div>
+        )}
         {state.status === 'done' && state.matches.length > 0 && (
           <VirtualList
             items={state.matches}
@@ -319,7 +344,7 @@ function Centered({ text, isError = false }: { text: string; isError?: boolean }
   return (
     <div
       role={isError ? 'alert' : 'status'}
-      className={`flex h-full items-center justify-center p-6 text-center text-xs ${isError ? 'text-danger-text' : 'text-fg-muted'}`}
+      className={`flex h-full min-w-0 items-center justify-center p-4 text-center text-xs sm:p-6 ${isError ? 'text-danger-text' : 'text-fg-muted'}`}
     >
       {text}
     </div>

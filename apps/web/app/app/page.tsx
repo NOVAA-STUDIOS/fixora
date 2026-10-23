@@ -1,15 +1,12 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import ReactMarkdown, { type Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
-import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
-import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
 import { createTwoFilesPatch } from 'diff'
+import { MarkdownContent, SafeDiffLine } from './markdown-renderer'
+import { createChatExport, createSharePayload, createZapprRequestBody, loadSavedProvider, redactApiKey, redactStreamingApiKey, saveProviderPreference, type WebChatMessage } from './web-session'
 
-type Message = { role: 'user' | 'assistant'; content: string }
+type Message = WebChatMessage
 
 // Web Speech API — not part of TypeScript's standard DOM lib, so declared minimally here.
 interface SpeechRecognitionEvent extends Event {
@@ -33,21 +30,6 @@ declare global {
   }
 }
 
-const markdownComponents: Components = {
-  code: ({ className, children }) => {
-    const isBlock = className?.startsWith('language-') === true
-    if (isBlock) {
-      const highlighted = hljs.highlightAuto(String(children)).value
-      return (
-        <pre style={{ background: '#0d1117', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 20px', overflowX: 'auto', fontSize: 13, fontFamily: '"JetBrains Mono", monospace', margin: '12px 0', lineHeight: 1.7 }}>
-          <code dangerouslySetInnerHTML={{ __html: highlighted }} />
-        </pre>
-      )
-    }
-    return <code style={{ background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: 5, fontSize: 12, fontFamily: '"JetBrains Mono", monospace', color: '#a78bfa' }}>{children}</code>
-  },
-}
-
 export default function AppPage() {
   const [apiKey, setApiKey] = useState('')
   const [provider, setProvider] = useState('gemini')
@@ -66,9 +48,7 @@ export default function AppPage() {
   const responseRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const saved = localStorage.getItem('fixora_api_key')
-    const savedProvider = localStorage.getItem('fixora_provider')
-    if (saved) setApiKey(saved)
+    const savedProvider = loadSavedProvider(localStorage)
     if (savedProvider) setProvider(savedProvider)
 
     const params = new URLSearchParams(window.location.search)
@@ -94,20 +74,14 @@ export default function AppPage() {
   }, [])
 
   const saveSettings = () => {
-    localStorage.setItem('fixora_api_key', apiKey)
-    localStorage.setItem('fixora_provider', provider)
+    saveProviderPreference(localStorage, provider)
     setShowSettings(false)
   }
 
   const exportChat = () => {
     if (messages.length === 0) return
 
-    const md = messages.map(msg => {
-      if (msg.role === 'user') return `## You\n\n${msg.content}\n`
-      return `## Zappr\n\n${msg.content}\n`
-    }).join('\n---\n\n')
-
-    const content = `# Fixora Chat Export\n\n_Exported on ${new Date().toLocaleDateString()}_\n\n---\n\n${md}`
+    const content = createChatExport(messages, new Date().toLocaleDateString(), apiKey)
 
     const blob = new Blob([content], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
@@ -121,11 +95,7 @@ export default function AppPage() {
   const shareChat = async () => {
     if (messages.length === 0) return
 
-    const data = {
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
-      provider,
-      sharedAt: new Date().toISOString(),
-    }
+    const data = createSharePayload(messages, provider, new Date().toISOString(), apiKey)
 
     const encoded = btoa(encodeURIComponent(JSON.stringify(data)))
     const url = `${window.location.origin}/app?share=${encoded}`
@@ -187,8 +157,8 @@ export default function AppPage() {
     if (!prompt.trim()) return
     if (!apiKey) { setShowSettings(true); return }
 
-    const userMessage: Message = { role: 'user', content: prompt + (code ? `\n\n\`\`\`\n${code}\n\`\`\`` : '') }
-    const newMessages = [...messages, userMessage]
+    const userMessage: Message = { role: 'user', content: redactApiKey(prompt + (code ? `\n\n\`\`\`\n${code}\n\`\`\`` : ''), apiKey) }
+    const newMessages = [...messages.map(message => ({ ...message, content: redactApiKey(message.content, apiKey) })), userMessage]
     setMessages(newMessages)
     setPrompt('')
     setCode('')
@@ -199,7 +169,7 @@ export default function AppPage() {
       const res = await fetch('/api/zappr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userMessage.content, messages: newMessages, apiKey, provider })
+        body: JSON.stringify(createZapprRequestBody({ prompt: userMessage.content, messages: newMessages, apiKey, provider }))
       })
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
@@ -210,13 +180,13 @@ export default function AppPage() {
         if (done) break
         const chunk = decoder.decode(value)
         fullText += chunk
-        setStreamingText(fullText)
+        setStreamingText(redactStreamingApiKey(fullText, apiKey))
         if (responseRef.current) responseRef.current.scrollTop = responseRef.current.scrollHeight
       }
-      setMessages(prev => [...prev, { role: 'assistant', content: fullText }])
+      setMessages(prev => [...prev, { role: 'assistant', content: redactApiKey(fullText, apiKey) }])
       setStreamingText('')
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + String(e) }])
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + redactApiKey(String(e), apiKey) }])
       setStreamingText('')
     } finally {
       setLoading(false)
@@ -231,7 +201,7 @@ export default function AppPage() {
       style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: theme === 'dark' ? 'linear-gradient(160deg, #0a0a0f 0%, #080808 50%, #0a080f 100%)' : 'linear-gradient(160deg, #f8f8f8 0%, #ffffff 50%, #f5f5ff 100%)', color: theme === 'dark' ? '#f0f0f0' : '#111', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' }}
     >
       {isDragging && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(124,58,237,0.15)', border: '3px dashed rgba(124,58,237,0.5)', borderRadius: 20, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', pointerEvents: 'none' }}>
+        <div style={{ position: 'fixed', inset: 0, background: theme === 'dark' ? 'color-mix(in srgb, #7c3aed 22%, #080808)' : 'color-mix(in srgb, #7c3aed 12%, #ffffff)', border: '3px dashed rgba(124,58,237,0.5)', borderRadius: 20, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>📂</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#a78bfa' }}>Drop your file here</div>
@@ -311,6 +281,7 @@ export default function AppPage() {
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>API Key</label>
               <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Paste your API key..." style={{ width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#f0f0f0', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+              <div style={{ fontSize: 11, color: '#777', marginTop: 8 }}>API key is kept only for this session and is cleared on refresh.</div>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={saveSettings} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Save</button>
@@ -360,7 +331,7 @@ export default function AppPage() {
                 ) : (
                   <div style={{ fontSize: 14, lineHeight: 1.75, color: '#d0d0d0', animation: 'fadeIn 0.3s ease' }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>Zappr · {provider}</div>
-                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>{msg.content}</ReactMarkdown>
+                    <MarkdownContent>{msg.content}</MarkdownContent>
                     {i === messages.length - 1 && (
                       <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
                         <button onClick={() => navigator.clipboard.writeText(msg.content).catch(() => null)} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, fontSize: 11, color: '#555', cursor: 'pointer' }}>Copy</button>
@@ -393,7 +364,7 @@ export default function AppPage() {
                                 background: line.startsWith('+') ? 'rgba(74,222,128,0.08)' : line.startsWith('-') ? 'rgba(248,113,113,0.08)' : 'transparent',
                                 color: line.startsWith('+') ? '#4ade80' : line.startsWith('-') ? '#f87171' : '#666',
                                 whiteSpace: 'pre',
-                              }}>{line}</div>
+                              }}><SafeDiffLine value={line} /></div>
                             ))}
                           </div>
                         </div>
@@ -411,7 +382,7 @@ export default function AppPage() {
               <img src="/zappr-mascot.png" alt="Zappr" style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'contain', flexShrink: 0 }} />
               <div style={{ flex: 1, fontSize: 14, lineHeight: 1.75, color: '#d0d0d0' }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>Zappr · {provider}</div>
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>{streamingText}</ReactMarkdown>
+                <MarkdownContent>{streamingText}</MarkdownContent>
                 <span style={{ display: 'inline-block', width: 2, height: 14, background: '#7c3aed', borderRadius: 2, marginLeft: 2, animation: 'blink 1s step-end infinite', verticalAlign: 'middle' }} />
               </div>
             </div>

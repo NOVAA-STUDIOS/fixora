@@ -17,7 +17,7 @@ env:
 
 jobs:
   quality:
-    name: Types · Lint · Tests · Boundaries
+    name: Types · Lint · Package Tests · Boundaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +50,8 @@ jobs:
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm test
+      - name: Package tests (desktop runs in parallel shards)
+        run: pnpm exec turbo run test --filter=!@fixora/desktop
 
       # Invariant I1: packages/core-* never import electron or react.
       - name: Architectural boundaries
@@ -68,6 +69,38 @@ jobs:
       # go-vet/mypy/semgrep ones that only ran locally before — is actually scored here.
       - name: Analyzer accuracy
         run: pnpm gate:accuracy
+
+  desktop-tests:
+    name: Desktop tests (${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Vitest's built-in deterministic file sharding partitions the complete desktop test set.
+      # Build the same package dependencies Turbo's test task requires, then invoke Vitest directly
+      # so pnpm/Turbo argument parsing cannot drop or reinterpret the shard selector.
+      - name: Build desktop test dependencies
+        run: pnpm exec turbo run build --filter=@fixora/desktop^...
+
+      - name: Run desktop test shard
+        # Keep each runner's filesystem test load bounded; the four matrix jobs provide parallelism.
+        run: pnpm --filter @fixora/desktop exec vitest run --maxWorkers=1 --shard=${{ matrix.shard }}/4
 
   security:
     name: Electron config · Secrets · Dependencies

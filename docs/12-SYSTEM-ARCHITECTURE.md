@@ -1,5 +1,9 @@
 # Fixora — System Architecture & Diagrams
 
+> **Historical target-state diagrams.** Cloud FastAPI/Neon services and associated flows below are
+> proposals, not deployed components. For the current desktop/web topology, see
+> [01-ARCHITECTURE.md](./01-ARCHITECTURE.md#current-implementation-snapshot).
+
 All diagrams are Mermaid and render in GitHub and VS Code.
 
 ---

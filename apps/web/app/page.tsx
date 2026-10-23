@@ -6,7 +6,7 @@ export default function Home() {
     <main style={{ minHeight: '100vh', background: 'linear-gradient(160deg, #0a0a0f 0%, #080808 60%, #0a080f 100%)', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif', overflowX: 'hidden' }}>
 
       {/* Nav */}
-      <nav style={{ padding: '16px 32px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.04)', position: 'sticky', top: 0, background: 'rgba(8,8,8,0.85)', backdropFilter: 'blur(20px)', zIndex: 10 }}>
+      <nav style={{ padding: '16px 32px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.04)', position: 'sticky', top: 0, background: 'rgba(8,8,8,0.92)', zIndex: 10 }}>
         <img src="/fixora-icon.png" alt="Fixora" style={{ width: 30, height: 30, borderRadius: 9, objectFit: 'cover' }} />
         <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>Fixora</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>

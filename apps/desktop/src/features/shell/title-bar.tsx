@@ -1,6 +1,7 @@
 import {
   Button,
   FileIcon,
+  FixoraMark,
   SidebarLeftIcon,
   SidebarRightIcon,
   SparkleIcon,
@@ -12,6 +13,7 @@ import {
 } from '@fixora/ui';
 
 import { useUiStore, type WorkspaceMode } from '../../stores/ui-store.js';
+import { useWorkspaceStore } from '../workspace/workspace-store.js';
 
 import { useWindowControls } from './use-window-controls.js';
 
@@ -30,6 +32,7 @@ export function TitleBar(): React.JSX.Element {
   const aiPanelVisible = useUiStore((s) => s.aiPanelVisible);
   const togglePrimaryPanel = useUiStore((s) => s.togglePrimaryPanel);
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel);
+  const workspaceName = useWorkspaceStore((s) => s.workspace?.name ?? null);
 
   return (
     <header
@@ -38,10 +41,18 @@ export function TitleBar(): React.JSX.Element {
     >
       <div className="flex min-w-0 items-center gap-4">
         <div className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight text-fg">
-          <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
+          <FixoraMark className="size-5 shrink-0 rounded-md" title="Fixora" />
           Fixora
         </div>
         <ModeSwitcher />
+        {workspaceName !== null && (
+          <span
+            className="hidden max-w-36 truncate border-l border-border-subtle pl-3 text-xs font-medium text-fg-muted lg:block"
+            title={workspaceName}
+          >
+            {workspaceName}
+          </span>
+        )}
         <div className="no-drag-region ml-2 flex items-center gap-0.5">
           <TitleBarButton
             label={primaryPanelVisible ? 'Hide sidebar' : 'Show sidebar'}

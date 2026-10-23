@@ -9,7 +9,17 @@
 // The fix: before packaging, replace that symlink with a dereferenced real copy — just the runtime files
 // (dist, package.json) and the nested WASM deps — so everything asarUnpack touches lives under the app.
 // Idempotent. Run `pnpm install` afterwards to restore the workspace symlink for development.
-import { cpSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 
 const appDir = process.cwd(); // apps/desktop
@@ -50,14 +60,40 @@ function filter(source) {
   const rel = source.slice(real.length + 1);
   if (rel === '') return true;
   const top = rel.split(sep)[0];
+  const segments = rel.split(sep);
+  // Workspace tool configs are not runtime dependencies. Copying nested copies also follows
+  // optional resolver symlinks that may not exist on clean installs.
+  if (
+    segments.some(
+      (segment, index) =>
+        segment === 'node_modules' &&
+        segments[index + 1] === '@fixora' &&
+        ['eslint-config', 'tsconfig'].includes(segments[index + 2] ?? ''),
+    )
+  ) {
+    return false;
+  }
   if (KEEP_OUT.includes(top)) return false;
   if (rel.endsWith('.map') || rel.endsWith('.tsbuildinfo')) return false;
   return true;
 }
 
-rmSync(link, { recursive: true, force: true }); // remove the symlink (not its target)
+const staging = join(dirname(link), '.core-analysis-vendoring-staging');
 mkdirSync(dirname(link), { recursive: true });
-cpSync(real, link, { recursive: true, dereference: true, filter });
+rmSync(staging, { recursive: true, force: true });
+let vendored = false;
+try {
+  cpSync(real, staging, { recursive: true, dereference: true, filter });
+  rmSync(link, { recursive: true, force: true }); // remove the symlink (not its target)
+  renameSync(staging, link);
+  vendored = true;
+  writeFileSync(join(appDir, 'node_modules', '.fixora-vendored-core-analysis'), real, 'utf8');
+} catch (error) {
+  rmSync(staging, { recursive: true, force: true });
+  if (vendored) rmSync(link, { recursive: true, force: true });
+  if (!existsSync(link)) symlinkSync(real, link, 'junction');
+  throw error;
+}
 
 console.log(
   `prepackage: vendored @fixora/core-analysis into ${link} (dereferenced, with WASM deps).`,
@@ -72,4 +108,3 @@ console.log(
  * — so the staleness survives indefinitely and is invisible. That is a stale-bundle path, and it is
  * closed by restoring the link immediately after the packer is done with it.
  */
-writeFileSync(join(appDir, 'node_modules', '.fixora-vendored-core-analysis'), real, 'utf8');
